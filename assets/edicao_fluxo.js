@@ -1,0 +1,1416 @@
+(function ($) {
+    const apiUrl = 'api.php';
+    const $flowchart = $('#area-trabalho-fluxograma');
+    let currentFlow = null;
+    let operatorIndex = 1;
+    let fluxoSujo = false;
+    let timerAutoSalvar = null;
+    let intervaloBackup = null;
+    let zoomLevel = 1;
+    let listaGruposUsuario = [];
+    let gatewaySuportaRecorrente = false;
+
+    function carregarGruposUsuario() {
+        return $.getJSON(apiUrl + '?action=listar_grupos_usuario')
+            .done(function(resp) {
+                if (resp.sucesso) {
+                    listaGruposUsuario = resp.grupos || [];
+                }
+            });
+    }
+
+    function carregarGatewayInfo() {
+        return $.getJSON(apiUrl + '?action=gateway_info')
+            .done(function(resp) {
+                if (resp.sucesso) {
+                    gatewaySuportaRecorrente = resp.suporta_recorrente === true;
+                }
+            });
+    }
+
+    function exibirAviso(message, type = 'sucesso') {
+        const $toast = $('#toast');
+        $toast.removeClass('sucesso erro visivel').addClass(type).text(message);
+        requestAnimationFrame(() => $toast.addClass('visivel'));
+        clearTimeout(window.__toastTimeout);
+        window.__toastTimeout = setTimeout(() => $toast.removeClass('visivel'), 3000);
+    }
+    const showToast = exibirAviso;
+
+    function escaparHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+    const escapeHtml = escaparHtml;
+
+    // Ícones SVG para os blocos
+    const blockIcons = {
+        start: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>',
+        message: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>',
+        image: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>',
+        botoes: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>',
+        pix: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>',
+        video: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg>',
+        audio: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>',
+        link: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>',
+        grupo: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>',
+        delay: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>'
+    };
+
+    function defaultChartData() {
+        return {
+            operators: {
+                operator_1: {
+                    top: 400,
+                    left: 400,
+                    properties: {
+                        title: 'Início',
+                        body: 'Primeiro passo do fluxo',
+                        type: 'start',
+                        class: 'no-inicio',
+                        inputs: {},
+                        outputs: {
+                            output_1: { label: 'Próximo' }
+                        }
+                    }
+                }
+            },
+            links: {}
+        };
+    }
+
+    function renderCorpoDoBloco(props) {
+        const tipo = props.type || 'message';
+        function opt(selected) { return selected ? ' selected' : ''; }
+        function chk(checked) { return checked ? ' checked' : ''; }
+        if (tipo === 'start') {
+            return '<div class="bloco-config bloco-inicio">Primeiro passo do fluxo</div>';
+        }
+        if (tipo === 'image') {
+            const caminho = props.image_path || '';
+            const preview = caminho
+                ? '<img class="previa-imagem" src="' + escaparHtml(caminho) + '?t=' + Date.now() + '" alt="Imagem">'
+                : '<div class="sem-imagem">Sem imagem (Clique para adicionar)</div>';
+            return '' +
+                '<div class="bloco-config bloco-imagem">' +
+                '  <div class="area-previa" title="Clique para trocar">' + preview + '</div>' +
+                '  <label>Legenda</label>' +
+                '  <input class="campo-legenda" type="text" value="' + escaparHtml(props.caption || '') + '" placeholder="Digite uma legenda...">' +
+                '  <div class="linha-flex"><input class="campo-spoiler" type="checkbox"' + chk(!!props.spoiler) + '> <label style="margin:0">Spoiler</label></div>' +
+                '  <div class="linha-flex"><input class="campo-auto-deletar" type="checkbox"' + chk(!!props.auto_delete) + '> <label style="margin:0">Auto-deletar</label></div>' +
+                '  <div class="grupo-auto-delete" style="' + (!props.auto_delete ? 'display:none;' : '') + '">' +
+                '    <label>Segundos</label>' +
+                '    <input class="campo-auto-segundos" type="number" min="0" value="' + (props.auto_delete_seconds || 0) + '">' +
+                '  </div>' +
+                '  <input class="campo-imagem-arquivo" type="file" accept="image/*" style="display:none">' +
+                '</div>';
+        }
+        if (tipo === 'video') {
+            const caminho = props.video_path || '';
+            const preview = caminho
+                ? '<video class="previa-video" src="' + escaparHtml(caminho) + '?t=' + Date.now() + '" controls style="width:100%; max-height:100px; object-fit:contain;"></video>'
+                : '<div class="sem-imagem">Sem vídeo (Clique para adicionar)</div>';
+            return '' +
+                '<div class="bloco-config bloco-video">' +
+                '  <div class="area-previa" title="Clique para trocar">' + preview + '</div>' +
+                '  <label>Legenda</label>' +
+                '  <input class="campo-legenda" type="text" value="' + escaparHtml(props.caption || '') + '" placeholder="Digite uma legenda...">' +
+                '  <div class="linha-flex"><input class="campo-spoiler" type="checkbox"' + chk(!!props.spoiler) + '> <label style="margin:0">Spoiler</label></div>' +
+                '  <div class="linha-flex"><input class="campo-auto-deletar" type="checkbox"' + chk(!!props.auto_delete) + '> <label style="margin:0">Auto-deletar</label></div>' +
+                '  <div class="grupo-auto-delete" style="' + (!props.auto_delete ? 'display:none;' : '') + '">' +
+                '    <label>Segundos</label>' +
+                '    <input class="campo-auto-segundos" type="number" min="0" value="' + (props.auto_delete_seconds || 0) + '">' +
+                '  </div>' +
+                '  <input class="campo-video-arquivo" type="file" accept="video/*" style="display:none">' +
+                '</div>';
+        }
+        if (tipo === 'audio') {
+            const caminho = props.audio_path || '';
+            const preview = caminho
+                ? '<audio class="previa-audio" src="' + escaparHtml(caminho) + '?t=' + Date.now() + '" controls style="width:100%;"></audio>'
+                : '<div class="sem-imagem">Sem áudio (Clique para adicionar)</div>';
+            return '' +
+                '<div class="bloco-config bloco-audio">' +
+                '  <div class="area-previa" title="Clique para trocar">' + preview + '</div>' +
+                '  <label>Legenda</label>' +
+                '  <input class="campo-legenda" type="text" value="' + escaparHtml(props.caption || '') + '" placeholder="Digite uma legenda...">' +
+                '  <div class="linha-flex"><input class="campo-auto-deletar" type="checkbox"' + chk(!!props.auto_delete) + '> <label style="margin:0">Auto-deletar</label></div>' +
+                '  <div class="grupo-auto-delete" style="' + (!props.auto_delete ? 'display:none;' : '') + '">' +
+                '    <label>Segundos</label>' +
+                '    <input class="campo-auto-segundos" type="number" min="0" value="' + (props.auto_delete_seconds || 0) + '">' +
+                '  </div>' +
+                '  <input class="campo-audio-arquivo" type="file" accept="audio/*" style="display:none">' +
+                '</div>';
+        }
+        if (tipo === 'botoes') {
+            const lista = (props.botoes || []).map(function (t, i) {
+                return '' +
+                    '<div class="item-botao" data-index="' + i + '">' +
+                    '  <input type="text" class="campo-botao-texto" value="' + escaparHtml(t || '') + '" placeholder="Texto do botão">' +
+                    '  <button type="button" class="remover-botao" title="Remover">✕</button>' +
+                    '</div>';
+            }).join('');
+            return '' +
+                '<div class="bloco-config bloco-botoes">' +
+                '  <label>Texto da mensagem</label>' +
+                '  <textarea class="campo-texto-botoes" rows="2" placeholder="Digite a mensagem...">' + escaparHtml(props.texto || '') + '</textarea>' +
+                '  <label>Botões</label>' +
+                '  <div class="lista-botoes">' + lista + '</div>' +
+                '  <button type="button" class="botao botao-claro btn-adicionar-botao">+ Adicionar botão</button>' +
+                '  <div class="linha-flex"><input type="checkbox" class="campo-sumir-apos-clique"' + chk(!!props.sumir_apos_clique) + '> <label style="margin:0">Sumir após clique</label></div>' +
+                '</div>';
+        }
+        if (tipo === 'pix') {
+            const ehRecorrente = props.tipo_cobranca === 'recorrente';
+            const displayRecorrente = ehRecorrente ? '' : 'display:none;';
+            const displayUnico = !ehRecorrente ? '' : 'display:none;';
+            const periodicidadeSelecionada = props.periodicidade === 'semanal' ? 'mensal' : (props.periodicidade || 'mensal');
+
+            return '' +
+                '<div class="bloco-config bloco-pix">' +
+                '  <div class="campo"><label>Tipo de Cobrança</label>' +
+                '    <select class="campo-pix-tipo-cobranca">' +
+                '      <option value="unica"' + opt(!ehRecorrente) + '>Pagamento Único</option>' +
+                (gatewaySuportaRecorrente ? '      <option value="recorrente"' + opt(ehRecorrente) + '>Assinatura (Recorrente)</option>' : '') +
+                '    </select>' +
+                (!gatewaySuportaRecorrente ? '    <p style="font-size:10px;color:#f59e0b;margin-top:4px;">⚠️ PIX Recorrente disponível apenas para contas PJ. Configure o tipo de conta em <a href="gateways.php" target="_blank">Gateways de Pagamento</a>.</p>' : '') +
+                '  </div>' +
+                '  <div class="campo"><label>Nome do Produto/Plano</label><input type="text" class="campo-pix-nome" value="' + escaparHtml(props.nome || '') + '"></div>' +
+                '  <div class="campo"><label>Valor (R$)</label><input type="number" step="0.01" min="0" class="campo-pix-valor" value="' + (props.valor || 0) + '"></div>' +
+                '  <div class="campo"><label>Expiração do PIX (minutos)</label><input type="number" min="1" class="campo-pix-expiracao-minutos" value="' + (props.expiracao_minutos !== undefined ? props.expiracao_minutos : 15) + '"><p style="font-size:10px; color:#666; margin-top:2px;">Define a validade do código PIX e quando o fluxo segue para "NÃO PAGO".</p></div>' +
+                
+                '  <div class="grupo-recorrente" style="' + displayRecorrente + '">' +
+                '    <div class="grade grade-2 grade-compacta">' +
+                '      <div class="campo"><label>Periodicidade</label>' +
+                '        <select class="campo-pix-periodicidade">' +
+                '          <option value="mensal"' + opt(periodicidadeSelecionada === 'mensal') + '>Mensal</option>' +
+                '          <option value="trimestral"' + opt(periodicidadeSelecionada === 'trimestral') + '>Trimestral</option>' +
+                '          <option value="semestral"' + opt(periodicidadeSelecionada === 'semestral') + '>Semestral</option>' +
+                '          <option value="anual"' + opt(periodicidadeSelecionada === 'anual') + '>Anual</option>' +
+                '        </select>' +
+                '      </div>' +
+                '    </div>' +
+                '  </div>' +
+
+                '  <div class="grupo-unico" style="' + displayUnico + '">' +
+                '      <div class="campo"><label>Tempo de Acesso</label><input type="number" min="1" class="campo-pix-dias-acesso" value="' + (props.dias_acesso || 30) + '"></div>' +
+                '      <div class="campo"><label>Unidade de Tempo</label>' +
+                '        <select class="campo-pix-unidade-acesso">' +
+                '          <option value="dias"' + opt(!props.unidade_acesso || props.unidade_acesso === 'dias') + '>Dias</option>' +
+                '          <option value="horas"' + opt(props.unidade_acesso === 'horas') + '>Horas</option>' +
+                '          <option value="minutos"' + opt(props.unidade_acesso === 'minutos') + '>Minutos</option>' +
+                '        </select>' +
+                '      </div>' +
+                '  </div>' +
+
+                '  <div class="campo"><label>Grupo para Acesso (Opcional)</label>' +
+                '    <select class="campo-pix-id-grupo">' +
+                '      <option value="">Nenhum (Apenas Venda)</option>' +
+                listaGruposUsuario.map(function(g) {
+                    return '<option value="' + escaparHtml(g.id_telegram) + '"' + (g.id_telegram == props.id_grupo ? ' selected' : '') + '>' + escaparHtml(g.titulo) + '</option>';
+                }).join('') +
+                '    </select>' +
+                '    <p style="font-size:10px; color:#666; margin-top:2px;">O bot deve ser admin do grupo para gerar link e remover membros.</p>' +
+                '  </div>' +
+
+                '  <div class="linha-flex"><input type="checkbox" class="campo-pix-mostrar-copiar"' + chk(!!props.mostrar_copiar) + '> <label style="margin:0">Botão Copiar</label></div>' +
+                '  <div class="linha-flex"><input type="checkbox" class="campo-pix-mostrar-qrcode"' + chk(!!props.mostrar_qrcode) + '> <label style="margin:0">Botão QR Code</label></div>' +
+                '  <div class="linha-flex"><input type="checkbox" class="campo-pix-mostrar-confirmar"' + chk(!!props.mostrar_confirmar) + '> <label style="margin:0">Botão Confirmar</label></div>' +
+                '  <label>Instruções</label>' +
+                '  <textarea class="campo-pix-msg-instrucoes" rows="1">' + escaparHtml(props.msg_instrucoes || '') + '</textarea>' +
+                '  <label>Msg Confirmação</label>' +
+                '  <textarea class="campo-pix-msg-confirmado" rows="1">' + escaparHtml(props.msg_confirmado || '') + '</textarea>' +
+                '</div>';
+        }
+        if (tipo === 'delay') {
+            return '' +
+                '<div class="bloco-config bloco-delay">' +
+                '  <div class="campo"><label>Tempo Mínimo</label><input type="number" min="0" class="campo-delay-min" value="' + (props.delay_min || 0) + '"></div>' +
+                '  <div class="campo"><label>Tempo Máximo</label><input type="number" min="0" class="campo-delay-max" value="' + (props.delay_max || 0) + '"></div>' +
+                '  <div class="campo"><label>Unidade de Tempo</label><select class="campo-delay-unidade">' +
+                '    <option value="seg"' + opt((props.delay_unidade || 'seg') === 'seg') + '>Segundos</option>' +
+                '    <option value="min"' + opt((props.delay_unidade || '') === 'min') + '>Minutos</option>' +
+                '  </select></div>' +
+                '  <div class="linha-flex"><input type="checkbox" class="campo-delay-digitando"' + chk(!!props.delay_digitando) + '> <label style="margin:0">Mostrar "digitando..."</label></div>' +
+                '</div>';
+        }
+        if (tipo === 'link') {
+            return '' +
+                '<div class="bloco-config bloco-link">' +
+                '  <div class="campo"><label>Destino da Entrega</label>' +
+                '    <select class="campo-link-destino" disabled>' +
+                '      <option value="externo" selected>Link Externo</option>' +
+                '    </select>' +
+                '  </div>' +
+                '  <label>URL</label>' +
+                '  <input class="campo-link-url" type="text" value="' + escaparHtml(props.url || '') + '" placeholder="https://...">' +
+                '  <label>Texto do Botão</label>' +
+                '  <input class="campo-link-texto" type="text" value="' + escaparHtml(props.texto_botao || '') + '" placeholder="Acessar">' +
+                '</div>';
+        }
+        if (tipo === 'grupo') {
+            const opcoes = listaGruposUsuario.map(function(g) {
+                const sel = (g.id_telegram == props.id_grupo) ? ' selected' : '';
+                return '<option value="' + escaparHtml(g.id_telegram) + '"' + sel + '>' + escaparHtml(g.titulo) + ' (@' + escaparHtml(g.nome_bot) + ')</option>';
+            }).join('');
+            
+            return '' +
+                '<div class="bloco-config bloco-grupo">' +
+                '  <label>Selecione um grupo</label>' +
+                '  <select class="campo-grupo-id">' +
+                '    <option value="">Selecione...</option>' +
+                opcoes +
+                '  </select>' +
+                '  <p style="font-size:10px; color:#666; margin-top:4px;">Se o grupo não aparecer, adicione o bot ao grupo novamente.</p>' +
+                '  <label>Texto do Botão</label>' +
+                '  <input class="campo-grupo-texto" type="text" value="' + escaparHtml(props.texto_botao || '') + '" placeholder="Entrar no Grupo">' +
+                '</div>';
+        }
+        // mensagem, pergunta e ação compartilham editor simples
+        const conteudo = props.conteudo != null ? props.conteudo : (props.body || '');
+        return '' +
+            '<div class="bloco-config">' +
+            '  <label>Texto da mensagem</label>' +
+            '  <textarea class="campo-conteudo" rows="4" placeholder="Digite aqui...">' + escaparHtml(conteudo || '') + '</textarea>' +
+            '</div>';
+    }
+
+    function initChart() {
+        $flowchart.flowchart({
+            data: defaultChartData(),
+            grid: 0,
+            multipleLinksOnInput: true,
+            multipleLinksOnOutput: false,
+            canUserMoveOperators: true,
+            canUserEditLinks: true,
+            onOperatorCreate: function (operatorId, operatorData, fullElement) {
+                // Mapeamento de tipos para classes do CSS (garantia para fluxos antigos)
+                const tipo = operatorData.properties.type || 'message';
+                const mapaClasses = {
+                    'start': 'no-inicio',
+                    'message': 'no-mensagem',
+                    'image': 'no-imagem',
+                    'video': 'no-video',
+                    'audio': 'no-audio',
+                    'botoes': 'no-botoes',
+                    'pix': 'no-pix',
+                    'delay': 'no-delay',
+                    'link': 'no-link',
+                    'grupo': 'no-grupo'
+                };
+                const classeExtra = mapaClasses[tipo] || 'no-mensagem';
+                fullElement.operator.addClass(classeExtra);
+
+                // Injeta o ícone e o botão de fechar no título
+                const $title = fullElement.title;
+                const iconeSvg = blockIcons[tipo] || blockIcons['message'];
+                
+                // Limpa conteúdo atual do título para reconstruir com ícone e botão
+                const tituloTexto = operatorData.properties.title || 'Sem título';
+                $title.empty();
+                
+                // Cria estrutura flex para o título
+                $title.css({
+                    'display': 'flex',
+                    'align-items': 'center',
+                    'justify-content': 'space-between',
+                    'gap': '8px'
+                });
+
+                // Ícone e Texto
+                const $esquerda = $('<div style="display:flex; align-items:center; gap:8px; overflow:hidden;"></div>');
+                $esquerda.append(`<span class="icone-bloco" style="display:flex; align-items:center;">${iconeSvg}</span>`);
+                $esquerda.append(`<span class="texto-titulo" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escaparHtml(tituloTexto)}</span>`);
+                $title.append($esquerda);
+
+                // Botão Excluir (se não for início)
+                if (tipo !== 'start') {
+                    const $btnExcluir = $('<button type="button" class="btn-excluir" title="Excluir">✕</button>');
+                    $title.append($btnExcluir);
+                }
+
+                return true;
+            },
+            onOperatorSelect: function (operatorId) {
+                fillOperatorForm(operatorId);
+                return true;
+            },
+            onOperatorUnselect: function () {
+                clearOperatorForm();
+                return true;
+            },
+            onLinkSelect: function (linkId) {
+                // Mostra botão de excluir link
+                $('#btn-excluir-link').show().data('link-id', linkId);
+                return true;
+            },
+            onLinkUnselect: function () {
+                // Esconde botão
+                $('#btn-excluir-link').hide();
+                return true;
+            },
+            onAfterChange: function (tipo_mudanca) {
+                syncOperatorIndex();
+                if (tipo_mudanca === 'operator_delete') {
+                    atualizaFluxo(true);
+                } else {
+                    agendarAutoSalvar();
+                }
+            }
+        });
+        syncOperatorIndex();
+    }
+
+    function getChartData() {
+        return $flowchart.flowchart('getData');
+    }
+
+    function setChartData(data) {
+        const d = data || defaultChartData();
+        const ops = d.operators || {};
+        const links = d.links || {};
+
+        // Migração de dados e renderização do corpo
+        Object.keys(ops).forEach(function (id) {
+            const props = ops[id].properties || {};
+            
+            // Migração PIX: output_1 -> output_pago + output_nao_pago
+            if (props.type === 'pix') {
+                props.outputs = props.outputs || {};
+                
+                // Se ainda usa o modelo antigo (output_1) ou não tem os novos
+                if (!props.outputs.output_pago || props.outputs.output_1) {
+                    // Cria novos outputs
+                    props.outputs.output_pago = { label: 'PAGO' };
+                    props.outputs.output_nao_pago = { label: 'NÃO PAGO' };
+                    
+                    // Migra conexões existentes de output_1 para output_pago
+                    if (props.outputs.output_1) {
+                        Object.keys(links).forEach(function(linkId) {
+                            if (links[linkId].fromOperator === id && links[linkId].fromConnector === 'output_1') {
+                                links[linkId].fromConnector = 'output_pago';
+                            }
+                        });
+                        // Remove output antigo
+                        delete props.outputs.output_1;
+                    }
+                }
+            }
+
+            // Garante que o body seja renderizado com o novo HTML
+            props.body = renderCorpoDoBloco(props);
+            ops[id].properties = props;
+        });
+        
+        $flowchart.flowchart('setData', d);
+        syncOperatorIndex();
+        agendarAutoSalvar();
+    }
+
+    // X para apagar conexão ao passar o mouse
+    const $btnDeleteLink = $('<div class="btn-delete-link-hover">✕</div>').appendTo('body');
+    $btnDeleteLink.css({
+        'display': 'none',
+        'position': 'absolute',
+        'z-index': '9999',
+        'background': '#ff4444',
+        'color': 'white',
+        'width': '20px',
+        'height': '20px',
+        'border-radius': '50%',
+        'text-align': 'center',
+        'line-height': '20px',
+        'font-size': '12px',
+        'cursor': 'pointer',
+        'box-shadow': '0 2px 4px rgba(0,0,0,0.2)',
+        'pointer-events': 'auto'
+    });
+
+    let currentLinkHover = null;
+    let hideTimeout = null;
+
+    $(document).on('mouseenter', '.flowchart-link', function(e) {
+        currentLinkHover = $(this).data('link_id');
+        clearTimeout(hideTimeout);
+        // Posiciona o X próximo ao cursor
+        $btnDeleteLink.css({
+            top: e.pageY - 20,
+            left: e.pageX + 10
+        }).show();
+    });
+
+    $(document).on('mousemove', '.flowchart-link', function(e) {
+        if (!$btnDeleteLink.is(':hover')) {
+            $btnDeleteLink.css({
+                top: e.pageY - 20,
+                left: e.pageX + 10
+            });
+        }
+    });
+
+    $(document).on('mouseleave', '.flowchart-link', function() {
+        hideTimeout = setTimeout(function() {
+            if (!$btnDeleteLink.is(':hover')) {
+                $btnDeleteLink.hide();
+            }
+        }, 100);
+    });
+
+    $btnDeleteLink.on('mouseenter', function() {
+        clearTimeout(hideTimeout);
+    });
+
+    $btnDeleteLink.on('mouseleave', function() {
+        $(this).hide();
+    });
+
+    $btnDeleteLink.on('click', function(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        if (currentLinkHover != null) {
+            $flowchart.flowchart('deleteLink', currentLinkHover);
+            atualizaFluxo(true);
+            $btnDeleteLink.hide();
+        }
+    });
+
+    // Atalho de teclado para excluir
+    $(document).keydown(function(e) {
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+            if ($(e.target).is('input, textarea')) return;
+            const linkId = $flowchart.flowchart('getSelectedLinkId');
+            if (linkId) {
+                e.preventDefault();
+                $flowchart.flowchart('deleteLink', linkId);
+                atualizaFluxo(true);
+                $btnDeleteLink.hide();
+            }
+        }
+    });
+
+    function syncOperatorIndex() {
+        const data = getChartData();
+        const ids = Object.keys(data.operators || {});
+        let max = 0;
+        ids.forEach(function (id) {
+            const match = id.match(/(\d+)$/);
+            if (match) {
+                max = Math.max(max, parseInt(match[1], 10));
+            }
+        });
+        operatorIndex = max + 1;
+    }
+
+    function nodeTemplate(type) {
+        const base = {
+            top: 80 + (operatorIndex * 20),
+            left: 80 + (operatorIndex * 20),
+            properties: {
+                title: 'Novo bloco',
+                body: 'Conteúdo do bloco',
+                type: type,
+                inputs: {
+                    input_1: { label: 'Entrada' }
+                },
+                outputs: {
+                    output_1: { label: 'Saída' }
+                },
+                class: 'no-mensagem'
+            }
+        };
+
+        if (type === 'start') {
+            base.properties.title = 'Início';
+            base.properties.body = 'Primeiro passo do fluxo';
+            base.properties.inputs = {};
+            base.properties.outputs = { output_1: { label: 'Próximo' } };
+            base.properties.class = 'no-inicio';
+        }
+
+        if (type === 'message') {
+            base.properties.title = 'Mensagem';
+            base.properties.conteudo = '';
+            base.properties.class = 'no-mensagem';
+        }
+
+        if (type === 'image') {
+            base.properties.title = 'Imagem';
+            base.properties.class = 'no-imagem';
+            base.properties.image_path = '';
+            base.properties.caption = '';
+            base.properties.mode = 'foto';
+            base.properties.spoiler = false;
+            base.properties.auto_delete = false;
+            base.properties.auto_delete_seconds = 0;
+        }
+        if (type === 'video') {
+            base.properties.title = 'Vídeo';
+            base.properties.class = 'no-video';
+            base.properties.video_path = '';
+            base.properties.caption = '';
+            base.properties.spoiler = false;
+            base.properties.auto_delete = false;
+            base.properties.auto_delete_seconds = 0;
+        }
+        if (type === 'audio') {
+            base.properties.title = 'Áudio';
+            base.properties.class = 'no-audio';
+            base.properties.audio_path = '';
+            base.properties.caption = '';
+            base.properties.auto_delete = false;
+            base.properties.auto_delete_seconds = 0;
+        }
+        if (type === 'botoes') {
+            base.properties.title = 'Botões';
+            base.properties.class = 'no-botoes';
+            base.properties.texto = 'Escolha uma opção:';
+            base.properties.botoes = ['Opção 1', 'Opção 2'];
+            base.properties.sumir_apos_clique = false;
+            // Cria outputs iniciais baseados nos botões padrão
+            base.properties.outputs = {};
+            base.properties.botoes.forEach((btn, idx) => {
+                base.properties.outputs['output_' + idx] = { label: btn };
+            });
+        }
+        if (type === 'pix') {
+            base.properties.title = 'PIX';
+            base.properties.class = 'no-pix';
+            base.properties.nome = 'Produto';
+            base.properties.valor = 10.00;
+            base.properties.tipo_cobranca = 'unica'; // unica, recorrente
+            base.properties.periodicidade = 'mensal'; // mensal, trimestral, semestral, anual.
+            base.properties.expiracao_minutos = 15;
+            base.properties.mostrar_copiar = true;
+            base.properties.mostrar_qrcode = true;
+            base.properties.mostrar_confirmar = true;
+            base.properties.msg_instrucoes = 'Copie e pague.';
+            base.properties.msg_confirmado = 'Recebido!';
+            base.properties.outputs = {
+                output_pago: { label: 'PAGO' },
+                output_nao_pago: { label: 'NÃO PAGO' }
+            };
+        }
+        if (type === 'delay') {
+            base.properties.title = 'Delay';
+            base.properties.class = 'no-delay';
+            base.properties.delay_min = 1;
+            base.properties.delay_max = 2;
+            base.properties.delay_unidade = 'seg';
+            base.properties.delay_digitando = true;
+        }
+        if (type === 'link') {
+            base.properties.title = 'Entrega';
+            base.properties.class = 'no-link';
+            base.properties.url = '';
+            base.properties.texto_botao = 'Acessar';
+        }
+        if (type === 'grupo') {
+            base.properties.title = 'Grupo';
+            base.properties.class = 'no-grupo';
+            base.properties.id_grupo = '';
+            base.properties.texto_botao = 'Entrar no Grupo';
+        }
+
+        base.properties.body = renderCorpoDoBloco(base.properties);
+        return base;
+    }
+
+    function addNode(type, position) {
+        const id = 'operator_' + operatorIndex;
+        const template = nodeTemplate(type);
+        
+        if (position) {
+            template.left = position.left;
+            template.top = position.top;
+        }
+        
+        $flowchart.flowchart('createOperator', id, template);
+        $flowchart.flowchart('selectOperator', id);
+        syncOperatorIndex();
+        agendarAutoSalvar();
+    }
+
+    function fillOperatorForm(operatorId) {
+        // Form lateral removido/escondido na nova UI focada nos blocos
+        // Mantido vazio para compatibilidade se reativar a barra lateral
+    }
+
+    function clearOperatorForm() {
+        // ...
+    }
+
+    function centralizarVisao() {
+        // Tenta achar o bloco Início ou o primeiro que encontrar
+        const data = getChartData();
+        if (!data || !data.operators) return;
+        
+        let targetOp = data.operators['operator_1'];
+        if (!targetOp) {
+            const keys = Object.keys(data.operators);
+            if (keys.length > 0) targetOp = data.operators[keys[0]];
+        }
+        
+        if (targetOp) {
+            const $wrapper = $('.conteiner-fluxo');
+            const wrapperWidth = $wrapper.width() || 800;
+            const wrapperHeight = $wrapper.height() || 600;
+            
+            // Centraliza: Posição do bloco - metade da tela
+            // Assumindo bloco ~250px largura, 100px altura
+            const sLeft = (targetOp.left * zoomLevel) - (wrapperWidth / 2) + 125;
+            const sTop = (targetOp.top * zoomLevel) - (wrapperHeight / 2) + 50;
+            
+            $wrapper.animate({
+                scrollLeft: Math.max(0, sLeft),
+                scrollTop: Math.max(0, sTop)
+            }, 500);
+        }
+    }
+
+    function newFlow() {
+        currentFlow = null;
+        $('#id-fluxo').val('');
+        $('#nome-fluxo').val('Novo fluxo');
+        $('#descricao-fluxo').val('');
+        setChartData(defaultChartData());
+        if (window.history.pushState) {
+            const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+            window.history.pushState({path:newUrl},'',newUrl);
+        }
+        setTimeout(centralizarVisao, 100);
+    }
+
+    function openFlow(id) {
+        $.getJSON(apiUrl + '?action=obter_fluxo&id=' + encodeURIComponent(id))
+            .done(function (response) {
+                if (!response.sucesso) {
+                    showToast(response.mensagem || 'Fluxo não encontrado.', 'erro');
+                    return;
+                }
+
+                currentFlow = response.fluxo;
+                $('#id-fluxo').val(currentFlow.id || '');
+                $('#nome-fluxo').val(currentFlow.nome || '');
+                $('#descricao-fluxo').val(currentFlow.descricao || '');
+                
+                if (window.history.pushState) {
+                    const newUrl = window.location.pathname + '?id=' + currentFlow.id;
+                    window.history.pushState({path:newUrl},'',newUrl);
+                }
+
+                setChartData(currentFlow.dados_fluxograma || defaultChartData());
+                setTimeout(centralizarVisao, 100);
+            })
+            .fail(function () {
+                showToast('Não foi possível abrir o fluxo.', 'erro');
+            });
+    }
+
+    function fluxogramaJsonParaBase64Utf8(obj) {
+        const json = JSON.stringify(obj);
+        const bytes = new TextEncoder().encode(json);
+        let bin = '';
+        for (let i = 0; i < bytes.length; i++) {
+            bin += String.fromCharCode(bytes[i]);
+        }
+        return btoa(bin);
+    }
+
+    function atualizaFluxo(silencioso) {
+        const dados_fluxo = {
+            id: $('#id-fluxo').val(),
+            nome: $('#nome-fluxo').val().trim() || 'Novo fluxo',
+            descricao: $('#descricao-fluxo').val().trim(),
+            dados_fluxograma_b64: fluxogramaJsonParaBase64Utf8(getChartData())
+        };
+
+        $.ajax({
+            url: apiUrl + '?action=salvar_fluxo',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(dados_fluxo)
+        }).done(function (response) {
+            if (!response.sucesso) {
+                showToast(response.mensagem || 'Erro ao salvar fluxo.', 'erro');
+                return;
+            }
+            currentFlow = response.fluxo;
+            $('#id-fluxo').val(currentFlow.id || '');
+            fluxoSujo = false;
+            if (!silencioso) {
+                showToast(response.mensagem || 'Fluxo salvo com sucesso.');
+            }
+            
+            // Atualiza URL se for novo
+            if (!dados_fluxo.id && response.fluxo && response.fluxo.id) {
+                const newUrl = window.location.pathname + '?id=' + response.fluxo.id;
+                window.history.pushState({path:newUrl},'',newUrl);
+            }
+        }).fail(function (xhr) {
+            let msg = (xhr.responseJSON && xhr.responseJSON.mensagem) || '';
+            if (!msg && xhr.status === 403) {
+                msg = 'Servidor recusou o salvamento (403). Firewall da hospedagem pode estar bloqueando; tente de novo após atualizar os arquivos ou peça liberação em api.php.';
+            }
+            showToast(msg || 'Erro ao salvar fluxo.', 'erro');
+        });
+    }
+
+    function deleteFlow() {
+        const id = $('#id-fluxo').val();
+        if (!id) {
+            showToast('Salve o fluxo antes de excluir.', 'erro');
+            return;
+        }
+
+        if (!window.confirm('Deseja excluir este fluxo?')) {
+            return;
+        }
+
+        $.ajax({
+            url: apiUrl + '?action=excluir_fluxo',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ id: id })
+        }).done(function (response) {
+            if (!response.sucesso) {
+                showToast(response.mensagem || 'Erro ao excluir fluxo.', 'erro');
+                return;
+            }
+            // Redireciona para a lista
+            window.location.href = 'fluxos.php';
+        }).fail(function (xhr) {
+            showToast((xhr.responseJSON && xhr.responseJSON.mensagem) || 'Erro ao excluir fluxo.', 'erro');
+        });
+    }
+
+    $(document).off('click', '.adicionar-no'); // Remove clique direto para adicionar
+    // $(document).off('click', '.adicionar-no').on('click', '.adicionar-no', function () {
+    //    addNode($(this).data('node-type'));
+    // });
+
+    // Zoom
+    function setZoom(scale) {
+        zoomLevel = Math.min(Math.max(0.2, scale), 3); // Limites 20% a 300%
+        $flowchart.css({
+            'transform': `scale(${zoomLevel})`,
+            'transform-origin': '0 0'
+        });
+        $flowchart.flowchart('setPositionRatio', zoomLevel);
+        $('#btn-zoom-reset').text(Math.round(zoomLevel * 100) + '%');
+    }
+
+    // Zoom com a roda do mouse (Ctrl + Wheel)
+    const containerFluxo = document.querySelector('.conteiner-fluxo');
+    if (containerFluxo) {
+        containerFluxo.addEventListener('wheel', function(e) {
+            if (e.ctrlKey) {
+                e.preventDefault();
+                const delta = e.deltaY;
+                const step = 0.1;
+                if (delta > 0) {
+                    setZoom(zoomLevel - step);
+                } else {
+                    setZoom(zoomLevel + step);
+                }
+            }
+        }, { passive: false });
+    }
+
+    $(document).off('click', '#btn-zoom-in').on('click', '#btn-zoom-in', function() { setZoom(zoomLevel + 0.1); });
+    $(document).off('click', '#btn-zoom-out').on('click', '#btn-zoom-out', function() { setZoom(zoomLevel - 0.1); });
+    $(document).off('click', '#btn-zoom-reset').on('click', '#btn-zoom-reset', function() { setZoom(1); });
+
+    $('#btn-salvar-fluxo').on('click', function () { atualizaFluxo(false); });
+    $('#btn-excluir-fluxo').on('click', deleteFlow);
+    $('#btn-exportar-fluxo').on('click', function () {
+        const id = $('#id-fluxo').val();
+        if (!id) {
+            showToast('Salve o fluxo antes de exportar.', 'erro');
+            return;
+        }
+        $.getJSON(apiUrl + '?action=exportar_fluxo&id=' + encodeURIComponent(id))
+            .done(function(resp) {
+                if (!resp.sucesso || !resp.fluxo) {
+                    showToast(resp.mensagem || 'Erro ao exportar fluxo.', 'erro');
+                    return;
+                }
+                const conteudo = JSON.stringify(resp.fluxo, null, 2);
+                const blob = new Blob([conteudo], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'fluxo_' + id + '.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast('Fluxo exportado.');
+            })
+            .fail(function() {
+                showToast('Falha ao exportar fluxo.', 'erro');
+            });
+    });
+    $('#btn-importar-fluxo').on('click', function () {
+        $('#arquivo-importar-fluxo').click();
+    });
+    $('#arquivo-importar-fluxo').on('change', function (e) {
+        const arquivo = e.target.files && e.target.files[0];
+        if (!arquivo) return;
+        const leitor = new FileReader();
+        leitor.onload = function (ev) {
+            let json;
+            try {
+                json = JSON.parse(ev.target.result);
+            } catch (err) {
+                showToast('Arquivo JSON inválido.', 'erro');
+                return;
+            }
+            $.ajax({
+                url: apiUrl + '?action=importar_fluxo',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(json)
+            }).done(function (resp) {
+                if (!resp.sucesso || !resp.fluxo) {
+                    showToast(resp.mensagem || 'Erro ao importar fluxo.', 'erro');
+                    return;
+                }
+                currentFlow = resp.fluxo;
+                $('#id-fluxo').val(currentFlow.id || '');
+                $('#nome-fluxo').val(currentFlow.nome || '');
+                $('#descricao-fluxo').val(currentFlow.descricao || '');
+                setChartData(currentFlow.dados_fluxograma || defaultChartData());
+                showToast('Fluxo importado com sucesso.');
+                if (window.history.pushState && currentFlow.id) {
+                    const newUrl = window.location.pathname + '?id=' + currentFlow.id;
+                    window.history.pushState({path:newUrl},'',newUrl);
+                }
+            }).fail(function (xhr) {
+                showToast((xhr.responseJSON && xhr.responseJSON.mensagem) || 'Falha ao importar fluxo.', 'erro');
+            });
+        };
+        leitor.readAsText(arquivo);
+        $(this).val('');
+    });
+
+    $flowchart.on('change', '.campo-conteudo', function () {
+        const $op = $(this).closest('.flowchart-operator');
+        const id = $op.data('operator_id');
+        const texto = $(this).val();
+        const data = getChartData();
+        if (data.operators[id]) {
+            data.operators[id].properties.conteudo = texto;
+            setChartData(data);
+            $flowchart.flowchart('selectOperator', id);
+            agendarAutoSalvar();
+        }
+    });
+    $flowchart.on('change', '.campo-legenda, .campo-spoiler, .campo-auto-deletar, .campo-auto-segundos', function () {
+        const $op = $(this).closest('.flowchart-operator');
+        const id = $op.data('operator_id');
+        const data = getChartData();
+        const props = data.operators[id] && data.operators[id].properties;
+        if (!props || !['image', 'video', 'audio'].includes(props.type)) return;
+        
+        props.caption = $op.find('.campo-legenda').val().trim();
+        if (props.type === 'image') props.mode = 'foto';
+        
+        // Spoiler (apenas imagem e vídeo)
+        if (props.type !== 'audio') {
+            props.spoiler = $op.find('.campo-spoiler').is(':checked');
+        }
+        
+        props.auto_delete = $op.find('.campo-auto-deletar').is(':checked');
+        if (props.auto_delete) {
+            $op.find('.grupo-auto-delete').show();
+            props.auto_delete_seconds = parseInt($op.find('.campo-auto-segundos').val(), 10) || 0;
+        } else {
+            $op.find('.grupo-auto-delete').hide();
+            props.auto_delete_seconds = 0;
+        }
+        props.body = renderCorpoDoBloco(props);
+        $flowchart.flowchart('setOperatorBody', id, props.body);
+        setChartData(data);
+        $flowchart.flowchart('selectOperator', id);
+        agendarAutoSalvar();
+    });
+    // Botões
+    $flowchart.on('change', '.bloco-botoes .campo-texto-botoes', function () {
+        const $op = $(this).closest('.flowchart-operator');
+        const id = $op.data('operator_id');
+        const data = getChartData();
+        const props = data.operators[id] && data.operators[id].properties;
+        if (!props || props.type !== 'botoes') return;
+        props.texto = $(this).val();
+        props.body = renderCorpoDoBloco(props);
+        $flowchart.flowchart('setOperatorBody', id, props.body);
+        setChartData(data);
+        $flowchart.flowchart('selectOperator', id);
+        agendarAutoSalvar();
+    });
+    $flowchart.on('click', '.bloco-botoes .btn-adicionar-botao', function () {
+        const $op = $(this).closest('.flowchart-operator');
+        const id = $op.data('operator_id');
+        const data = getChartData();
+        const props = data.operators[id] && data.operators[id].properties;
+        if (!props || props.type !== 'botoes') return;
+        props.botoes = props.botoes || [];
+        const novoNome = 'Novo botão';
+        props.botoes.push(novoNome);
+        
+        // Adiciona novo output
+        props.outputs = props.outputs || {};
+        props.outputs['output_' + (props.botoes.length - 1)] = { label: novoNome };
+
+        props.body = renderCorpoDoBloco(props);
+        $flowchart.flowchart('setOperatorBody', id, props.body);
+        
+        // É necessário setar os dados completos para recriar os conectores
+        setChartData(data);
+        $flowchart.flowchart('selectOperator', id);
+        agendarAutoSalvar();
+    });
+    $flowchart.on('click', '.bloco-botoes .remover-botao', function () {
+        const $item = $(this).closest('.item-botao');
+        const idx = parseInt($item.data('index'), 10);
+        const $op = $(this).closest('.flowchart-operator');
+        const id = $op.data('operator_id');
+        const data = getChartData();
+        const props = data.operators[id] && data.operators[id].properties;
+        if (!props || props.type !== 'botoes') return;
+        
+        // Remove botão do array
+        props.botoes = (props.botoes || []).filter(function (_t, i) { return i !== idx; });
+        
+        // Reconstrói outputs
+        props.outputs = {};
+        props.botoes.forEach((btn, i) => {
+            props.outputs['output_' + i] = { label: btn };
+        });
+
+        props.body = renderCorpoDoBloco(props);
+        $flowchart.flowchart('setOperatorBody', id, props.body);
+        setChartData(data);
+        $flowchart.flowchart('selectOperator', id);
+        agendarAutoSalvar();
+    });
+    $flowchart.on('change', '.bloco-botoes .campo-botao-texto', function () {
+        const $item = $(this).closest('.item-botao');
+        const idx = parseInt($item.data('index'), 10);
+        const $op = $(this).closest('.flowchart-operator');
+        const id = $op.data('operator_id');
+        const data = getChartData();
+        const props = data.operators[id] && data.operators[id].properties;
+        if (!props || props.type !== 'botoes') return;
+        props.botoes = props.botoes || [];
+        if (idx >= 0 && idx < props.botoes.length) {
+            const novoTexto = $(this).val();
+            props.botoes[idx] = novoTexto;
+            // Atualiza o label do output correspondente
+            if (props.outputs && props.outputs['output_' + idx]) {
+                props.outputs['output_' + idx].label = novoTexto;
+            }
+        }
+        props.body = renderCorpoDoBloco(props);
+        $flowchart.flowchart('setOperatorBody', id, props.body);
+        setChartData(data);
+        $flowchart.flowchart('selectOperator', id);
+        agendarAutoSalvar();
+    });
+    $flowchart.on('change', '.bloco-botoes .campo-sumir-apos-clique', function () {
+        const $op = $(this).closest('.flowchart-operator');
+        const id = $op.data('operator_id');
+        const data = getChartData();
+        const props = data.operators[id] && data.operators[id].properties;
+        if (!props || props.type !== 'botoes') return;
+        props.sumir_apos_clique = $(this).is(':checked');
+        props.body = renderCorpoDoBloco(props);
+        $flowchart.flowchart('setOperatorBody', id, props.body);
+        setChartData(data);
+        $flowchart.flowchart('selectOperator', id);
+        agendarAutoSalvar();
+    });
+    // PIX
+    $flowchart.on('change', '.bloco-pix .campo-pix-nome, .bloco-pix .campo-pix-valor, .bloco-pix .campo-pix-expiracao-minutos, .bloco-pix .campo-pix-dias-acesso, .bloco-pix .campo-pix-unidade-acesso, .bloco-pix .campo-pix-id-grupo, .bloco-pix .campo-pix-msg-instrucoes, .bloco-pix .campo-pix-msg-confirmado, .bloco-pix .campo-pix-mostrar-copiar, .bloco-pix .campo-pix-mostrar-qrcode, .bloco-pix .campo-pix-mostrar-confirmar, .bloco-pix .campo-pix-tipo-cobranca, .bloco-pix .campo-pix-periodicidade', function () {
+        const $op = $(this).closest('.flowchart-operator');
+        const id = $op.data('operator_id');
+        const data = getChartData();
+        const props = data.operators[id] && data.operators[id].properties;
+        if (!props || props.type !== 'pix') return;
+        props.nome = $op.find('.campo-pix-nome').val().trim();
+        props.valor = parseFloat($op.find('.campo-pix-valor').val()) || 0;
+        props.expiracao_minutos = parseInt($op.find('.campo-pix-expiracao-minutos').val(), 10) || 15;
+        // Sincroniza tempo_nao_pago com a expiração do PIX
+        props.tempo_nao_pago = props.expiracao_minutos;
+        props.dias_acesso = parseInt($op.find('.campo-pix-dias-acesso').val(), 10) || 30;
+        props.unidade_acesso = $op.find('.campo-pix-unidade-acesso').val();
+        props.id_grupo = $op.find('.campo-pix-id-grupo').val();
+        
+        // Garante outputs
+        props.outputs = props.outputs || {};
+        if (!props.outputs.output_pago) props.outputs.output_pago = { label: 'PAGO' };
+        if (!props.outputs.output_nao_pago) props.outputs.output_nao_pago = { label: 'NÃO PAGO' };
+        
+        props.tipo_cobranca = $op.find('.campo-pix-tipo-cobranca').val();
+        props.periodicidade = $op.find('.campo-pix-periodicidade').val();
+        props.mostrar_copiar = $op.find('.campo-pix-mostrar-copiar').is(':checked');
+        props.mostrar_qrcode = $op.find('.campo-pix-mostrar-qrcode').is(':checked');
+        props.mostrar_confirmar = $op.find('.campo-pix-mostrar-confirmar').is(':checked');
+        props.msg_instrucoes = $op.find('.campo-pix-msg-instrucoes').val();
+        props.msg_confirmado = $op.find('.campo-pix-msg-confirmado').val();
+        props.body = renderCorpoDoBloco(props);
+        $flowchart.flowchart('setOperatorBody', id, props.body);
+        setChartData(data);
+        $flowchart.flowchart('selectOperator', id);
+        agendarAutoSalvar();
+    });
+    // Delay
+    $flowchart.on('change', '.bloco-delay .campo-delay-min, .bloco-delay .campo-delay-max, .bloco-delay .campo-delay-unidade, .bloco-delay .campo-delay-digitando', function () {
+        const $op = $(this).closest('.flowchart-operator');
+        const id = $op.data('operator_id');
+        const data = getChartData();
+        const props = data.operators[id] && data.operators[id].properties;
+        if (!props || props.type !== 'delay') return;
+        props.delay_min = parseInt($op.find('.campo-delay-min').val(), 10) || 0;
+        props.delay_max = parseInt($op.find('.campo-delay-max').val(), 10) || 0;
+        props.delay_unidade = $op.find('.campo-delay-unidade').val();
+        props.delay_digitando = $op.find('.campo-delay-digitando').is(':checked');
+        props.body = renderCorpoDoBloco(props);
+        $flowchart.flowchart('setOperatorBody', id, props.body);
+        setChartData(data);
+        $flowchart.flowchart('selectOperator', id);
+        agendarAutoSalvar();
+    });
+    $flowchart.on('click', '.bloco-imagem .area-previa', function () {
+        const $op = $(this).closest('.flowchart-operator');
+        const input = $op.find('.campo-imagem-arquivo').get(0);
+        if (input) input.click();
+    });
+    $flowchart.on('click', '.bloco-video .area-previa', function () {
+        const $op = $(this).closest('.flowchart-operator');
+        const input = $op.find('.campo-video-arquivo').get(0);
+        if (input) input.click();
+    });
+    $flowchart.on('click', '.bloco-audio .area-previa', function () {
+        const $op = $(this).closest('.flowchart-operator');
+        const input = $op.find('.campo-audio-arquivo').get(0);
+        if (input) input.click();
+    });
+    // Link
+    $flowchart.on('change', '.bloco-link .campo-link-url, .bloco-link .campo-link-texto', function () {
+        const $op = $(this).closest('.flowchart-operator');
+        const id = $op.data('operator_id');
+        const data = getChartData();
+        const props = data.operators[id] && data.operators[id].properties;
+        if (!props || props.type !== 'link') return;
+        props.url = $op.find('.campo-link-url').val();
+        props.texto_botao = $op.find('.campo-link-texto').val();
+        props.body = renderCorpoDoBloco(props);
+        $flowchart.flowchart('setOperatorBody', id, props.body);
+        setChartData(data);
+        $flowchart.flowchart('selectOperator', id);
+        agendarAutoSalvar();
+    });
+    // Grupo
+    $flowchart.on('change', '.bloco-grupo .campo-grupo-id, .bloco-grupo .campo-grupo-texto', function () {
+        const $op = $(this).closest('.flowchart-operator');
+        const id = $op.data('operator_id');
+        const data = getChartData();
+        const props = data.operators[id] && data.operators[id].properties;
+        if (!props || props.type !== 'grupo') return;
+        props.id_grupo = $op.find('.campo-grupo-id').val();
+        props.texto_botao = $op.find('.campo-grupo-texto').val();
+        props.body = renderCorpoDoBloco(props);
+        $flowchart.flowchart('setOperatorBody', id, props.body);
+        setChartData(data);
+        $flowchart.flowchart('selectOperator', id);
+        agendarAutoSalvar();
+    });
+    $flowchart.on('change', '.campo-imagem-arquivo', function () {
+        const $op = $(this).closest('.flowchart-operator');
+        const id = $op.data('operator_id');
+        const data = getChartData();
+        const props = data.operators[id] && data.operators[id].properties;
+        if (!props || props.type !== 'image') {
+            showToast('Selecione um bloco de imagem.', 'erro');
+            return;
+        }
+        const input = this;
+        if (!input.files || !input.files[0]) return;
+        const fd = new FormData();
+        fd.append('image', input.files[0]);
+        $.ajax({
+            url: apiUrl + '?action=upload_imagem_fluxo',
+            method: 'POST',
+            data: fd,
+            processData: false,
+            contentType: false
+        }).done(function (response) {
+            if (!response.sucesso) {
+                showToast(response.mensagem || 'Erro ao enviar imagem.', 'erro');
+                return;
+            }
+            const path = response.caminho || '';
+            props.image_path = path;
+            props.body = renderCorpoDoBloco(props);
+            $flowchart.flowchart('setOperatorBody', id, props.body);
+            setChartData(data);
+            $flowchart.flowchart('selectOperator', id);
+            showToast('Imagem anexada ao bloco.');
+            agendarAutoSalvar();
+        }).fail(function (xhr) {
+            showToast((xhr.responseJSON && xhr.responseJSON.mensagem) || 'Erro ao enviar imagem.', 'erro');
+        });
+    });
+
+    $flowchart.on('change', '.campo-video-arquivo', function () {
+        const $op = $(this).closest('.flowchart-operator');
+        const id = $op.data('operator_id');
+        const data = getChartData();
+        const props = data.operators[id] && data.operators[id].properties;
+        if (!props || props.type !== 'video') {
+            showToast('Selecione um bloco de vídeo.', 'erro');
+            return;
+        }
+        const input = this;
+        if (!input.files || !input.files[0]) return;
+        const fd = new FormData();
+        fd.append('video', input.files[0]);
+        $.ajax({
+            url: apiUrl + '?action=upload_video_fluxo',
+            method: 'POST',
+            data: fd,
+            processData: false,
+            contentType: false
+        }).done(function (response) {
+            if (!response.sucesso) {
+                showToast(response.mensagem || 'Erro ao enviar vídeo.', 'erro');
+                return;
+            }
+            const path = response.caminho || '';
+            props.video_path = path;
+            props.body = renderCorpoDoBloco(props);
+            $flowchart.flowchart('setOperatorBody', id, props.body);
+            setChartData(data);
+            $flowchart.flowchart('selectOperator', id);
+            showToast('Vídeo anexado ao bloco.');
+            agendarAutoSalvar();
+        }).fail(function (xhr) {
+            showToast((xhr.responseJSON && xhr.responseJSON.mensagem) || 'Erro ao enviar vídeo.', 'erro');
+        });
+    });
+
+    $flowchart.on('change', '.campo-audio-arquivo', function () {
+        const $op = $(this).closest('.flowchart-operator');
+        const id = $op.data('operator_id');
+        const data = getChartData();
+        const props = data.operators[id] && data.operators[id].properties;
+        if (!props || props.type !== 'audio') {
+            showToast('Selecione um bloco de áudio.', 'erro');
+            return;
+        }
+        const input = this;
+        if (!input.files || !input.files[0]) return;
+        const fd = new FormData();
+        fd.append('audio', input.files[0]);
+        $.ajax({
+            url: apiUrl + '?action=upload_audio_fluxo',
+            method: 'POST',
+            data: fd,
+            processData: false,
+            contentType: false
+        }).done(function (response) {
+            if (!response.sucesso) {
+                showToast(response.mensagem || 'Erro ao enviar áudio.', 'erro');
+                return;
+            }
+            const path = response.caminho || '';
+            props.audio_path = path;
+            props.body = renderCorpoDoBloco(props);
+            $flowchart.flowchart('setOperatorBody', id, props.body);
+            setChartData(data);
+            $flowchart.flowchart('selectOperator', id);
+            showToast('Áudio anexado ao bloco.');
+            agendarAutoSalvar();
+        }).fail(function (xhr) {
+            showToast((xhr.responseJSON && xhr.responseJSON.mensagem) || 'Erro ao enviar áudio.', 'erro');
+        });
+    });
+
+    $(function () {
+        // Carrega grupos antes de iniciar o gráfico para popular os selects
+        $.when(carregarGruposUsuario(), carregarGatewayInfo()).always(function() {
+            initChart();
+            
+            // Drag and Drop de Blocos
+            $('.adicionar-no').attr('draggable', 'true').on('dragstart', function(e) {
+                e.originalEvent.dataTransfer.setData('node-type', $(this).data('node-type'));
+                // Efeito visual
+                $(this).css('opacity', '0.5');
+            }).on('dragend', function() {
+                $(this).css('opacity', '1');
+            });
+
+            $('.conteiner-fluxo').on('dragover', function(e) {
+                e.preventDefault(); // Permite drop
+                e.originalEvent.dataTransfer.dropEffect = 'copy';
+            }).on('drop', function(e) {
+                e.preventDefault();
+                const type = e.originalEvent.dataTransfer.getData('node-type');
+                if (type) {
+                    const wrapper = $(this);
+                    const offset = wrapper.offset();
+                    const scrollLeft = wrapper.scrollLeft();
+                    const scrollTop = wrapper.scrollTop();
+                    
+                    // Posição do mouse relativa ao wrapper
+                    const mouseX = e.originalEvent.clientX - offset.left;
+                    const mouseY = e.originalEvent.clientY - offset.top;
+                    
+                    // Converte para coordenadas do canvas (considerando scroll e zoom)
+                    // Canvas (0,0) está em wrapper(0,0) se scroll=0
+                    // CoordCanvas = (MousePos + Scroll) / Zoom
+                    const x = (mouseX + scrollLeft) / zoomLevel;
+                    const y = (mouseY + scrollTop) / zoomLevel;
+                    
+                    // Centraliza o bloco no mouse (aprox 120x40 é metade de um bloco padrão)
+                    // Garante que não fique negativo (fora da área visível superior/esquerda)
+                    const finalX = Math.max(10, x - 100); 
+                    const finalY = Math.max(10, y - 40);
+                    
+                    addNode(type, { left: finalX, top: finalY });
+                }
+            });
+            
+            // Controles de Zoom
+        const $zoomControls = $(`
+            <div class="controles-zoom" style="position: absolute; bottom: 20px; z-index: 1000; background: white; padding: 5px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.15); display: flex; gap: 5px; width: auto; max-width: 150px; border: 1px solid #ddd;">
+                <button type="button" class="botao botao-claro" id="btn-zoom-out" title="Diminuir Zoom" style="width: 30px; height: 30px; padding: 0; display: flex; align-items: center; justify-content: center;">－</button>
+                <button type="button" class="botao botao-claro" id="btn-zoom-reset" title="Resetar Zoom" style="height: 30px; padding: 0 10px; font-size: 12px; min-width: 50px;">100%</button>
+                <button type="button" class="botao botao-claro" id="btn-zoom-in" title="Aumentar Zoom" style="width: 30px; height: 30px; padding: 0; display: flex; align-items: center; justify-content: center;">＋</button>
+            </div>
+        `);
+        // Remove controles anteriores se existirem para não duplicar
+        $('.controles-zoom').remove();
+        // Adiciona dentro do container principal (área cinza) mas fora do scroll
+        $('.conteiner-fluxo').parent().css('position', 'relative').append($zoomControls);
+
+        // Injeta ícones nos botões de adicionar
+        $('.adicionar-no').each(function() {
+            const type = $(this).data('node-type');
+            if (blockIcons[type]) {
+                $(this).prepend(blockIcons[type]);
+            }
+        });
+
+        // Verifica se tem ID na URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const flowId = urlParams.get('id');
+        
+        if (flowId) {
+            openFlow(flowId);
+        } else {
+            newFlow();
+        }
+        
+        const $wrapper = $('.conteiner-fluxo');
+        let arrastando = false;
+        let inicio = { x: 0, y: 0 };
+        let scrollInicial = { x: 0, y: 0 };
+        
+        $flowchart.on('mousedown', function (e) {
+            if (e.button !== 0) return;
+            if ($(e.target).closest('.flowchart-operator, .flowchart-link, .botao, input, textarea, select').length) return;
+            arrastando = true;
+            inicio = { x: e.pageX, y: e.pageY };
+            scrollInicial = { x: $wrapper.scrollLeft(), y: $wrapper.scrollTop() };
+            $flowchart.css('cursor', 'grabbing');
+            e.preventDefault();
+        });
+        $(document).on('mousemove', function (e) {
+            if (!arrastando) return;
+            const dx = e.pageX - inicio.x;
+            const dy = e.pageY - inicio.y;
+            $wrapper.scrollLeft(scrollInicial.x - dx);
+            $wrapper.scrollTop(scrollInicial.y - dy);
+        });
+        $(document).on('mouseup', function () {
+            if (!arrastando) return;
+            arrastando = false;
+            $flowchart.css('cursor', '');
+        });
+
+        // Duplo clique para editar título
+        $flowchart.on('dblclick', '.flowchart-operator-title', function (e) {
+            if ($(e.target).closest('.btn-excluir').length) return;
+            const $title = $(this);
+            const $op = $title.closest('.flowchart-operator');
+            const id = $op.data('operator_id');
+            if (!id) return;
+            
+            // Pega o texto atual
+            const atual = $title.find('.texto-titulo').text().trim() || 'Sem título';
+            
+            const $input = $('<input type="text" class="edita-titulo" style="flex:1; min-width:0; margin:0;">').val(atual);
+            
+            // Substitui apenas o texto pelo input, mantendo ícone e botão
+            const $textoSpan = $title.find('.texto-titulo');
+            $textoSpan.hide();
+            $textoSpan.after($input);
+            
+            $input.focus().select();
+            
+            function finalizar(salvar) {
+                const novo = ($input.val().trim() || 'Sem título');
+                if (salvar) {
+                    const data = getChartData();
+                    if (data.operators[id]) {
+                        data.operators[id].properties.title = novo;
+                    }
+                    setChartData(data); // Isso recria o operador usando onOperatorCreate
+                    $flowchart.flowchart('selectOperator', id);
+                    agendarAutoSalvar();
+                } else {
+                    $input.remove();
+                    $textoSpan.show();
+                }
+            }
+            $input.on('keydown', function (ev) {
+                if (ev.key === 'Enter') finalizar(true);
+                if (ev.key === 'Escape') finalizar(false);
+            });
+            $input.on('blur', function () { finalizar(true); });
+        });
+
+        if (intervaloBackup) { clearInterval(intervaloBackup); }
+        intervaloBackup = setInterval(function () {
+            if (fluxoSujo) {
+                atualizaFluxo(true);
+            }
+        }, 10000);
+    });
+    });
+
+    function agendarAutoSalvar() {
+        fluxoSujo = true;
+        clearTimeout(timerAutoSalvar);
+        timerAutoSalvar = setTimeout(function () {
+            if (fluxoSujo) {
+                atualizaFluxo(true);
+            }
+        }, 2000);
+    }
+    
+    $flowchart.on('click', '.btn-excluir', function (e) {
+        e.stopPropagation();
+        const $op = $(this).closest('.flowchart-operator');
+        const id = $op.data('operator_id');
+        if (!id) return;
+        $flowchart.flowchart('deleteOperator', id);
+        atualizaFluxo(true);
+    });
+})(jQuery);

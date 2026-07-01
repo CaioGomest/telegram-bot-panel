@@ -1,0 +1,435 @@
+
+/* 
+ * Customização do jQuery Flowchart para o tema
+ */
+
+.flowchart-container {
+    background-image: 
+        linear-gradient(rgba(226, 232, 240, 0.5) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(226, 232, 240, 0.5) 1px, transparent 1px);
+    background-size: 20px 20px;
+    background-color: #f8fafc;
+    width: 10000px;
+    height: 10000px;
+}
+
+.conteiner-fluxo {
+    overflow: hidden; /* O panning cuida do movimento */
+    position: relative;
+    cursor: grab;
+}
+.conteiner-fluxo:active {
+    cursor: grabbing;
+}
+
+.flowchart-operator {
+    min-width: 220px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
+    font-family: 'Inter', sans-serif;
+    color: #1e293b;
+    padding: 0;
+}
+
+.flowchart-operator:hover {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+    border-color: #cbd5e1;
+    /* z-index removido no hover para não sobrepor o selecionado */
+}
+
+.flowchart-operator.selected {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2), 0 10px 15px -3px rgba(0, 0, 0, 0.08);
+    z-index: 50 !important; /* Z-index bem alto para garantir prioridade */
+}
+
+/* Controles de Zoom */
+.controles-zoom {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    z-index: 100;
+    display: flex;
+    gap: 4px;
+    background: #fff;
+    padding: 4px;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    border: 1px solid #e2e8f0;
+}
+.controles-zoom button {
+    min-width: 32px;
+    height: 32px;
+    padding: 0 8px;
+    font-weight: 600;
+}
+
+/* Título do Bloco */
+.flowchart-operator-title {
+    background: #f8fafc;
+    color: #334155;
+    padding: 10px 14px;
+    font-weight: 600;
+    font-size: 14px;
+    border-bottom: 1px solid #e2e8f0;
+    border-radius: 12px 12px 0 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    height: auto !important;
+}
+
+/* Ícones e Cores por Tipo de Bloco */
+/* Início */
+.flowchart-operator.no-inicio .flowchart-operator-title {
+    background: #dcfce7;
+    color: #166534;
+    border-bottom-color: #bbf7d0;
+}
+.flowchart-operator.no-inicio.selected { border-color: #16a34a; }
+
+/* Mensagem */
+.flowchart-operator.no-mensagem .flowchart-operator-title {
+    background: #eff6ff;
+    color: #1e40af;
+    border-bottom-color: #dbeafe;
+}
+
+/* Imagem */
+.flowchart-operator.no-imagem .flowchart-operator-title {
+    background: #f0f9ff;
+    color: #0369a1;
+    border-bottom-color: #e0f2fe;
+}
+
+/* Vídeo */
+.flowchart-operator.no-video .flowchart-operator-title {
+    background: #fef2f2;
+    color: #b91c1c;
+    border-bottom-color: #fee2e2;
+}
+
+/* Áudio */
+.flowchart-operator.no-audio .flowchart-operator-title {
+    background: #eef2ff;
+    color: #4338ca;
+    border-bottom-color: #e0e7ff;
+}
+
+/* Botões */
+.flowchart-operator.no-botoes .flowchart-operator-title {
+    background: #f5f3ff;
+    color: #5b21b6;
+    border-bottom-color: #ede9fe;
+}
+
+/* PIX */
+.flowchart-operator.no-pix .flowchart-operator-title {
+    background: #fffbeb;
+    color: #92400e;
+    border-bottom-color: #fef3c7;
+}
+
+/* Delay */
+.flowchart-operator.no-delay .flowchart-operator-title {
+    background: #fff7ed;
+    color: #9a3412;
+    border-bottom-color: #ffedd5;
+}
+
+/* Links */
+.flowchart-operator.no-link .flowchart-operator-title {
+    background: #ecfeff;
+    color: #0e7490;
+    border-bottom-color: #cffafe;
+}
+
+/* Grupo */
+.flowchart-operator.no-grupo .flowchart-operator-title {
+    background: #fdf2f8;
+    color: #be185d;
+    border-bottom-color: #fce7f3;
+}
+
+/* Botões de Adicionar (Palette) */
+.botao.adicionar-no {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 13px;
+    transition: all 0.2s;
+    background: #fff;
+}
+
+.botao.adicionar-no svg {
+    width: 16px;
+    height: 16px;
+}
+
+.botao.adicionar-no:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+/* Cores dos Botões (iguais aos headers dos blocos) */
+.botao.adicionar-no[data-node-type="message"] {
+    background: #eff6ff;
+    color: #1e40af;
+    border-color: #dbeafe;
+}
+.botao.adicionar-no[data-node-type="message"]:hover {
+    background: #dbeafe;
+    border-color: #bfdbfe;
+}
+
+.botao.adicionar-no[data-node-type="image"] {
+    background: #f0f9ff;
+    color: #0369a1;
+    border-color: #e0f2fe;
+}
+.botao.adicionar-no[data-node-type="image"]:hover {
+    background: #e0f2fe;
+    border-color: #bae6fd;
+}
+
+.botao.adicionar-no[data-node-type="video"] {
+    background: #fef2f2;
+    color: #b91c1c;
+    border-color: #fee2e2;
+}
+.botao.adicionar-no[data-node-type="video"]:hover {
+    background: #fee2e2;
+    border-color: #fecaca;
+}
+
+.botao.adicionar-no[data-node-type="audio"] {
+    background: #eef2ff;
+    color: #4338ca;
+    border-color: #e0e7ff;
+}
+.botao.adicionar-no[data-node-type="audio"]:hover {
+    background: #e0e7ff;
+    border-color: #c7d2fe;
+}
+
+.botao.adicionar-no[data-node-type="botoes"] {
+    background: #f5f3ff;
+    color: #5b21b6;
+    border-color: #ede9fe;
+}
+.botao.adicionar-no[data-node-type="botoes"]:hover {
+    background: #ede9fe;
+    border-color: #ddd6fe;
+}
+
+.botao.adicionar-no[data-node-type="pix"] {
+    background: #fffbeb;
+    color: #92400e;
+    border-color: #fef3c7;
+}
+.botao.adicionar-no[data-node-type="pix"]:hover {
+    background: #fef3c7;
+    border-color: #fde68a;
+}
+
+.botao.adicionar-no[data-node-type="delay"] {
+    background: #fff7ed;
+    color: #9a3412;
+    border-color: #ffedd5;
+}
+.botao.adicionar-no[data-node-type="delay"]:hover {
+    background: #ffedd5;
+    border-color: #fed7aa;
+}
+
+.botao.adicionar-no[data-node-type="link"] {
+    background: #ecfeff;
+    color: #0e7490;
+    border-color: #cffafe;
+}
+.botao.adicionar-no[data-node-type="link"]:hover {
+    background: #cffafe;
+    border-color: #a5f3fc;
+}
+
+.botao.adicionar-no[data-node-type="grupo"] {
+    background: #fdf2f8;
+    color: #be185d;
+    border-color: #fce7f3;
+}
+.botao.adicionar-no[data-node-type="grupo"]:hover {
+    background: #fce7f3;
+    border-color: #fbcfe8;
+}
+
+/* Corpo do Bloco */
+.flowchart-operator-body {
+    padding: 14px;
+    font-size: 13px;
+    color: #475569;
+}
+
+/* Inputs internos */
+.flowchart-operator input, 
+.flowchart-operator textarea, 
+.flowchart-operator select {
+    width: 100%;
+    margin-bottom: 8px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 12px;
+    background: #fff;
+}
+.flowchart-operator input:focus, 
+.flowchart-operator textarea:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+    outline: none;
+}
+.flowchart-operator label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+    margin-bottom: 4px;
+}
+.flowchart-operator .linha-flex {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+    font-weight: normal;
+}
+.flowchart-operator .linha-flex input {
+    width: auto;
+    margin: 0;
+}
+
+/* Botão Excluir no Título */
+.btn-excluir {
+    background: transparent;
+    border: none;
+    color: currentColor;
+    opacity: 0.6;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: auto;
+    transition: 0.2s;
+}
+.btn-excluir:hover {
+    background: rgba(0,0,0,0.1);
+    opacity: 1;
+}
+
+/* Links */
+.flowchart-link .flowchart-link-path {
+    stroke: #2563eb !important;
+    stroke-width: 3px !important;
+}
+
+.flowchart-link .flowchart-link-animation {
+    stroke: #93c5fd;
+    stroke-width: 3px !important;
+    stroke-dasharray: 10 30;
+    animation: flowAnimation 1s linear infinite;
+    opacity: 0.8;
+    pointer-events: none; /* Não atrapalhar o clique */
+}
+
+@keyframes flowAnimation {
+    from {
+        stroke-dashoffset: 40;
+    }
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+.flowchart-link.selected .flowchart-link-path {
+    stroke: #1e40af !important;
+    filter: drop-shadow(0 0 2px rgba(37, 99, 235, 0.5));
+}
+.flowchart-link:hover .flowchart-link-path {
+    stroke: #3b82f6 !important;
+}
+
+/* Conectores */
+.flowchart-operator-connector-arrow {
+    border-left-color: #2563eb;
+}
+.flowchart-operator-connector:hover .flowchart-operator-connector-arrow {
+    border-left-color: #3b82f6;
+}
+.flowchart-operator-connector-small-arrow {
+    border-left-color: #2563eb;
+}
+
+/* Ajustes Específicos */
+.bloco-imagem .area-previa,
+.bloco-video .area-previa,
+.bloco-audio .area-previa {
+    background: #f1f5f9;
+    border-radius: 6px;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    border: 1px dashed #cbd5e1;
+}
+.bloco-imagem .area-previa img,
+.bloco-video .area-previa video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.bloco-imagem .sem-imagem,
+.bloco-video .sem-imagem,
+.bloco-audio .sem-imagem {
+    color: #94a3b8;
+    font-size: 11px;
+}
+
+.item-botao {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 4px;
+}
+.item-botao input { margin: 0; }
+.item-botao .remover-botao {
+    background: #fee2e2;
+    color: #dc2626;
+    border: none;
+    border-radius: 4px;
+    width: 24px;
+    cursor: pointer;
+}
+
+.btn-adicionar-botao {
+    width: 100%;
+    padding: 4px;
+    font-size: 11px;
+    margin-top: 4px;
+    margin-bottom: 8px;
+}
+
+.grupo-auto-delete {
+    background: #f8fafc;
+    padding: 6px;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    border: 1px solid #e2e8f0;
+}

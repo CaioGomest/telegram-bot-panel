@@ -1,0 +1,141 @@
+<?php
+$mensagem = '';
+$tipo_mensagem = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $banco_host = $_POST['banco_host'] ?? 'localhost';
+    $usuario_banco = $_POST['usuario_banco'] ?? 'root';
+    $senha_banco = $_POST['senha_banco'] ?? '';
+    $nome_banco = $_POST['nome_banco'] ?? 'telegram_bot_saas';
+
+    try {
+        // Conexão sem banco de dados para criar o banco
+        $pdo = new PDO("mysql:host=$banco_host;charset=utf8mb4", $usuario_banco, $senha_banco, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
+        ]);
+
+        // Criar banco de dados
+        $pdo->exec("CREATE DATABASE IF NOT EXISTS `$nome_banco` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+        $pdo->exec("USE `$nome_banco`");
+
+        // Criar tabela de Usuários
+        $sqlUsuarios = "CREATE TABLE IF NOT EXISTS usuarios (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nome VARCHAR(100) NOT NULL,
+            email VARCHAR(100) NOT NULL UNIQUE,
+            senha VARCHAR(255) NOT NULL,
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB;";
+        $pdo->exec($sqlUsuarios);
+
+        // Criar tabela de Fluxos
+        $sqlFluxos = "CREATE TABLE IF NOT EXISTS fluxos (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            id_usuario INT NOT NULL,
+            nome VARCHAR(120) NOT NULL,
+            descricao VARCHAR(500),
+            dados_fluxograma LONGTEXT,
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB;";
+        $pdo->exec($sqlFluxos);
+
+        // Criar tabela de Bots
+        $sqlBots = "CREATE TABLE IF NOT EXISTS bots (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            id_usuario INT NOT NULL,
+            token VARCHAR(255) NOT NULL,
+            id_bot_telegram BIGINT,
+            nome_usuario VARCHAR(100),
+            primeiro_nome VARCHAR(100),
+            descricao TEXT,
+            descricao_curta VARCHAR(255),
+            id_fluxo_conectado INT NULL,
+            caminho_foto VARCHAR(255),
+            url_webhook VARCHAR(255),
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE,
+            FOREIGN KEY (id_fluxo_conectado) REFERENCES fluxos(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB;";
+        $pdo->exec($sqlBots);
+
+        // Criar usuário padrão para testes
+        $senhaHash = password_hash('123456', PASSWORD_DEFAULT);
+        $sqlUserPadrao = "INSERT IGNORE INTO usuarios (id, nome, email, senha) VALUES (1, 'Admin', 'admin@exemplo.com', '$senhaHash')";
+        $pdo->exec($sqlUserPadrao);
+
+        // Atualizar arquivo config.php
+        $configContent = "<?php\n";
+        $configContent .= "// config.php\n";
+        $configContent .= "define('BANCO_HOST', '" . addslashes($banco_host) . "');\n";
+        $configContent .= "define('BANCO_NOME', '" . addslashes($nome_banco) . "');\n";
+        $configContent .= "define('BANCO_USUARIO', '" . addslashes($usuario_banco) . "');\n";
+        $configContent .= "define('BANCO_SENHA', '" . addslashes($senha_banco) . "');\n";
+        
+        file_put_contents('config.php', $configContent);
+
+        $mensagem = "Instalação concluída com sucesso! Banco de dados criado e configurado.";
+        $tipo_mensagem = "sucesso";
+
+    } catch (PDOException $e) {
+        $mensagem = "Erro na instalação: " . $e->getMessage();
+        $tipo_mensagem = "erro";
+    }
+}
+?>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instalação do Sistema</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --primary: #2563eb; --primary-hover: #1d4ed8; --bg: #f8fafc; --card: #ffffff; --text: #1e293b; --border: #e2e8f0; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .container { background: var(--card); padding: 2rem; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); width: 100%; max-width: 400px; }
+        h1 { margin-top: 0; font-size: 1.5rem; text-align: center; color: var(--primary); }
+        .campo { margin-bottom: 1rem; }
+        label { display: block; margin-bottom: 0.5rem; font-weight: 500; font-size: 0.875rem; }
+        input { width: 100%; padding: 0.625rem; border: 1px solid var(--border); border-radius: 0.375rem; box-sizing: border-box; font-family: inherit; }
+        button { width: 100%; background: var(--primary); color: white; padding: 0.75rem; border: none; border-radius: 0.375rem; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+        button:hover { background: var(--primary-hover); }
+        .mensagem { padding: 0.75rem; border-radius: 0.375rem; margin-bottom: 1rem; font-size: 0.875rem; }
+        .mensagem.sucesso { background-color: #dcfce7; color: #166534; }
+        .mensagem.erro { background-color: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Instalação</h1>
+        <?php if ($mensagem): ?>
+            <div class="mensagem <?= $tipo_mensagem ?>"><?= $mensagem ?></div>
+        <?php endif; ?>
+        
+        <form method="POST">
+            <div class="campo">
+                <label for="banco_host">Servidor do Banco de Dados (Host)</label>
+                <input type="text" id="banco_host" name="banco_host" value="localhost" required placeholder="Ex: localhost">
+            </div>
+            <div class="campo">
+                <label for="nome_banco">Nome do Banco de Dados</label>
+                <input type="text" id="nome_banco" name="nome_banco" value="telegram_bot_saas" required placeholder="Ex: telegram_saas">
+            </div>
+            <div class="campo">
+                <label for="usuario_banco">Usuário do Banco</label>
+                <input type="text" id="usuario_banco" name="usuario_banco" value="root" required placeholder="Ex: root">
+            </div>
+            <div class="campo">
+                <label for="senha_banco">Senha do Banco</label>
+                <input type="password" id="senha_banco" name="senha_banco" placeholder="Deixe em branco se não houver senha">
+            </div>
+            <button type="submit">Instalar e Criar Banco</button>
+        </form>
+    </div>
+</body>
+</html>
