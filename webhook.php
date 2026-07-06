@@ -367,7 +367,7 @@ function processar_e_enviar_bloco(string $token, $idChat, array $operador, strin
                 $tempoExpiracao = (int)($propriedades['expiracao_minutos'] ?? $propriedades['tempo_nao_pago'] ?? 15);
                 $expiracaoSegundos = $tempoExpiracao * 60;
 
-                if ($ehRecorrente && $nomeGateway !== 'pushinpay') {
+                if ($ehRecorrente && $nomeGateway === 'efi') {
                     // ── EFI Bank: PIX Automático nativo (/v2/locrec → /v2/rec → /v2/loc/:id/qrcode) ──
                     $periodicidade = $propriedades['periodicidade'] ?? 'mensal';
 
@@ -456,8 +456,13 @@ function processar_e_enviar_bloco(string $token, $idChat, array $operador, strin
                     $linkPagamento = $respAssinatura['dados']['qr_code_base64'] ?? '';
                     $resp = $respAssinatura;
 
+                } elseif ($ehRecorrente && $nomeGateway === 'infopago') {
+                    // InfoPago ainda não suporta PIX Recorrente neste painel (Fase 2 — ver docs/infopago/01-api-referencia.md §6).
+                    $tentativas[] = "infopago ainda não suporta PIX Recorrente";
+                    continue;
+
                 } else {
-                    // ── PIX único — EFI ou PushinPay ──
+                    // ── PIX único — EFI, PushinPay ou InfoPago ──
                     if ($nomeGateway === 'pushinpay') {
                         $payload = $provedor->montaPayloadCobranca($valor, $chavePix, $splitData, $expiracaoSegundos, $pushinpayWebhookUrl);
                     } else {
@@ -474,6 +479,11 @@ function processar_e_enviar_bloco(string $token, $idChat, array $operador, strin
                         $pixCopiaCola  = $resp['dados']['qr_code'] ?? $resp['dados']['pix_copy_paste'] ?? $resp['dados']['copy_paste'] ?? '';
                         $txid          = (string)($resp['dados']['id'] ?? $resp['dados']['uuid'] ?? '');
                         $linkPagamento = $resp['dados']['qr_code_base64'] ?? $resp['dados']['qr_code_image'] ?? '';
+                    } elseif ($nomeGateway === 'infopago') {
+                        // InfoPago já devolve o pixCopiaECola direto na criação da cobrança (sem passo extra de QR code).
+                        $pixCopiaCola  = $resp['dados']['pixCopiaECola'] ?? '';
+                        $txid          = $resp['dados']['txid'] ?? '';
+                        $linkPagamento = '';
                     } else {
                         $pixCopiaCola  = $resp['dados']['pixCopiaECola'] ?? '';
                         $txid          = $resp['dados']['txid'] ?? '';

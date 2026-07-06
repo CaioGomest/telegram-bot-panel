@@ -278,6 +278,19 @@ try {
         echo "Coluna 'tipo_conta' adicionada em 'usuarios_gateways'.<br>";
     } catch (PDOException $e) {}
 
+    // Credenciais de Cash-Out (API de Contas/transferência) — usadas pela InfoPago para simular
+    // split via transferência manual após o Pix cair (a API de cobrança dela não tem split nativo).
+    try {
+        $pdo->exec("ALTER TABLE usuarios_gateways ADD COLUMN cashout_client_id VARCHAR(255) NULL AFTER tipo_conta");
+    } catch (PDOException $e) {}
+    try {
+        $pdo->exec("ALTER TABLE usuarios_gateways ADD COLUMN cashout_client_secret VARCHAR(255) NULL AFTER cashout_client_id");
+    } catch (PDOException $e) {}
+    try {
+        $pdo->exec("ALTER TABLE usuarios_gateways ADD COLUMN cashout_certificado VARCHAR(255) NULL AFTER cashout_client_secret");
+        echo "Colunas de Cash-Out adicionadas em 'usuarios_gateways'.<br>";
+    } catch (PDOException $e) {}
+
     echo "Tabela 'usuarios_gateways' OK.<br>";
 
     // --- 10b. Tabela de Splits por Usuário ---
@@ -380,6 +393,13 @@ try {
     if ($stmtGateway->fetchColumn() == 0) {
         $pdo->exec("INSERT INTO gateways (nome, titulo, ativo) VALUES ('efi', 'Efí Bank (Pix)', 0)");
         echo "Gateway 'Efí Bank' inserido.<br>";
+    }
+
+    // Gateway InfoPago
+    $stmtGateway = $pdo->query("SELECT COUNT(*) FROM gateways WHERE nome = 'infopago'");
+    if ($stmtGateway->fetchColumn() == 0) {
+        $pdo->exec("INSERT INTO gateways (nome, titulo, ativo) VALUES ('infopago', 'InfoPago (Pix)', 0)");
+        echo "Gateway 'InfoPago' inserido.<br>";
     }
 
     // --- Links de Rastreamento ---

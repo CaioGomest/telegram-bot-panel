@@ -381,6 +381,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
                     <select class="form-input split-gateway" onchange="alternarCamposGateway(this)">
                         <option value="efi"       ${gw === 'efi'       ? 'selected' : ''}>Efí Bank</option>
                         <option value="pushinpay" ${gw === 'pushinpay' ? 'selected' : ''}>PushinPay</option>
+                        <option value="infopago"  ${gw === 'infopago'  ? 'selected' : ''}>InfoPago</option>
                     </select>
                 </div>
                 <div class="split-field">
@@ -403,10 +404,10 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
                     <label class="split-label">CPF Titular EFI</label>
                     <input type="text" class="form-input split-cpf-efi" value="${cpfEfi}" placeholder="Só números">
                 </div>
-                <!-- Campo PushinPay -->
+                <!-- Campo de chave simples (PushinPay: account_id / InfoPago: chave Pix) -->
                 <div class="split-field split-field-lg split-campos-pushinpay" style="${isEfi ? 'display:none;' : ''}">
-                    <label class="split-label">Account ID <span style="color:#94a3b8;font-weight:400;">(PushinPay)</span></label>
-                    <input type="text" class="form-input split-chave-pushinpay" value="${chaveSimples}" placeholder="Seu account_id">
+                    <label class="split-label">${gw === 'infopago' ? 'Chave Pix de destino (InfoPago)' : 'Account ID (PushinPay)'}</label>
+                    <input type="text" class="form-input split-chave-pushinpay" value="${chaveSimples}" placeholder="${gw === 'infopago' ? 'CPF, CNPJ, e-mail, telefone ou EVP' : 'Seu account_id'}">
                 </div>
                 <div class="split-field split-field-desc">
                     <label class="split-label">Descrição</label>
@@ -432,8 +433,15 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
     function alternarCamposGateway(sel) {
         const row      = sel.closest('.split-row');
         const isEfi    = sel.value === 'efi';
+        const isInfopago = sel.value === 'infopago';
         row.querySelectorAll('.split-campos-efi, .split-campo-cpf').forEach(el => el.style.display = isEfi ? '' : 'none');
         row.querySelectorAll('.split-campos-pushinpay').forEach(el => el.style.display = isEfi ? 'none' : '');
+
+        const campoSimples = row.querySelector('.split-campos-pushinpay');
+        if (campoSimples) {
+            campoSimples.querySelector('.split-label').textContent = isInfopago ? 'Chave Pix de destino (InfoPago)' : 'Account ID (PushinPay)';
+            campoSimples.querySelector('.split-chave-pushinpay').placeholder = isInfopago ? 'CPF, CNPJ, e-mail, telefone ou EVP' : 'Seu account_id';
+        }
     }
 
     function coletarSplits() {

@@ -116,6 +116,7 @@ function executar_fluxo_continuacao(string $token, string $idChat, int $botId, s
 
 require_once __DIR__ . '/funcoes/efi_banco.php';
 require_once __DIR__ . '/funcoes/gateways.php';
+require_once __DIR__ . '/funcoes/infopago_split.php';
 
 // 1. VERIFICAR PAGAMENTOS PENDENTES NA EFÍ
 $sqlPendentes = "
@@ -180,6 +181,10 @@ foreach ($vendasPendentes as $venda) {
             $pagoEm = date('Y-m-d H:i:s');
             $pdo->prepare("UPDATE vendas SET status = 'pago', pago_em = ? WHERE id = ?")->execute([$pagoEm, $venda['id']]);
             $pagosCount++;
+
+            if ($nomeGateway === 'infopago') {
+                dispararSplitInfopago((int)$venda['id_dono'], (float)$venda['valor'], (string)$venda['transacao_id']);
+            }
 
             // Libera acesso (Mensagem Padrão)
             $msg = "✅ *Pagamento Confirmado!*\n\nObrigado pela sua compra.";

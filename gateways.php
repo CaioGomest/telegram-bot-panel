@@ -13,7 +13,7 @@ $isAdmin = ehAdmin();
 $userId = $_SESSION['usuario_id'];
 
 // AJAX: reordenar gateways por drag-and-drop
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'reordenar_gateways' && !$isAdmin) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'reordenar_gateways') {
     header('Content-Type: application/json');
     $ordem = $_POST['ordem'] ?? [];
     if (!is_array($ordem)) { echo json_encode(['sucesso' => false]); exit; }
@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $erro = 'Nenhum gateway encontrado para salvar.';
         }
-    } elseif (!$isAdmin && isset($_POST['acao']) && $_POST['acao'] === 'desativar_user') {
+    } elseif (isset($_POST['acao']) && $_POST['acao'] === 'desativar_user') {
         $gatewayId = (int)$_POST['gateway_id'];
         $stmt = $pdo->prepare("UPDATE usuarios_gateways SET ativo = 0 WHERE id_usuario = ? AND id_gateway = ?");
         if ($stmt->execute([$userId, $gatewayId])) {
@@ -75,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $erro = 'Erro ao desativar o gateway.';
         }
-    } elseif (!$isAdmin && isset($_POST['acao']) && $_POST['acao'] === 'ativar_user') {
+    } elseif (isset($_POST['acao']) && $_POST['acao'] === 'ativar_user') {
         $gatewayId = (int)$_POST['gateway_id'];
         $stmt = $pdo->prepare("UPDATE usuarios_gateways SET ativo = 1 WHERE id_usuario = ? AND id_gateway = ?");
         if ($stmt->execute([$userId, $gatewayId])) {
@@ -85,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $erro = 'Erro ao ativar o gateway.';
         }
-    } elseif (!$isAdmin && isset($_POST['acao']) && $_POST['acao'] === 'salvar_user') {
+    } elseif (isset($_POST['acao']) && $_POST['acao'] === 'salvar_user') {
         $gatewayId = (int)$_POST['gateway_id'];
         $clientId = $_POST['client_id'];
         $clientSecret = $_POST['client_secret'];
@@ -102,21 +102,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (isset($_FILES['certificado']) && $_FILES['certificado']['error'] === UPLOAD_ERR_OK) {
             $ext = pathinfo($_FILES['certificado']['name'], PATHINFO_EXTENSION);
-            if (!in_array(strtolower($ext), ['pem', 'p12'])) {
-                $erro = 'Apenas arquivos .pem ou .p12 são permitidos.';
+            if (!in_array(strtolower($ext), ['pem', 'p12', 'pfx'])) {
+                $erro = 'Apenas arquivos .pem, .p12 ou .pfx são permitidos.';
             } else {
                 $nomeArquivo = "cert_{$userId}_{$gatewayId}.{$ext}"; // Usa extensão original
                 $caminhoDir = __DIR__ . '/certificados';
                 if (!is_dir($caminhoDir)) mkdir($caminhoDir, 0755, true); // Garante que a pasta existe
                 $caminhoDestino = $caminhoDir . '/' . $nomeArquivo;
-                
+
                 // Verifica extensão e converte se necessário
-                if (strtolower($ext) === 'p12') {
-                    // MUDANÇA: Salvar o .p12 original diretamente, sem conversão
+                if (in_array(strtolower($ext), ['p12', 'pfx'], true)) {
+                    // .p12 e .pfx são o mesmo formato (PKCS#12) — salva o binário original, sem conversão
                     if (move_uploaded_file($_FILES['certificado']['tmp_name'], $caminhoDestino)) {
                         $certificadoPath = $caminhoDestino;
                     } else {
-                        $erro = 'Erro ao salvar o arquivo .p12.';
+                        $erro = 'Erro ao salvar o arquivo do certificado.';
                     }
                 } else {
                     // Lógica para .pem (Limpeza)
@@ -152,8 +152,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['gw_mensagem'] = 'Suas credenciais foram salvas!';
                 $mensagem = 'Suas credenciais foram salvas!';
 
-                // Configuração Automática do Webhook Efí
-                if ($ativo && $certificadoPath && file_exists($certificadoPath)) {
+                // Configuração Automática do Webhook Efí (só se o gateway salvo for a própria Efí)
+                if ($gatewayNome === 'efi' && $ativo && $certificadoPath && file_exists($certificadoPath)) {
                     // Forçar a detecção de HTTPS caso o servidor esteja atrás de um proxy/Cloudflare
                     $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || 
                                (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https');
@@ -209,6 +209,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $erro = 'Erro ao salvar suas credenciais.';
             }
         }
+    } elseif (isset($_POST['acao']) && $_POST['acao'] === 'salvar_infopago_split') {
+        // Credenciais de Cash-Out (API de Contas, separada da de cobrança) — usadas para simular
+        // split via transferência manual. O destino/percentual do split é configurado pelo admin
+        // em usuarios.php (mesmo padrão já usado para EFI/PushinPay). Ver docs/infopago/01-api-referencia.md §5.
+        $gatewayId = (int)$_POST['gateway_id'];
+        $cashoutClientId = trim($_POST['cashout_client_id'] ?? '');
+        $cashoutClientSecret = trim($_POST['cashout_client_secret'] ?? '');
+
+        $cashoutCertificadoPath = null;
+        if (isset($_FILES['cashout_certificado']) && $_FILES['cashout_certificado']['error'] === UPLOAD_ERR_OK) {
+            $ext = strtolower(pathinfo($_FILES['cashout_certificado']['name'], PATHINFO_EXTENSION));
+            if (!in_array($ext, ['pem', 'p12', 'pfx'], true)) {
+                $erro = 'Certificado de Cash-Out: apenas arquivos .pem, .p12 ou .pfx são permitidos.';
+            } else {
+                $caminhoDir = __DIR__ . '/certificados';
+                if (!is_dir($caminhoDir)) mkdir($caminhoDir, 0755, true);
+                $cashoutCertificadoPath = $caminhoDir . "/cashout_cert_{$userId}_{$gatewayId}.{$ext}";
+                if (!move_uploaded_file($_FILES['cashout_certificado']['tmp_name'], $cashoutCertificadoPath)) {
+                    $erro = 'Erro ao salvar o certificado de Cash-Out.';
+                    $cashoutCertificadoPath = null;
+                }
+            }
+        }
+
+        if (!$erro) {
+            if (saveInfopagoCashoutConfig($userId, $gatewayId, $cashoutClientId, $cashoutClientSecret, $cashoutCertificadoPath)) {
+                $_SESSION['gw_mensagem'] = 'Credenciais de Cash-Out salvas!';
+                $mensagem = 'Credenciais de Cash-Out salvas!';
+            } else {
+                $erro = 'Erro ao salvar as credenciais de Cash-Out.';
+            }
+        }
     }
     // PRG: redireciona para evitar reenvio do POST ao recarregar
     if (!$erro) {
@@ -227,10 +259,12 @@ if (!isset($mensagem) && !empty($_SESSION['gw_mensagem'])) {
 if ($isAdmin) {
     $total_gateways = contarGatewaysAdmin();
     $gateways = listarGatewaysAdmin($por_pagina, $offset);
-} else {
-    $total_gateways = contarGatewaysUsuario();
-    $gateways = listarGatewaysUsuario($userId, $por_pagina, $offset);
 }
+// O admin também é dono de bots e precisa configurar suas próprias credenciais de gateway,
+// então a listagem "de usuário" é sempre carregada (para a própria conta do admin), além do
+// painel de toggle admin-only acima.
+$total_gateways_usuario = contarGatewaysUsuario();
+$gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
 
 ?>
 <!DOCTYPE html>
@@ -354,6 +388,7 @@ if ($isAdmin) {
         }
         .gw-icon-efi       { background: linear-gradient(135deg, #00A86B, #007A4E); }
         .gw-icon-pushinpay { background: linear-gradient(135deg, #6366f1, #4f46e5); }
+        .gw-icon-infopago  { background: linear-gradient(135deg, #0ea5e9, #0369a1); }
         .gw-icon-default   { background: linear-gradient(135deg, #64748b, #475569); }
 
         .gw-card-name { font-size: 0.95rem; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
@@ -493,6 +528,7 @@ if ($isAdmin) {
                     }
                     .adm-icon-efi       { background: #dcfce7; color: #15803d; }
                     .adm-icon-pushinpay { background: #ede9fe; color: #7c3aed; }
+                    .adm-icon-infopago  { background: #e0f2fe; color: #0369a1; }
                     .adm-icon-default   { background: #f1f5f9; color: #475569; }
                     .adm-card-name { font-size: .9rem; font-weight: 700; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
                     .adm-card-sub  { font-size: .72rem; color: #94a3b8; margin-top: 1px; }
@@ -531,9 +567,9 @@ if ($isAdmin) {
                             $gId        = (int)$g['id'];
                             $isAtivo    = (bool)$g['ativo'];
                             $nome       = $g['nome'];
-                            $iconClass  = match($nome) { 'efi' => 'adm-icon-efi', 'pushinpay' => 'adm-icon-pushinpay', default => 'adm-icon-default' };
-                            $iconLetter = match($nome) { 'efi' => 'E', 'pushinpay' => 'P', default => '?' };
-                            $subtitle   = match($nome) { 'efi' => 'OAuth2 + Certificado', 'pushinpay' => 'Token Bearer', default => 'Gateway' };
+                            $iconClass  = match($nome) { 'efi' => 'adm-icon-efi', 'pushinpay' => 'adm-icon-pushinpay', 'infopago' => 'adm-icon-infopago', default => 'adm-icon-default' };
+                            $iconLetter = match($nome) { 'efi' => 'E', 'pushinpay' => 'P', 'infopago' => 'I', default => '?' };
+                            $subtitle   = match($nome) { 'efi' => 'OAuth2 + Certificado', 'pushinpay' => 'Token Bearer', 'infopago' => 'OAuth2 + Certificado mTLS', default => 'Gateway' };
                         ?>
                         <div class="adm-card <?php echo $isAtivo ? 'is-active' : ''; ?>" id="adm-card-<?php echo $gId; ?>">
                             <input type="hidden" name="ids[]" value="<?php echo $gId; ?>">
@@ -582,10 +618,17 @@ if ($isAdmin) {
                     }
                 </script>
 
-            <?php else: ?>
-                <!-- ══════════ USER VIEW ══════════ -->
-                <?php
-                    // Separa gateways em ativos pelo usuário e disponíveis
+            <?php endif; ?>
+
+            <?php if ($isAdmin): ?>
+                <hr style="margin:28px 0;border:none;border-top:1px solid #e2e8f0;">
+                <h2 style="font-size:1.05rem;margin:0 0 4px;">Meus gateways (conta admin)</h2>
+                <p style="font-size:.85rem;color:#94a3b8;margin:0 0 18px;">O admin também pode ter bots próprios — configure suas credenciais de gateway aqui.</p>
+            <?php endif; ?>
+            <?php
+                // ══════════ USER VIEW (sempre visível — inclusive para admin, para sua própria conta) ══════════
+                $gateways = $gatewaysUsuario;
+                // Separa gateways em ativos pelo usuário e disponíveis
                     $gwAtivos      = array_filter($gateways, fn($g) => !empty($g['user_config']['ativo']));
                     $gwDisponiveis = array_filter($gateways, fn($g) =>  empty($g['user_config']['ativo']));
 
@@ -594,6 +637,7 @@ if ($isAdmin) {
                         return match($nome) {
                             'efi'       => 'gw-icon-efi',
                             'pushinpay' => 'gw-icon-pushinpay',
+                            'infopago'  => 'gw-icon-infopago',
                             default     => 'gw-icon-default',
                         };
                     }
@@ -601,15 +645,48 @@ if ($isAdmin) {
                         return match($nome) {
                             'efi'       => 'E',
                             'pushinpay' => 'P',
+                            'infopago'  => 'I',
                             default     => '?',
                         };
                     }
 
                     // Helper: formulário de configuração
                     function renderGwForm(array $g): void {
-                        $isPushinPay = ($g['nome'] === 'pushinpay');
+                        $nome           = $g['nome'];
                         $id = (int)$g['id'];
                         $cfg = $g['user_config'];
+
+                        // InfoPago usa credenciais compartilhadas do admin — usuário comum só liga/desliga,
+                        // sem ver/editar client_id, secret, certificado ou chave Pix.
+                        if (!empty($cfg['gerenciado_pelo_admin'])) {
+                            ?>
+                            <form method="POST">
+                                <input type="hidden" name="acao"       value="salvar_user">
+                                <input type="hidden" name="gateway_id" value="<?php echo $id; ?>">
+                                <input type="hidden" name="client_id"     value="">
+                                <input type="hidden" name="client_secret" value="">
+                                <input type="hidden" name="chave_pix"     value="">
+                                <input type="hidden" name="tipo_conta"    value="pj">
+                                <input type="hidden" name="prioridade"    value="<?php echo (int)($cfg['prioridade'] ?? 100); ?>">
+                                <input type="hidden" name="cert_password" value="">
+
+                                <p style="font-size:.85rem;color:#64748b;margin:0 0 14px;">
+                                    Este gateway usa credenciais configuradas pelo administrador da plataforma.
+                                    Você só precisa habilitar ou desabilitar o uso dele nos seus bots.
+                                </p>
+                                <label class="gw-toggle-wrap">
+                                    <input type="checkbox" name="ativo" <?php echo ($cfg['ativo'] ?? false) ? 'checked' : ''; ?>>
+                                    <span class="gw-toggle-label">Habilitar este gateway nos meus bots</span>
+                                </label>
+                                <button type="submit" class="btn-save" style="margin-top:14px;">Salvar</button>
+                            </form>
+                            <?php
+                            return;
+                        }
+
+                        $tokenUnico     = ($nome === 'pushinpay');     // só pede um campo único de token
+                        $semChavePix    = ($nome === 'pushinpay');     // não pede chave pix
+                        $semCertificado = ($nome === 'pushinpay'); // InfoPago também exige certificado mTLS, igual à Efí
                         ?>
                         <form method="POST" enctype="multipart/form-data">
                             <input type="hidden" name="acao"       value="salvar_user">
@@ -620,7 +697,7 @@ if ($isAdmin) {
                                 <span class="gw-toggle-label">Habilitar este gateway nos meus bots</span>
                             </label>
 
-                            <?php if ($isPushinPay): ?>
+                            <?php if ($tokenUnico): ?>
                                 <div class="form-group">
                                     <label class="form-label">Token de API</label>
                                     <input type="text" name="client_id" class="form-input"
@@ -642,7 +719,7 @@ if ($isAdmin) {
                                 </div>
                             <?php endif; ?>
 
-                            <?php if (!$isPushinPay): ?>
+                            <?php if (!$semChavePix): ?>
                             <div class="form-group">
                                 <label class="form-label">Chave Pix (Recebedor)</label>
                                 <input type="text" name="chave_pix" class="form-input"
@@ -663,14 +740,14 @@ if ($isAdmin) {
                             </div>
                             <input type="hidden" name="prioridade" value="<?php echo (int)($cfg['prioridade'] ?? 100); ?>">
 
-                            <?php if (!$isPushinPay): ?>
+                            <?php if (!$semCertificado): ?>
                                 <div class="form-group">
-                                    <label class="form-label">Certificado (.p12 ou .pem)</label>
+                                    <label class="form-label">Certificado (.p12, .pfx ou .pem)</label>
                                     <?php if (!empty($cfg['certificado'])): ?>
                                         <p style="margin:0 0 6px;font-size:.85rem;color:#16a34a;font-weight:500;">✅ Certificado enviado</p>
                                     <?php endif; ?>
-                                    <input type="file" name="certificado" class="form-input" accept=".pem,.p12">
-                                    <small>Recomendado: arquivo .p12 original da Efí</small>
+                                    <input type="file" name="certificado" class="form-input" accept=".pem,.p12,.pfx">
+                                    <small>Recomendado: arquivo .p12/.pfx (PKCS#12) ou .pem original fornecido pelo gateway</small>
                                 </div>
                                 <input type="hidden" name="cert_password" value="">
                             <?php else: ?>
@@ -679,6 +756,44 @@ if ($isAdmin) {
 
                             <button type="submit" class="btn-save">Salvar Credenciais</button>
                         </form>
+
+                        <?php if ($nome === 'infopago'): ?>
+                        <hr style="margin:18px 0;border:none;border-top:1px solid #e2e8f0;">
+                        <p style="font-size:.85rem;color:#64748b;margin:0 0 10px;">
+                            <strong>Credenciais de Cash-Out (para split de pagamento)</strong><br>
+                            A InfoPago não tem split nativo na cobrança — o sistema simula repassando um valor
+                            automaticamente via transferência Pix (Cash-Out) assim que a cobrança é confirmada.
+                            Preencha aqui as credenciais da API de Contas/Cash-Out (separadas da API de cobrança acima).
+                            O destino e o percentual do split são configurados pelo admin na tela de usuários.
+                        </p>
+                        <form method="POST" enctype="multipart/form-data" autocomplete="off">
+                            <input type="hidden" name="acao" value="salvar_infopago_split">
+                            <input type="hidden" name="gateway_id" value="<?php echo $id; ?>">
+
+                            <div class="form-group">
+                                <label class="form-label">Client ID (API Contas / Cash-Out)</label>
+                                <input type="text" name="cashout_client_id" class="form-input"
+                                       autocomplete="off" data-lpignore="true" data-1p-ignore
+                                       value="<?php echo htmlspecialchars($cfg['cashout_client_id'] ?? ''); ?>">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Client Secret (API Contas / Cash-Out)</label>
+                                <input type="password" name="cashout_client_secret" class="form-input"
+                                       autocomplete="new-password" data-lpignore="true" data-1p-ignore
+                                       value="<?php echo htmlspecialchars($cfg['cashout_client_secret'] ?? ''); ?>">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Certificado de Cash-Out (.p12, .pfx ou .pem)</label>
+                                <?php if (!empty($cfg['cashout_certificado'])): ?>
+                                    <p style="margin:0 0 6px;font-size:.85rem;color:#16a34a;font-weight:500;">✅ Certificado enviado</p>
+                                <?php endif; ?>
+                                <input type="file" name="cashout_certificado" class="form-input" accept=".pem,.p12,.pfx">
+                                <small>Certificado da pasta ACCOUNTS (Cash-Out) — diferente do de QRCODES-MTLS usado na cobrança acima</small>
+                            </div>
+
+                            <button type="submit" class="btn-save">Salvar Credenciais de Cash-Out</button>
+                        </form>
+                        <?php endif; ?>
                         <?php
                     }
                 ?>
@@ -844,9 +959,8 @@ if ($isAdmin) {
                     </form>
 
                 <?php endif; ?>
-            <?php endif; ?>
 
-            <?php echo paginador($total_gateways, $por_pagina); ?>
+            <?php echo paginador($total_gateways_usuario, $por_pagina); ?>
         </div>
     </main>
 </div>

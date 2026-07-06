@@ -23,7 +23,7 @@ if (!is_array($splits)) {
     exit;
 }
 
-$gatewaysValidos = ['efi', 'pushinpay'];
+$gatewaysValidos = ['efi', 'pushinpay', 'infopago'];
 
 global $pdo;
 try {
