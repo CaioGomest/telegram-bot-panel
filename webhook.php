@@ -5,6 +5,7 @@ date_default_timezone_set('America/Sao_Paulo');
 require_once 'conexao.php';
 require_once __DIR__ . '/funcoes/efi_banco.php';
 require_once __DIR__ . '/funcoes/gateways.php';
+require_once __DIR__ . '/funcoes/infopago_split.php';
 const DIRETORIO_UPLOADS = __DIR__ . '/uploads';
 /** CNPJ fixo (65.915.116/0001-04) para todas as cobranças PIX recorrentes — apenas dígitos */
 const CNPJ_PIX_RECORRENTE_FIXO = '65915116000104';
@@ -229,6 +230,20 @@ function processar_e_enviar_bloco(string $token, $idChat, array $operador, strin
             'chat_id' => $idChat,
             'text' => "Clique abaixo para entrar:",
             'reply_markup' => json_encode($teclado)
+        ]);
+        return;
+    }
+    if ($tipo === 'link') {
+        $url = trim((string)($propriedades['url'] ?? ''));
+        $textoBotao = trim((string)($propriedades['texto_botao'] ?? '')) ?: 'Acessar';
+        if (empty($url)) {
+            requisicao_telegram($token, 'sendMessage', ['chat_id' => $idChat, 'text' => 'Erro: link não configurado.']);
+            return;
+        }
+        requisicao_telegram($token, 'sendMessage', [
+            'chat_id' => $idChat,
+            'text' => "Clique abaixo:",
+            'reply_markup' => json_encode(['inline_keyboard' => [[['text' => $textoBotao, 'url' => $url]]]])
         ]);
         return;
     }
@@ -457,9 +472,54 @@ function processar_e_enviar_bloco(string $token, $idChat, array $operador, strin
                     $resp = $respAssinatura;
 
                 } elseif ($ehRecorrente && $nomeGateway === 'infopago') {
-                    // InfoPago ainda não suporta PIX Recorrente neste painel (Fase 2 — ver docs/infopago/01-api-referencia.md §6).
-                    $tentativas[] = "infopago ainda não suporta PIX Recorrente";
-                    continue;
+                    // ── InfoPago: PIX Automático, Jornada 3 (QR Code composto com cobrança imediata) ──
+                    // Paga na hora (acesso liberado igual ao Pix único) e já autoriza a renovação
+                    // automática no mesmo QR. Corrigido (2026-07-07): o passo /locrec não faz parte
+                    // dessa jornada (dava 403 AcessoNegado — endpoint errado, não falta de permissão).
+                    // Fluxo real: /cob/{txid} (cobrança imediata) → /rec (com ativacao.dadosJornada.txid
+                    // vinculando a cobrança) → GET /rec/{idRec}?txid={txid} (QR composto em dadosQR.pixCopiaECola).
+                    $periodicidade = $propriedades['periodicidade'] ?? 'mensal';
+
+                    $payloadCobranca = $provedor->montaPayloadCobranca($valor, $chavePix, $splitData, $expiracaoSegundos);
+                    $respCobranca = $provedor->criarCobranca($payloadCobranca);
+                    if (!($respCobranca['sucesso'] ?? false)) {
+                        $tentativas[] = "{$nomeGateway} criarCobranca (imediata p/ recorrência) falhou: " . ($respCobranca['erro'] ?? 'desconhecido');
+                        continue;
+                    }
+                    $txidImediata = $respCobranca['dados']['txid'] ?? '';
+
+                    $payloadRec = $provedor->montaPayloadRecorrencia(
+                        $valor,
+                        null,
+                        $periodicidade,
+                        $nomeUsuario,
+                        $documentoLimpo,
+                        $propriedades['nome'] ?? 'Assinatura',
+                        $txidImediata
+                    );
+                    $respRec = $provedor->criarRecorrencia($payloadRec);
+                    if (!($respRec['sucesso'] ?? false)) {
+                        $tentativas[] = "{$nomeGateway} criarRecorrencia falhou: " . ($respRec['erro'] ?? 'desconhecido');
+                        continue;
+                    }
+                    $idAssinatura = $respRec['dados']['idRec'] ?? null;
+                    if (!$idAssinatura) {
+                        $tentativas[] = "{$nomeGateway} idRec ausente na resposta da recorrência";
+                        continue;
+                    }
+
+                    $respConsultaRec = $provedor->consultarRecorrencia($idAssinatura, $txidImediata);
+                    if (!($respConsultaRec['sucesso'] ?? false)) {
+                        $tentativas[] = "{$nomeGateway} consultarRecorrencia falhou: " . ($respConsultaRec['erro'] ?? 'desconhecido');
+                        continue;
+                    }
+
+                    $ehRecorrenteOficial = true;
+                    $resp = $respCobranca;
+                    // QR composto (paga + autoriza recorrência); some pra trás pro copia-e-cola simples da cobrança se a API não devolver o composto.
+                    $pixCopiaCola  = $respConsultaRec['dados']['dadosQR']['pixCopiaECola'] ?? ($respCobranca['dados']['pixCopiaECola'] ?? '');
+                    $txid          = $txidImediata;
+                    $linkPagamento = '';
 
                 } else {
                     // ── PIX único — EFI, PushinPay ou InfoPago ──
@@ -826,7 +886,11 @@ if (strpos($texto, 'verificar_pagamento_') === 0) {
                         }
 
                         $pdo->prepare("UPDATE vendas SET status = 'pago', pago_em = NOW() WHERE id = ?")->execute([$venda['id']]);
-                        
+
+                        if ($nomeGwVenda === 'infopago') {
+                            dispararSplitInfopago((int)$idUsuarioDono, (float)$venda['valor'], $txid);
+                        }
+
                         // Traqueamento de Eventos (Pixel/API) - Manual Check
                         require_once __DIR__ . '/funcoes/traqueamento.php';
                         $nomeLeadManual = '';
@@ -882,7 +946,7 @@ if (strpos($texto, 'verificar_pagamento_') === 0) {
                             $pdo->prepare("
                                 INSERT INTO membros_grupos (id_telegram, id_grupo_telegram, bot_id, venda_id, data_expiracao, invite_link, status)
                                 VALUES (?, ?, ?, ?, ?, ?, 'ativo')
-                                ON DUPLICATE KEY UPDATE status = 'ativo', data_expiracao = VALUES(data_expiracao), venda_id = VALUES(venda_id), invite_link = VALUES(invite_link)
+                                ON DUPLICATE KEY UPDATE status = 'ativo', data_expiracao = VALUES(data_expiracao), venda_id = VALUES(venda_id), invite_link = VALUES(invite_link), aviso_enviado = 0
                             ")->execute([$venda['id_telegram'], $idGrupo, $venda['bot_id'], $venda['id'], $dataExpiracao, $link]);
                             $msg .= "\n\n🚀 *Acesso Liberado!*\nClique no link abaixo para entrar no grupo exclusivo:\n\n$link\n\n⚠️ Este link é válido apenas para você.";
                             if ($minutosAcesso < 60) {
@@ -996,7 +1060,10 @@ if ($texto === '/start') {
         $stmtLead->execute([$idChat, $bot['id']]);
         if (!$stmtLead->fetch()) {
             $isNovoLead = true;
-            $nomeUsuario = trim(($atualizacao['message']['from']['first_name'] ?? '') . ' ' . ($atualizacao['message']['from']['last_name'] ?? ''));
+            // /start pode chegar como mensagem de texto OU clique num botão (callback_query,
+            // ex: botão "Recomeçar" do aviso de renovação) — o campo "from" mora em lugares diferentes.
+            $dadosRemetente = $atualizacao['message']['from'] ?? $atualizacao['callback_query']['from'] ?? [];
+            $nomeUsuario = trim(($dadosRemetente['first_name'] ?? '') . ' ' . ($dadosRemetente['last_name'] ?? ''));
             if ($nomeUsuario === '') $nomeUsuario = 'Usuário ' . $idChat;
             $dataCriacao = date('Y-m-d H:i:s');
             $stmtInsertLead = $pdo->prepare("INSERT INTO leads (id_telegram, nome, bot_id, criado_em) VALUES (?, ?, ?, ?)");

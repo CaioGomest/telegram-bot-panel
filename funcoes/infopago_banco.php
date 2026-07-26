@@ -152,7 +152,8 @@ class InfopagoBanco {
             CURLOPT_CUSTOMREQUEST  => $method,
         ];
         if ($body !== null) {
-            $options[CURLOPT_POSTFIELDS] = json_encode($body);
+            // json_encode([]) gera "[]"; a API exige objeto ("{}") mesmo quando vazio.
+            $options[CURLOPT_POSTFIELDS] = json_encode(empty($body) ? new stdClass() : $body);
         }
         curl_setopt_array($ch, $options);
         $this->aplicarCertificado($ch);
@@ -230,5 +231,91 @@ class InfopagoBanco {
      */
     public function configurarWebhook(string $chave, string $urlWebhook): array {
         return $this->sendRequest('PUT', '/webhook/' . urlencode($chave), ['webhookUrl' => $urlWebhook]);
+    }
+
+    // ── PIX Automático (recorrência) — Fase 2 ───────────────────────────────
+    // Corrigido (2026-07-07): confirmado com o suporte InfoPago que /locrec não faz parte do
+    // fluxo — o 403 AcessoNegado era esse endpoint errado, não falta de permissão na conta.
+    // Jornada 3 (QR composto — paga na hora e autoriza a recorrência) usa apenas: POST /rec
+    // (com ativacao.dadosJornada.txid vinculando à cobrança imediata) → PUT /cob/{txid} →
+    // GET /rec/{idRec}?txid={txid} (o QR composto vem em dadosQR.pixCopiaECola).
+    // Doc: https://developers.onz.software/docs/cobrancas/pix-automatico-jornadas/
+
+    /**
+     * Cria uma Recorrência Pix Automático (POST /rec).
+     */
+    public function criarRecorrencia(array $payload): array {
+        return $this->sendRequest('POST', '/rec', $payload);
+    }
+
+    /**
+     * Consulta Recorrência Pix Automático (GET /rec/{idRec}).
+     * É aqui que vem o QR Code/copia-e-cola, no campo dadosQR.pixCopiaECola.
+     * Passe $txid (Jornada 3 — QR composto) para vincular à cobrança imediata na consulta.
+     */
+    public function consultarRecorrencia(string $idRec, ?string $txid = null): array {
+        $uri = "/rec/{$idRec}";
+        if ($txid) {
+            $uri .= '?txid=' . urlencode($txid);
+        }
+        return $this->sendRequest('GET', $uri);
+    }
+
+    /**
+     * Cancela uma Recorrência Pix Automático (PATCH /rec/{idRec}).
+     */
+    public function cancelarRecorrencia(string $idRec): array {
+        return $this->sendRequest('PATCH', "/rec/{$idRec}", ['status' => 'CANCELADA']);
+    }
+
+    /**
+     * Monta o payload completo para criar uma recorrência InfoPago (schema confirmado na doc da ONZ).
+     *
+     * @param string|null $txidCobrancaImediata Se informado, vincula a recorrência a uma cobrança
+     *                                           imediata já criada (Jornada 3 — QR Code composto:
+     *                                           paga na hora e já autoriza a renovação automática).
+     */
+    public function montaPayloadRecorrencia(float $valor, ?int $locId, string $periodicidade, string $nomeCliente, string $cpfCliente, string $objeto = 'Assinatura', ?string $txidCobrancaImediata = null): array {
+        $enumPeriodicidade = 'MENSAL';
+        $mapa = ['semanal' => 'SEMANAL', 'mensal' => 'MENSAL', 'trimestral' => 'TRIMESTRAL', 'semestral' => 'SEMESTRAL', 'anual' => 'ANUAL'];
+        if (isset($mapa[strtolower($periodicidade)])) {
+            $enumPeriodicidade = $mapa[strtolower($periodicidade)];
+        }
+
+        $duracaoAnos = ['SEMANAL' => 1, 'MENSAL' => 5, 'TRIMESTRAL' => 5, 'SEMESTRAL' => 8, 'ANUAL' => 10][$enumPeriodicidade] ?? 5;
+
+        $documentoLimpo = preg_replace('/\D/', '', $cpfCliente);
+        // O schema não aceita 'cpf' e 'cnpj' preenchidos ao mesmo tempo em devedor — usa o campo certo conforme o tamanho do documento.
+        $campoDocumento = strlen($documentoLimpo) === 14 ? 'cnpj' : 'cpf';
+
+        $payload = [
+            'vinculo' => [
+                'contrato' => substr((string) time(), -20), // identificador do contrato exigido pelo schema; sem significado de negócio próprio aqui
+                'objeto'   => substr($objeto, 0, 140),
+                'devedor'  => [
+                    $campoDocumento => $documentoLimpo ?: '00000000000',
+                    'nome' => substr($nomeCliente ?: 'Cliente', 0, 200),
+                ],
+            ],
+            'calendario' => [
+                'dataInicial'   => date('Y-m-d'),
+                'dataFinal'     => date('Y-m-d', strtotime("+{$duracaoAnos} years")),
+                'periodicidade' => $enumPeriodicidade,
+            ],
+            'valor' => [
+                'valorRec' => number_format($valor, 2, '.', ''),
+            ],
+            'politicaRetentativa' => 'NAO_PERMITE',
+        ];
+
+        if ($locId) {
+            $payload['loc'] = $locId;
+        }
+
+        if ($txidCobrancaImediata) {
+            $payload['ativacao'] = ['dadosJornada' => ['txid' => $txidCobrancaImediata]];
+        }
+
+        return $payload;
     }
 }

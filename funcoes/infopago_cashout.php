@@ -87,7 +87,7 @@ class InfopagoCashout {
 
         $data = json_decode((string)$response, true);
 
-        if (($httpCode === 200 || $httpCode === 201) && isset($data['access_token'])) {
+        if (($httpCode === 200 || $httpCode === 201 || $httpCode === 202) && isset($data['access_token'])) {
             $this->accessToken = $data['access_token'];
             return true;
         }
@@ -155,25 +155,55 @@ class InfopagoCashout {
     }
 
     /**
+     * Chave Pix do tipo telefone precisa vir no formato E.164 (+5511999999999) — a InfoPago
+     * rejeita ("Invalid Pix Entry") se faltar o "+" ou o DDI 55. CPF, CNPJ, e-mail e EVP (UUID)
+     * não são mexidos, só o caso de 10 ou 11 dígitos que parece DDD+telefone brasileiro.
+     */
+    private static function normalizarChaveTelefone(string $chave): string {
+        $chave = trim($chave);
+        if (str_contains($chave, '@') || str_contains($chave, '-')) {
+            return $chave; // e-mail ou EVP (UUID) — não é telefone
+        }
+
+        $somenteDigitos = preg_replace('/\D/', '', $chave);
+
+        if (str_starts_with($chave, '+55') && strlen($somenteDigitos) === 13) {
+            return $chave; // já está correto
+        }
+        // Celular brasileiro: DDD (2) + 9 fixo + 8 dígitos = 11 dígitos, com '9' na 3ª posição.
+        // Esse terceiro dígito distingue de CPF (também 11 dígitos, mas sem esse padrão fixo).
+        if (strlen($somenteDigitos) === 11 && $somenteDigitos[2] === '9') {
+            return '+55' . $somenteDigitos;
+        }
+        if (strlen($somenteDigitos) === 13 && str_starts_with($somenteDigitos, '55') && $somenteDigitos[4] === '9') {
+            return '+' . $somenteDigitos; // DDI + DDD + celular, sem o "+"
+        }
+
+        return $chave; // CPF, CNPJ, e-mail ou EVP: deixa como está
+    }
+
+    /**
      * Transfere um valor via Pix para uma chave (POST /pix/payments/dict).
-     * `[A CONFIRMAR]`: se "amount" é em centavos (inteiro) ou reais — assumindo centavos,
-     * mesmo padrão de mercado (ver docs/infopago/01-api-referencia.md).
+     * "amount" é em REAIS (não centavos) — confirmado pelo suporte InfoPago em 2026-07-21:
+     * um envio com amount=30 foi cobrado como R$30,00, e amount=1 como R$1,00.
      *
      * @param string $chavePixDestino Chave Pix de destino (CPF, CNPJ, e-mail, telefone ou EVP)
      * @param float  $valor           Valor em reais
      * @param string $descricao       Descrição da transferência (aparece pro destinatário)
      */
     public function transferirPorChavePix(string $chavePixDestino, float $valor, string $descricao = 'Split'): array {
+        $chavePixDestino = self::normalizarChaveTelefone($chavePixDestino);
         $idempotencyKey = bin2hex(random_bytes(16));
         $payload = [
             'pixKey'      => $chavePixDestino,
-            'priority'    => 'HIGH',
+            // NORM (não HIGH) — HIGH exige creditorDocument (CPF/CNPJ do destinatário), que não coletamos.
+            'priority'    => 'NORM',
             'description' => substr($descricao, 0, 140),
             'paymentFlow' => 'INSTANT',
             'expiration'  => 600,
             'payment'     => [
                 'currency' => 'BRL',
-                'amount'   => (int) round($valor * 100),
+                'amount'   => round($valor, 2),
             ],
         ];
 

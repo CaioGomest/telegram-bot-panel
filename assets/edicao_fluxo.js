@@ -47,6 +47,12 @@
     }
     const escapeHtml = escaparHtml;
 
+    // Extrai o texto de um botão — fluxos antigos (ou testes anteriores) podem ter
+    // salvo o botão como objeto {texto,...} em vez de string simples; aceita os dois.
+    function textoBotao(b) {
+        return (b && typeof b === 'object') ? (b.texto || '') : (b || '');
+    }
+
     // Ícones SVG para os blocos
     const blockIcons = {
         start: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>',
@@ -150,7 +156,7 @@
             const lista = (props.botoes || []).map(function (t, i) {
                 return '' +
                     '<div class="item-botao" data-index="' + i + '">' +
-                    '  <input type="text" class="campo-botao-texto" value="' + escaparHtml(t || '') + '" placeholder="Texto do botão">' +
+                    '  <input type="text" class="campo-botao-texto" value="' + escaparHtml(textoBotao(t)) + '" placeholder="Texto do botão">' +
                     '  <button type="button" class="remover-botao" title="Remover">✕</button>' +
                     '</div>';
             }).join('');
@@ -676,6 +682,7 @@
         $('#id-fluxo').val('');
         $('#nome-fluxo').val('Novo fluxo');
         $('#descricao-fluxo').val('');
+        $('#link-suporte-fluxo').val('');
         setChartData(defaultChartData());
         if (window.history.pushState) {
             const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
@@ -696,7 +703,8 @@
                 $('#id-fluxo').val(currentFlow.id || '');
                 $('#nome-fluxo').val(currentFlow.nome || '');
                 $('#descricao-fluxo').val(currentFlow.descricao || '');
-                
+                $('#link-suporte-fluxo').val(currentFlow.link_suporte || '');
+
                 if (window.history.pushState) {
                     const newUrl = window.location.pathname + '?id=' + currentFlow.id;
                     window.history.pushState({path:newUrl},'',newUrl);
@@ -725,6 +733,7 @@
             id: $('#id-fluxo').val(),
             nome: $('#nome-fluxo').val().trim() || 'Novo fluxo',
             descricao: $('#descricao-fluxo').val().trim(),
+            link_suporte: $('#link-suporte-fluxo').val().trim(),
             dados_fluxograma_b64: fluxogramaJsonParaBase64Utf8(getChartData())
         };
 
@@ -873,7 +882,12 @@
                 url: apiUrl + '?action=importar_fluxo',
                 method: 'POST',
                 contentType: 'application/json',
-                data: JSON.stringify(json)
+                data: JSON.stringify({
+                    nome: json.nome,
+                    descricao: json.descricao,
+                    link_suporte: json.link_suporte || '',
+                    dados_fluxograma_b64: fluxogramaJsonParaBase64Utf8(json.dados_fluxograma)
+                })
             }).done(function (resp) {
                 if (!resp.sucesso || !resp.fluxo) {
                     showToast(resp.mensagem || 'Erro ao importar fluxo.', 'erro');
@@ -883,6 +897,7 @@
                 $('#id-fluxo').val(currentFlow.id || '');
                 $('#nome-fluxo').val(currentFlow.nome || '');
                 $('#descricao-fluxo').val(currentFlow.descricao || '');
+                $('#link-suporte-fluxo').val(currentFlow.link_suporte || '');
                 setChartData(currentFlow.dados_fluxograma || defaultChartData());
                 showToast('Fluxo importado com sucesso.');
                 if (window.history.pushState && currentFlow.id) {
@@ -961,14 +976,14 @@
         props.botoes = props.botoes || [];
         const novoNome = 'Novo botão';
         props.botoes.push(novoNome);
-        
+
         // Adiciona novo output
         props.outputs = props.outputs || {};
         props.outputs['output_' + (props.botoes.length - 1)] = { label: novoNome };
 
         props.body = renderCorpoDoBloco(props);
         $flowchart.flowchart('setOperatorBody', id, props.body);
-        
+
         // É necessário setar os dados completos para recriar os conectores
         setChartData(data);
         $flowchart.flowchart('selectOperator', id);
@@ -982,14 +997,14 @@
         const data = getChartData();
         const props = data.operators[id] && data.operators[id].properties;
         if (!props || props.type !== 'botoes') return;
-        
+
         // Remove botão do array
         props.botoes = (props.botoes || []).filter(function (_t, i) { return i !== idx; });
-        
+
         // Reconstrói outputs
         props.outputs = {};
         props.botoes.forEach((btn, i) => {
-            props.outputs['output_' + i] = { label: btn };
+            props.outputs['output_' + i] = { label: textoBotao(btn) };
         });
 
         props.body = renderCorpoDoBloco(props);

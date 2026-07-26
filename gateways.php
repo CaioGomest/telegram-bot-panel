@@ -147,7 +147,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         if (!$erro) {
-            $certPassword = $_POST['cert_password'] ?? '';
+            $certPassword = trim($_POST['cert_password'] ?? '');
+            if ($certPassword === '') {
+                $certPassword = $currentConfig['cert_password'] ?? '';
+            }
             if (saveUserGatewayConfig($userId, $gatewayId, $clientId, $clientSecret, $certificadoPath, $certPassword, $chavePix, $ativo, $prioridade, $tipoConta)) {
                 $_SESSION['gw_mensagem'] = 'Suas credenciais foram salvas!';
                 $mensagem = 'Suas credenciais foram salvas!';
@@ -216,6 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $gatewayId = (int)$_POST['gateway_id'];
         $cashoutClientId = trim($_POST['cashout_client_id'] ?? '');
         $cashoutClientSecret = trim($_POST['cashout_client_secret'] ?? '');
+        $cashoutCertPassword = trim($_POST['cashout_cert_password'] ?? '');
 
         $cashoutCertificadoPath = null;
         if (isset($_FILES['cashout_certificado']) && $_FILES['cashout_certificado']['error'] === UPLOAD_ERR_OK) {
@@ -234,7 +238,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if (!$erro) {
-            if (saveInfopagoCashoutConfig($userId, $gatewayId, $cashoutClientId, $cashoutClientSecret, $cashoutCertificadoPath)) {
+            if (saveInfopagoCashoutConfig($userId, $gatewayId, $cashoutClientId, $cashoutClientSecret, $cashoutCertificadoPath, $cashoutCertPassword)) {
                 $_SESSION['gw_mensagem'] = 'Credenciais de Cash-Out salvas!';
                 $mensagem = 'Credenciais de Cash-Out salvas!';
             } else {
@@ -670,10 +674,6 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
                                 <input type="hidden" name="prioridade"    value="<?php echo (int)($cfg['prioridade'] ?? 100); ?>">
                                 <input type="hidden" name="cert_password" value="">
 
-                                <p style="font-size:.85rem;color:#64748b;margin:0 0 14px;">
-                                    Este gateway usa credenciais configuradas pelo administrador da plataforma.
-                                    Você só precisa habilitar ou desabilitar o uso dele nos seus bots.
-                                </p>
                                 <label class="gw-toggle-wrap">
                                     <input type="checkbox" name="ativo" <?php echo ($cfg['ativo'] ?? false) ? 'checked' : ''; ?>>
                                     <span class="gw-toggle-label">Habilitar este gateway nos meus bots</span>
@@ -749,7 +749,13 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
                                     <input type="file" name="certificado" class="form-input" accept=".pem,.p12,.pfx">
                                     <small>Recomendado: arquivo .p12/.pfx (PKCS#12) ou .pem original fornecido pelo gateway</small>
                                 </div>
-                                <input type="hidden" name="cert_password" value="">
+                                <div class="form-group">
+                                    <label class="form-label">Senha do certificado (se houver)</label>
+                                    <input type="password" name="cert_password" class="form-input"
+                                           autocomplete="new-password" data-lpignore="true" data-1p-ignore
+                                           placeholder="<?php echo !empty($cfg['cert_password']) ? '••••••••' : ''; ?>">
+                                    <small>Deixe em branco pra manter a senha já salva.</small>
+                                </div>
                             <?php else: ?>
                                 <input type="hidden" name="cert_password" value="">
                             <?php endif; ?>
@@ -789,6 +795,13 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
                                 <?php endif; ?>
                                 <input type="file" name="cashout_certificado" class="form-input" accept=".pem,.p12,.pfx">
                                 <small>Certificado da pasta ACCOUNTS (Cash-Out) — diferente do de QRCODES-MTLS usado na cobrança acima</small>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Senha do certificado de Cash-Out (se houver)</label>
+                                <input type="password" name="cashout_cert_password" class="form-input"
+                                       autocomplete="new-password" data-lpignore="true" data-1p-ignore
+                                       placeholder="<?php echo !empty($cfg['cashout_cert_password']) ? '••••••••' : ''; ?>">
+                                <small>Deixe em branco pra manter a senha já salva.</small>
                             </div>
 
                             <button type="submit" class="btn-save">Salvar Credenciais de Cash-Out</button>

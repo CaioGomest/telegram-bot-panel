@@ -407,7 +407,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
                 <!-- Campo de chave simples (PushinPay: account_id / InfoPago: chave Pix) -->
                 <div class="split-field split-field-lg split-campos-pushinpay" style="${isEfi ? 'display:none;' : ''}">
                     <label class="split-label">${gw === 'infopago' ? 'Chave Pix de destino (InfoPago)' : 'Account ID (PushinPay)'}</label>
-                    <input type="text" class="form-input split-chave-pushinpay" value="${chaveSimples}" placeholder="${gw === 'infopago' ? 'CPF, CNPJ, e-mail, telefone ou EVP' : 'Seu account_id'}">
+                    <input type="text" class="form-input split-chave-pushinpay" value="${chaveSimples}" placeholder="${gw === 'infopago' ? 'CPF, CNPJ, e-mail, EVP, ou telefone c/ +55 (ex: +5511999999999)' : 'Seu account_id'}">
                 </div>
                 <div class="split-field split-field-desc">
                     <label class="split-label">Descrição</label>
@@ -440,7 +440,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
         const campoSimples = row.querySelector('.split-campos-pushinpay');
         if (campoSimples) {
             campoSimples.querySelector('.split-label').textContent = isInfopago ? 'Chave Pix de destino (InfoPago)' : 'Account ID (PushinPay)';
-            campoSimples.querySelector('.split-chave-pushinpay').placeholder = isInfopago ? 'CPF, CNPJ, e-mail, telefone ou EVP' : 'Seu account_id';
+            campoSimples.querySelector('.split-chave-pushinpay').placeholder = isInfopago ? 'CPF, CNPJ, e-mail, EVP, ou telefone c/ +55 (ex: +5511999999999)' : 'Seu account_id';
         }
     }
 

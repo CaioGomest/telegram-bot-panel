@@ -13,7 +13,7 @@ verificarLogin();
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.3/themes/base/jquery-ui.css">
     <link rel="stylesheet" href="assets/vendor/jquery.flowchart.css">
-    <link rel="stylesheet" href="assets/fluxograma_tema.css">
+    <link rel="stylesheet" href="assets/fluxograma_tema.css?v=<?= (int) filemtime(__DIR__ . '/assets/fluxograma_tema.css') ?>">
     <link rel="stylesheet" href="assets/app.css">
 </head>
 <body>
@@ -41,6 +41,13 @@ verificarLogin();
                 <div class="campo">
                     <label for="descricao-fluxo">Descrição</label>
                     <input type="text" id="descricao-fluxo" placeholder="Uso interno do fluxo">
+                </div>
+            </div>
+            <div class="grade grade-2 grade-compacta" style="margin-top:12px;">
+                <div class="campo">
+                    <label for="link-suporte-fluxo">Link de Suporte (opcional)</label>
+                    <input type="text" id="link-suporte-fluxo" placeholder="https://t.me/seu_usuario">
+                    <p style="font-size:11px;color:#64748b;margin-top:4px;">Usado nas mensagens automáticas de aviso/expiração de acesso enviadas pelo sistema (fora do fluxo).</p>
                 </div>
             </div>
             <input type="hidden" id="id-fluxo">

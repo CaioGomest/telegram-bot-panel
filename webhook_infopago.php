@@ -196,11 +196,92 @@ if (!is_array($notificacao)) {
     exit;
 }
 
+// ── PIX Automático (Recorrente) — campo 'cobsr', mesmo padrão da Efí ──────────
+// [A CONFIRMAR] formato exato ainda não testado com uma cobrança recorrente real.
+if (isset($notificacao['cobsr'])) {
+    foreach ($notificacao['cobsr'] as $cobsr) {
+        $idRec  = $cobsr['idRec'] ?? '';
+        $status = strtoupper(trim($cobsr['status'] ?? ''));
+
+        if (empty($idRec)) {
+            logWebhookInfopago("cobsr sem idRec. Ignorado.");
+            continue;
+        }
+
+        logWebhookInfopago("PIX Automático | idRec=$idRec | status=$status");
+
+        $stmt = $pdo->prepare("SELECT v.*, b.token, b.id_usuario FROM vendas v JOIN bots b ON v.bot_id = b.id WHERE v.id_assinatura = ? ORDER BY v.id DESC LIMIT 1");
+        $stmt->execute([$idRec]);
+        $venda = $stmt->fetch();
+
+        if (!$venda) {
+            logWebhookInfopago("Nenhuma venda encontrada para idRec=$idRec.");
+            continue;
+        }
+
+        $tokenBot   = $venda['token'];
+        $idDono     = (int)$venda['id_usuario'];
+        $idTelegram = $venda['id_telegram'];
+        $idGrupo    = $venda['id_grupo_telegram'] ?? '';
+
+        $stmtMembro = $pdo->prepare("SELECT * FROM membros_grupos WHERE id_telegram = ? AND id_grupo_telegram = ? AND bot_id = ?");
+        $stmtMembro->execute([$idTelegram, $idGrupo, $venda['bot_id']]);
+        $membro = $stmtMembro->fetch();
+
+        if ($status === 'ATIVA') {
+            $txidRenovacao = (string)($cobsr['txid'] ?? $idRec);
+
+            if (!empty($venda['ultimo_txid_renovacao']) && $venda['ultimo_txid_renovacao'] === $txidRenovacao) {
+                logWebhookInfopago("Renovação idRec=$idRec txid=$txidRenovacao já processada. Ignorando duplicata (reenvio de webhook).");
+                continue;
+            }
+
+            logWebhookInfopago("Cobrança recorrente PAGA para idRec=$idRec. Renovando acesso do usuário $idTelegram.");
+
+            $pdo->prepare("UPDATE vendas SET ultimo_txid_renovacao = ? WHERE id = ?")->execute([$txidRenovacao, $venda['id']]);
+
+            $link = liberarAcessoGrupoInfopago($venda, $tokenBot);
+            dispararSplitInfopago($idDono, (float)$venda['valor'], $txidRenovacao);
+
+            $msgRenovacao = "✅ *Assinatura Renovada!*\n\nSua assinatura foi renovada automaticamente com sucesso.";
+            if ($link) {
+                $msgRenovacao .= "\n\nCaso tenha sido removido do grupo, use o link abaixo para voltar:\n$link";
+            }
+            requisicao_telegram_infopago($tokenBot, 'sendMessage', [
+                'chat_id' => $idTelegram,
+                'text' => $msgRenovacao,
+                'parse_mode' => 'Markdown'
+            ]);
+
+            registrarAtividade($idDono, 'venda', 'Renovação Automática', "PIX Automático InfoPago renovado para usuário $idTelegram (idRec=$idRec).");
+
+        } elseif (in_array($status, ['REJEITADA', 'CANCELADA', 'EXPIRADA'])) {
+            logWebhookInfopago("Cobrança recorrente FALHOU ($status) para idRec=$idRec. Removendo usuário $idTelegram.");
+
+            if ($membro && $membro['status'] === 'ativo') {
+                requisicao_telegram_infopago($tokenBot, 'banChatMember', ['chat_id' => $idGrupo, 'user_id' => $idTelegram, 'until_date' => time() + 35]);
+                requisicao_telegram_infopago($tokenBot, 'unbanChatMember', ['chat_id' => $idGrupo, 'user_id' => $idTelegram, 'only_if_banned' => true]);
+                $pdo->prepare("UPDATE membros_grupos SET status = 'expirado' WHERE id = ?")->execute([$membro['id']]);
+                requisicao_telegram_infopago($tokenBot, 'sendMessage', [
+                    'chat_id' => $idTelegram,
+                    'text' => "⚠️ *Seu acesso ao grupo foi encerrado.*\n\nNão conseguimos processar o pagamento da sua assinatura. Para voltar, inicie uma nova assinatura no bot.",
+                    'parse_mode' => 'Markdown'
+                ]);
+            }
+
+            registrarAtividade($idDono, 'sistema', 'Remoção por Falha', "PIX Automático InfoPago falhou ($status) para usuário $idTelegram (idRec=$idRec).");
+        } else {
+            logWebhookInfopago("Status '$status' para idRec=$idRec não requer ação imediata.");
+        }
+    }
+
+    http_response_code(200);
+    exit;
+}
+
 // ── PIX comum (pago via webhook) — campo 'pix', padrão Bacen ──────────────────
-// Fase 1: só cobrança única. Recorrência nativa InfoPago (campo equivalente a 'cobsr' da Efí)
-// fica para a Fase 2 — ver docs/infopago/01-api-referencia.md §6.
 if (!isset($notificacao['pix'])) {
-    logWebhookInfopago("Payload sem 'pix'. Ignorado.");
+    logWebhookInfopago("Payload sem 'pix' nem 'cobsr'. Ignorado.");
     http_response_code(200);
     exit;
 }

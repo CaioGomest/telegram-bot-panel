@@ -27,7 +27,7 @@ function dispararSplitInfopago(int $idDono, float $valorVenda, string $txid): vo
     // Cash-Out usa as credenciais compartilhadas do admin — é a conta dele que recebe via
     // InfoPago e repassa a parte de cada usuário, não uma conta por usuário.
     $stmt = $pdo->prepare("
-        SELECT ug.cashout_client_id, ug.cashout_client_secret, ug.cashout_certificado
+        SELECT ug.cashout_client_id, ug.cashout_client_secret, ug.cashout_certificado, ug.cashout_cert_password
         FROM usuarios_gateways ug
         JOIN usuarios u ON ug.id_usuario = u.id
         JOIN gateways g ON ug.id_gateway = g.id
@@ -51,7 +51,7 @@ function dispararSplitInfopago(int $idDono, float $valorVenda, string $txid): vo
         return;
     }
 
-    $cashout = new InfopagoCashout($cred['cashout_client_id'], $cred['cashout_client_secret'], $cred['cashout_certificado']);
+    $cashout = new InfopagoCashout($cred['cashout_client_id'], $cred['cashout_client_secret'], $cred['cashout_certificado'], $cred['cashout_cert_password'] ?? '');
     $resp = $cashout->transferirPorChavePix($split['chave_pix_split'], $valorSplit, "Split venda TXID {$txid}");
 
     if ($resp['sucesso'] ?? false) {

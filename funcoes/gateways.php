@@ -98,7 +98,7 @@ function getUserGateways(int $userId, bool $somenteAtivos = true): array {
     global $pdo;
     $sql = "
         SELECT g.id as gateway_id, g.nome as gateway_nome, g.titulo, g.ativo as admin_ativo,
-               ug.ativo AS user_ativo, ug.client_id, ug.client_secret, ug.certificado, ug.chave_pix, ug.prioridade,
+               ug.ativo AS user_ativo, ug.client_id, ug.client_secret, ug.certificado, ug.cert_password, ug.chave_pix, ug.prioridade,
                COALESCE(ug.tipo_conta, 'pj') as tipo_conta
         FROM gateways g
         LEFT JOIN usuarios_gateways ug ON ug.id_gateway = g.id AND ug.id_usuario = :user_id
@@ -126,6 +126,7 @@ function getUserGateways(int $userId, bool $somenteAtivos = true): array {
                 $gw['client_id'] = $credenciaisAdminInfopago['client_id'];
                 $gw['client_secret'] = $credenciaisAdminInfopago['client_secret'];
                 $gw['certificado'] = $credenciaisAdminInfopago['certificado'];
+                $gw['cert_password'] = $credenciaisAdminInfopago['cert_password'] ?? '';
                 $gw['chave_pix'] = $credenciaisAdminInfopago['chave_pix'];
                 $gw['tipo_conta'] = $credenciaisAdminInfopago['tipo_conta'] ?? 'pj';
             }
@@ -198,10 +199,10 @@ function saveUserGatewayConfig(int $userId, int $gatewayId, string $clientId, st
  * Usadas para simular split via transferência manual após o Pix cair, já que a API
  * de cobrança da InfoPago não tem split nativo (ver docs/infopago/01-api-referencia.md §5).
  */
-function saveInfopagoCashoutConfig(int $userId, int $gatewayId, string $cashoutClientId, string $cashoutClientSecret, ?string $cashoutCertificado): bool {
+function saveInfopagoCashoutConfig(int $userId, int $gatewayId, string $cashoutClientId, string $cashoutClientSecret, ?string $cashoutCertificado, string $cashoutCertPassword = ''): bool {
     global $pdo;
     try {
-        $stmt = $pdo->prepare("SELECT id, cashout_certificado FROM usuarios_gateways WHERE id_usuario = ? AND id_gateway = ?");
+        $stmt = $pdo->prepare("SELECT id, cashout_certificado, cashout_cert_password FROM usuarios_gateways WHERE id_usuario = ? AND id_gateway = ?");
         $stmt->execute([$userId, $gatewayId]);
         $exists = $stmt->fetch();
 
@@ -210,9 +211,10 @@ function saveInfopagoCashoutConfig(int $userId, int $gatewayId, string $cashoutC
         }
 
         $certificadoFinal = $cashoutCertificado ?: $exists['cashout_certificado'];
+        $certPasswordFinal = $cashoutCertPassword !== '' ? $cashoutCertPassword : $exists['cashout_cert_password'];
 
-        $stmt = $pdo->prepare("UPDATE usuarios_gateways SET cashout_client_id = ?, cashout_client_secret = ?, cashout_certificado = ? WHERE id = ?");
-        if ($stmt->execute([$cashoutClientId, $cashoutClientSecret, $certificadoFinal, $exists['id']])) {
+        $stmt = $pdo->prepare("UPDATE usuarios_gateways SET cashout_client_id = ?, cashout_client_secret = ?, cashout_certificado = ?, cashout_cert_password = ? WHERE id = ?");
+        if ($stmt->execute([$cashoutClientId, $cashoutClientSecret, $certificadoFinal, $certPasswordFinal, $exists['id']])) {
             registrarAtividade($userId, 'sistema', 'Gateway Usuário', "Atualizou credenciais de Cash-Out (split) do gateway ID $gatewayId");
             return true;
         }

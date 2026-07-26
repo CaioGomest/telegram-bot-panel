@@ -163,11 +163,16 @@ try {
             break;
 
         case 'gateway_info':
-            // Basta um gateway ativo ser PJ para liberar a opção de recorrente
+            // Basta um gateway ativo ser PJ para liberar a opção de recorrente.
+            // Sem linha própria em usuarios_gateways (ex: InfoPago usando credenciais
+            // compartilhadas do admin), tipo_conta é considerado 'pj' por padrão — mesmo
+            // fallback usado em getUserGateways() (funcoes/gateways.php).
             $stmt = $pdo->prepare("
-                SELECT COUNT(*) FROM usuarios_gateways ug
-                JOIN gateways g ON ug.id_gateway = g.id
-                WHERE ug.id_usuario = ? AND ug.ativo = 1 AND ug.tipo_conta = 'pj'
+                SELECT COUNT(*) FROM gateways g
+                LEFT JOIN usuarios_gateways ug ON ug.id_gateway = g.id AND ug.id_usuario = ?
+                WHERE g.ativo = 1
+                  AND (ug.ativo = 1 OR ug.id IS NULL)
+                  AND COALESCE(ug.tipo_conta, 'pj') = 'pj'
             ");
             $stmt->execute([$usuarioId]);
             $suportaRecorrente = (int)$stmt->fetchColumn() > 0;
@@ -207,7 +212,7 @@ try {
             if ($id <= 0) {
                 responder(false, ['mensagem' => 'ID do fluxo inválido.'], 422);
             }
-            $stmt = $pdo->prepare("SELECT id, nome, descricao, dados_fluxograma, atualizado_em FROM fluxos WHERE id = ? AND id_usuario = ?");
+            $stmt = $pdo->prepare("SELECT id, nome, descricao, link_suporte, dados_fluxograma, atualizado_em FROM fluxos WHERE id = ? AND id_usuario = ?");
             $stmt->execute([$id, $usuarioId]);
             $fluxo = $stmt->fetch();
             if (!$fluxo) {
@@ -218,6 +223,7 @@ try {
                 'id_origem' => (int)($fluxo['id'] ?? 0),
                 'nome' => (string)($fluxo['nome'] ?? ''),
                 'descricao' => (string)($fluxo['descricao'] ?? ''),
+                'link_suporte' => (string)($fluxo['link_suporte'] ?? ''),
                 'dados_fluxograma' => json_decode($fluxo['dados_fluxograma'] ?? '{}', true),
                 'atualizado_em' => $fluxo['atualizado_em'] ?? null,
             ];
@@ -232,12 +238,24 @@ try {
             }
             $nome = sanitizar_texto($json['nome'] ?? 'Fluxo importado', 120);
             $descricao = sanitizar_texto($json['descricao'] ?? '', 500);
-            $dados = $json['dados_fluxograma'] ?? null;
+            $linkSuporte = sanitizar_texto($json['link_suporte'] ?? '', 255);
+
+            // Aceita dados_fluxograma_b64 para contornar WAF/ModSecurity que bloqueiam o JSON do diagrama (403).
+            if (!empty($json['dados_fluxograma_b64']) && is_string($json['dados_fluxograma_b64'])) {
+                $brutoB64 = base64_decode($json['dados_fluxograma_b64'], true);
+                if ($brutoB64 === false || $brutoB64 === '') {
+                    responder(false, ['mensagem' => 'dados_fluxograma (codificação) inválidos.'], 422);
+                }
+                $dados = json_decode($brutoB64, true);
+            } else {
+                $dados = $json['dados_fluxograma'] ?? null;
+            }
+
             if (!is_array($dados) || !isset($dados['operators']) || !isset($dados['links'])) {
                 responder(false, ['mensagem' => 'Estrutura do fluxo inválida.'], 422);
             }
-            $stmt = $pdo->prepare("INSERT INTO fluxos (id_usuario, nome, descricao, dados_fluxograma) VALUES (?, ?, ?, ?)");
-            $stmt->execute([$usuarioId, $nome, $descricao, json_encode($dados, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]);
+            $stmt = $pdo->prepare("INSERT INTO fluxos (id_usuario, nome, descricao, link_suporte, dados_fluxograma) VALUES (?, ?, ?, ?, ?)");
+            $stmt->execute([$usuarioId, $nome, $descricao, $linkSuporte, json_encode($dados, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]);
             $novoId = (int)$pdo->lastInsertId();
             $stmt = $pdo->prepare("SELECT * FROM fluxos WHERE id = ?");
             $stmt->execute([$novoId]);
@@ -250,6 +268,7 @@ try {
             $idFluxo = (int) ($entrada['id'] ?? 0);
             $nome = sanitizar_texto($entrada['nome'] ?? 'Novo fluxo', 120);
             $descricao = sanitizar_texto($entrada['descricao'] ?? '', 500);
+            $linkSuporte = sanitizar_texto($entrada['link_suporte'] ?? '', 255);
 
             // Aceita dados_fluxograma_b64 para contornar WAF/ModSecurity que bloqueiam o JSON do diagrama (403).
             $dadosGrafico = null;
@@ -270,8 +289,8 @@ try {
 
             if ($idFluxo > 0) {
                 // Atualizar
-                $stmt = $pdo->prepare("UPDATE fluxos SET nome = ?, descricao = ?, dados_fluxograma = ? WHERE id = ? AND id_usuario = ?");
-                $stmt->execute([$nome, $descricao, $jsonGrafico, $idFluxo, $usuarioId]);
+                $stmt = $pdo->prepare("UPDATE fluxos SET nome = ?, descricao = ?, link_suporte = ?, dados_fluxograma = ? WHERE id = ? AND id_usuario = ?");
+                $stmt->execute([$nome, $descricao, $linkSuporte, $jsonGrafico, $idFluxo, $usuarioId]);
                 
                 // Buscar dados atualizados
                 $stmt = $pdo->prepare("SELECT * FROM fluxos WHERE id = ?");
@@ -281,8 +300,8 @@ try {
                 registrarAtividade($usuarioId, 'sistema', 'Fluxo', "Atualizou o fluxo: $nome");
             } else {
                 // Inserir
-                $stmt = $pdo->prepare("INSERT INTO fluxos (id_usuario, nome, descricao, dados_fluxograma) VALUES (?, ?, ?, ?)");
-                $stmt->execute([$usuarioId, $nome, $descricao, $jsonGrafico]);
+                $stmt = $pdo->prepare("INSERT INTO fluxos (id_usuario, nome, descricao, link_suporte, dados_fluxograma) VALUES (?, ?, ?, ?, ?)");
+                $stmt->execute([$usuarioId, $nome, $descricao, $linkSuporte, $jsonGrafico]);
                 $novoId = $pdo->lastInsertId();
                 
                 $stmt = $pdo->prepare("SELECT * FROM fluxos WHERE id = ?");

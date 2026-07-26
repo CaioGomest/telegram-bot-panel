@@ -43,6 +43,7 @@ try {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ";
     $pdo->exec($sqlFluxos);
+    try { $pdo->exec("ALTER TABLE fluxos ADD COLUMN link_suporte VARCHAR(255) DEFAULT NULL AFTER descricao"); } catch (PDOException $e) {}
     echo "Tabela 'fluxos' OK.<br>";
 
 
@@ -123,7 +124,8 @@ try {
         "ADD COLUMN status_renovacao ENUM('pendente', 'renovada', 'cancelada') DEFAULT 'pendente'",
         "ADD COLUMN venda_pai_id INT DEFAULT NULL",
         "ADD COLUMN id_assinatura VARCHAR(100) DEFAULT NULL", // Novo nome (ex-subscription_id)
-        "ADD COLUMN id_plano INT DEFAULT NULL"       // Novo nome (ex-plan_id)
+        "ADD COLUMN id_plano INT DEFAULT NULL",      // Novo nome (ex-plan_id)
+        "ADD COLUMN ultimo_txid_renovacao VARCHAR(255) DEFAULT NULL" // Idempotência do webhook de PIX Automático (cobsr)
     ];
 
     foreach ($colunasVendas as $alter) {
@@ -289,6 +291,10 @@ try {
     try {
         $pdo->exec("ALTER TABLE usuarios_gateways ADD COLUMN cashout_certificado VARCHAR(255) NULL AFTER cashout_client_secret");
         echo "Colunas de Cash-Out adicionadas em 'usuarios_gateways'.<br>";
+    } catch (PDOException $e) {}
+    try {
+        $pdo->exec("ALTER TABLE usuarios_gateways ADD COLUMN cashout_cert_password VARCHAR(255) NULL AFTER cashout_certificado");
+        echo "Coluna 'cashout_cert_password' adicionada em 'usuarios_gateways'.<br>";
     } catch (PDOException $e) {}
 
     echo "Tabela 'usuarios_gateways' OK.<br>";
