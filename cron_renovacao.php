@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 require_once 'conexao.php';
 require_once 'funcoes/log.php';
-require_once 'funcoes/efi_banco.php';
 require_once 'funcoes/gateways.php';
 
 date_default_timezone_set('America/Sao_Paulo');
@@ -52,8 +51,8 @@ try {
     // - Ainda não têm uma renovação pendente (venda filha com status 'gerado' ou 'pago' criada recentemente)
     
     // Cron de renovação manual por PIX: APENAS para assinaturas SEM id_assinatura.
-    // Assinaturas com id_assinatura (EFI PIX Automático ou PushinPay Recorrente) são
-    // renovadas automaticamente pelos gateways — não precisam de PIX manual.
+    // Assinaturas com id_assinatura (PIX Automático nativo) são renovadas
+    // automaticamente pelo gateway — não precisam de PIX manual.
     $sql = "
         SELECT m.*, v.valor, v.tipo_cobranca, v.dias_acesso, v.tempo_acesso_minutos, v.bot_id as venda_bot_id,
                b.token, b.id_usuario as dono_id
@@ -118,18 +117,11 @@ try {
             ], $userSplits);
         }
 
-        // Para PushinPay, envia webhook_url para notificação em tempo real
         $payload = $provedor->montaPayloadCobranca($valor, $chavePix, $splitData, $expiracaoSegundos);
         $resp = $provedor->criarCobranca($payload);
 
-        // Normaliza txid e pixCopiaCola de acordo com o gateway
-        if ($nomeGateway === 'pushinpay') {
-            $txid = (string)($resp['dados']['id'] ?? $resp['dados']['uuid'] ?? '');
-            $pixCopiaCola = $resp['dados']['qr_code'] ?? $resp['dados']['copy_paste'] ?? '';
-        } else {
-            $txid = $resp['dados']['txid'] ?? '';
-            $pixCopiaCola = $resp['dados']['pixCopiaECola'] ?? '';
-        }
+        $txid = $resp['dados']['txid'] ?? '';
+        $pixCopiaCola = $resp['dados']['pixCopiaECola'] ?? '';
 
         if ($resp['sucesso']) {
             
@@ -199,7 +191,7 @@ try {
             }
             
         } else {
-            echo " - Erro ao gerar Pix na Efí: " . ($resp['erro'] ?? 'Desconhecido') . "\n";
+            echo " - Erro ao gerar Pix: " . ($resp['erro'] ?? 'Desconhecido') . "\n";
         }
     }
     

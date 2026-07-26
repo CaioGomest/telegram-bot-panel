@@ -196,7 +196,7 @@ if (!is_array($notificacao)) {
     exit;
 }
 
-// ── PIX Automático (Recorrente) — campo 'cobsr', mesmo padrão da Efí ──────────
+// ── PIX Automático (Recorrente) — campo 'cobsr' ──────────
 // [A CONFIRMAR] formato exato ainda não testado com uma cobrança recorrente real.
 if (isset($notificacao['cobsr'])) {
     foreach ($notificacao['cobsr'] as $cobsr) {

@@ -4,7 +4,7 @@ declare(strict_types=1);
 /**
  * Integração com a InfoPago (Pix)
  * Autenticação: OAuth2 Client Credentials (POST /oauth/token, form-urlencoded) + certificado mTLS obrigatório
- * em toda requisição (igual à Efí). Payload/resposta de cobrança segue o padrão Bacen (calendario, valor,
+ * em toda requisição. Payload/resposta de cobrança segue o padrão Bacen (calendario, valor,
  * chave, txid, loc, pixCopiaECola) — e a resposta de criação já retorna o pixCopiaECola diretamente,
  * sem precisar de um segundo request de QR code.
  *
@@ -183,7 +183,7 @@ class InfopagoBanco {
     }
 
     /**
-     * Monta o payload de cobrança imediata no formato Bacen (igual à Efí).
+     * Monta o payload de cobrança imediata no formato Bacen.
      */
     public function montaPayloadCobranca(float $valor, string $chavePix, ?array $splitConfig = null, int $expiracaoSegundos = 3600): array {
         $payload = [
@@ -201,7 +201,7 @@ class InfopagoBanco {
     }
 
     /**
-     * Cria uma cobrança imediata (PUT /cob/{txid}). O txid é gerado localmente, no mesmo padrão da Efí.
+     * Cria uma cobrança imediata (PUT /cob/{txid}). O txid é gerado localmente, no padrão Bacen.
      * A resposta já inclui "pixCopiaECola" diretamente — não é preciso um segundo request de QR code.
      */
     public function criarCobranca(array $payload): array {

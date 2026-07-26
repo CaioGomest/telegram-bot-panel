@@ -234,15 +234,6 @@ try {
     } catch (PDOException $e) {}
     echo "Tabela 'gateways' OK.<br>";
 
-    // Insere gateway PushinPay se não existir
-    try {
-        $stmtGateway = $pdo->query("SELECT COUNT(*) FROM gateways WHERE nome = 'pushinpay'");
-        if ($stmtGateway->fetchColumn() == 0) {
-            $pdo->exec("INSERT INTO gateways (nome, titulo, ativo) VALUES ('pushinpay', 'PushinPay (Pix)', 0)");
-            echo "Gateway 'PushinPay' inserido.<br>";
-        }
-    } catch (PDOException $e) {}
-
     // --- 10. Tabela de Configuração de Gateways por Usuário ---
     $sqlUsuariosGateways = "
         CREATE TABLE IF NOT EXISTS usuarios_gateways (
@@ -393,13 +384,6 @@ try {
 
 
     // --- INSERÇÃO DE DADOS PADRÃO ---
-
-    // Gateway Efí Bank
-    $stmtGateway = $pdo->query("SELECT COUNT(*) FROM gateways WHERE nome = 'efi'");
-    if ($stmtGateway->fetchColumn() == 0) {
-        $pdo->exec("INSERT INTO gateways (nome, titulo, ativo) VALUES ('efi', 'Efí Bank (Pix)', 0)");
-        echo "Gateway 'Efí Bank' inserido.<br>";
-    }
 
     // Gateway InfoPago
     $stmtGateway = $pdo->query("SELECT COUNT(*) FROM gateways WHERE nome = 'infopago'");

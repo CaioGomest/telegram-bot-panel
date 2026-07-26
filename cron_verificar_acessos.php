@@ -36,7 +36,7 @@ echo "Iniciando verificação de acessos em $hoje...\n";
 
 try {
     // Busca acessos ativos vencidos.
-    // Inclui id_assinatura para identificar recorrentes nativos (EFI/PushinPay).
+    // Inclui id_assinatura para identificar recorrentes nativos.
     // link_suporte vem do fluxo atualmente conectado ao bot (cada fluxo pode ter o seu).
     $stmt = $pdo->prepare("
         SELECT m.*, b.token, b.nome_usuario, v.tipo_cobranca, v.dias_acesso, v.id_assinatura, f.link_suporte
@@ -68,7 +68,7 @@ try {
         echo "Processando usuário $idChat no grupo $idGrupo (Bot @{$membro['nome_usuario']})...\n";
 
         $idAssinatura = $membro['id_assinatura'] ?? null;
-        $ehRecorrenteNativo = !empty($idAssinatura); // EFI PIX Automático ou PushinPay Recorrente
+        $ehRecorrenteNativo = !empty($idAssinatura); // PIX Automático nativo do gateway
 
         // Botões da mensagem de aviso: "Recomeçar" sempre aparece — o callback_data "/start"
         // é tratado pelo webhook.php exatamente como se o usuário tivesse digitado /start,

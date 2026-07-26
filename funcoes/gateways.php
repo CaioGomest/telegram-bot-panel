@@ -4,9 +4,6 @@ declare(strict_types=1);
 require_once __DIR__ . '/../conexao.php';
 require_once __DIR__ . '/log.php';
 
-/**
- * Obtém a configuração global (Admin) de um gateway
- */
 function getAdminGatewayConfig(string $nome): ?array {
     global $pdo;
     $stmt = $pdo->prepare("SELECT * FROM gateways WHERE nome = ? LIMIT 1");
@@ -14,9 +11,6 @@ function getAdminGatewayConfig(string $nome): ?array {
     return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
 }
 
-/**
- * Salva a configuração global (Admin) de um gateway — apenas ativo/inativo
- */
 function saveAdminGatewayConfig(int $id, bool $ativo): bool {
     global $pdo;
     try {
@@ -32,9 +26,6 @@ function saveAdminGatewayConfig(int $id, bool $ativo): bool {
     }
 }
 
-/**
- * Lista splits configurados para um usuário em um gateway específico
- */
 function getUserSplits(int $userId, string $gatewayNome): array {
     global $pdo;
     $stmt = $pdo->prepare("SELECT * FROM usuarios_splits WHERE id_usuario = ? AND gateway_nome = ? ORDER BY ordem, id");
@@ -43,12 +34,8 @@ function getUserSplits(int $userId, string $gatewayNome): array {
 }
 
 /**
- * Obtém a configuração do usuário para um gateway específico
- */
-/**
  * A InfoPago usa credenciais únicas do admin (compartilhadas por toda a plataforma) — usuários comuns
- * só ligam/desligam o gateway, não configuram client_id/secret/certificado próprios. Isso é diferente
- * do modelo da EFI/PushinPay (por usuário). Ver conversa/decisão de produto — sem doc formal ainda.
+ * só ligam/desligam o gateway, não configuram client_id/secret/certificado próprios.
  */
 function getInfopagoCredenciaisAdmin(): ?array {
     global $pdo;
@@ -143,12 +130,6 @@ function getPrimaryUserGatewayConfig(int $userId): ?array {
 
 function resolveGatewayProvider(string $gatewayNome, array $config): ?object {
     switch (strtolower($gatewayNome)) {
-        case 'efi':
-            require_once __DIR__ . '/efi_banco.php';
-            return new EfiBanco($config['client_id'], $config['client_secret'], $config['certificado'] ?? '', true, $config['cert_password'] ?? '');
-        case 'pushinpay':
-            require_once __DIR__ . '/pushinpay_banco.php';
-            return new PushinpayBanco($config['client_id'], $config['client_secret'], $config['certificado'] ?? '', true, $config['cert_password'] ?? '');
         case 'infopago':
             require_once __DIR__ . '/infopago_banco.php';
             return new InfopagoBanco($config['client_id'], $config['client_secret'], $config['certificado'] ?? '', true, $config['cert_password'] ?? '');
@@ -157,9 +138,6 @@ function resolveGatewayProvider(string $gatewayNome, array $config): ?object {
     }
 }
 
-/**
- * Salva a configuração do usuário para um gateway
- */
 function saveUserGatewayConfig(int $userId, int $gatewayId, string $clientId, string $clientSecret, string $certificado, string $certPassword, string $chavePix, bool $ativo, int $prioridade = 100, string $tipoConta = 'pj'): bool {
     global $pdo;
     $tipoConta = in_array($tipoConta, ['pf', 'pj']) ? $tipoConta : 'pj';
@@ -225,9 +203,6 @@ function saveInfopagoCashoutConfig(int $userId, int $gatewayId, string $cashoutC
     }
 }
 
-/**
- * Lista todos os gateways disponíveis (para admin) com paginação
- */
 function listarGatewaysAdmin(int $limite = 20, int $offset = 0): array {
     global $pdo;
     $sql = "SELECT * FROM gateways ORDER BY nome LIMIT :limite OFFSET :offset";
@@ -238,17 +213,11 @@ function listarGatewaysAdmin(int $limite = 20, int $offset = 0): array {
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-/**
- * Conta total de gateways (admin)
- */
 function contarGatewaysAdmin(): int {
     global $pdo;
     return (int)$pdo->query("SELECT COUNT(*) FROM gateways")->fetchColumn();
 }
 
-/**
- * Lista gateways ativos para o usuário (mostra status de conexão) com paginação
- */
 function listarGatewaysUsuario(int $userId, int $limite = 20, int $offset = 0): array {
     global $pdo;
     $sql = "
@@ -294,19 +263,12 @@ function listarGatewaysUsuario(int $userId, int $limite = 20, int $offset = 0): 
             $g['user_config']['gerenciado_pelo_admin'] = true;
         }
 
-        if ($g['nome'] === 'pushinpay') {
-            $g['conectado'] = ($g['user_config']['ativo'] && !empty($g['user_config']['client_id']));
-        } else {
-            $g['conectado'] = ($g['user_config']['ativo'] && !empty($g['user_config']['client_id']) && !empty($g['user_config']['chave_pix']));
-        }
+        $g['conectado'] = ($g['user_config']['ativo'] && !empty($g['user_config']['client_id']) && !empty($g['user_config']['chave_pix']));
     }
 
     return $gateways;
 }
 
-/**
- * Conta total de gateways ativos (usuário)
- */
 function contarGatewaysUsuario(): int {
     global $pdo;
     return (int)$pdo->query("SELECT COUNT(*) FROM gateways WHERE ativo = 1")->fetchColumn();

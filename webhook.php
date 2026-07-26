@@ -3,7 +3,6 @@ declare(strict_types=1);
 // Define o fuso horário para São Paulo/Brasil para garantir datas corretas
 date_default_timezone_set('America/Sao_Paulo');
 require_once 'conexao.php';
-require_once __DIR__ . '/funcoes/efi_banco.php';
 require_once __DIR__ . '/funcoes/gateways.php';
 require_once __DIR__ . '/funcoes/infopago_split.php';
 const DIRETORIO_UPLOADS = __DIR__ . '/uploads';
@@ -336,8 +335,7 @@ function processar_e_enviar_bloco(string $token, $idChat, array $operador, strin
                 continue;
             }
 
-            $incompleto = empty($gw['client_id']) ||
-                ($nomeGateway !== 'pushinpay' && (empty($gw['client_secret']) || empty($gw['chave_pix'])));
+            $incompleto = empty($gw['client_id']) || empty($gw['client_secret']) || empty($gw['chave_pix']);
             if ($incompleto) {
                 $tentativas[] = "Gateway {$nomeGateway} não configurado completamente";
                 continue;
@@ -360,7 +358,7 @@ function processar_e_enviar_bloco(string $token, $idChat, array $operador, strin
             }
 
             $chavePix = $gw['chave_pix'] ?? '';
-            if ($nomeGateway !== 'pushinpay' && empty($chavePix)) {
+            if (empty($chavePix)) {
                 $tentativas[] = "Gateway {$nomeGateway} sem chave Pix de recebedor";
                 continue;
             }
@@ -374,104 +372,11 @@ function processar_e_enviar_bloco(string $token, $idChat, array $operador, strin
             $ehRecorrenteOficial = false;
             $idAssinatura = null;
 
-            $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-            $pushinpayWebhookUrl = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost')
-                . rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/'), '/') . '/webhook_pushinpay.php';
-
             try {
                 $tempoExpiracao = (int)($propriedades['expiracao_minutos'] ?? $propriedades['tempo_nao_pago'] ?? 15);
                 $expiracaoSegundos = $tempoExpiracao * 60;
 
-                if ($ehRecorrente && $nomeGateway === 'efi') {
-                    // ── EFI Bank: PIX Automático nativo (/v2/locrec → /v2/rec → /v2/loc/:id/qrcode) ──
-                    $periodicidade = $propriedades['periodicidade'] ?? 'mensal';
-
-                    // Passo 1: cria location do tipo rec
-                    $respLoc = $provedor->criarLocationRecorrencia();
-                    if (!($respLoc['sucesso'] ?? false)) {
-                        $tentativas[] = "{$nomeGateway} criarLocationRecorrencia falhou: " . ($respLoc['erro'] ?? 'desconhecido');
-                        continue;
-                    }
-                    $idLoc = (int)($respLoc['dados']['loc']['id'] ?? $respLoc['dados']['id'] ?? 0);
-                    if (!$idLoc) {
-                        $tentativas[] = "{$nomeGateway} loc id ausente na resposta";
-                        continue;
-                    }
-
-                    // Passo 2: cria a recorrência com payload correto
-                    $payloadRec = $provedor->montaPayloadRecorrencia(
-                        $valor,
-                        $idLoc,
-                        $periodicidade,
-                        $nomeUsuario,
-                        $documentoLimpo,
-                        $propriedades['nome'] ?? 'Assinatura'
-                    );
-                    $respRec = $provedor->criarRecorrencia($payloadRec);
-                    if (!($respRec['sucesso'] ?? false)) {
-                        $tentativas[] = "{$nomeGateway} criarRecorrencia falhou: " . ($respRec['erro'] ?? 'desconhecido');
-                        continue;
-                    }
-                    $idAssinatura = $respRec['dados']['rec']['idRec'] ?? $respRec['dados']['idRec'] ?? null;
-                    if (!$idAssinatura) {
-                        $tentativas[] = "{$nomeGateway} idRec ausente na resposta da recorrência";
-                        continue;
-                    }
-
-                    // Passo 3: busca o QR code da location (é aqui que fica o pixCopiaECola)
-                    $respQr = $provedor->obterQrCodeLoc($idLoc);
-                    if (!($respQr['sucesso'] ?? false)) {
-                        $tentativas[] = "{$nomeGateway} obterQrCodeLoc falhou: " . ($respQr['erro'] ?? 'desconhecido');
-                        continue;
-                    }
-
-                    $ehRecorrenteOficial = true;
-                    $resp = ['sucesso' => true, 'dados' => $respQr['dados']];
-                    $pixCopiaCola  = $respQr['dados']['pixCopiaECola'] ?? '';
-                    $txid          = $respQr['dados']['txid'] ?? '';
-                    $linkPagamento = $respQr['dados']['imagemQrcode'] ?? '';
-
-                } elseif ($ehRecorrente && $nomeGateway === 'pushinpay') {
-                    // ── PushinPay: PIX Recorrente nativo (/pix/cashIn/subscription) ──
-                    $periodicidade = $propriedades['periodicidade'] ?? 'mensal';
-                    $freqMap = [
-                        'mensal'     => 'MONTHLY',
-                        'trimestral' => 'MONTHLY', // Não há frequência trimestral nativa; mantém mensal por compatibilidade.
-                        'semestral'  => 'SEMIANNUALLY',
-                        'anual'      => 'ANNUALLY',
-                    ];
-                    $frequenciaPush = $freqMap[$periodicidade] ?? 'MONTHLY';
-                    $nomeProduto = $propriedades['nome'] ?? 'Assinatura';
-
-                    // Monta dados do cliente para PushinPay
-                    $customerData = [
-                        'name' => $nomeUsuario,
-                        'document_type' => $tipoDocumento,
-                        'document_number' => $documentoLimpo,
-                    ];
-
-                    $payloadAssinatura = $provedor->montaPayloadAssinatura(
-                        $valor,
-                        $frequenciaPush,
-                        $nomeProduto,
-                        $splitData,
-                        $pushinpayWebhookUrl,
-                        $customerData
-                    );
-                    $respAssinatura = $provedor->criarAssinatura($payloadAssinatura);
-                    if (!($respAssinatura['sucesso'] ?? false)) {
-                        $tentativas[] = "pushinpay criarAssinatura falhou: " . ($respAssinatura['erro'] ?? 'desconhecido');
-                        continue;
-                    }
-
-                    $ehRecorrenteOficial = true;
-                    $idAssinatura  = (string)($respAssinatura['dados']['subscription_id'] ?? '');
-                    $pixCopiaCola  = $respAssinatura['dados']['qr_code'] ?? '';
-                    $txid          = (string)($respAssinatura['dados']['id'] ?? '');
-                    $linkPagamento = $respAssinatura['dados']['qr_code_base64'] ?? '';
-                    $resp = $respAssinatura;
-
-                } elseif ($ehRecorrente && $nomeGateway === 'infopago') {
+                if ($ehRecorrente && $nomeGateway === 'infopago') {
                     // ── InfoPago: PIX Automático, Jornada 3 (QR Code composto com cobrança imediata) ──
                     // Paga na hora (acesso liberado igual ao Pix único) e já autoriza a renovação
                     // automática no mesmo QR. Corrigido (2026-07-07): o passo /locrec não faz parte
@@ -522,12 +427,7 @@ function processar_e_enviar_bloco(string $token, $idChat, array $operador, strin
                     $linkPagamento = '';
 
                 } else {
-                    // ── PIX único — EFI, PushinPay ou InfoPago ──
-                    if ($nomeGateway === 'pushinpay') {
-                        $payload = $provedor->montaPayloadCobranca($valor, $chavePix, $splitData, $expiracaoSegundos, $pushinpayWebhookUrl);
-                    } else {
-                        $payload = $provedor->montaPayloadCobranca($valor, $chavePix, $splitData, $expiracaoSegundos);
-                    }
+                    $payload = $provedor->montaPayloadCobranca($valor, $chavePix, $splitData, $expiracaoSegundos);
 
                     $resp = $provedor->criarCobranca($payload);
                     if (!($resp['sucesso'] ?? false)) {
@@ -535,21 +435,10 @@ function processar_e_enviar_bloco(string $token, $idChat, array $operador, strin
                         continue;
                     }
 
-                    if ($nomeGateway === 'pushinpay') {
-                        $pixCopiaCola  = $resp['dados']['qr_code'] ?? $resp['dados']['pix_copy_paste'] ?? $resp['dados']['copy_paste'] ?? '';
-                        $txid          = (string)($resp['dados']['id'] ?? $resp['dados']['uuid'] ?? '');
-                        $linkPagamento = $resp['dados']['qr_code_base64'] ?? $resp['dados']['qr_code_image'] ?? '';
-                    } elseif ($nomeGateway === 'infopago') {
-                        // InfoPago já devolve o pixCopiaECola direto na criação da cobrança (sem passo extra de QR code).
-                        $pixCopiaCola  = $resp['dados']['pixCopiaECola'] ?? '';
-                        $txid          = $resp['dados']['txid'] ?? '';
-                        $linkPagamento = '';
-                    } else {
-                        $pixCopiaCola  = $resp['dados']['pixCopiaECola'] ?? '';
-                        $txid          = $resp['dados']['txid'] ?? '';
-                        $linkLoc       = $resp['dados']['loc']['id'] ?? null;
-                        $linkPagamento = $linkLoc ? "https://pix.sejaefi.com.br/v2/loc/{$linkLoc}/qrcode" : '';
-                    }
+                    // InfoPago já devolve o pixCopiaECola direto na criação da cobrança (sem passo extra de QR code).
+                    $pixCopiaCola  = $resp['dados']['pixCopiaECola'] ?? '';
+                    $txid          = $resp['dados']['txid'] ?? '';
+                    $linkPagamento = '';
                 }
 
                 $gatewaySelecionado = $gw;
@@ -706,7 +595,7 @@ function processar_e_enviar_bloco(string $token, $idChat, array $operador, strin
                      file_put_contents(__DIR__ . "/logs/vendas_debug.log", "[" . date("Y-m-d H:i:s") . "] GERANDO QR CODE VIA API: $urlQrCode\n", FILE_APPEND);
                  } elseif (!empty($linkPagamento) && strpos($linkPagamento, '/loc//') === false) {
                      $urlQrCode = $linkPagamento;
-                     file_put_contents(__DIR__ . "/logs/vendas_debug.log", "[" . date("Y-m-d H:i:s") . "] USANDO LINK EFI: $urlQrCode\n", FILE_APPEND);
+                     file_put_contents(__DIR__ . "/logs/vendas_debug.log", "[" . date("Y-m-d H:i:s") . "] USANDO LINK DE PAGAMENTO: $urlQrCode\n", FILE_APPEND);
                  }
                  
                  if ($urlQrCode) {
@@ -730,16 +619,6 @@ function processar_e_enviar_bloco(string $token, $idChat, array $operador, strin
                     $params['reply_markup'] = json_encode($tecladoPix);
                 }
                 requisicao_telegram($token, 'sendMessage', $params);
-                // Se quiser mandar QR Code (imagem), precisaria gerar a imagem a partir do Copia e Cola ou usar a URL da imagem se a API retornasse (a v2/cob retorna imagem em base64 ou link em loc?)
-                // A API retorna "loc" -> "location". A imagem deve ser gerada via qrcode generator.
-                // A API da Efí tem endpoint para gerar QR Code base64 (`/v2/loc/:id/qrcode`).
-                if (isset($resp['dados']['loc']['id'])) {
-                     $locId = $resp['dados']['loc']['id'];
-                     if (isset($provedor) && is_object($provedor) && method_exists($provedor, 'consultarCobranca')) {
-                         $respQr = $provedor->consultarCobranca($txid);
-                     }
-                     // Simplificação: apenas copia e cola.
-                }
             }
         } else {
             requisicao_telegram($token, 'sendMessage', ['chat_id' => $idChat, 'text' => 'Erro ao gerar Pix: ' . ($resp['erro'] ?? 'Desconhecido')]);
@@ -859,12 +738,7 @@ if (strpos($texto, 'verificar_pagamento_') === 0) {
                     $nomeGwVenda = $stmtGwNome->fetchColumn() ?: null;
                 }
                 if (!$nomeGwVenda) {
-                    // Detecta PushinPay pelo formato UUID do TXID (ex: a15b9de2-7a44-4b1e-a6a3-d9fb280e54c7)
-                    if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $txid)) {
-                        $nomeGwVenda = 'pushinpay';
-                    } else {
-                        $nomeGwVenda = 'efi'; // fallback para compatibilidade com vendas antigas
-                    }
+                    $nomeGwVenda = 'infopago';
                 }
 
                 $gatewayConfig = getUserGatewayConfig((int)$idUsuarioDono, $nomeGwVenda);

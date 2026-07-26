@@ -114,11 +114,10 @@ function executar_fluxo_continuacao(string $token, string $idChat, int $botId, s
     }
 }
 
-require_once __DIR__ . '/funcoes/efi_banco.php';
 require_once __DIR__ . '/funcoes/gateways.php';
 require_once __DIR__ . '/funcoes/infopago_split.php';
 
-// 1. VERIFICAR PAGAMENTOS PENDENTES NA EFÍ
+// 1. VERIFICAR PAGAMENTOS PENDENTES
 $sqlPendentes = "
     SELECT v.*, b.token, b.id_usuario as id_dono 
     FROM vendas v 
@@ -145,18 +144,10 @@ foreach ($vendasPendentes as $venda) {
     }
 
     if (!$gatewayConfig) {
-        // Detecta PushinPay pelo formato UUID do TXID
-        $txidVenda = $venda['transacao_id'] ?? '';
-        if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $txidVenda)) {
-            $nomeGateway = 'pushinpay';
-            $gatewayConfig = getUserGatewayConfig((int)$venda['id_dono'], 'pushinpay');
-        }
-        if (!$gatewayConfig) {
-            $gatewaysUsuario = getUserGateways((int)$venda['id_dono'], true);
-            if (!empty($gatewaysUsuario)) {
-                $gatewayConfig = $gatewaysUsuario[0];
-                $nomeGateway = $gatewayConfig['gateway_nome'] ?? null;
-            }
+        $gatewaysUsuario = getUserGateways((int)$venda['id_dono'], true);
+        if (!empty($gatewaysUsuario)) {
+            $gatewayConfig = $gatewaysUsuario[0];
+            $nomeGateway = $gatewayConfig['gateway_nome'] ?? null;
         }
     }
 

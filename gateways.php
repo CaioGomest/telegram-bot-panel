@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/conexao.php';
 require_once __DIR__ . '/funcoes/usuario.php';
-require_once __DIR__ . '/funcoes/efi_banco.php';
 require_once __DIR__ . '/funcoes/gateways.php';
 require_once __DIR__ . '/funcoes/paginador.php';
 
@@ -93,8 +92,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ativo = isset($_POST['ativo']);
         $prioridade = isset($_POST['prioridade']) ? max(1, min(999, (int)$_POST['prioridade'])) : 100;
         $tipoConta = in_array($_POST['tipo_conta'] ?? '', ['pf', 'pj']) ? $_POST['tipo_conta'] : 'pj';
-        $currentConfig = getUserGatewayConfig($userId, 'efi'); // Melhor buscar pelo ID do gateway, mas por enquanto só tem Efí
-        // Correção: Buscar pelo ID do gateway no banco
         $stmt = $pdo->prepare("SELECT nome FROM gateways WHERE id = ?");
         $stmt->execute([$gatewayId]);
         $gatewayNome = $stmt->fetchColumn();
@@ -154,60 +151,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (saveUserGatewayConfig($userId, $gatewayId, $clientId, $clientSecret, $certificadoPath, $certPassword, $chavePix, $ativo, $prioridade, $tipoConta)) {
                 $_SESSION['gw_mensagem'] = 'Suas credenciais foram salvas!';
                 $mensagem = 'Suas credenciais foram salvas!';
-
-                // Configuração Automática do Webhook Efí (só se o gateway salvo for a própria Efí)
-                if ($gatewayNome === 'efi' && $ativo && $certificadoPath && file_exists($certificadoPath)) {
-                    // Forçar a detecção de HTTPS caso o servidor esteja atrás de um proxy/Cloudflare
-                    $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || 
-                               (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https');
-                    $protocolo = $isHttps ? 'https' : 'http';
-                    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-                    
-                    // Ajuste para não incluir portas de dev local, pois a Efí não aceita
-                    $base = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
-                    $webhookUrl = "{$protocolo}://{$host}{$base}/webhook_efi.php";
-
-                    // Se for localhost, avisar que não funciona
-                    if (strpos($host, 'localhost') !== false || strpos($host, '127.0.0.1') !== false || !$isHttps) {
-                        $mensagem .= '<br><b>Atenção:</b> O webhook automático da Efí não pode ser configurado em localhost ou sem HTTPS (SSL). A aprovação de pagamentos precisará ser testada em um domínio real com HTTPS.';
-                    } else {
-                        try {
-                            // Ignora verificação mTLS no momento do cadastro do webhook (configuração específica da Efí)
-                            $efi = new EfiBanco($clientId, $clientSecret, $certificadoPath, true, $certPassword);
-                            // Tenta autenticar
-                            if ($efi->autenticar()) {
-                                // Adiciona parâmetro para ignorar mTLS na configuração (skipMtls) se for suportado,
-                                // ou o erro significa que o servidor onde o webhook está (seu servidor)
-                                // precisa estar configurado para exigir o certificado do cliente (mTLS).
-                                // Como configurar mTLS no servidor é complexo e foge do escopo do PHP,
-                                // podemos tentar pular a validação mTLS via header especial se a Efí permitir.
-                                // Porém, pela documentação oficial do BACEN/Efí, o mTLS é OBRIGATÓRIO em produção.
-                                
-                                // Solução para contornar temporariamente (apenas se a Efí permitir na API, geralmente não permite em produção):
-                                // O ideal é exibir um aviso claro sobre o que o servidor precisa ter.
-                                $respHook = $efi->configurarWebhook($chavePix, $webhookUrl);
-                                
-                                if ($respHook['sucesso'] ?? false) {
-                                    $mensagem .= '<br><b>Sucesso:</b> Webhook configurado automaticamente na Efí! Liberações de pagamento ocorrerão instantaneamente.';
-                                } else {
-                                    $erroHook = $respHook['detalhes']['mensagem'] ?? 'Erro desconhecido';
-                                    
-                                    if (strpos($erroHook, 'mTLS') !== false || strpos($erroHook, 'TLS mútuo') !== false) {
-                                         $mensagem .= "<br><br><b>⚠️ Aviso Importante sobre a Efí:</b><br>A Efí exige que o seu servidor (onde o sistema está hospedado) possua <b>mTLS (Mutual TLS)</b> configurado.<br>Isso significa que não basta ter o HTTPS comum (Cadeado verde). O seu servidor Apache/Nginx precisa estar configurado para <b>exigir e validar o certificado de quem está acessando</b> (no caso, a Efí).<br>Como o seu servidor atual não possui essa configuração avançada, a Efí rejeitou o webhook.<br><br><b>Solução:</b> Para contornar isso e fazer a liberação funcionar mesmo sem o webhook da Efí, nós dependemos do <b>CRON (cron_verificar_pix.php)</b> rodando a cada 1 minuto para checar manualmente se o PIX foi pago. Certifique-se de que o CRON está configurado no seu painel de hospedagem (cPanel/Plesk).";
-                                    } else {
-                                         $mensagem .= "<br><b>Aviso:</b> Falha ao configurar webhook na Efí: {$erroHook}. A URL tentada foi: {$webhookUrl}";
-                                    }
-                                }
-                            } else {
-                                $msgErro = $_SESSION['efi_debug_error'] ?? "Verifique suas credenciais e o arquivo do certificado.";
-                                unset($_SESSION['efi_debug_error']);
-                                $mensagem .= "<br><b>Aviso:</b> Não foi possível conectar à Efí para configurar o webhook automático: {$msgErro}";
-                            }
-                        } catch (Exception $e) {
-                            $mensagem .= '<br><b>Erro Interno:</b> ' . $e->getMessage();
-                        }
-                    }
-                }
             } else {
                 $erro = 'Erro ao salvar suas credenciais.';
             }
@@ -215,7 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (isset($_POST['acao']) && $_POST['acao'] === 'salvar_infopago_split') {
         // Credenciais de Cash-Out (API de Contas, separada da de cobrança) — usadas para simular
         // split via transferência manual. O destino/percentual do split é configurado pelo admin
-        // em usuarios.php (mesmo padrão já usado para EFI/PushinPay). Ver docs/infopago/01-api-referencia.md §5.
+        // em usuarios.php. Ver docs/infopago/01-api-referencia.md §5.
         $gatewayId = (int)$_POST['gateway_id'];
         $cashoutClientId = trim($_POST['cashout_client_id'] ?? '');
         $cashoutClientSecret = trim($_POST['cashout_client_secret'] ?? '');
@@ -390,8 +333,6 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
             font-size: 1.5rem; font-weight: 800; color: #fff;
             margin-bottom: 10px;
         }
-        .gw-icon-efi       { background: linear-gradient(135deg, #00A86B, #007A4E); }
-        .gw-icon-pushinpay { background: linear-gradient(135deg, #6366f1, #4f46e5); }
         .gw-icon-infopago  { background: linear-gradient(135deg, #0ea5e9, #0369a1); }
         .gw-icon-default   { background: linear-gradient(135deg, #64748b, #475569); }
 
@@ -530,8 +471,6 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
                         display: flex; align-items: center; justify-content: center;
                         font-size: 1rem; font-weight: 800;
                     }
-                    .adm-icon-efi       { background: #dcfce7; color: #15803d; }
-                    .adm-icon-pushinpay { background: #ede9fe; color: #7c3aed; }
                     .adm-icon-infopago  { background: #e0f2fe; color: #0369a1; }
                     .adm-icon-default   { background: #f1f5f9; color: #475569; }
                     .adm-card-name { font-size: .9rem; font-weight: 700; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -571,9 +510,9 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
                             $gId        = (int)$g['id'];
                             $isAtivo    = (bool)$g['ativo'];
                             $nome       = $g['nome'];
-                            $iconClass  = match($nome) { 'efi' => 'adm-icon-efi', 'pushinpay' => 'adm-icon-pushinpay', 'infopago' => 'adm-icon-infopago', default => 'adm-icon-default' };
-                            $iconLetter = match($nome) { 'efi' => 'E', 'pushinpay' => 'P', 'infopago' => 'I', default => '?' };
-                            $subtitle   = match($nome) { 'efi' => 'OAuth2 + Certificado', 'pushinpay' => 'Token Bearer', 'infopago' => 'OAuth2 + Certificado mTLS', default => 'Gateway' };
+                            $iconClass  = match($nome) { 'infopago' => 'adm-icon-infopago', default => 'adm-icon-default' };
+                            $iconLetter = match($nome) { 'infopago' => 'I', default => '?' };
+                            $subtitle   = match($nome) { 'infopago' => 'OAuth2 + Certificado mTLS', default => 'Gateway' };
                         ?>
                         <div class="adm-card <?php echo $isAtivo ? 'is-active' : ''; ?>" id="adm-card-<?php echo $gId; ?>">
                             <input type="hidden" name="ids[]" value="<?php echo $gId; ?>">
@@ -639,16 +578,12 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
                     // Helper: ícone por gateway
                     function gwIconClass(string $nome): string {
                         return match($nome) {
-                            'efi'       => 'gw-icon-efi',
-                            'pushinpay' => 'gw-icon-pushinpay',
                             'infopago'  => 'gw-icon-infopago',
                             default     => 'gw-icon-default',
                         };
                     }
                     function gwIconLetter(string $nome): string {
                         return match($nome) {
-                            'efi'       => 'E',
-                            'pushinpay' => 'P',
                             'infopago'  => 'I',
                             default     => '?',
                         };
@@ -684,9 +619,6 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
                             return;
                         }
 
-                        $tokenUnico     = ($nome === 'pushinpay');     // só pede um campo único de token
-                        $semChavePix    = ($nome === 'pushinpay');     // não pede chave pix
-                        $semCertificado = ($nome === 'pushinpay'); // InfoPago também exige certificado mTLS, igual à Efí
                         ?>
                         <form method="POST" enctype="multipart/form-data">
                             <input type="hidden" name="acao"       value="salvar_user">
@@ -697,38 +629,23 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
                                 <span class="gw-toggle-label">Habilitar este gateway nos meus bots</span>
                             </label>
 
-                            <?php if ($tokenUnico): ?>
-                                <div class="form-group">
-                                    <label class="form-label">Token de API</label>
-                                    <input type="text" name="client_id" class="form-input"
-                                           value="<?php echo htmlspecialchars($cfg['client_id'] ?? ''); ?>"
-                                           placeholder="Seu token de acesso da PushinPay" required>
-                                    <small>Encontre em: app.pushinpay.com.br → Configurações → API</small>
-                                </div>
-                                <input type="hidden" name="client_secret" value="">
-                            <?php else: ?>
-                                <div class="form-group">
-                                    <label class="form-label">Client ID (Produção)</label>
-                                    <input type="text" name="client_id" class="form-input"
-                                           value="<?php echo htmlspecialchars($cfg['client_id'] ?? ''); ?>" required>
-                                </div>
-                                <div class="form-group">
-                                    <label class="form-label">Client Secret (Produção)</label>
-                                    <input type="password" name="client_secret" class="form-input"
-                                           value="<?php echo htmlspecialchars($cfg['client_secret'] ?? ''); ?>" required>
-                                </div>
-                            <?php endif; ?>
+                            <div class="form-group">
+                                <label class="form-label">Client ID (Produção)</label>
+                                <input type="text" name="client_id" class="form-input"
+                                       value="<?php echo htmlspecialchars($cfg['client_id'] ?? ''); ?>" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Client Secret (Produção)</label>
+                                <input type="password" name="client_secret" class="form-input"
+                                       value="<?php echo htmlspecialchars($cfg['client_secret'] ?? ''); ?>" required>
+                            </div>
 
-                            <?php if (!$semChavePix): ?>
                             <div class="form-group">
                                 <label class="form-label">Chave Pix (Recebedor)</label>
                                 <input type="text" name="chave_pix" class="form-input"
                                        value="<?php echo htmlspecialchars($cfg['chave_pix'] ?? ''); ?>"
                                        placeholder="CPF, CNPJ, Email…" required>
                             </div>
-                            <?php else: ?>
-                                <input type="hidden" name="chave_pix" value="">
-                            <?php endif; ?>
 
                             <div class="form-group">
                                 <label class="form-label">Tipo de Conta</label>
@@ -740,25 +657,21 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
                             </div>
                             <input type="hidden" name="prioridade" value="<?php echo (int)($cfg['prioridade'] ?? 100); ?>">
 
-                            <?php if (!$semCertificado): ?>
-                                <div class="form-group">
-                                    <label class="form-label">Certificado (.p12, .pfx ou .pem)</label>
-                                    <?php if (!empty($cfg['certificado'])): ?>
-                                        <p style="margin:0 0 6px;font-size:.85rem;color:#16a34a;font-weight:500;">✅ Certificado enviado</p>
-                                    <?php endif; ?>
-                                    <input type="file" name="certificado" class="form-input" accept=".pem,.p12,.pfx">
-                                    <small>Recomendado: arquivo .p12/.pfx (PKCS#12) ou .pem original fornecido pelo gateway</small>
-                                </div>
-                                <div class="form-group">
-                                    <label class="form-label">Senha do certificado (se houver)</label>
-                                    <input type="password" name="cert_password" class="form-input"
-                                           autocomplete="new-password" data-lpignore="true" data-1p-ignore
-                                           placeholder="<?php echo !empty($cfg['cert_password']) ? '••••••••' : ''; ?>">
-                                    <small>Deixe em branco pra manter a senha já salva.</small>
-                                </div>
-                            <?php else: ?>
-                                <input type="hidden" name="cert_password" value="">
-                            <?php endif; ?>
+                            <div class="form-group">
+                                <label class="form-label">Certificado (.p12, .pfx ou .pem)</label>
+                                <?php if (!empty($cfg['certificado'])): ?>
+                                    <p style="margin:0 0 6px;font-size:.85rem;color:#16a34a;font-weight:500;">✅ Certificado enviado</p>
+                                <?php endif; ?>
+                                <input type="file" name="certificado" class="form-input" accept=".pem,.p12,.pfx">
+                                <small>Recomendado: arquivo .p12/.pfx (PKCS#12) ou .pem original fornecido pelo gateway</small>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Senha do certificado (se houver)</label>
+                                <input type="password" name="cert_password" class="form-input"
+                                       autocomplete="new-password" data-lpignore="true" data-1p-ignore
+                                       placeholder="<?php echo !empty($cfg['cert_password']) ? '••••••••' : ''; ?>">
+                                <small>Deixe em branco pra manter a senha já salva.</small>
+                            </div>
 
                             <button type="submit" class="btn-save">Salvar Credenciais</button>
                         </form>
@@ -838,7 +751,6 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
                             $idx = 1;
                             foreach ($gwAtivos as $g):
                                 $isPrimary   = ($idx === 1);
-                                $isPushinPay = ($g['nome'] === 'pushinpay');
                                 $modalId     = 'modal-active-' . $g['id'];
                             ?>
                             <div class="gw-active-card <?php echo $isPrimary ? 'is-primary' : ''; ?>" draggable="true" data-gw-id="<?php echo $g['id']; ?>">

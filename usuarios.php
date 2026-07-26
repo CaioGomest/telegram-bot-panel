@@ -351,39 +351,16 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
         const vazio = document.getElementById('splitVazio');
         vazio.style.display = 'none';
 
-        const gw   = dados?.gateway_nome  || 'efi';
+        const gw   = 'infopago';
         const tipo = dados?.tipo_split     || 'percentual';
         const taxa = dados?.taxa_split     || '';
         const desc  = dados?.descricao      || '';
-        const isEfi = gw === 'efi';
-
-        // Para EFI: chave_pix_split é JSON {"conta":"...","cpf":"..."}, para PushinPay: string simples
-        let contaEfi = '', cpfEfi = '', chaveSimples = '';
-        const raw = dados?.chave_pix_split || '';
-        if (isEfi) {
-            try {
-                const parsed = JSON.parse(raw);
-                contaEfi = parsed.conta || '';
-                cpfEfi   = parsed.cpf   || '';
-            } catch(e) {
-                contaEfi = raw; // fallback: valor direto
-            }
-        } else {
-            chaveSimples = raw;
-        }
+        const chaveSimples = dados?.chave_pix_split || '';
 
         const row = document.createElement('div');
         row.className = 'split-row';
         row.innerHTML = `
             <div class="split-row-fields">
-                <div class="split-field">
-                    <label class="split-label">Gateway</label>
-                    <select class="form-input split-gateway" onchange="alternarCamposGateway(this)">
-                        <option value="efi"       ${gw === 'efi'       ? 'selected' : ''}>Efí Bank</option>
-                        <option value="pushinpay" ${gw === 'pushinpay' ? 'selected' : ''}>PushinPay</option>
-                        <option value="infopago"  ${gw === 'infopago'  ? 'selected' : ''}>InfoPago</option>
-                    </select>
-                </div>
                 <div class="split-field">
                     <label class="split-label">Tipo</label>
                     <select class="form-input split-tipo">
@@ -395,19 +372,9 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
                     <label class="split-label">Valor</label>
                     <input type="number" step="0.01" min="0" class="form-input split-taxa" value="${taxa}" placeholder="Ex: 10">
                 </div>
-                <!-- Campos EFI -->
-                <div class="split-field split-field-lg split-campos-efi" style="${isEfi ? '' : 'display:none;'}">
-                    <label class="split-label">Nº Conta EFI</label>
-                    <input type="text" class="form-input split-conta-efi" value="${contaEfi}" placeholder="Ex: 8901031">
-                </div>
-                <div class="split-field split-campo-cpf" style="${isEfi ? '' : 'display:none;'}">
-                    <label class="split-label">CPF Titular EFI</label>
-                    <input type="text" class="form-input split-cpf-efi" value="${cpfEfi}" placeholder="Só números">
-                </div>
-                <!-- Campo de chave simples (PushinPay: account_id / InfoPago: chave Pix) -->
-                <div class="split-field split-field-lg split-campos-pushinpay" style="${isEfi ? 'display:none;' : ''}">
-                    <label class="split-label">${gw === 'infopago' ? 'Chave Pix de destino (InfoPago)' : 'Account ID (PushinPay)'}</label>
-                    <input type="text" class="form-input split-chave-pushinpay" value="${chaveSimples}" placeholder="${gw === 'infopago' ? 'CPF, CNPJ, e-mail, EVP, ou telefone c/ +55 (ex: +5511999999999)' : 'Seu account_id'}">
+                <div class="split-field split-field-lg">
+                    <label class="split-label">Chave Pix de destino (InfoPago)</label>
+                    <input type="text" class="form-input split-chave-pix" value="${chaveSimples}" placeholder="CPF, CNPJ, e-mail, EVP, ou telefone c/ +55 (ex: +5511999999999)">
                 </div>
                 <div class="split-field split-field-desc">
                     <label class="split-label">Descrição</label>
@@ -430,33 +397,12 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
         }
     }
 
-    function alternarCamposGateway(sel) {
-        const row      = sel.closest('.split-row');
-        const isEfi    = sel.value === 'efi';
-        const isInfopago = sel.value === 'infopago';
-        row.querySelectorAll('.split-campos-efi, .split-campo-cpf').forEach(el => el.style.display = isEfi ? '' : 'none');
-        row.querySelectorAll('.split-campos-pushinpay').forEach(el => el.style.display = isEfi ? 'none' : '');
-
-        const campoSimples = row.querySelector('.split-campos-pushinpay');
-        if (campoSimples) {
-            campoSimples.querySelector('.split-label').textContent = isInfopago ? 'Chave Pix de destino (InfoPago)' : 'Account ID (PushinPay)';
-            campoSimples.querySelector('.split-chave-pushinpay').placeholder = isInfopago ? 'CPF, CNPJ, e-mail, EVP, ou telefone c/ +55 (ex: +5511999999999)' : 'Seu account_id';
-        }
-    }
-
     function coletarSplits() {
         const rows = document.querySelectorAll('#splitLista .split-row');
         const result = [];
         rows.forEach(row => {
-            const gw = row.querySelector('.split-gateway').value;
-            let chave;
-            if (gw === 'efi') {
-                const conta = row.querySelector('.split-conta-efi').value.replace(/\D/g, '');
-                const cpf   = row.querySelector('.split-cpf-efi').value.replace(/\D/g, '');
-                chave = JSON.stringify({ conta, cpf });
-            } else {
-                chave = row.querySelector('.split-chave-pushinpay').value;
-            }
+            const gw = 'infopago';
+            const chave = row.querySelector('.split-chave-pix').value;
             result.push({
                 gateway_nome:    gw,
                 tipo_split:      row.querySelector('.split-tipo').value,

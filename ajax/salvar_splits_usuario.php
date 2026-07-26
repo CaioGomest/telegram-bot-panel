@@ -23,7 +23,7 @@ if (!is_array($splits)) {
     exit;
 }
 
-$gatewaysValidos = ['efi', 'pushinpay', 'infopago'];
+$gatewaysValidos = ['infopago'];
 
 global $pdo;
 try {
@@ -32,7 +32,7 @@ try {
 
     $ordem = 0;
     foreach ($splits as $s) {
-        $gatewayNome = in_array($s['gateway_nome'] ?? '', $gatewaysValidos, true) ? $s['gateway_nome'] : 'efi';
+        $gatewayNome = in_array($s['gateway_nome'] ?? '', $gatewaysValidos, true) ? $s['gateway_nome'] : 'infopago';
         $tipo        = in_array($s['tipo_split'] ?? '', ['percentual', 'fixo'], true) ? $s['tipo_split'] : 'percentual';
         $taxa        = max(0, (float)($s['taxa_split'] ?? 0));
         $chave       = trim($s['chave_pix_split'] ?? '');
