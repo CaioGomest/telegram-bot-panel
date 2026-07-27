@@ -9,7 +9,6 @@ verificarAdmin();
 $usuario_id = (int)($_GET['usuario_id'] ?? 0);
 $status = trim($_GET['status'] ?? '');
 $split_status = trim($_GET['split_status'] ?? '');
-$gateway_id = (int)($_GET['gateway_id'] ?? 0);
 $data_inicio = trim($_GET['data_inicio'] ?? '');
 $data_fim = trim($_GET['data_fim'] ?? '');
 $busca = trim($_GET['busca'] ?? '');
@@ -24,10 +23,6 @@ if ($usuario_id > 0) {
 if ($status !== '') {
     $where[] = 'v.status = ?';
     $params[] = $status;
-}
-if ($gateway_id > 0) {
-    $where[] = 'v.id_gateway = ?';
-    $params[] = $gateway_id;
 }
 if ($busca !== '') {
     $where[] = '(v.transacao_id LIKE ? OR v.id_telegram LIKE ?)';
@@ -122,7 +117,6 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
 }
 
 $usuarios_filtro = $pdo->query('SELECT id, nome FROM usuarios ORDER BY nome')->fetchAll(PDO::FETCH_ASSOC);
-$gateways_filtro = $pdo->query('SELECT id, titulo FROM gateways ORDER BY titulo')->fetchAll(PDO::FETCH_ASSOC);
 
 function calcularSplitEsperado(?string $tipo_split, ?string $taxa_split, string $valor_venda): ?float {
     if ($tipo_split === null || $taxa_split === null) {
@@ -240,17 +234,6 @@ function badgeSplit(array $venda): string {
                         <option value="falhou" <?php echo $split_status === 'falhou' ? 'selected' : ''; ?>>Falhou</option>
                         <option value="sem_split" <?php echo $split_status === 'sem_split' ? 'selected' : ''; ?>>Sem split configurado</option>
                         <option value="sem_credenciais" <?php echo $split_status === 'sem_credenciais' ? 'selected' : ''; ?>>Sem credenciais de Cash-Out</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="gateway_id">Gateway</label>
-                    <select name="gateway_id" id="gateway_id" class="input-campo">
-                        <option value="">Todos</option>
-                        <?php foreach ($gateways_filtro as $g): ?>
-                            <option value="<?php echo $g['id']; ?>" <?php echo $gateway_id === (int)$g['id'] ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($g['titulo']); ?>
-                            </option>
-                        <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="form-group">
