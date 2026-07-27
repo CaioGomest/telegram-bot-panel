@@ -2,8 +2,8 @@ $(function() {
   const $modal = $('#modal-nova-campanha');
   const $form = $('#form-campanha');
   const $feedback = $('#modal-feedback');
-  const $btnOpen = $('#btn-nova-campanha');
-  const $btnClose = $('#btn-fechar-modal, #btn-cancelar-campanha');
+  const $btn_open = $('#btn-nova-campanha');
+  const $btn_close = $('#btn-fechar-modal, #btn-cancelar-campanha');
 
   function openModal() {
     $feedback.hide().text('');
@@ -14,8 +14,8 @@ $(function() {
     $modal.hide();
   }
 
-  $btnOpen.on('click', function() { openModal(); });
-  $btnClose.on('click', function() { closeModal(); });
+  $btn_open.on('click', function() { openModal(); });
+  $btn_close.on('click', function() { closeModal(); });
   $modal.on('click', function(e) {
     if (e.target === this) { closeModal(); }
   });
@@ -53,15 +53,15 @@ $(function() {
   });
 
   function atualizarContagem() {
-    const botId = $('#modal-bot_id').val();
+    const bot_id = $('#modal-bot_id').val();
     const audiencia = $('#modal-audiencia').val();
     const $cont = $('#contador-destinatarios');
-    if (!botId || !audiencia) { $cont.hide(); return; }
+    if (!bot_id || !audiencia) { $cont.hide(); return; }
     $cont.text('Estimando destinatários...').show();
     $.ajax({
       url: 'remarketing.php',
       method: 'GET',
-      data: { action: 'contar_destinatarios', bot_id: botId, audiencia },
+      data: { action: 'contar_destinatarios', bot_id: bot_id, audiencia },
       dataType: 'json',
       headers: { 'Accept': 'application/json' }
     }).done(function(resp) {
@@ -98,5 +98,5 @@ $(function() {
     atualizarContadorMensagem();
   });
   // Inicializa quando abre
-  $btnOpen.on('click', atualizarContadorMensagem);
+  $btn_open.on('click', atualizarContadorMensagem);
 });

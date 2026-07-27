@@ -30,7 +30,6 @@ verificarLogin();
                 <a class="botao botao-primario" href="bot.php">Novo Bot</a>
             </div>
             <div id="lista-bots" class="grade-cards">
-                <!-- A lista será carregada via JS -->
                 <div class="estado-vazio">Carregando bots...</div>
             </div>
         </div>

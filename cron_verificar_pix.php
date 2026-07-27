@@ -4,20 +4,19 @@ declare(strict_types=1);
 require_once 'conexao.php';
 require_once 'funcoes/log.php';
 
-// Configuração de Log
 date_default_timezone_set('America/Sao_Paulo');
-$logDir = __DIR__ . '/logs';
-if (!is_dir($logDir)) mkdir($logDir, 0755, true);
-$logFile = $logDir . '/cron_pix.log';
+$log_dir = __DIR__ . '/logs';
+if (!is_dir($log_dir)) mkdir($log_dir, 0755, true);
+$log_file = $log_dir . '/cron_pix.log';
 
 function logCron(string $msg) {
-    global $logFile;
+    global $log_file;
     $date = date('Y-m-d H:i:s');
-    file_put_contents($logFile, "[$date] $msg" . PHP_EOL, FILE_APPEND);
+    file_put_contents($log_file, "[$date] $msg" . PHP_EOL, FILE_APPEND);
 }
 
 // Replicando funções mínimas para continuidade
-function requisicao_telegram_local(string $token, string $metodo, array $parametros = []): array {
+function requisicaoTelegramLocal(string $token, string $metodo, array $parametros = []): array {
     $url = 'https://api.telegram.org/bot' . $token . '/' . $metodo;
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -28,26 +27,26 @@ function requisicao_telegram_local(string $token, string $metodo, array $paramet
     return json_decode($resposta ?: '', true) ?: ['ok' => false];
 }
 
-function obter_proximo_no_local(array $links, string $idAtual, string $conectorSaida = 'output_1'): ?string {
+function obterProximoNoLocal(array $links, string $id_atual, string $conector_saida = 'output_1'): ?string {
     foreach ($links as $link) {
-        if (($link['fromOperator'] ?? '') === $idAtual && ($link['fromConnector'] ?? '') === $conectorSaida) {
+        if (($link['fromOperator'] ?? '') === $id_atual && ($link['fromConnector'] ?? '') === $conector_saida) {
             return $link['toOperator'] ?? null;
         }
     }
-    if ($conectorSaida !== 'output_1') {
-         return obter_proximo_no_local($links, $idAtual, 'output_1');
+    if ($conector_saida !== 'output_1') {
+         return obterProximoNoLocal($links, $id_atual, 'output_1');
     }
     return null;
 }
 
-function processar_bloco_local(string $token, $idChat, array $operador, int $idUsuarioDono): void {
+function processarBlocoLocal(string $token, $id_chat, array $operador, int $id_usuario_dono): void {
     $propriedades = $operador['properties'] ?? [];
     $tipo = $propriedades['type'] ?? '';
 
     if ($tipo === 'message') {
         $texto = trim((string) ($propriedades['conteudo'] ?? $propriedades['body'] ?? ''));
         if ($texto !== '') {
-            requisicao_telegram_local($token, 'sendMessage', ['chat_id' => $idChat, 'text' => $texto]);
+            requisicaoTelegramLocal($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => $texto]);
         }
     } elseif ($tipo === 'image') {
         $caminho = $propriedades['image_path'] ?? '';
@@ -57,144 +56,142 @@ function processar_bloco_local(string $token, $idChat, array $operador, int $idU
             }
             $real = realpath($caminho);
             if ($real) {
-                requisicao_telegram_local($token, 'sendPhoto', ['chat_id' => $idChat, 'photo' => $real]);
+                requisicaoTelegramLocal($token, 'sendPhoto', ['chat_id' => $id_chat, 'photo' => $real]);
             }
         }
     } elseif ($tipo === 'botoes') {
         $texto = trim((string) ($propriedades['texto'] ?? ''));
         $botoes = $propriedades['botoes'] ?? [];
         $keyboard = [];
-        $currentRow = [];
-        foreach ($botoes as $btnTexto) {
-            $currentRow[] = ['text' => $btnTexto, 'callback_data' => $btnTexto];
-            if (count($currentRow) >= 2) { $keyboard[] = $currentRow; $currentRow = []; }
+        $current_row = [];
+        foreach ($botoes as $btn_texto) {
+            $current_row[] = ['text' => $btn_texto, 'callback_data' => $btn_texto];
+            if (count($current_row) >= 2) { $keyboard[] = $current_row; $current_row = []; }
         }
-        if (!empty($currentRow)) $keyboard[] = $currentRow;
+        if (!empty($current_row)) $keyboard[] = $current_row;
         
-        requisicao_telegram_local($token, 'sendMessage', [
-            'chat_id' => $idChat,
+        requisicaoTelegramLocal($token, 'sendMessage', [
+            'chat_id' => $id_chat,
             'text' => $texto ?: 'Escolha:',
             'reply_markup' => json_encode(['inline_keyboard' => $keyboard])
         ]);
     }
 }
 
-function executar_fluxo_continuacao(string $token, string $idChat, int $botId, string $idOperadorInicial, int $idUsuarioDono, string $conector = 'output_pago') {
+function executarFluxoContinuacao(string $token, string $id_chat, int $bot_id, string $id_operador_inicial, int $id_usuario_dono, string $conector = 'output_pago') {
     global $pdo;
     
     $stmt = $pdo->prepare("SELECT f.dados_fluxograma FROM bots b JOIN fluxos f ON b.id_fluxo_conectado = f.id WHERE b.id = ?");
-    $stmt->execute([$botId]);
-    $dadosJson = $stmt->fetchColumn();
+    $stmt->execute([$bot_id]);
+    $dados_json = $stmt->fetchColumn();
     
-    if (!$dadosJson) return;
+    if (!$dados_json) return;
     
-    $dadosFluxo = json_decode($dadosJson, true);
-    $operadores = $dadosFluxo['operators'] ?? [];
-    $links = $dadosFluxo['links'] ?? [];
+    $dados_fluxo = json_decode($dados_json, true);
+    $operadores = $dados_fluxo['operators'] ?? [];
+    $links = $dados_fluxo['links'] ?? [];
     
-    $proximoId = obter_proximo_no_local($links, $idOperadorInicial, $conector);
+    $proximo_id = obterProximoNoLocal($links, $id_operador_inicial, $conector);
     
-    if (!$proximoId) {
-        logCron("Nenhuma conexão saindo de '$conector' no bloco $idOperadorInicial.");
+    if (!$proximo_id) {
+        logCron("Nenhuma conexão saindo de '$conector' no bloco $id_operador_inicial.");
         return;
     }
     
-    logCron("Executando fluxo ($conector) para chat $idChat a partir de $proximoId");
+    logCron("Executando fluxo ($conector) para chat $id_chat a partir de $proximo_id");
     
-    while ($proximoId && isset($operadores[$proximoId])) {
-        $operador = $operadores[$proximoId];
-        processar_bloco_local($token, $idChat, $operador, $idUsuarioDono);
+    while ($proximo_id && isset($operadores[$proximo_id])) {
+        $operador = $operadores[$proximo_id];
+        processarBlocoLocal($token, $id_chat, $operador, $id_usuario_dono);
         
         $tipo = $operador['properties']['type'] ?? '';
         if ($tipo === 'botoes' || $tipo === 'pix') break;
         
         if ($tipo === 'delay') sleep(1);
 
-        $proximoId = obter_proximo_no_local($links, $proximoId, 'output_1');
+        $proximo_id = obterProximoNoLocal($links, $proximo_id, 'output_1');
     }
 }
 
 require_once __DIR__ . '/funcoes/gateways.php';
 require_once __DIR__ . '/funcoes/infopago_split.php';
 
-// 1. VERIFICAR PAGAMENTOS PENDENTES
-$sqlPendentes = "
+$sql_pendentes = "
     SELECT v.*, b.token, b.id_usuario as id_dono 
     FROM vendas v 
     JOIN bots b ON v.bot_id = b.id
     WHERE v.status = 'gerado' 
     AND v.transacao_id IS NOT NULL
 ";
-$stmt = $pdo->query($sqlPendentes);
-$vendasPendentes = $stmt->fetchAll();
+$stmt = $pdo->query($sql_pendentes);
+$vendas_pendentes = $stmt->fetchAll();
 
-$pagosCount = 0;
+$pagos_count = 0;
 
-foreach ($vendasPendentes as $venda) {
-    $gatewayConfig = null;
-    $nomeGateway = null;
+foreach ($vendas_pendentes as $venda) {
+    $gateway_config = null;
+    $nome_gateway = null;
 
     if (!empty($venda['id_gateway'])) {
-        $stmtGw = $pdo->prepare("SELECT nome FROM gateways WHERE id = ?");
-        $stmtGw->execute([$venda['id_gateway']]);
-        $nomeGateway = $stmtGw->fetchColumn();
-        if ($nomeGateway) {
-            $gatewayConfig = getUserGatewayConfig((int)$venda['id_dono'], $nomeGateway);
+        $stmt_gw = $pdo->prepare("SELECT nome FROM gateways WHERE id = ?");
+        $stmt_gw->execute([$venda['id_gateway']]);
+        $nome_gateway = $stmt_gw->fetchColumn();
+        if ($nome_gateway) {
+            $gateway_config = getUserGatewayConfig((int)$venda['id_dono'], $nome_gateway);
         }
     }
 
-    if (!$gatewayConfig) {
-        $gatewaysUsuario = getUserGateways((int)$venda['id_dono'], true);
-        if (!empty($gatewaysUsuario)) {
-            $gatewayConfig = $gatewaysUsuario[0];
-            $nomeGateway = $gatewayConfig['gateway_nome'] ?? null;
+    if (!$gateway_config) {
+        $gateways_usuario = getUserGateways((int)$venda['id_dono'], true);
+        if (!empty($gateways_usuario)) {
+            $gateway_config = $gateways_usuario[0];
+            $nome_gateway = $gateway_config['gateway_nome'] ?? null;
         }
     }
 
-    if (!$gatewayConfig || !$nomeGateway) {
+    if (!$gateway_config || !$nome_gateway) {
         logCron("Venda #{$venda['id']} sem gateway válido configurado. Ignorando.");
         continue;
     }
 
-    $provedor = resolveGatewayProvider($nomeGateway, $gatewayConfig);
+    $provedor = resolveGatewayProvider($nome_gateway, $gateway_config);
     if (!$provedor) {
-        logCron("Venda #{$venda['id']} gateway $nomeGateway não suportado.");
+        logCron("Venda #{$venda['id']} gateway $nome_gateway não suportado.");
         continue;
     }
 
     try {
         $resp = $provedor->consultarCobranca($venda['transacao_id']);
-        $statusPagamento = strtoupper(trim($resp['dados']['status'] ?? $resp['dados']['statusCob'] ?? ''));
+        $status_pagamento = strtoupper(trim($resp['dados']['status'] ?? $resp['dados']['statusCob'] ?? ''));
 
-        if ($resp['sucesso'] && in_array($statusPagamento, ['CONCLUIDA', 'PAGO', 'LIQUIDADO', 'PAID', 'APPROVED', 'COMPLETED'])) {
-            logCron("Venda #{$venda['id']} encontrada como PAGA no gateway $nomeGateway.");
+        if ($resp['sucesso'] && in_array($status_pagamento, ['CONCLUIDA', 'PAGO', 'LIQUIDADO', 'PAID', 'APPROVED', 'COMPLETED'])) {
+            logCron("Venda #{$venda['id']} encontrada como PAGA no gateway $nome_gateway.");
 
-            $pagoEm = date('Y-m-d H:i:s');
-            $pdo->prepare("UPDATE vendas SET status = 'pago', pago_em = ? WHERE id = ?")->execute([$pagoEm, $venda['id']]);
-            $pagosCount++;
+            $pago_em = date('Y-m-d H:i:s');
+            $pdo->prepare("UPDATE vendas SET status = 'pago', pago_em = ? WHERE id = ?")->execute([$pago_em, $venda['id']]);
+            $pagos_count++;
 
-            if ($nomeGateway === 'infopago') {
+            if ($nome_gateway === 'infopago') {
                 dispararSplitInfopago((int)$venda['id_dono'], (float)$venda['valor'], (string)$venda['transacao_id']);
             }
 
-            // Libera acesso (Mensagem Padrão)
             $msg = "✅ *Pagamento Confirmado!*\n\nObrigado pela sua compra.";
 
             if (!empty($venda['id_grupo_telegram'])) {
-                $idGrupo = $venda['id_grupo_telegram'];
-                $tempoMinutos = (int)($venda['tempo_acesso_minutos'] ?? ($venda['dias_acesso'] * 1440));
+                $id_grupo = $venda['id_grupo_telegram'];
+                $tempo_minutos = (int)($venda['tempo_acesso_minutos'] ?? ($venda['dias_acesso'] * 1440));
                 // Revoga link anterior do usuário para evitar compartilhamento/reuso.
-                $stmtLinkAnterior = $pdo->prepare("SELECT invite_link FROM membros_grupos WHERE id_telegram = ? AND id_grupo_telegram = ? AND bot_id = ? LIMIT 1");
-                $stmtLinkAnterior->execute([$venda['id_telegram'], $idGrupo, $venda['bot_id']]);
-                $linkAnterior = (string)($stmtLinkAnterior->fetchColumn() ?: '');
-                if ($linkAnterior !== '') {
-                    requisicao_telegram_local($venda['token'], 'revokeChatInviteLink', [
-                        'chat_id' => $idGrupo,
-                        'invite_link' => $linkAnterior
+                $stmt_link_anterior = $pdo->prepare("SELECT invite_link FROM membros_grupos WHERE id_telegram = ? AND id_grupo_telegram = ? AND bot_id = ? LIMIT 1");
+                $stmt_link_anterior->execute([$venda['id_telegram'], $id_grupo, $venda['bot_id']]);
+                $link_anterior = (string)($stmt_link_anterior->fetchColumn() ?: '');
+                if ($link_anterior !== '') {
+                    requisicaoTelegramLocal($venda['token'], 'revokeChatInviteLink', [
+                        'chat_id' => $id_grupo,
+                        'invite_link' => $link_anterior
                     ]);
                 }
-                $invite = requisicao_telegram_local($venda['token'], 'createChatInviteLink', [
-                    'chat_id' => $idGrupo,
+                $invite = requisicaoTelegramLocal($venda['token'], 'createChatInviteLink', [
+                    'chat_id' => $id_grupo,
                     'member_limit' => 1,
                     'expire_date' => time() + (15 * 60),
                     'name' => 'Venda #' . $venda['id']
@@ -202,14 +199,14 @@ foreach ($vendasPendentes as $venda) {
 
                 if (($invite['ok'] ?? false) && isset($invite['result']['invite_link'])) {
                     $link = $invite['result']['invite_link'];
-                    $dataExpiracao = date('Y-m-d H:i:s', strtotime("+$tempoMinutos minutes"));
+                    $data_expiracao = date('Y-m-d H:i:s', strtotime("+$tempo_minutos minutes"));
 
                     // Busca expiração atual para extensão correta em renovações
-                    $stmtMembroAtual = $pdo->prepare("SELECT data_expiracao FROM membros_grupos WHERE id_telegram = ? AND id_grupo_telegram = ? AND bot_id = ?");
-                    $stmtMembroAtual->execute([$venda['id_telegram'], $idGrupo, $venda['bot_id']]);
-                    $expiracaoAtual = $stmtMembroAtual->fetchColumn();
-                    if ($expiracaoAtual && strtotime($expiracaoAtual) > time()) {
-                        $dataExpiracao = date('Y-m-d H:i:s', strtotime($expiracaoAtual) + ($tempoMinutos * 60));
+                    $stmt_membro_atual = $pdo->prepare("SELECT data_expiracao FROM membros_grupos WHERE id_telegram = ? AND id_grupo_telegram = ? AND bot_id = ?");
+                    $stmt_membro_atual->execute([$venda['id_telegram'], $id_grupo, $venda['bot_id']]);
+                    $expiracao_atual = $stmt_membro_atual->fetchColumn();
+                    if ($expiracao_atual && strtotime($expiracao_atual) > time()) {
+                        $data_expiracao = date('Y-m-d H:i:s', strtotime($expiracao_atual) + ($tempo_minutos * 60));
                     }
 
                     $pdo->prepare("
@@ -223,30 +220,30 @@ foreach ($vendasPendentes as $venda) {
                             invite_link    = COALESCE(VALUES(invite_link), invite_link),
                             aviso_enviado  = 0,
                             em_renovacao   = 0
-                    ")->execute([$venda['id_telegram'], $idGrupo, $venda['bot_id'], $venda['id'], $dataExpiracao, $link]);
+                    ")->execute([$venda['id_telegram'], $id_grupo, $venda['bot_id'], $venda['id'], $data_expiracao, $link]);
 
                     $msg .= "\n\n🚀 *Acesso Liberado!*\nClique no link abaixo para entrar no grupo exclusivo:\n\n$link\n\n⚠️ Este link é válido apenas para você.";
-                    if ($tempoMinutos < 60) {
-                        $msg .= "\n⏳ *Seu acesso expira em {$tempoMinutos} minutos.*";
-                    } elseif ($tempoMinutos < 1440) {
-                        $horas = floor($tempoMinutos / 60);
+                    if ($tempo_minutos < 60) {
+                        $msg .= "\n⏳ *Seu acesso expira em {$tempo_minutos} minutos.*";
+                    } elseif ($tempo_minutos < 1440) {
+                        $horas = floor($tempo_minutos / 60);
                         $msg .= "\n⏳ *Seu acesso expira em {$horas} horas.*";
                     } else {
-                        $dias = floor($tempoMinutos / 1440);
+                        $dias = floor($tempo_minutos / 1440);
                         $msg .= "\n⏳ *Seu acesso expira em {$dias} dias.*";
                     }
-                    $msg .= "\n*(Data exata: " . date('d/m/Y \\à\\s H:i', strtotime($dataExpiracao)) . ")*";
+                    $msg .= "\n*(Data exata: " . date('d/m/Y \\à\\s H:i', strtotime($data_expiracao)) . ")*";
                 } else {
                     $msg .= "\n\n⚠️ Não foi possível gerar o link do grupo automaticamente.";
-                    $erroLink = $invite['description'] ?? 'Erro desconhecido';
-                    logCron("Falha ao gerar link para venda #{$venda['id']}: $erroLink");
+                    $erro_link = $invite['description'] ?? 'Erro desconhecido';
+                    logCron("Falha ao gerar link para venda #{$venda['id']}: $erro_link");
                 }
 
-                requisicao_telegram_local($venda['token'], 'sendMessage', ['chat_id' => $venda['id_telegram'], 'text' => $msg, 'parse_mode' => 'Markdown']);
+                requisicaoTelegramLocal($venda['token'], 'sendMessage', ['chat_id' => $venda['id_telegram'], 'text' => $msg, 'parse_mode' => 'Markdown']);
             }
 
             if (!empty($venda['id_operador_fluxo'])) {
-                executar_fluxo_continuacao($venda['token'], $venda['id_telegram'], $venda['bot_id'], $venda['id_operador_fluxo'], (int)$venda['id_dono'], 'output_pago');
+                executarFluxoContinuacao($venda['token'], $venda['id_telegram'], $venda['bot_id'], $venda['id_operador_fluxo'], (int)$venda['id_dono'], 'output_pago');
             }
         }
     } catch (Exception $e) {
@@ -254,10 +251,9 @@ foreach ($vendasPendentes as $venda) {
     }
 }
 
-// 2. EXPIRAR NÃO PAGOS
 // Usa horário do PHP (Sao_Paulo) como parâmetro para evitar mismatch de timezone com MySQL
-$agoraPhp = date('Y-m-d H:i:s');
-$sqlExpiradas = "
+$agora_php = date('Y-m-d H:i:s');
+$sql_expiradas = "
     SELECT v.*, b.token, b.id_usuario as id_dono
     FROM vendas v
     JOIN bots b ON v.bot_id = b.id
@@ -265,17 +261,17 @@ $sqlExpiradas = "
     AND TIMESTAMPDIFF(SECOND, v.criado_em, ?) >= v.tempo_expiracao_minutos * 60
     AND v.id_operador_fluxo IS NOT NULL
 ";
-$stmt = $pdo->prepare($sqlExpiradas);
-$stmt->execute([$agoraPhp]);
-$vendasExpiradas = $stmt->fetchAll();
+$stmt = $pdo->prepare($sql_expiradas);
+$stmt->execute([$agora_php]);
+$vendas_expiradas = $stmt->fetchAll();
 
-foreach ($vendasExpiradas as $venda) {
+foreach ($vendas_expiradas as $venda) {
     logCron("Processando expiração venda #{$venda['id']}");
     $pdo->prepare("UPDATE vendas SET status = 'expirado' WHERE id = ?")->execute([$venda['id']]);
     
     if ($venda['token']) {
-        executar_fluxo_continuacao($venda['token'], $venda['id_telegram'], $venda['bot_id'], $venda['id_operador_fluxo'], (int)$venda['id_dono'], 'output_nao_pago');
+        executarFluxoContinuacao($venda['token'], $venda['id_telegram'], $venda['bot_id'], $venda['id_operador_fluxo'], (int)$venda['id_dono'], 'output_nao_pago');
     }
 }
 
-echo "Cron Pix executado. Pagos encontrados: $pagosCount. Expirados processados: " . count($vendasExpiradas);
+echo "Cron Pix executado. Pagos encontrados: $pagos_count. Expirados processados: " . count($vendas_expiradas);

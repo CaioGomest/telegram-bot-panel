@@ -9,7 +9,6 @@ require_once __DIR__ . '/../conexao.php';
 require_once __DIR__ . '/email.php';
 require_once __DIR__ . '/log.php';
 
-// Funções base de autenticação
 function usuarioLogado(): bool {
     return isset($_SESSION['usuario_id']) && $_SESSION['usuario_id'] > 0;
 }
@@ -70,7 +69,6 @@ function fazerLogout(): void {
 function criarUsuario(string $nome, string $email, string $senha): array {
     global $pdo;
     
-    // Validar dados
     if (empty($nome) || empty($email) || empty($senha)) {
         return ['sucesso' => false, 'erro' => 'Preencha todos os campos.'];
     }
@@ -84,20 +82,18 @@ function criarUsuario(string $nome, string $email, string $senha): array {
     }
 
     try {
-        // Verificar se email já existe
         $stmt = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
         $stmt->execute([$email]);
         if ($stmt->fetch()) {
             return ['sucesso' => false, 'erro' => 'Este email já está cadastrado.'];
         }
 
-        // Criar usuário
-        $senhaHash = password_hash($senha, PASSWORD_DEFAULT);
+        $senha_hash = password_hash($senha, PASSWORD_DEFAULT);
         $stmt = $pdo->prepare("INSERT INTO usuarios (nome, email, senha, perfil) VALUES (?, ?, ?, 'usuario')");
         
-        if ($stmt->execute([$nome, $email, $senhaHash])) {
-            $idNovoUsuario = (int)$pdo->lastInsertId();
-            registrarAtividade($idNovoUsuario, 'sistema', 'Cadastro', 'Novo usuário cadastrado.');
+        if ($stmt->execute([$nome, $email, $senha_hash])) {
+            $id_novo_usuario = (int)$pdo->lastInsertId();
+            registrarAtividade($id_novo_usuario, 'sistema', 'Cadastro', 'Novo usuário cadastrado.');
             return ['sucesso' => true];
         } else {
             return ['sucesso' => false, 'erro' => 'Erro ao criar usuário. Tente novamente.'];
@@ -135,7 +131,6 @@ function listarTodosUsuarios(int $limite = 20, int $offset = 0): array {
 function atualizarPerfilUsuario(int $id, string $nome, string $email, ?string $senha = null): array {
     global $pdo;
     
-    // Validações básicas
     if (empty($nome) || empty($email)) {
         return ['sucesso' => false, 'erro' => 'Nome e Email são obrigatórios.'];
     }
@@ -145,14 +140,12 @@ function atualizarPerfilUsuario(int $id, string $nome, string $email, ?string $s
     }
     
     try {
-        // Verificar se email já existe em OUTRO usuário
         $stmt = $pdo->prepare("SELECT id FROM usuarios WHERE email = ? AND id != ?");
         $stmt->execute([$email, $id]);
         if ($stmt->fetch()) {
             return ['sucesso' => false, 'erro' => 'Este email já está em uso por outro usuário.'];
         }
 
-        // Se senha foi fornecida, valida e atualiza
         if (!empty($senha)) {
             if (strlen($senha) < 6) {
                 return ['sucesso' => false, 'erro' => 'A senha deve ter pelo menos 6 caracteres.'];
@@ -161,13 +154,11 @@ function atualizarPerfilUsuario(int $id, string $nome, string $email, ?string $s
             $stmt = $pdo->prepare("UPDATE usuarios SET nome = ?, email = ?, senha = ?, atualizado_em = NOW() WHERE id = ?");
             $executou = $stmt->execute([$nome, $email, $hash, $id]);
         } else {
-            // Atualiza sem mudar senha
             $stmt = $pdo->prepare("UPDATE usuarios SET nome = ?, email = ?, atualizado_em = NOW() WHERE id = ?");
             $executou = $stmt->execute([$nome, $email, $id]);
         }
-        
+
         if ($executou) {
-            // Atualizar sessão se for o próprio usuário logado
             if (isset($_SESSION['usuario_id']) && $_SESSION['usuario_id'] == $id) {
                 $_SESSION['usuario_nome'] = $nome;
                 $_SESSION['usuario_email'] = $email;
@@ -200,7 +191,6 @@ function obterDetalhesUsuario(int $id): array {
     global $pdo;
     
     try {
-        // 1. Dados do Usuário
         $stmt = $pdo->prepare("
             SELECT id, nome, email, perfil, criado_em 
             FROM usuarios 
@@ -214,7 +204,6 @@ function obterDetalhesUsuario(int $id): array {
             return [];
         }
         
-        // 2. Estatísticas de Vendas (Total e Quantidade)
         $stmt = $pdo->prepare("
             SELECT 
                 COUNT(*) as qtd_vendas, 
@@ -229,7 +218,6 @@ function obterDetalhesUsuario(int $id): array {
         $usuario['qtd_vendas'] = $stats['qtd_vendas'];
         $usuario['total_vendas'] = $stats['total_vendas'];
         
-        // 3. Lista de Bots
         // Ajustado: Tabela bots usa 'primeiro_nome' e 'nome_usuario', não 'nome'
         $stmt = $pdo->prepare("
             SELECT id, primeiro_nome as nome, token, criado_em 
@@ -240,13 +228,9 @@ function obterDetalhesUsuario(int $id): array {
         $stmt->execute([$id]);
         $usuario['bots'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        // 4. Logs Recentes (Últimos 10)
-        // Precisamos garantir que a tabela 'atividades' existe e tem 'id_usuario'
-        // Se não existir, retorna array vazio para evitar erro fatal
+        // Nem todo ambiente tem a tabela/coluna 'atividades.id_usuario' pronta; se a consulta falhar,
+        // capturamos a exceção abaixo e devolvemos array vazio em vez de erro fatal.
         try {
-            // Verificar se a tabela atividades existe antes de consultar
-            // Em alguns ambientes, tabelas podem não existir ainda
-            // Mas vamos tentar a consulta direta e capturar exceção
             $stmt = $pdo->prepare("
                 SELECT tipo, titulo, descricao, criado_em as data_hora 
                 FROM atividades 
@@ -270,11 +254,9 @@ function obterDetalhesUsuario(int $id): array {
     }
 }
 
-// Tratamento de requisições POST para APIs (Esqueci a senha, etc)
 $acao_api = $_GET['acao'] ?? $_POST['acao'] ?? '';
 $api_endpoint = $_GET['api'] ?? '';
 
-// Tratamento direto de form (ex: logout no form)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $acao_api === 'logout') {
     fazerLogout();
 }
@@ -305,9 +287,9 @@ if ($api_endpoint === 'usuario') {
             $codigo = sprintf('%06d', mt_rand(0, 999999));
             $_SESSION['recuperacao_email'] = $email;
             $_SESSION['recuperacao_codigo'] = $codigo;
-            $_SESSION['recuperacao_expira'] = time() + (15 * 60); // 15 minutos
+            $_SESSION['recuperacao_expira'] = time() + (15 * 60);
             
-            $enviado = enviar_email_codigo($email, $codigo);
+            $enviado = enviarEmailCodigo($email, $codigo);
             if ($enviado) {
                 echo json_encode(['sucesso' => true]);
             } else {
@@ -339,9 +321,9 @@ if ($api_endpoint === 'usuario') {
         }
         
         try {
-            $senhaHash = password_hash($nova_senha, PASSWORD_DEFAULT);
+            $senha_hash = password_hash($nova_senha, PASSWORD_DEFAULT);
             $stmt = $pdo->prepare("UPDATE usuarios SET senha = ? WHERE email = ?");
-            $stmt->execute([$senhaHash, $email]);
+            $stmt->execute([$senha_hash, $email]);
             
             unset($_SESSION['recuperacao_email']);
             unset($_SESSION['recuperacao_codigo']);

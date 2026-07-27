@@ -27,8 +27,6 @@ if (!$id) {
 $dados = obterDetalhesUsuario($id);
 
 if (empty($dados)) {
-    // Se não encontrou, vamos debuggar (opcional, mas útil agora)
-    // Mas para o usuário final, retornamos o erro
     echo json_encode(['erro' => 'Usuário não encontrado']);
     exit;
 }

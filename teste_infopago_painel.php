@@ -7,9 +7,9 @@ require_once __DIR__ . '/funcoes/gateways.php';
 require_once __DIR__ . '/funcoes/infopago_banco.php';
 
 verificarLogin();
-$userId = $_SESSION['usuario_id'];
+$user_id = $_SESSION['usuario_id'];
 
-$cfg = getUserGatewayConfig($userId, 'infopago');
+$cfg = getUserGatewayConfig($user_id, 'infopago');
 $resultado = null;
 $erro = null;
 
@@ -25,25 +25,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
         $passos[] = ['nome' => 'Autenticação', 'ok' => $autenticou];
 
         if ($autenticou) {
-            $valorTeste = (float)($_POST['valor'] ?? 0.10);
-            $payload = $banco->montaPayloadCobranca($valorTeste, $cfg['chave_pix'], null, 3600);
+            $valor_teste = (float)($_POST['valor'] ?? 0.10);
+            $payload = $banco->montaPayloadCobranca($valor_teste, $cfg['chave_pix'], null, 3600);
             $resp = $banco->criarCobranca($payload);
             $passos[] = ['nome' => 'Criar cobrança', 'ok' => $resp['sucesso'] ?? false, 'detalhes' => $resp];
 
             if ($resp['sucesso'] ?? false) {
                 $txid = $resp['dados']['txid'] ?? '';
-                $pixCopiaCola = $resp['dados']['pixCopiaECola'] ?? '';
+                $pix_copia_cola = $resp['dados']['pixCopiaECola'] ?? '';
                 $status = $resp['dados']['status'] ?? '';
 
-                $respConsulta = $banco->consultarCobranca($txid);
-                $passos[] = ['nome' => 'Consultar cobrança', 'ok' => $respConsulta['sucesso'] ?? false, 'detalhes' => $respConsulta];
+                $resp_consulta = $banco->consultarCobranca($txid);
+                $passos[] = ['nome' => 'Consultar cobrança', 'ok' => $resp_consulta['sucesso'] ?? false, 'detalhes' => $resp_consulta];
 
                 $resultado = [
                     'txid' => $txid,
                     'status' => $status,
-                    'valor' => $valorTeste,
-                    'pixCopiaCola' => $pixCopiaCola,
-                    'qrCodeUrl' => $pixCopiaCola ? 'https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=' . urlencode($pixCopiaCola) : null,
+                    'valor' => $valor_teste,
+                    'pixCopiaCola' => $pix_copia_cola,
+                    'qrCodeUrl' => $pix_copia_cola ? 'https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=' . urlencode($pix_copia_cola) : null,
                 ];
             }
         }

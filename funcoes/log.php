@@ -1,30 +1,22 @@
 <?php
 declare(strict_types=1);
 
-// Garante fuso horário correto
 date_default_timezone_set('America/Sao_Paulo');
 
 require_once __DIR__ . '/../conexao.php';
 
-/**
- * Registra uma nova atividade no sistema
- */
-function registrarAtividade(?int $idUsuario, string $tipo, string $titulo, string $descricao, string $icone = 'default'): bool {
+function registrarAtividade(?int $id_usuario, string $tipo, string $titulo, string $descricao, string $icone = 'default'): bool {
     global $pdo;
     try {
-        // Define data de criação explicitamente com o fuso horário correto
-        $criadoEm = date('Y-m-d H:i:s');
+        $criado_em = date('Y-m-d H:i:s');
         $stmt = $pdo->prepare("INSERT INTO atividades (id_usuario, tipo, titulo, descricao, icone, criado_em) VALUES (?, ?, ?, ?, ?, ?)");
-        return $stmt->execute([$idUsuario, $tipo, $titulo, $descricao, $icone, $criadoEm]);
+        return $stmt->execute([$id_usuario, $tipo, $titulo, $descricao, $icone, $criado_em]);
     } catch (PDOException $e) {
         error_log("Erro ao registrar log: " . $e->getMessage());
         return false;
     }
 }
 
-/**
- * Lista atividades do sistema com filtros opcionais
- */
 function listarAtividades(array $filtros = [], int $limite = 20, int $offset = 0): array {
     global $pdo;
     
@@ -45,11 +37,11 @@ function listarAtividades(array $filtros = [], int $limite = 20, int $offset = 0
     }
 
     if (!empty($filtros['tipos_in'])) {
-        $inTipos = $filtros['tipos_in'];
-        if (is_array($inTipos) && !empty($inTipos)) {
-            $placeholders = implode(',', array_fill(0, count($inTipos), '?'));
+        $in_tipos = $filtros['tipos_in'];
+        if (is_array($in_tipos) && !empty($in_tipos)) {
+            $placeholders = implode(',', array_fill(0, count($in_tipos), '?'));
             $sql .= " AND a.tipo IN ($placeholders)";
-            $params = array_merge($params, $inTipos);
+            $params = array_merge($params, $in_tipos);
         }
     }
 
@@ -74,9 +66,6 @@ function listarAtividades(array $filtros = [], int $limite = 20, int $offset = 0
     }
 }
 
-/**
- * Conta atividades do sistema com filtros opcionais
- */
 function contarAtividades(array $filtros = []): int {
     global $pdo;
     
@@ -94,11 +83,11 @@ function contarAtividades(array $filtros = []): int {
     }
 
     if (!empty($filtros['tipos_in'])) {
-        $inTipos = $filtros['tipos_in'];
-        if (is_array($inTipos) && !empty($inTipos)) {
-            $placeholders = implode(',', array_fill(0, count($inTipos), '?'));
+        $in_tipos = $filtros['tipos_in'];
+        if (is_array($in_tipos) && !empty($in_tipos)) {
+            $placeholders = implode(',', array_fill(0, count($in_tipos), '?'));
             $sql .= " AND a.tipo IN ($placeholders)";
-            $params = array_merge($params, $inTipos);
+            $params = array_merge($params, $in_tipos);
         }
     }
 

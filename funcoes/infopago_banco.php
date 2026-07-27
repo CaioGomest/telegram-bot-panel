@@ -23,40 +23,40 @@ class InfopagoBanco {
      */
     private const VERIFICAR_CERTIFICADO_SERVIDOR = false;
 
-    private string $clientId;
-    private string $clientSecret;
-    private string $certificadoPath;
-    private string $certPassword;
+    private string $client_id;
+    private string $client_secret;
+    private string $certificado_path;
+    private string $cert_password;
     private bool $producao;
-    private string $baseUrl;
-    private ?string $accessToken = null;
+    private string $base_url;
+    private ?string $access_token = null;
 
-    public function __construct(string $clientId, string $clientSecret, string $certificadoPath, bool $producao = true, string $certPassword = '') {
-        $this->clientId = $clientId;
-        $this->clientSecret = $clientSecret;
-        $this->certificadoPath = $certificadoPath;
-        $this->certPassword = $certPassword;
+    public function __construct(string $client_id, string $client_secret, string $certificado_path, bool $producao = true, string $cert_password = '') {
+        $this->clientId = $client_id;
+        $this->clientSecret = $client_secret;
+        $this->certificadoPath = $certificado_path;
+        $this->certPassword = $cert_password;
         $this->producao = $producao;
         // TODO: confirmar URL de homologação/sandbox (diferente da de produção — pedir ao suporte).
         $this->baseUrl = 'https://api.pix.infopago.com.br';
     }
 
     private function writeLog(string $msg): void {
-        $logFile = __DIR__ . '/../logs/split_debug.log';
+        $log_file = __DIR__ . '/../logs/split_debug.log';
         $line = '[' . date('Y-m-d H:i:s') . '] [InfoPago] ' . $msg . PHP_EOL;
-        file_put_contents($logFile, $line, FILE_APPEND | LOCK_EX);
+        file_put_contents($log_file, $line, FILE_APPEND | LOCK_EX);
     }
 
     /**
      * Aplica o certificado mTLS na requisição cURL — exigido pela InfoPago em toda chamada, inclusive na autenticação.
      */
     private function aplicarCertificado($ch): void {
-        $certReal = realpath($this->certificadoPath);
-        if (!$certReal || !file_exists($certReal)) {
+        $cert_real = realpath($this->certificadoPath);
+        if (!$cert_real || !file_exists($cert_real)) {
             return;
         }
-        curl_setopt($ch, CURLOPT_SSLCERT, $certReal);
-        $ext = strtolower(pathinfo($certReal, PATHINFO_EXTENSION));
+        curl_setopt($ch, CURLOPT_SSLCERT, $cert_real);
+        $ext = strtolower(pathinfo($cert_real, PATHINFO_EXTENSION));
         // .pfx e .p12 são o mesmo formato (PKCS#12) — a InfoPago distribui os certificados em .pfx.
         curl_setopt($ch, CURLOPT_SSLCERTTYPE, in_array($ext, ['p12', 'pfx'], true) ? 'P12' : 'PEM');
         if (!empty($this->certPassword)) {
@@ -69,12 +69,12 @@ class InfopagoBanco {
      * POST /oauth/token, Content-Type: application/x-www-form-urlencoded, campos snake_case.
      */
     public function autenticar(): bool {
-        $certReal = realpath($this->certificadoPath);
-        if (!$certReal || !file_exists($certReal)) {
+        $cert_real = realpath($this->certificadoPath);
+        if (!$cert_real || !file_exists($cert_real)) {
             $this->writeLog("Certificado mTLS não encontrado: {$this->certificadoPath}");
             return false;
         }
-        $this->writeLog("Autenticando | certificado=$certReal (" . filesize($certReal) . " bytes) | endpoint={$this->baseUrl}/oauth/token");
+        $this->writeLog("Autenticando | certificado=$cert_real (" . filesize($cert_real) . " bytes) | endpoint={$this->baseUrl}/oauth/token");
 
         $endpoint = $this->baseUrl . '/oauth/token';
         $body = http_build_query([
@@ -97,30 +97,27 @@ class InfopagoBanco {
         $this->aplicarCertificado($ch);
 
         $response  = curl_exec($ch);
-        $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
+        $http_code  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curl_error = curl_error($ch);
         curl_close($ch);
 
-        if ($curlError) {
-            $this->writeLog("Erro de conexão na autenticação: $curlError");
+        if ($curl_error) {
+            $this->writeLog("Erro de conexão na autenticação: $curl_error");
             return false;
         }
 
         $data = json_decode((string)$response, true);
 
-        if (($httpCode === 200 || $httpCode === 201) && isset($data['access_token'])) {
+        if (($http_code === 200 || $http_code === 201) && isset($data['access_token'])) {
             $this->accessToken = $data['access_token'];
             return true;
         }
 
-        $corpoBruto = is_string($response) ? substr($response, 0, 500) : '(vazio)';
-        $this->writeLog("Falha na autenticação (HTTP $httpCode) | corpo_bruto=" . $corpoBruto);
+        $corpo_bruto = is_string($response) ? substr($response, 0, 500) : '(vazio)';
+        $this->writeLog("Falha na autenticação (HTTP $http_code) | corpo_bruto=" . $corpo_bruto);
         return false;
     }
 
-    /**
-     * Valida se as credenciais (e o certificado) estão funcionando.
-     */
     public function validarCredenciais(): bool {
         return $this->autenticar();
     }
@@ -159,13 +156,13 @@ class InfopagoBanco {
         $this->aplicarCertificado($ch);
 
         $response  = curl_exec($ch);
-        $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
+        $http_code  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curl_error = curl_error($ch);
         curl_close($ch);
 
-        if ($curlError) {
-            $this->writeLog("cURL Error ($method $uri): $curlError");
-            return ['sucesso' => false, 'erro' => "Erro de conexão: $curlError", 'codigo_http' => 0];
+        if ($curl_error) {
+            $this->writeLog("cURL Error ($method $uri): $curl_error");
+            return ['sucesso' => false, 'erro' => "Erro de conexão: $curl_error", 'codigo_http' => 0];
         }
 
         $data = json_decode((string)$response, true);
@@ -173,28 +170,25 @@ class InfopagoBanco {
             $data = ['raw' => $response];
         }
 
-        if ($httpCode >= 200 && $httpCode < 300) {
-            return ['sucesso' => true, 'dados' => $data, 'codigo_http' => $httpCode];
+        if ($http_code >= 200 && $http_code < 300) {
+            return ['sucesso' => true, 'dados' => $data, 'codigo_http' => $http_code];
         }
 
-        $this->writeLog("Requisição falhou | $method $uri | HTTP $httpCode | " . json_encode($data));
+        $this->writeLog("Requisição falhou | $method $uri | HTTP $http_code | " . json_encode($data));
         $mensagem = $data['message'] ?? ($data['erro'] ?? 'Erro na requisição');
-        return ['sucesso' => false, 'erro' => $mensagem, 'detalhes' => $data, 'codigo_http' => $httpCode];
+        return ['sucesso' => false, 'erro' => $mensagem, 'detalhes' => $data, 'codigo_http' => $http_code];
     }
 
-    /**
-     * Monta o payload de cobrança imediata no formato Bacen.
-     */
-    public function montaPayloadCobranca(float $valor, string $chavePix, ?array $splitConfig = null, int $expiracaoSegundos = 3600): array {
+    public function montaPayloadCobranca(float $valor, string $chave_pix, ?array $split_config = null, int $expiracao_segundos = 3600): array {
         $payload = [
-            'calendario' => ['expiracao' => $expiracaoSegundos],
+            'calendario' => ['expiracao' => $expiracao_segundos],
             'valor'      => ['original' => number_format($valor, 2, '.', '')],
-            'chave'      => $chavePix,
+            'chave'      => $chave_pix,
         ];
 
         // TODO: split de pagamento ainda não confirmado na API da InfoPago (ver docs/infopago/01-api-referencia.md §5).
-        if ($splitConfig) {
-            $this->writeLog("Split recebido mas ainda não suportado pela integração InfoPago | splitConfig=" . json_encode($splitConfig));
+        if ($split_config) {
+            $this->writeLog("Split recebido mas ainda não suportado pela integração InfoPago | splitConfig=" . json_encode($split_config));
         }
 
         return $payload;
@@ -219,18 +213,12 @@ class InfopagoBanco {
         return $resp;
     }
 
-    /**
-     * Consulta uma cobrança pelo txid (GET /cob/{txid}).
-     */
     public function consultarCobranca(string $txid): array {
         return $this->sendRequest('GET', "/cob/{$txid}");
     }
 
-    /**
-     * Configura o Webhook Pix (PUT /webhook/{chave}).
-     */
-    public function configurarWebhook(string $chave, string $urlWebhook): array {
-        return $this->sendRequest('PUT', '/webhook/' . urlencode($chave), ['webhookUrl' => $urlWebhook]);
+    public function configurarWebhook(string $chave, string $url_webhook): array {
+        return $this->sendRequest('PUT', '/webhook/' . urlencode($chave), ['webhookUrl' => $url_webhook]);
     }
 
     // ── PIX Automático (recorrência) — Fase 2 ───────────────────────────────
@@ -241,9 +229,6 @@ class InfopagoBanco {
     // GET /rec/{idRec}?txid={txid} (o QR composto vem em dadosQR.pixCopiaECola).
     // Doc: https://developers.onz.software/docs/cobrancas/pix-automatico-jornadas/
 
-    /**
-     * Cria uma Recorrência Pix Automático (POST /rec).
-     */
     public function criarRecorrencia(array $payload): array {
         return $this->sendRequest('POST', '/rec', $payload);
     }
@@ -253,54 +238,51 @@ class InfopagoBanco {
      * É aqui que vem o QR Code/copia-e-cola, no campo dadosQR.pixCopiaECola.
      * Passe $txid (Jornada 3 — QR composto) para vincular à cobrança imediata na consulta.
      */
-    public function consultarRecorrencia(string $idRec, ?string $txid = null): array {
-        $uri = "/rec/{$idRec}";
+    public function consultarRecorrencia(string $id_rec, ?string $txid = null): array {
+        $uri = "/rec/{$id_rec}";
         if ($txid) {
             $uri .= '?txid=' . urlencode($txid);
         }
         return $this->sendRequest('GET', $uri);
     }
 
-    /**
-     * Cancela uma Recorrência Pix Automático (PATCH /rec/{idRec}).
-     */
-    public function cancelarRecorrencia(string $idRec): array {
-        return $this->sendRequest('PATCH', "/rec/{$idRec}", ['status' => 'CANCELADA']);
+    public function cancelarRecorrencia(string $id_rec): array {
+        return $this->sendRequest('PATCH', "/rec/{$id_rec}", ['status' => 'CANCELADA']);
     }
 
     /**
      * Monta o payload completo para criar uma recorrência InfoPago (schema confirmado na doc da ONZ).
      *
-     * @param string|null $txidCobrancaImediata Se informado, vincula a recorrência a uma cobrança
+     * @param string|null $txid_cobranca_imediata Se informado, vincula a recorrência a uma cobrança
      *                                           imediata já criada (Jornada 3 — QR Code composto:
      *                                           paga na hora e já autoriza a renovação automática).
      */
-    public function montaPayloadRecorrencia(float $valor, ?int $locId, string $periodicidade, string $nomeCliente, string $cpfCliente, string $objeto = 'Assinatura', ?string $txidCobrancaImediata = null): array {
-        $enumPeriodicidade = 'MENSAL';
+    public function montaPayloadRecorrencia(float $valor, ?int $loc_id, string $periodicidade, string $nome_cliente, string $cpf_cliente, string $objeto = 'Assinatura', ?string $txid_cobranca_imediata = null): array {
+        $enum_periodicidade = 'MENSAL';
         $mapa = ['semanal' => 'SEMANAL', 'mensal' => 'MENSAL', 'trimestral' => 'TRIMESTRAL', 'semestral' => 'SEMESTRAL', 'anual' => 'ANUAL'];
         if (isset($mapa[strtolower($periodicidade)])) {
-            $enumPeriodicidade = $mapa[strtolower($periodicidade)];
+            $enum_periodicidade = $mapa[strtolower($periodicidade)];
         }
 
-        $duracaoAnos = ['SEMANAL' => 1, 'MENSAL' => 5, 'TRIMESTRAL' => 5, 'SEMESTRAL' => 8, 'ANUAL' => 10][$enumPeriodicidade] ?? 5;
+        $duracao_anos = ['SEMANAL' => 1, 'MENSAL' => 5, 'TRIMESTRAL' => 5, 'SEMESTRAL' => 8, 'ANUAL' => 10][$enum_periodicidade] ?? 5;
 
-        $documentoLimpo = preg_replace('/\D/', '', $cpfCliente);
+        $documento_limpo = preg_replace('/\D/', '', $cpf_cliente);
         // O schema não aceita 'cpf' e 'cnpj' preenchidos ao mesmo tempo em devedor — usa o campo certo conforme o tamanho do documento.
-        $campoDocumento = strlen($documentoLimpo) === 14 ? 'cnpj' : 'cpf';
+        $campo_documento = strlen($documento_limpo) === 14 ? 'cnpj' : 'cpf';
 
         $payload = [
             'vinculo' => [
                 'contrato' => substr((string) time(), -20), // identificador do contrato exigido pelo schema; sem significado de negócio próprio aqui
                 'objeto'   => substr($objeto, 0, 140),
                 'devedor'  => [
-                    $campoDocumento => $documentoLimpo ?: '00000000000',
-                    'nome' => substr($nomeCliente ?: 'Cliente', 0, 200),
+                    $campo_documento => $documento_limpo ?: '00000000000',
+                    'nome' => substr($nome_cliente ?: 'Cliente', 0, 200),
                 ],
             ],
             'calendario' => [
                 'dataInicial'   => date('Y-m-d'),
-                'dataFinal'     => date('Y-m-d', strtotime("+{$duracaoAnos} years")),
-                'periodicidade' => $enumPeriodicidade,
+                'dataFinal'     => date('Y-m-d', strtotime("+{$duracao_anos} years")),
+                'periodicidade' => $enum_periodicidade,
             ],
             'valor' => [
                 'valorRec' => number_format($valor, 2, '.', ''),
@@ -308,12 +290,12 @@ class InfopagoBanco {
             'politicaRetentativa' => 'NAO_PERMITE',
         ];
 
-        if ($locId) {
-            $payload['loc'] = $locId;
+        if ($loc_id) {
+            $payload['loc'] = $loc_id;
         }
 
-        if ($txidCobrancaImediata) {
-            $payload['ativacao'] = ['dadosJornada' => ['txid' => $txidCobrancaImediata]];
+        if ($txid_cobranca_imediata) {
+            $payload['ativacao'] = ['dadosJornada' => ['txid' => $txid_cobranca_imediata]];
         }
 
         return $payload;

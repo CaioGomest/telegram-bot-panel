@@ -1,29 +1,29 @@
 (function ($) {
-    const apiUrl = 'api.php';
+    const api_url = 'api.php';
     const $flowchart = $('#area-trabalho-fluxograma');
-    let currentFlow = null;
-    let operatorIndex = 1;
-    let fluxoSujo = false;
-    let timerAutoSalvar = null;
-    let intervaloBackup = null;
-    let zoomLevel = 1;
-    let listaGruposUsuario = [];
-    let gatewaySuportaRecorrente = false;
+    let current_flow = null;
+    let operator_index = 1;
+    let fluxo_sujo = false;
+    let timer_auto_salvar = null;
+    let intervalo_backup = null;
+    let zoom_level = 1;
+    let lista_grupos_usuario = [];
+    let gateway_suporta_recorrente = false;
 
     function carregarGruposUsuario() {
-        return $.getJSON(apiUrl + '?action=listar_grupos_usuario')
+        return $.getJSON(api_url + '?action=listar_grupos_usuario')
             .done(function(resp) {
                 if (resp.sucesso) {
-                    listaGruposUsuario = resp.grupos || [];
+                    lista_grupos_usuario = resp.grupos || [];
                 }
             });
     }
 
     function carregarGatewayInfo() {
-        return $.getJSON(apiUrl + '?action=gateway_info')
+        return $.getJSON(api_url + '?action=gateway_info')
             .done(function(resp) {
                 if (resp.sucesso) {
-                    gatewaySuportaRecorrente = resp.suporta_recorrente === true;
+                    gateway_suporta_recorrente = resp.suporta_recorrente === true;
                 }
             });
     }
@@ -53,8 +53,7 @@
         return (b && typeof b === 'object') ? (b.texto || '') : (b || '');
     }
 
-    // Ícones SVG para os blocos
-    const blockIcons = {
+    const block_icons = {
         start: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>',
         message: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>',
         image: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>',
@@ -171,38 +170,38 @@
                 '</div>';
         }
         if (tipo === 'pix') {
-            const ehRecorrente = props.tipo_cobranca === 'recorrente';
-            const displayRecorrente = ehRecorrente ? '' : 'display:none;';
-            const displayUnico = !ehRecorrente ? '' : 'display:none;';
-            const periodicidadeSelecionada = props.periodicidade === 'semanal' ? 'mensal' : (props.periodicidade || 'mensal');
+            const eh_recorrente = props.tipo_cobranca === 'recorrente';
+            const display_recorrente = eh_recorrente ? '' : 'display:none;';
+            const display_unico = !eh_recorrente ? '' : 'display:none;';
+            const periodicidade_selecionada = props.periodicidade === 'semanal' ? 'mensal' : (props.periodicidade || 'mensal');
 
             return '' +
                 '<div class="bloco-config bloco-pix">' +
                 '  <div class="campo"><label>Tipo de Cobrança</label>' +
                 '    <select class="campo-pix-tipo-cobranca">' +
-                '      <option value="unica"' + opt(!ehRecorrente) + '>Pagamento Único</option>' +
-                (gatewaySuportaRecorrente ? '      <option value="recorrente"' + opt(ehRecorrente) + '>Assinatura (Recorrente)</option>' : '') +
+                '      <option value="unica"' + opt(!eh_recorrente) + '>Pagamento Único</option>' +
+                (gateway_suporta_recorrente ? '      <option value="recorrente"' + opt(eh_recorrente) + '>Assinatura (Recorrente)</option>' : '') +
                 '    </select>' +
-                (!gatewaySuportaRecorrente ? '    <p style="font-size:10px;color:#f59e0b;margin-top:4px;">⚠️ PIX Recorrente disponível apenas para contas PJ. Configure o tipo de conta em <a href="gateways.php" target="_blank">Gateways de Pagamento</a>.</p>' : '') +
+                (!gateway_suporta_recorrente ? '    <p style="font-size:10px;color:#f59e0b;margin-top:4px;">⚠️ PIX Recorrente disponível apenas para contas PJ. Configure o tipo de conta em <a href="gateways.php" target="_blank">Gateways de Pagamento</a>.</p>' : '') +
                 '  </div>' +
                 '  <div class="campo"><label>Nome do Produto/Plano</label><input type="text" class="campo-pix-nome" value="' + escaparHtml(props.nome || '') + '"></div>' +
                 '  <div class="campo"><label>Valor (R$)</label><input type="number" step="0.01" min="0" class="campo-pix-valor" value="' + (props.valor || 0) + '"></div>' +
                 '  <div class="campo"><label>Expiração do PIX (minutos)</label><input type="number" min="1" class="campo-pix-expiracao-minutos" value="' + (props.expiracao_minutos !== undefined ? props.expiracao_minutos : 15) + '"><p style="font-size:10px; color:#666; margin-top:2px;">Define a validade do código PIX e quando o fluxo segue para "NÃO PAGO".</p></div>' +
                 
-                '  <div class="grupo-recorrente" style="' + displayRecorrente + '">' +
+                '  <div class="grupo-recorrente" style="' + display_recorrente + '">' +
                 '    <div class="grade grade-2 grade-compacta">' +
                 '      <div class="campo"><label>Periodicidade</label>' +
                 '        <select class="campo-pix-periodicidade">' +
-                '          <option value="mensal"' + opt(periodicidadeSelecionada === 'mensal') + '>Mensal</option>' +
-                '          <option value="trimestral"' + opt(periodicidadeSelecionada === 'trimestral') + '>Trimestral</option>' +
-                '          <option value="semestral"' + opt(periodicidadeSelecionada === 'semestral') + '>Semestral</option>' +
-                '          <option value="anual"' + opt(periodicidadeSelecionada === 'anual') + '>Anual</option>' +
+                '          <option value="mensal"' + opt(periodicidade_selecionada === 'mensal') + '>Mensal</option>' +
+                '          <option value="trimestral"' + opt(periodicidade_selecionada === 'trimestral') + '>Trimestral</option>' +
+                '          <option value="semestral"' + opt(periodicidade_selecionada === 'semestral') + '>Semestral</option>' +
+                '          <option value="anual"' + opt(periodicidade_selecionada === 'anual') + '>Anual</option>' +
                 '        </select>' +
                 '      </div>' +
                 '    </div>' +
                 '  </div>' +
 
-                '  <div class="grupo-unico" style="' + displayUnico + '">' +
+                '  <div class="grupo-unico" style="' + display_unico + '">' +
                 '      <div class="campo"><label>Tempo de Acesso</label><input type="number" min="1" class="campo-pix-dias-acesso" value="' + (props.dias_acesso || 30) + '"></div>' +
                 '      <div class="campo"><label>Unidade de Tempo</label>' +
                 '        <select class="campo-pix-unidade-acesso">' +
@@ -216,7 +215,7 @@
                 '  <div class="campo"><label>Grupo para Acesso (Opcional)</label>' +
                 '    <select class="campo-pix-id-grupo">' +
                 '      <option value="">Nenhum (Apenas Venda)</option>' +
-                listaGruposUsuario.map(function(g) {
+                lista_grupos_usuario.map(function(g) {
                     return '<option value="' + escaparHtml(g.id_telegram) + '"' + (g.id_telegram == props.id_grupo ? ' selected' : '') + '>' + escaparHtml(g.titulo) + '</option>';
                 }).join('') +
                 '    </select>' +
@@ -259,7 +258,7 @@
                 '</div>';
         }
         if (tipo === 'grupo') {
-            const opcoes = listaGruposUsuario.map(function(g) {
+            const opcoes = lista_grupos_usuario.map(function(g) {
                 const sel = (g.id_telegram == props.id_grupo) ? ' selected' : '';
                 return '<option value="' + escaparHtml(g.id_telegram) + '"' + sel + '>' + escaparHtml(g.titulo) + ' (@' + escaparHtml(g.nome_bot) + ')</option>';
             }).join('');
@@ -293,10 +292,10 @@
             multipleLinksOnOutput: false,
             canUserMoveOperators: true,
             canUserEditLinks: true,
-            onOperatorCreate: function (operatorId, operatorData, fullElement) {
+            onOperatorCreate: function (operator_id, operator_data, full_element) {
                 // Mapeamento de tipos para classes do CSS (garantia para fluxos antigos)
-                const tipo = operatorData.properties.type || 'message';
-                const mapaClasses = {
+                const tipo = operator_data.properties.type || 'message';
+                const mapa_classes = {
                     'start': 'no-inicio',
                     'message': 'no-mensagem',
                     'image': 'no-imagem',
@@ -308,18 +307,15 @@
                     'link': 'no-link',
                     'grupo': 'no-grupo'
                 };
-                const classeExtra = mapaClasses[tipo] || 'no-mensagem';
-                fullElement.operator.addClass(classeExtra);
+                const classe_extra = mapa_classes[tipo] || 'no-mensagem';
+                full_element.operator.addClass(classe_extra);
 
-                // Injeta o ícone e o botão de fechar no título
-                const $title = fullElement.title;
-                const iconeSvg = blockIcons[tipo] || blockIcons['message'];
-                
-                // Limpa conteúdo atual do título para reconstruir com ícone e botão
-                const tituloTexto = operatorData.properties.title || 'Sem título';
+                const $title = full_element.title;
+                const icone_svg = block_icons[tipo] || block_icons['message'];
+
+                const titulo_texto = operator_data.properties.title || 'Sem título';
                 $title.empty();
-                
-                // Cria estrutura flex para o título
+
                 $title.css({
                     'display': 'flex',
                     'align-items': 'center',
@@ -327,35 +323,31 @@
                     'gap': '8px'
                 });
 
-                // Ícone e Texto
                 const $esquerda = $('<div style="display:flex; align-items:center; gap:8px; overflow:hidden;"></div>');
-                $esquerda.append(`<span class="icone-bloco" style="display:flex; align-items:center;">${iconeSvg}</span>`);
-                $esquerda.append(`<span class="texto-titulo" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escaparHtml(tituloTexto)}</span>`);
+                $esquerda.append(`<span class="icone-bloco" style="display:flex; align-items:center;">${icone_svg}</span>`);
+                $esquerda.append(`<span class="texto-titulo" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escaparHtml(titulo_texto)}</span>`);
                 $title.append($esquerda);
 
-                // Botão Excluir (se não for início)
                 if (tipo !== 'start') {
-                    const $btnExcluir = $('<button type="button" class="btn-excluir" title="Excluir">✕</button>');
-                    $title.append($btnExcluir);
+                    const $btn_excluir = $('<button type="button" class="btn-excluir" title="Excluir">✕</button>');
+                    $title.append($btn_excluir);
                 }
 
                 return true;
             },
-            onOperatorSelect: function (operatorId) {
-                fillOperatorForm(operatorId);
+            onOperatorSelect: function (operator_id) {
+                fillOperatorForm(operator_id);
                 return true;
             },
             onOperatorUnselect: function () {
                 clearOperatorForm();
                 return true;
             },
-            onLinkSelect: function (linkId) {
-                // Mostra botão de excluir link
-                $('#btn-excluir-link').show().data('link-id', linkId);
+            onLinkSelect: function (link_id) {
+                $('#btn-excluir-link').show().data('link-id', link_id);
                 return true;
             },
             onLinkUnselect: function () {
-                // Esconde botão
                 $('#btn-excluir-link').hide();
                 return true;
             },
@@ -380,28 +372,24 @@
         const ops = d.operators || {};
         const links = d.links || {};
 
-        // Migração de dados e renderização do corpo
         Object.keys(ops).forEach(function (id) {
             const props = ops[id].properties || {};
-            
+
             // Migração PIX: output_1 -> output_pago + output_nao_pago
             if (props.type === 'pix') {
                 props.outputs = props.outputs || {};
-                
-                // Se ainda usa o modelo antigo (output_1) ou não tem os novos
+
                 if (!props.outputs.output_pago || props.outputs.output_1) {
-                    // Cria novos outputs
                     props.outputs.output_pago = { label: 'PAGO' };
                     props.outputs.output_nao_pago = { label: 'NÃO PAGO' };
-                    
+
                     // Migra conexões existentes de output_1 para output_pago
                     if (props.outputs.output_1) {
-                        Object.keys(links).forEach(function(linkId) {
-                            if (links[linkId].fromOperator === id && links[linkId].fromConnector === 'output_1') {
-                                links[linkId].fromConnector = 'output_pago';
+                        Object.keys(links).forEach(function(link_id) {
+                            if (links[link_id].fromOperator === id && links[link_id].fromConnector === 'output_1') {
+                                links[link_id].fromConnector = 'output_pago';
                             }
                         });
-                        // Remove output antigo
                         delete props.outputs.output_1;
                     }
                 }
@@ -417,9 +405,8 @@
         agendarAutoSalvar();
     }
 
-    // X para apagar conexão ao passar o mouse
-    const $btnDeleteLink = $('<div class="btn-delete-link-hover">✕</div>').appendTo('body');
-    $btnDeleteLink.css({
+    const $btn_delete_link = $('<div class="btn-delete-link-hover">✕</div>').appendTo('body');
+    $btn_delete_link.css({
         'display': 'none',
         'position': 'absolute',
         'z-index': '9999',
@@ -436,22 +423,21 @@
         'pointer-events': 'auto'
     });
 
-    let currentLinkHover = null;
-    let hideTimeout = null;
+    let current_link_hover = null;
+    let hide_timeout = null;
 
     $(document).on('mouseenter', '.flowchart-link', function(e) {
-        currentLinkHover = $(this).data('link_id');
-        clearTimeout(hideTimeout);
-        // Posiciona o X próximo ao cursor
-        $btnDeleteLink.css({
+        current_link_hover = $(this).data('link_id');
+        clearTimeout(hide_timeout);
+        $btn_delete_link.css({
             top: e.pageY - 20,
             left: e.pageX + 10
         }).show();
     });
 
     $(document).on('mousemove', '.flowchart-link', function(e) {
-        if (!$btnDeleteLink.is(':hover')) {
-            $btnDeleteLink.css({
+        if (!$btn_delete_link.is(':hover')) {
+            $btn_delete_link.css({
                 top: e.pageY - 20,
                 left: e.pageX + 10
             });
@@ -459,41 +445,40 @@
     });
 
     $(document).on('mouseleave', '.flowchart-link', function() {
-        hideTimeout = setTimeout(function() {
-            if (!$btnDeleteLink.is(':hover')) {
-                $btnDeleteLink.hide();
+        hide_timeout = setTimeout(function() {
+            if (!$btn_delete_link.is(':hover')) {
+                $btn_delete_link.hide();
             }
         }, 100);
     });
 
-    $btnDeleteLink.on('mouseenter', function() {
-        clearTimeout(hideTimeout);
+    $btn_delete_link.on('mouseenter', function() {
+        clearTimeout(hide_timeout);
     });
 
-    $btnDeleteLink.on('mouseleave', function() {
+    $btn_delete_link.on('mouseleave', function() {
         $(this).hide();
     });
 
-    $btnDeleteLink.on('click', function(e) {
+    $btn_delete_link.on('click', function(e) {
         e.stopPropagation();
         e.preventDefault();
-        if (currentLinkHover != null) {
-            $flowchart.flowchart('deleteLink', currentLinkHover);
+        if (current_link_hover != null) {
+            $flowchart.flowchart('deleteLink', current_link_hover);
             atualizaFluxo(true);
-            $btnDeleteLink.hide();
+            $btn_delete_link.hide();
         }
     });
 
-    // Atalho de teclado para excluir
     $(document).keydown(function(e) {
         if (e.key === 'Delete' || e.key === 'Backspace') {
             if ($(e.target).is('input, textarea')) return;
-            const linkId = $flowchart.flowchart('getSelectedLinkId');
-            if (linkId) {
+            const link_id = $flowchart.flowchart('getSelectedLinkId');
+            if (link_id) {
                 e.preventDefault();
-                $flowchart.flowchart('deleteLink', linkId);
+                $flowchart.flowchart('deleteLink', link_id);
                 atualizaFluxo(true);
-                $btnDeleteLink.hide();
+                $btn_delete_link.hide();
             }
         }
     });
@@ -508,13 +493,13 @@
                 max = Math.max(max, parseInt(match[1], 10));
             }
         });
-        operatorIndex = max + 1;
+        operator_index = max + 1;
     }
 
     function nodeTemplate(type) {
         const base = {
-            top: 80 + (operatorIndex * 20),
-            left: 80 + (operatorIndex * 20),
+            top: 80 + (operator_index * 20),
+            left: 80 + (operator_index * 20),
             properties: {
                 title: 'Novo bloco',
                 body: 'Conteúdo do bloco',
@@ -576,7 +561,6 @@
             base.properties.texto = 'Escolha uma opção:';
             base.properties.botoes = ['Opção 1', 'Opção 2'];
             base.properties.sumir_apos_clique = false;
-            // Cria outputs iniciais baseados nos botões padrão
             base.properties.outputs = {};
             base.properties.botoes.forEach((btn, idx) => {
                 base.properties.outputs['output_' + idx] = { label: btn };
@@ -626,7 +610,7 @@
     }
 
     function addNode(type, position) {
-        const id = 'operator_' + operatorIndex;
+        const id = 'operator_' + operator_index;
         const template = nodeTemplate(type);
         
         if (position) {
@@ -640,77 +624,75 @@
         agendarAutoSalvar();
     }
 
-    function fillOperatorForm(operatorId) {
+    function fillOperatorForm(operator_id) {
         // Form lateral removido/escondido na nova UI focada nos blocos
         // Mantido vazio para compatibilidade se reativar a barra lateral
     }
 
     function clearOperatorForm() {
-        // ...
     }
 
     function centralizarVisao() {
-        // Tenta achar o bloco Início ou o primeiro que encontrar
         const data = getChartData();
         if (!data || !data.operators) return;
         
-        let targetOp = data.operators['operator_1'];
-        if (!targetOp) {
+        let target_op = data.operators['operator_1'];
+        if (!target_op) {
             const keys = Object.keys(data.operators);
-            if (keys.length > 0) targetOp = data.operators[keys[0]];
+            if (keys.length > 0) target_op = data.operators[keys[0]];
         }
         
-        if (targetOp) {
+        if (target_op) {
             const $wrapper = $('.conteiner-fluxo');
-            const wrapperWidth = $wrapper.width() || 800;
-            const wrapperHeight = $wrapper.height() || 600;
+            const wrapper_width = $wrapper.width() || 800;
+            const wrapper_height = $wrapper.height() || 600;
             
             // Centraliza: Posição do bloco - metade da tela
             // Assumindo bloco ~250px largura, 100px altura
-            const sLeft = (targetOp.left * zoomLevel) - (wrapperWidth / 2) + 125;
-            const sTop = (targetOp.top * zoomLevel) - (wrapperHeight / 2) + 50;
-            
+            const s_left = (target_op.left * zoom_level) - (wrapper_width / 2) + 125;
+            const s_top = (target_op.top * zoom_level) - (wrapper_height / 2) + 50;
+
             $wrapper.animate({
-                scrollLeft: Math.max(0, sLeft),
-                scrollTop: Math.max(0, sTop)
+                scrollLeft: Math.max(0, s_left),
+                scrollTop: Math.max(0, s_top)
             }, 500);
         }
     }
 
     function newFlow() {
-        currentFlow = null;
+        current_flow = null;
         $('#id-fluxo').val('');
         $('#nome-fluxo').val('Novo fluxo');
         $('#descricao-fluxo').val('');
         $('#link-suporte-fluxo').val('');
         setChartData(defaultChartData());
         if (window.history.pushState) {
-            const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
-            window.history.pushState({path:newUrl},'',newUrl);
+            const new_url = window.location.protocol + "//" + window.location.host + window.location.pathname;
+            window.history.pushState({path:new_url},'',new_url);
         }
         setTimeout(centralizarVisao, 100);
     }
 
     function openFlow(id) {
-        $.getJSON(apiUrl + '?action=obter_fluxo&id=' + encodeURIComponent(id))
+        $.getJSON(api_url + '?action=obter_fluxo&id=' + encodeURIComponent(id))
             .done(function (response) {
                 if (!response.sucesso) {
                     showToast(response.mensagem || 'Fluxo não encontrado.', 'erro');
                     return;
                 }
 
-                currentFlow = response.fluxo;
-                $('#id-fluxo').val(currentFlow.id || '');
-                $('#nome-fluxo').val(currentFlow.nome || '');
-                $('#descricao-fluxo').val(currentFlow.descricao || '');
-                $('#link-suporte-fluxo').val(currentFlow.link_suporte || '');
+                current_flow = response.fluxo;
+                $('#id-fluxo').val(current_flow.id || '');
+                $('#nome-fluxo').val(current_flow.nome || '');
+                $('#descricao-fluxo').val(current_flow.descricao || '');
+                $('#link-suporte-fluxo').val(current_flow.link_suporte || '');
 
                 if (window.history.pushState) {
-                    const newUrl = window.location.pathname + '?id=' + currentFlow.id;
-                    window.history.pushState({path:newUrl},'',newUrl);
+                    const new_url = window.location.pathname + '?id=' + current_flow.id;
+                    window.history.pushState({path:new_url},'',new_url);
                 }
 
-                setChartData(currentFlow.dados_fluxograma || defaultChartData());
+                setChartData(current_flow.dados_fluxograma || defaultChartData());
                 setTimeout(centralizarVisao, 100);
             })
             .fail(function () {
@@ -738,7 +720,7 @@
         };
 
         $.ajax({
-            url: apiUrl + '?action=salvar_fluxo',
+            url: api_url + '?action=salvar_fluxo',
             method: 'POST',
             contentType: 'application/json',
             data: JSON.stringify(dados_fluxo)
@@ -747,17 +729,16 @@
                 showToast(response.mensagem || 'Erro ao salvar fluxo.', 'erro');
                 return;
             }
-            currentFlow = response.fluxo;
-            $('#id-fluxo').val(currentFlow.id || '');
-            fluxoSujo = false;
+            current_flow = response.fluxo;
+            $('#id-fluxo').val(current_flow.id || '');
+            fluxo_sujo = false;
             if (!silencioso) {
                 showToast(response.mensagem || 'Fluxo salvo com sucesso.');
             }
-            
-            // Atualiza URL se for novo
+
             if (!dados_fluxo.id && response.fluxo && response.fluxo.id) {
-                const newUrl = window.location.pathname + '?id=' + response.fluxo.id;
-                window.history.pushState({path:newUrl},'',newUrl);
+                const new_url = window.location.pathname + '?id=' + response.fluxo.id;
+                window.history.pushState({path:new_url},'',new_url);
             }
         }).fail(function (xhr) {
             let msg = (xhr.responseJSON && xhr.responseJSON.mensagem) || '';
@@ -780,7 +761,7 @@
         }
 
         $.ajax({
-            url: apiUrl + '?action=excluir_fluxo',
+            url: api_url + '?action=excluir_fluxo',
             method: 'POST',
             contentType: 'application/json',
             data: JSON.stringify({ id: id })
@@ -789,7 +770,6 @@
                 showToast(response.mensagem || 'Erro ao excluir fluxo.', 'erro');
                 return;
             }
-            // Redireciona para a lista
             window.location.href = 'fluxos.php';
         }).fail(function (xhr) {
             showToast((xhr.responseJSON && xhr.responseJSON.mensagem) || 'Erro ao excluir fluxo.', 'erro');
@@ -797,40 +777,35 @@
     }
 
     $(document).off('click', '.adicionar-no'); // Remove clique direto para adicionar
-    // $(document).off('click', '.adicionar-no').on('click', '.adicionar-no', function () {
-    //    addNode($(this).data('node-type'));
-    // });
 
-    // Zoom
     function setZoom(scale) {
-        zoomLevel = Math.min(Math.max(0.2, scale), 3); // Limites 20% a 300%
+        zoom_level = Math.min(Math.max(0.2, scale), 3); // Limites 20% a 300%
         $flowchart.css({
-            'transform': `scale(${zoomLevel})`,
+            'transform': `scale(${zoom_level})`,
             'transform-origin': '0 0'
         });
-        $flowchart.flowchart('setPositionRatio', zoomLevel);
-        $('#btn-zoom-reset').text(Math.round(zoomLevel * 100) + '%');
+        $flowchart.flowchart('setPositionRatio', zoom_level);
+        $('#btn-zoom-reset').text(Math.round(zoom_level * 100) + '%');
     }
 
-    // Zoom com a roda do mouse (Ctrl + Wheel)
-    const containerFluxo = document.querySelector('.conteiner-fluxo');
-    if (containerFluxo) {
-        containerFluxo.addEventListener('wheel', function(e) {
+    const container_fluxo = document.querySelector('.conteiner-fluxo');
+    if (container_fluxo) {
+        container_fluxo.addEventListener('wheel', function(e) {
             if (e.ctrlKey) {
                 e.preventDefault();
                 const delta = e.deltaY;
                 const step = 0.1;
                 if (delta > 0) {
-                    setZoom(zoomLevel - step);
+                    setZoom(zoom_level - step);
                 } else {
-                    setZoom(zoomLevel + step);
+                    setZoom(zoom_level + step);
                 }
             }
         }, { passive: false });
     }
 
-    $(document).off('click', '#btn-zoom-in').on('click', '#btn-zoom-in', function() { setZoom(zoomLevel + 0.1); });
-    $(document).off('click', '#btn-zoom-out').on('click', '#btn-zoom-out', function() { setZoom(zoomLevel - 0.1); });
+    $(document).off('click', '#btn-zoom-in').on('click', '#btn-zoom-in', function() { setZoom(zoom_level + 0.1); });
+    $(document).off('click', '#btn-zoom-out').on('click', '#btn-zoom-out', function() { setZoom(zoom_level - 0.1); });
     $(document).off('click', '#btn-zoom-reset').on('click', '#btn-zoom-reset', function() { setZoom(1); });
 
     $('#btn-salvar-fluxo').on('click', function () { atualizaFluxo(false); });
@@ -841,7 +816,7 @@
             showToast('Salve o fluxo antes de exportar.', 'erro');
             return;
         }
-        $.getJSON(apiUrl + '?action=exportar_fluxo&id=' + encodeURIComponent(id))
+        $.getJSON(api_url + '?action=exportar_fluxo&id=' + encodeURIComponent(id))
             .done(function(resp) {
                 if (!resp.sucesso || !resp.fluxo) {
                     showToast(resp.mensagem || 'Erro ao exportar fluxo.', 'erro');
@@ -879,7 +854,7 @@
                 return;
             }
             $.ajax({
-                url: apiUrl + '?action=importar_fluxo',
+                url: api_url + '?action=importar_fluxo',
                 method: 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify({
@@ -893,16 +868,16 @@
                     showToast(resp.mensagem || 'Erro ao importar fluxo.', 'erro');
                     return;
                 }
-                currentFlow = resp.fluxo;
-                $('#id-fluxo').val(currentFlow.id || '');
-                $('#nome-fluxo').val(currentFlow.nome || '');
-                $('#descricao-fluxo').val(currentFlow.descricao || '');
-                $('#link-suporte-fluxo').val(currentFlow.link_suporte || '');
-                setChartData(currentFlow.dados_fluxograma || defaultChartData());
+                current_flow = resp.fluxo;
+                $('#id-fluxo').val(current_flow.id || '');
+                $('#nome-fluxo').val(current_flow.nome || '');
+                $('#descricao-fluxo').val(current_flow.descricao || '');
+                $('#link-suporte-fluxo').val(current_flow.link_suporte || '');
+                setChartData(current_flow.dados_fluxograma || defaultChartData());
                 showToast('Fluxo importado com sucesso.');
-                if (window.history.pushState && currentFlow.id) {
-                    const newUrl = window.location.pathname + '?id=' + currentFlow.id;
-                    window.history.pushState({path:newUrl},'',newUrl);
+                if (window.history.pushState && current_flow.id) {
+                    const new_url = window.location.pathname + '?id=' + current_flow.id;
+                    window.history.pushState({path:new_url},'',new_url);
                 }
             }).fail(function (xhr) {
                 showToast((xhr.responseJSON && xhr.responseJSON.mensagem) || 'Falha ao importar fluxo.', 'erro');
@@ -933,8 +908,7 @@
         
         props.caption = $op.find('.campo-legenda').val().trim();
         if (props.type === 'image') props.mode = 'foto';
-        
-        // Spoiler (apenas imagem e vídeo)
+
         if (props.type !== 'audio') {
             props.spoiler = $op.find('.campo-spoiler').is(':checked');
         }
@@ -953,7 +927,6 @@
         $flowchart.flowchart('selectOperator', id);
         agendarAutoSalvar();
     });
-    // Botões
     $flowchart.on('change', '.bloco-botoes .campo-texto-botoes', function () {
         const $op = $(this).closest('.flowchart-operator');
         const id = $op.data('operator_id');
@@ -974,12 +947,11 @@
         const props = data.operators[id] && data.operators[id].properties;
         if (!props || props.type !== 'botoes') return;
         props.botoes = props.botoes || [];
-        const novoNome = 'Novo botão';
-        props.botoes.push(novoNome);
+        const novo_nome = 'Novo botão';
+        props.botoes.push(novo_nome);
 
-        // Adiciona novo output
         props.outputs = props.outputs || {};
-        props.outputs['output_' + (props.botoes.length - 1)] = { label: novoNome };
+        props.outputs['output_' + (props.botoes.length - 1)] = { label: novo_nome };
 
         props.body = renderCorpoDoBloco(props);
         $flowchart.flowchart('setOperatorBody', id, props.body);
@@ -998,10 +970,8 @@
         const props = data.operators[id] && data.operators[id].properties;
         if (!props || props.type !== 'botoes') return;
 
-        // Remove botão do array
         props.botoes = (props.botoes || []).filter(function (_t, i) { return i !== idx; });
 
-        // Reconstrói outputs
         props.outputs = {};
         props.botoes.forEach((btn, i) => {
             props.outputs['output_' + i] = { label: textoBotao(btn) };
@@ -1023,11 +993,10 @@
         if (!props || props.type !== 'botoes') return;
         props.botoes = props.botoes || [];
         if (idx >= 0 && idx < props.botoes.length) {
-            const novoTexto = $(this).val();
-            props.botoes[idx] = novoTexto;
-            // Atualiza o label do output correspondente
+            const novo_texto = $(this).val();
+            props.botoes[idx] = novo_texto;
             if (props.outputs && props.outputs['output_' + idx]) {
-                props.outputs['output_' + idx].label = novoTexto;
+                props.outputs['output_' + idx].label = novo_texto;
             }
         }
         props.body = renderCorpoDoBloco(props);
@@ -1049,7 +1018,6 @@
         $flowchart.flowchart('selectOperator', id);
         agendarAutoSalvar();
     });
-    // PIX
     $flowchart.on('change', '.bloco-pix .campo-pix-nome, .bloco-pix .campo-pix-valor, .bloco-pix .campo-pix-expiracao-minutos, .bloco-pix .campo-pix-dias-acesso, .bloco-pix .campo-pix-unidade-acesso, .bloco-pix .campo-pix-id-grupo, .bloco-pix .campo-pix-msg-instrucoes, .bloco-pix .campo-pix-msg-confirmado, .bloco-pix .campo-pix-mostrar-copiar, .bloco-pix .campo-pix-mostrar-qrcode, .bloco-pix .campo-pix-mostrar-confirmar, .bloco-pix .campo-pix-tipo-cobranca, .bloco-pix .campo-pix-periodicidade', function () {
         const $op = $(this).closest('.flowchart-operator');
         const id = $op.data('operator_id');
@@ -1064,8 +1032,7 @@
         props.dias_acesso = parseInt($op.find('.campo-pix-dias-acesso').val(), 10) || 30;
         props.unidade_acesso = $op.find('.campo-pix-unidade-acesso').val();
         props.id_grupo = $op.find('.campo-pix-id-grupo').val();
-        
-        // Garante outputs
+
         props.outputs = props.outputs || {};
         if (!props.outputs.output_pago) props.outputs.output_pago = { label: 'PAGO' };
         if (!props.outputs.output_nao_pago) props.outputs.output_nao_pago = { label: 'NÃO PAGO' };
@@ -1083,7 +1050,6 @@
         $flowchart.flowchart('selectOperator', id);
         agendarAutoSalvar();
     });
-    // Delay
     $flowchart.on('change', '.bloco-delay .campo-delay-min, .bloco-delay .campo-delay-max, .bloco-delay .campo-delay-unidade, .bloco-delay .campo-delay-digitando', function () {
         const $op = $(this).closest('.flowchart-operator');
         const id = $op.data('operator_id');
@@ -1115,7 +1081,6 @@
         const input = $op.find('.campo-audio-arquivo').get(0);
         if (input) input.click();
     });
-    // Link
     $flowchart.on('change', '.bloco-link .campo-link-url, .bloco-link .campo-link-texto', function () {
         const $op = $(this).closest('.flowchart-operator');
         const id = $op.data('operator_id');
@@ -1130,7 +1095,6 @@
         $flowchart.flowchart('selectOperator', id);
         agendarAutoSalvar();
     });
-    // Grupo
     $flowchart.on('change', '.bloco-grupo .campo-grupo-id, .bloco-grupo .campo-grupo-texto', function () {
         const $op = $(this).closest('.flowchart-operator');
         const id = $op.data('operator_id');
@@ -1159,7 +1123,7 @@
         const fd = new FormData();
         fd.append('image', input.files[0]);
         $.ajax({
-            url: apiUrl + '?action=upload_imagem_fluxo',
+            url: api_url + '?action=upload_imagem_fluxo',
             method: 'POST',
             data: fd,
             processData: false,
@@ -1196,7 +1160,7 @@
         const fd = new FormData();
         fd.append('video', input.files[0]);
         $.ajax({
-            url: apiUrl + '?action=upload_video_fluxo',
+            url: api_url + '?action=upload_video_fluxo',
             method: 'POST',
             data: fd,
             processData: false,
@@ -1233,7 +1197,7 @@
         const fd = new FormData();
         fd.append('audio', input.files[0]);
         $.ajax({
-            url: apiUrl + '?action=upload_audio_fluxo',
+            url: api_url + '?action=upload_audio_fluxo',
             method: 'POST',
             data: fd,
             processData: false,
@@ -1260,11 +1224,9 @@
         // Carrega grupos antes de iniciar o gráfico para popular os selects
         $.when(carregarGruposUsuario(), carregarGatewayInfo()).always(function() {
             initChart();
-            
-            // Drag and Drop de Blocos
+
             $('.adicionar-no').attr('draggable', 'true').on('dragstart', function(e) {
                 e.originalEvent.dataTransfer.setData('node-type', $(this).data('node-type'));
-                // Efeito visual
                 $(this).css('opacity', '0.5');
             }).on('dragend', function() {
                 $(this).css('opacity', '1');
@@ -1279,30 +1241,28 @@
                 if (type) {
                     const wrapper = $(this);
                     const offset = wrapper.offset();
-                    const scrollLeft = wrapper.scrollLeft();
-                    const scrollTop = wrapper.scrollTop();
-                    
-                    // Posição do mouse relativa ao wrapper
-                    const mouseX = e.originalEvent.clientX - offset.left;
-                    const mouseY = e.originalEvent.clientY - offset.top;
-                    
+                    const scroll_left = wrapper.scrollLeft();
+                    const scroll_top = wrapper.scrollTop();
+
+                    const mouse_x = e.originalEvent.clientX - offset.left;
+                    const mouse_y = e.originalEvent.clientY - offset.top;
+
                     // Converte para coordenadas do canvas (considerando scroll e zoom)
                     // Canvas (0,0) está em wrapper(0,0) se scroll=0
                     // CoordCanvas = (MousePos + Scroll) / Zoom
-                    const x = (mouseX + scrollLeft) / zoomLevel;
-                    const y = (mouseY + scrollTop) / zoomLevel;
-                    
+                    const x = (mouse_x + scroll_left) / zoom_level;
+                    const y = (mouse_y + scroll_top) / zoom_level;
+
                     // Centraliza o bloco no mouse (aprox 120x40 é metade de um bloco padrão)
                     // Garante que não fique negativo (fora da área visível superior/esquerda)
-                    const finalX = Math.max(10, x - 100); 
-                    const finalY = Math.max(10, y - 40);
-                    
-                    addNode(type, { left: finalX, top: finalY });
+                    const final_x = Math.max(10, x - 100);
+                    const final_y = Math.max(10, y - 40);
+
+                    addNode(type, { left: final_x, top: final_y });
                 }
             });
-            
-            // Controles de Zoom
-        const $zoomControls = $(`
+
+        const $zoom_controls = $(`
             <div class="controles-zoom" style="position: absolute; bottom: 20px; z-index: 1000; background: white; padding: 5px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.15); display: flex; gap: 5px; width: auto; max-width: 150px; border: 1px solid #ddd;">
                 <button type="button" class="botao botao-claro" id="btn-zoom-out" title="Diminuir Zoom" style="width: 30px; height: 30px; padding: 0; display: flex; align-items: center; justify-content: center;">－</button>
                 <button type="button" class="botao botao-claro" id="btn-zoom-reset" title="Resetar Zoom" style="height: 30px; padding: 0 10px; font-size: 12px; min-width: 50px;">100%</button>
@@ -1312,22 +1272,20 @@
         // Remove controles anteriores se existirem para não duplicar
         $('.controles-zoom').remove();
         // Adiciona dentro do container principal (área cinza) mas fora do scroll
-        $('.conteiner-fluxo').parent().css('position', 'relative').append($zoomControls);
+        $('.conteiner-fluxo').parent().css('position', 'relative').append($zoom_controls);
 
-        // Injeta ícones nos botões de adicionar
         $('.adicionar-no').each(function() {
             const type = $(this).data('node-type');
-            if (blockIcons[type]) {
-                $(this).prepend(blockIcons[type]);
+            if (block_icons[type]) {
+                $(this).prepend(block_icons[type]);
             }
         });
 
-        // Verifica se tem ID na URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const flowId = urlParams.get('id');
+        const url_params = new URLSearchParams(window.location.search);
+        const flow_id = url_params.get('id');
         
-        if (flowId) {
-            openFlow(flowId);
+        if (flow_id) {
+            openFlow(flow_id);
         } else {
             newFlow();
         }
@@ -1335,14 +1293,14 @@
         const $wrapper = $('.conteiner-fluxo');
         let arrastando = false;
         let inicio = { x: 0, y: 0 };
-        let scrollInicial = { x: 0, y: 0 };
+        let scroll_inicial = { x: 0, y: 0 };
         
         $flowchart.on('mousedown', function (e) {
             if (e.button !== 0) return;
             if ($(e.target).closest('.flowchart-operator, .flowchart-link, .botao, input, textarea, select').length) return;
             arrastando = true;
             inicio = { x: e.pageX, y: e.pageY };
-            scrollInicial = { x: $wrapper.scrollLeft(), y: $wrapper.scrollTop() };
+            scroll_inicial = { x: $wrapper.scrollLeft(), y: $wrapper.scrollTop() };
             $flowchart.css('cursor', 'grabbing');
             e.preventDefault();
         });
@@ -1350,8 +1308,8 @@
             if (!arrastando) return;
             const dx = e.pageX - inicio.x;
             const dy = e.pageY - inicio.y;
-            $wrapper.scrollLeft(scrollInicial.x - dx);
-            $wrapper.scrollTop(scrollInicial.y - dy);
+            $wrapper.scrollLeft(scroll_inicial.x - dx);
+            $wrapper.scrollTop(scroll_inicial.y - dy);
         });
         $(document).on('mouseup', function () {
             if (!arrastando) return;
@@ -1359,23 +1317,21 @@
             $flowchart.css('cursor', '');
         });
 
-        // Duplo clique para editar título
         $flowchart.on('dblclick', '.flowchart-operator-title', function (e) {
             if ($(e.target).closest('.btn-excluir').length) return;
             const $title = $(this);
             const $op = $title.closest('.flowchart-operator');
             const id = $op.data('operator_id');
             if (!id) return;
-            
-            // Pega o texto atual
+
             const atual = $title.find('.texto-titulo').text().trim() || 'Sem título';
             
             const $input = $('<input type="text" class="edita-titulo" style="flex:1; min-width:0; margin:0;">').val(atual);
             
             // Substitui apenas o texto pelo input, mantendo ícone e botão
-            const $textoSpan = $title.find('.texto-titulo');
-            $textoSpan.hide();
-            $textoSpan.after($input);
+            const $texto_span = $title.find('.texto-titulo');
+            $texto_span.hide();
+            $texto_span.after($input);
             
             $input.focus().select();
             
@@ -1391,7 +1347,7 @@
                     agendarAutoSalvar();
                 } else {
                     $input.remove();
-                    $textoSpan.show();
+                    $texto_span.show();
                 }
             }
             $input.on('keydown', function (ev) {
@@ -1401,9 +1357,9 @@
             $input.on('blur', function () { finalizar(true); });
         });
 
-        if (intervaloBackup) { clearInterval(intervaloBackup); }
-        intervaloBackup = setInterval(function () {
-            if (fluxoSujo) {
+        if (intervalo_backup) { clearInterval(intervalo_backup); }
+        intervalo_backup = setInterval(function () {
+            if (fluxo_sujo) {
                 atualizaFluxo(true);
             }
         }, 10000);
@@ -1411,10 +1367,10 @@
     });
 
     function agendarAutoSalvar() {
-        fluxoSujo = true;
-        clearTimeout(timerAutoSalvar);
-        timerAutoSalvar = setTimeout(function () {
-            if (fluxoSujo) {
+        fluxo_sujo = true;
+        clearTimeout(timer_auto_salvar);
+        timer_auto_salvar = setTimeout(function () {
+            if (fluxo_sujo) {
                 atualizaFluxo(true);
             }
         }, 2000);

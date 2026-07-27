@@ -5,49 +5,40 @@ require_once __DIR__ . '/funcoes/paginador.php';
 require_once __DIR__ . '/conexao.php';
 verificarLogin();
 
-$userId = $_SESSION['usuario_id'];
-$isAdmin = ehAdmin();
+$user_id = $_SESSION['usuario_id'];
+$is_admin = ehAdmin();
 
-$whereUser = "";
-$whereUserVendas = "";
-$whereUserLeads = "";
-$whereUserAtividades = "";
-$whereBotVendas = "";
-$whereBotLeads = "";
-$botIdSelecionado = 'todos';
-$botsFiltro = [];
-$mostrarFiltroBot = false;
+$where_user = "";
+$where_user_vendas = "";
+$where_user_leads = "";
+$where_user_atividades = "";
+$where_bot_vendas = "";
+$where_bot_leads = "";
+$bot_id_selecionado = 'todos';
+$bots_filtro = [];
+$mostrar_filtro_bot = false;
 
-if (!$isAdmin) {
-    // Filtros para Usuário Comum
-    // Vendas: Filtra pelo bot_id vinculado aos bots do usuário
-    $whereUserVendas = " AND v.bot_id IN (SELECT id FROM bots WHERE id_usuario = $userId) ";
-    
-    // Leads: Filtra pelo bot_id vinculado aos bots do usuário (assumindo alias 'l' na query principal se necessário, ou sem alias)
-    // Como a query original não usa alias, vou adicionar alias nas queries abaixo.
-    $whereUserLeads = " AND l.bot_id IN (SELECT id FROM bots WHERE id_usuario = $userId) ";
-
-    // Atividades: Filtra pelo id_usuario
-    $whereUserAtividades = " WHERE id_usuario = $userId ";
+if (!$is_admin) {
+    $where_user_vendas = " AND v.bot_id IN (SELECT id FROM bots WHERE id_usuario = $user_id) ";
+    $where_user_leads = " AND l.bot_id IN (SELECT id FROM bots WHERE id_usuario = $user_id) ";
+    $where_user_atividades = " WHERE id_usuario = $user_id ";
 } else {
-    // Admin vê tudo
-    $whereUserVendas = "";
-    $whereUserLeads = "";
-    $whereUserAtividades = "";
+    $where_user_vendas = "";
+    $where_user_leads = "";
+    $where_user_atividades = "";
 }
 
-// Lista de bots para filtro
-if ($isAdmin) {
-    $stmtBots = $pdo->prepare("
+if ($is_admin) {
+    $stmt_bots = $pdo->prepare("
         SELECT 
             id,
             COALESCE(NULLIF(primeiro_nome, ''), NULLIF(nome_usuario, ''), CONCAT('Bot #', id)) AS nome
         FROM bots
         ORDER BY nome ASC
     ");
-    $stmtBots->execute();
+    $stmt_bots->execute();
 } else {
-    $stmtBots = $pdo->prepare("
+    $stmt_bots = $pdo->prepare("
         SELECT 
             id,
             COALESCE(NULLIF(primeiro_nome, ''), NULLIF(nome_usuario, ''), CONCAT('Bot #', id)) AS nome
@@ -55,83 +46,78 @@ if ($isAdmin) {
         WHERE id_usuario = ?
         ORDER BY nome ASC
     ");
-    $stmtBots->execute([$userId]);
+    $stmt_bots->execute([$user_id]);
 }
-$botsFiltro = $stmtBots->fetchAll(PDO::FETCH_ASSOC);
-$mostrarFiltroBot = count($botsFiltro) > 1;
-$idsBotsPermitidos = array_map(static function (array $bot): int {
+$bots_filtro = $stmt_bots->fetchAll(PDO::FETCH_ASSOC);
+$mostrar_filtro_bot = count($bots_filtro) > 1;
+$ids_bots_permitidos = array_map(static function (array $bot): int {
     return (int) $bot['id'];
-}, $botsFiltro);
+}, $bots_filtro);
 
 if (isset($_GET['bot_id']) && $_GET['bot_id'] !== 'todos') {
-    $botIdInformado = (int) $_GET['bot_id'];
-    if ($botIdInformado > 0 && in_array($botIdInformado, $idsBotsPermitidos, true)) {
-        $botIdSelecionado = (string) $botIdInformado;
-        $whereBotVendas = " AND v.bot_id = $botIdInformado";
-        $whereBotLeads = " AND l.bot_id = $botIdInformado";
+    $bot_id_informado = (int) $_GET['bot_id'];
+    if ($bot_id_informado > 0 && in_array($bot_id_informado, $ids_bots_permitidos, true)) {
+        $bot_id_selecionado = (string) $bot_id_informado;
+        $where_bot_vendas = " AND v.bot_id = $bot_id_informado";
+        $where_bot_leads = " AND l.bot_id = $bot_id_informado";
     }
 }
 
-// Filtro de Data
 $periodo = $_GET['periodo'] ?? '7dias';
-$whereDataVendas = ''; // Para vendas com alias 'v'
-$whereDataLeads = '';  // Para leads com alias 'l'
-$dataInicio = $_GET['data_inicio'] ?? '';
-$dataFim = $_GET['data_fim'] ?? '';
-$dataInicioObj = DateTime::createFromFormat('Y-m-d', $dataInicio);
-$dataFimObj = DateTime::createFromFormat('Y-m-d', $dataFim);
-$datasValidas = $dataInicioObj !== false
-    && $dataFimObj !== false
-    && $dataInicioObj->format('Y-m-d') === $dataInicio
-    && $dataFimObj->format('Y-m-d') === $dataFim;
+$where_data_vendas = '';
+$where_data_leads = '';
+$data_inicio = $_GET['data_inicio'] ?? '';
+$data_fim = $_GET['data_fim'] ?? '';
+$data_inicio_obj = DateTime::createFromFormat('Y-m-d', $data_inicio);
+$data_fim_obj = DateTime::createFromFormat('Y-m-d', $data_fim);
+$datas_validas = $data_inicio_obj !== false
+    && $data_fim_obj !== false
+    && $data_inicio_obj->format('Y-m-d') === $data_inicio
+    && $data_fim_obj->format('Y-m-d') === $data_fim;
 
-if ($periodo === 'personalizado' && $datasValidas) {
-    if ($dataInicio > $dataFim) {
-        $tmp = $dataInicio;
-        $dataInicio = $dataFim;
-        $dataFim = $tmp;
+if ($periodo === 'personalizado' && $datas_validas) {
+    if ($data_inicio > $data_fim) {
+        $tmp = $data_inicio;
+        $data_inicio = $data_fim;
+        $data_fim = $tmp;
     }
-    $whereDataVendas = "AND DATE(v.criado_em) BETWEEN '$dataInicio' AND '$dataFim'";
-    $whereDataLeads = "AND DATE(l.criado_em) BETWEEN '$dataInicio' AND '$dataFim'";
+    $where_data_vendas = "AND DATE(v.criado_em) BETWEEN '$data_inicio' AND '$data_fim'";
+    $where_data_leads = "AND DATE(l.criado_em) BETWEEN '$data_inicio' AND '$data_fim'";
 }
 
 switch ($periodo) {
     case 'hoje':
-        $whereDataVendas = "AND DATE(v.criado_em) = CURDATE()";
-        $whereDataLeads = "AND DATE(l.criado_em) = CURDATE()";
+        $where_data_vendas = "AND DATE(v.criado_em) = CURDATE()";
+        $where_data_leads = "AND DATE(l.criado_em) = CURDATE()";
         break;
     case 'ontem':
-        $whereDataVendas = "AND DATE(v.criado_em) = CURDATE() - INTERVAL 1 DAY";
-        $whereDataLeads = "AND DATE(l.criado_em) = CURDATE() - INTERVAL 1 DAY";
+        $where_data_vendas = "AND DATE(v.criado_em) = CURDATE() - INTERVAL 1 DAY";
+        $where_data_leads = "AND DATE(l.criado_em) = CURDATE() - INTERVAL 1 DAY";
         break;
     case '7dias':
-        $whereDataVendas = "AND v.criado_em >= CURDATE() - INTERVAL 7 DAY";
-        $whereDataLeads = "AND l.criado_em >= CURDATE() - INTERVAL 7 DAY";
+        $where_data_vendas = "AND v.criado_em >= CURDATE() - INTERVAL 7 DAY";
+        $where_data_leads = "AND l.criado_em >= CURDATE() - INTERVAL 7 DAY";
         break;
     case '30dias':
-        $whereDataVendas = "AND v.criado_em >= CURDATE() - INTERVAL 30 DAY";
-        $whereDataLeads = "AND l.criado_em >= CURDATE() - INTERVAL 30 DAY";
+        $where_data_vendas = "AND v.criado_em >= CURDATE() - INTERVAL 30 DAY";
+        $where_data_leads = "AND l.criado_em >= CURDATE() - INTERVAL 30 DAY";
         break;
     case 'total':
-        $whereDataVendas = "";
-        $whereDataLeads = "";
+        $where_data_vendas = "";
+        $where_data_leads = "";
         break;
     case 'personalizado':
-        // Manter como personalizado mesmo se as datas não forem válidas 
+        // Manter como personalizado mesmo se as datas não forem válidas
         // para que o usuário consiga preencher os inputs de data
-        if ($datasValidas) {
-            // Se as datas são válidas, usar o WHERE com intervalo
-            // (já foi definido acima)
+        if ($datas_validas) {
         } else {
-            // Se as datas não forem válidas, não aplicar WHERE de data
-            // deixando os inputs habilitados para o usuário preencher
-            $whereDataVendas = "";
-            $whereDataLeads = "";
+            $where_data_vendas = "";
+            $where_data_leads = "";
         }
         break;
     default:
-        $whereDataVendas = "AND v.criado_em >= CURDATE() - INTERVAL 7 DAY";
-        $whereDataLeads = "AND l.criado_em >= CURDATE() - INTERVAL 7 DAY";
+        $where_data_vendas = "AND v.criado_em >= CURDATE() - INTERVAL 7 DAY";
+        $where_data_leads = "AND l.criado_em >= CURDATE() - INTERVAL 7 DAY";
         $periodo = '7dias';
         break;
 }
@@ -154,170 +140,156 @@ function montarUrlFiltroDashboard(array $overrides = []): string
     return '?' . http_build_query($params);
 }
 
-// Estatísticas Rápidas
 try {
-    // 1. Vendas Aprovadas
-    $stmt = $pdo->prepare("SELECT SUM(v.valor) FROM vendas v WHERE v.status = 'pago' $whereDataVendas $whereUserVendas $whereBotVendas");
+    $stmt = $pdo->prepare("SELECT SUM(v.valor) FROM vendas v WHERE v.status = 'pago' $where_data_vendas $where_user_vendas $where_bot_vendas");
     $stmt->execute();
-    $vendasAprovadas = (float) $stmt->fetchColumn();
+    $vendas_aprovadas = (float) $stmt->fetchColumn();
 
-    // 2. Total Starts
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM leads l WHERE 1=1 $whereDataLeads $whereUserLeads $whereBotLeads");
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM leads l WHERE 1=1 $where_data_leads $where_user_leads $where_bot_leads");
     $stmt->execute();
-    $totalStarts = (int) $stmt->fetchColumn();
+    $total_starts = (int) $stmt->fetchColumn();
 
-    // 3. Taxa de Conversão (PIX Pagos / PIX Gerados)
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM vendas v WHERE v.status = 'pago' $whereDataVendas $whereUserVendas $whereBotVendas");
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM vendas v WHERE v.status = 'pago' $where_data_vendas $where_user_vendas $where_bot_vendas");
     $stmt->execute();
-    $pixPagos = (int) $stmt->fetchColumn();
+    $pix_pagos = (int) $stmt->fetchColumn();
 
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM vendas v WHERE 1=1 $whereDataVendas $whereUserVendas $whereBotVendas");
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM vendas v WHERE 1=1 $where_data_vendas $where_user_vendas $where_bot_vendas");
     $stmt->execute();
-    $pixGerados = (int) $stmt->fetchColumn();
+    $pix_gerados = (int) $stmt->fetchColumn();
 
-    $taxaConversao = $pixGerados > 0 ? ($pixPagos / $pixGerados) * 100 : 0;
+    $taxa_conversao = $pix_gerados > 0 ? ($pix_pagos / $pix_gerados) * 100 : 0;
 
-    // 4. Ticket Médio
-    $ticketMedio = $pixPagos > 0 ? $vendasAprovadas / $pixPagos : 0;
+    $ticket_medio = $pix_pagos > 0 ? $vendas_aprovadas / $pix_pagos : 0;
 
-    // 5. Gráfico Dinâmico baseado no filtro
-    $graficoDados = [];
-    $graficoLabels = [];
-    $textoGrafico = "";
+    $grafico_dados = [];
+    $grafico_labels = [];
+    $texto_grafico = "";
 
     if ($periodo == 'hoje') {
-        $textoGrafico = "HOJE (POR HORA)";
-        // Buscar as horas do dia atual que tiveram venda
+        $texto_grafico = "HOJE (POR HORA)";
         for ($i = 0; $i <= date('H'); $i++) {
             $hora = sprintf('%02d:00', $i);
-            $graficoLabels[] = $hora;
+            $grafico_labels[] = $hora;
             
-            $stmt = $pdo->prepare("SELECT SUM(v.valor) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = CURDATE() AND HOUR(v.criado_em) = ? $whereUserVendas $whereBotVendas");
+            $stmt = $pdo->prepare("SELECT SUM(v.valor) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = CURDATE() AND HOUR(v.criado_em) = ? $where_user_vendas $where_bot_vendas");
             $stmt->execute([$i]);
-            $graficoDados[] = (float) $stmt->fetchColumn();
+            $grafico_dados[] = (float) $stmt->fetchColumn();
         }
     } elseif ($periodo == 'ontem') {
-        $textoGrafico = "ONTEM (POR HORA)";
+        $texto_grafico = "ONTEM (POR HORA)";
         for ($i = 0; $i <= 23; $i++) {
             $hora = sprintf('%02d:00', $i);
-            $graficoLabels[] = $hora;
+            $grafico_labels[] = $hora;
             
-            $stmt = $pdo->prepare("SELECT SUM(v.valor) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = CURDATE() - INTERVAL 1 DAY AND HOUR(v.criado_em) = ? $whereUserVendas $whereBotVendas");
+            $stmt = $pdo->prepare("SELECT SUM(v.valor) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = CURDATE() - INTERVAL 1 DAY AND HOUR(v.criado_em) = ? $where_user_vendas $where_bot_vendas");
             $stmt->execute([$i]);
-            $graficoDados[] = (float) $stmt->fetchColumn();
+            $grafico_dados[] = (float) $stmt->fetchColumn();
         }
     } elseif ($periodo == '30dias') {
-        $textoGrafico = "ÚLTIMOS 30 DIAS";
+        $texto_grafico = "ÚLTIMOS 30 DIAS";
         for ($i = 29; $i >= 0; $i--) {
             $data = date('Y-m-d', strtotime("-$i days"));
-            $graficoLabels[] = date('d/m', strtotime("-$i days"));
+            $grafico_labels[] = date('d/m', strtotime("-$i days"));
 
-            $stmt = $pdo->prepare("SELECT SUM(v.valor) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = ? $whereUserVendas $whereBotVendas");
+            $stmt = $pdo->prepare("SELECT SUM(v.valor) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = ? $where_user_vendas $where_bot_vendas");
             $stmt->execute([$data]);
-            $graficoDados[] = (float) $stmt->fetchColumn();
+            $grafico_dados[] = (float) $stmt->fetchColumn();
         }
     } elseif ($periodo == 'total') {
-        $textoGrafico = "HISTÓRICO TOTAL (ÚLTIMOS 12 MESES)";
-        
-        // Preparar array com os últimos 12 meses (incluindo o atual) com valor zero
-        $mesesData = [];
+        $texto_grafico = "HISTÓRICO TOTAL (ÚLTIMOS 12 MESES)";
+
+        $meses_data = [];
         for ($i = 11; $i >= 0; $i--) {
-            $mesAno = date('Y-m', strtotime("-$i months"));
-            $mesesData[$mesAno] = 0;
+            $mes_ano = date('Y-m', strtotime("-$i months"));
+            $meses_data[$mes_ano] = 0;
         }
 
-        // Buscar os dados agrupados por mês
         $stmt = $pdo->prepare("
             SELECT DATE_FORMAT(v.criado_em, '%Y-%m') as mes, SUM(v.valor) as total 
             FROM vendas v 
-            WHERE v.status = 'pago' AND v.criado_em >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH) $whereUserVendas $whereBotVendas
+            WHERE v.status = 'pago' AND v.criado_em >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH) $where_user_vendas $where_bot_vendas
             GROUP BY mes 
             ORDER BY mes ASC
         ");
         $stmt->execute();
         $resultados = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        // Preencher os dados encontrados no array base
+
         foreach ($resultados as $row) {
-            if (isset($mesesData[$row['mes']])) {
-                $mesesData[$row['mes']] = (float) $row['total'];
+            if (isset($meses_data[$row['mes']])) {
+                $meses_data[$row['mes']] = (float) $row['total'];
             }
         }
-        
-        // Transformar o array base em labels e dados para o gráfico
-        foreach ($mesesData as $mes => $total) {
-            $dateObj = DateTime::createFromFormat('Y-m', $mes);
+
+        foreach ($meses_data as $mes => $total) {
+            $date_obj = DateTime::createFromFormat('Y-m', $mes);
+
+            $meses_pt = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+            $mes_index = (int)$date_obj->format('n') - 1;
+            $label_formatada = $meses_pt[$mes_index] . '/' . $date_obj->format('y');
             
-            // Traduzir o mês para português
-            $mesesPt = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-            $mesIndex = (int)$dateObj->format('n') - 1;
-            $labelFormatada = $mesesPt[$mesIndex] . '/' . $dateObj->format('y');
-            
-            $graficoLabels[] = $labelFormatada;
-            $graficoDados[] = $total;
+            $grafico_labels[] = $label_formatada;
+            $grafico_dados[] = $total;
         }
     } else {
-        // 7 dias (Padrão)
-        $textoGrafico = "ÚLTIMOS 7 DIAS";
+        $texto_grafico = "ÚLTIMOS 7 DIAS";
         for ($i = 6; $i >= 0; $i--) {
             $data = date('Y-m-d', strtotime("-$i days"));
-            $diaSemana = date('D', strtotime("-$i days"));
-            $diasMap = ['Sun'=>'Dom', 'Mon'=>'Seg', 'Tue'=>'Ter', 'Wed'=>'Qua', 'Thu'=>'Qui', 'Fri'=>'Sex', 'Sat'=>'Sáb'];
-            $graficoLabels[] = $diasMap[$diaSemana] ?? $diaSemana;
+            $dia_semana = date('D', strtotime("-$i days"));
+            $dias_map = ['Sun'=>'Dom', 'Mon'=>'Seg', 'Tue'=>'Ter', 'Wed'=>'Qua', 'Thu'=>'Qui', 'Fri'=>'Sex', 'Sat'=>'Sáb'];
+            $grafico_labels[] = $dias_map[$dia_semana] ?? $dia_semana;
 
-            $stmt = $pdo->prepare("SELECT SUM(v.valor) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = ? $whereUserVendas $whereBotVendas");
+            $stmt = $pdo->prepare("SELECT SUM(v.valor) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = ? $where_user_vendas $where_bot_vendas");
             $stmt->execute([$data]);
-            $graficoDados[] = (float) $stmt->fetchColumn();
+            $grafico_dados[] = (float) $stmt->fetchColumn();
         }
     }
 
     if ($periodo === 'personalizado') {
-        $textoGrafico = "PERÍODO PERSONALIZADO";
-        $graficoDados = [];
-        $graficoLabels = [];
-        if ($datasValidas) {
-            $dataAtual = new DateTime($dataInicio);
-            $dataFinal = new DateTime($dataFim);
-            while ($dataAtual <= $dataFinal) {
-                $dataIso = $dataAtual->format('Y-m-d');
-                $graficoLabels[] = $dataAtual->format('d/m');
-                $stmt = $pdo->prepare("SELECT SUM(v.valor) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = ? $whereUserVendas $whereBotVendas");
-                $stmt->execute([$dataIso]);
-                $graficoDados[] = (float) $stmt->fetchColumn();
-                $dataAtual->modify('+1 day');
+        $texto_grafico = "PERÍODO PERSONALIZADO";
+        $grafico_dados = [];
+        $grafico_labels = [];
+        if ($datas_validas) {
+            $data_atual = new DateTime($data_inicio);
+            $data_final = new DateTime($data_fim);
+            while ($data_atual <= $data_final) {
+                $data_iso = $data_atual->format('Y-m-d');
+                $grafico_labels[] = $data_atual->format('d/m');
+                $stmt = $pdo->prepare("SELECT SUM(v.valor) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = ? $where_user_vendas $where_bot_vendas");
+                $stmt->execute([$data_iso]);
+                $grafico_dados[] = (float) $stmt->fetchColumn();
+                $data_atual->modify('+1 day');
             }
         }
     }
 
 
-    // 6. Eventos Recentes (Telegram)
     // Para usuários, mostrar apenas eventos relacionados ao Telegram (venda, lead)
     // Para admin, mostra tudo (ou poderia ser só eventos globais, mas aqui seguimos o padrão dashboard)
-    $filtrosAtividades = [];
-    if (!$isAdmin) {
-        $filtrosAtividades['id_usuario'] = $userId;
-        $filtrosAtividades['tipos_in'] = ['venda', 'pix_gerado', 'lead'];
+    $filtros_atividades = [];
+    if (!$is_admin) {
+        $filtros_atividades['id_usuario'] = $user_id;
+        $filtros_atividades['tipos_in'] = ['venda', 'pix_gerado', 'lead'];
     }
 
     $por_pagina = 10;
     $pagina_atual = isset($_GET['pagina']) ? max(1, (int)$_GET['pagina']) : 1;
     $offset = ($pagina_atual - 1) * $por_pagina;
 
-    $total_atividades = contarAtividades($filtrosAtividades);
-    $atividades = listarAtividades($filtrosAtividades, $por_pagina, $offset);
+    $total_atividades = contarAtividades($filtros_atividades);
+    $atividades = listarAtividades($filtros_atividades, $por_pagina, $offset);
 
 } catch (Exception $e) {
     // Se der erro, define valores padrão para evitar que a página quebre
     error_log("Erro no dashboard: " . $e->getMessage());
-    $vendasAprovadas = 0;
-    $totalStarts = 0;
-    $pixPagos = 0;
-    $pixGerados = 0;
-    $taxaConversao = 0;
-    $ticketMedio = 0;
-    $graficoDados = [];
-    $graficoLabels = [];
-    $textoGrafico = "Erro ao carregar dados";
+    $vendas_aprovadas = 0;
+    $total_starts = 0;
+    $pix_pagos = 0;
+    $pix_gerados = 0;
+    $taxa_conversao = 0;
+    $ticket_medio = 0;
+    $grafico_dados = [];
+    $grafico_labels = [];
+    $texto_grafico = "Erro ao carregar dados";
     $atividades = [];
     $total_atividades = 0;
 }
@@ -337,7 +309,6 @@ try {
     <link rel="stylesheet" href="assets/app.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        /* Light Theme Override for Dashboard to match system */
         .dashboard-container {
             background-color: var(--bg);
             color: var(--text);
@@ -467,7 +438,6 @@ try {
             box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
 
-        /* Card spanning 2 columns (for Chart and Log) */
         .dash-card.span-2 {
             grid-column: span 2;
         }
@@ -546,7 +516,7 @@ try {
         }
 
         .log-icon.venda { color: var(--green); background: #f0fdf4; border-color: #bbf7d0; }
-        .log-icon.pix_gerado { color: #d97706; background: #fff7ed; border-color: #fde68a; } /* Orange */
+        .log-icon.pix_gerado { color: #d97706; background: #fff7ed; border-color: #fde68a; }
         .log-icon.lead { color: var(--primary); background: #eff6ff; border-color: #bfdbfe; }
 
         .log-content { flex: 1; }
@@ -555,12 +525,11 @@ try {
         
         .log-time { font-size: 12px; color: var(--muted); text-align: right; }
 
-        /* Progress Bar for Conversion */
         .progress-circle {
             width: 100px;
             height: 100px;
             border-radius: 50%;
-            background: conic-gradient(var(--primary) <?php echo $taxaConversao; ?>%, #e2e8f0 0);
+            background: conic-gradient(var(--primary) <?php echo $taxa_conversao; ?>%, #e2e8f0 0);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -579,7 +548,6 @@ try {
         .progress-val { font-size: 20px; font-weight: 700; color: var(--text); }
         .progress-sub { font-size: 10px; color: var(--muted); }
 
-        /* Scrollbar custom for logs */
         .dash-log-list::-webkit-scrollbar { width: 6px; }
         .dash-log-list::-webkit-scrollbar-track { background: #f1f5f9; }
         .dash-log-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
@@ -619,14 +587,14 @@ try {
                 <form method="GET" class="dash-filter-form">
                     <input type="hidden" name="periodo" value="<?php echo htmlspecialchars($periodo); ?>">
                     <div class="dash-date-group <?php echo ($periodo === 'personalizado' ? 'active' : ''); ?>">
-                        <input type="date" name="data_inicio" value="<?php echo htmlspecialchars($dataInicio); ?>" <?php echo ($periodo === 'personalizado' ? '' : 'disabled'); ?>>
-                        <input type="date" name="data_fim" value="<?php echo htmlspecialchars($dataFim); ?>" <?php echo ($periodo === 'personalizado' ? '' : 'disabled'); ?>>
+                        <input type="date" name="data_inicio" value="<?php echo htmlspecialchars($data_inicio); ?>" <?php echo ($periodo === 'personalizado' ? '' : 'disabled'); ?>>
+                        <input type="date" name="data_fim" value="<?php echo htmlspecialchars($data_fim); ?>" <?php echo ($periodo === 'personalizado' ? '' : 'disabled'); ?>>
                     </div>
-                    <?php if ($mostrarFiltroBot): ?>
+                    <?php if ($mostrar_filtro_bot): ?>
                         <select name="bot_id">
-                            <option value="todos" <?php echo ($botIdSelecionado === 'todos' ? 'selected' : ''); ?>>Todos os bots</option>
-                            <?php foreach ($botsFiltro as $bot): ?>
-                                <option value="<?php echo (int) $bot['id']; ?>" <?php echo ($botIdSelecionado === (string) $bot['id'] ? 'selected' : ''); ?>>
+                            <option value="todos" <?php echo ($bot_id_selecionado === 'todos' ? 'selected' : ''); ?>>Todos os bots</option>
+                            <?php foreach ($bots_filtro as $bot): ?>
+                                <option value="<?php echo (int) $bot['id']; ?>" <?php echo ($bot_id_selecionado === (string) $bot['id'] ? 'selected' : ''); ?>>
                                     <?php echo htmlspecialchars($bot['nome']); ?>
                                 </option>
                             <?php endforeach; ?>
@@ -637,20 +605,18 @@ try {
             </div>
 
             <div class="dash-grid">
-                <!-- Vendas Aprovadas -->
                 <div class="dash-card">
                     <div class="dash-card-header">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         Vendas Aprovadas
                     </div>
-                    <div class="dash-card-value">R$ <?php echo number_format($vendasAprovadas, 2, ',', '.'); ?></div>
+                    <div class="dash-card-value">R$ <?php echo number_format($vendas_aprovadas, 2, ',', '.'); ?></div>
                     <div class="dash-card-sub">
                         <span></span>
-                        <span><?php echo $pixPagos; ?> Aprov.</span>
+                        <span><?php echo $pix_pagos; ?> Aprov.</span>
                     </div>
                 </div>
 
-                <!-- Taxa de Conversão -->
                 <div class="dash-card">
                     <div class="dash-card-header">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
@@ -658,50 +624,46 @@ try {
                     </div>
                     <div class="progress-circle">
                         <div class="progress-inner">
-                            <span class="progress-val"><?php echo round($taxaConversao); ?>%</span>
+                            <span class="progress-val"><?php echo round($taxa_conversao); ?>%</span>
                             <span class="progress-sub">de PIX</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- Total Starts -->
                 <div class="dash-card">
                     <div class="dash-card-header">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                         Total Starts
                     </div>
-                    <div class="dash-card-value"><?php echo $totalStarts; ?></div>
+                    <div class="dash-card-value"><?php echo $total_starts; ?></div>
                     <div class="dash-card-sub">
                         <span>Leads iniciaram conversa</span>
                     </div>
                 </div>
 
-                <!-- Ticket Médio -->
                 <div class="dash-card">
                     <div class="dash-card-header">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
                         Ticket Médio
                     </div>
-                    <div class="dash-card-value">R$ <?php echo number_format($ticketMedio, 2, ',', '.'); ?></div>
+                    <div class="dash-card-value">R$ <?php echo number_format($ticket_medio, 2, ',', '.'); ?></div>
                     <div class="dash-card-sub">
-                        <span>Vendas: R$ <?php echo number_format($vendasAprovadas, 2, ',', '.'); ?></span>
-                        <span><?php echo $pixGerados; ?> PIX gerados</span>
+                        <span>Vendas: R$ <?php echo number_format($vendas_aprovadas, 2, ',', '.'); ?></span>
+                        <span><?php echo $pix_gerados; ?> PIX gerados</span>
                     </div>
                 </div>
 
-                <!-- Chart (Seu Desempenho) -->
                 <div class="dash-card span-2">
                     <div class="dash-card-header">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" /></svg>
                         Seu Desempenho
-                        <span style="font-size: 11px; margin-left: 10px; color: var(--muted);"><?php echo $textoGrafico; ?></span>
+                        <span style="font-size: 11px; margin-left: 10px; color: var(--muted);"><?php echo $texto_grafico; ?></span>
                     </div>
                     <div class="chart-container">
                         <canvas id="performanceChart"></canvas>
                     </div>
                 </div>
 
-                <!-- Eventos Recentes -->
                 <div class="dash-card span-2">
                     <div class="dash-card-header">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
@@ -710,18 +672,17 @@ try {
                     <div class="dash-log-list">
                         <?php foreach($atividades as $ativ): ?>
                             <?php 
-                                $iconeSvg = '';
+                                $icone_svg = '';
                                 if ($ativ['tipo'] == 'venda') {
-                                    $iconeSvg = '<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
+                                    $icone_svg = '<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
                                 } elseif ($ativ['tipo'] == 'pix_gerado') {
-                                    $iconeSvg = '<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>'; // Relógio/Pendente
+                                    $icone_svg = '<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
                                 } else {
-                                    $iconeSvg = '<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>';
+                                    $icone_svg = '<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>';
                                 }
 
-                                // Tempo decorrido básico
-                                $dataCriado = strtotime($ativ['criado_em']);
-                                $diff = abs(time() - $dataCriado); // abs() garante que não fique negativo
+                                $data_criado = strtotime($ativ['criado_em']);
+                                $diff = abs(time() - $data_criado);
                                 if ($diff < 60) $tempo = 'agora';
                                 elseif ($diff < 3600) $tempo = floor($diff / 60) . 'm';
                                 elseif ($diff < 86400) $tempo = floor($diff / 3600) . 'h';
@@ -729,7 +690,7 @@ try {
                             ?>
                             <div class="dash-log-item">
                                 <div class="log-icon <?php echo htmlspecialchars($ativ['tipo']); ?>">
-                                    <?php echo $iconeSvg; ?>
+                                    <?php echo $icone_svg; ?>
                                 </div>
                                 <div class="log-content">
                                     <p class="log-title"><?php echo htmlspecialchars($ativ['titulo']); ?></p>
@@ -737,7 +698,7 @@ try {
                                 </div>
                                 <div class="log-time">
                                     <?php echo $tempo; ?><br>
-                                    <?php echo date('d/m, H:i', $dataCriado); ?>
+                                    <?php echo date('d/m, H:i', $data_criado); ?>
                                 </div>
                             </div>
                         <?php endforeach; ?>
@@ -755,74 +716,64 @@ try {
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Configurar clique nos botões de período
-    const periodoBtns = document.querySelectorAll('.dash-filters a');
-    const dateInputs = document.querySelectorAll('.dash-date-group input[type="date"]');
-    const filterForm = document.querySelector('.dash-filter-form');
-    const periodoHidden = document.querySelector('input[name="periodo"]');
-    const dateGroup = document.querySelector('.dash-date-group');
+    const periodo_btns = document.querySelectorAll('.dash-filters a');
+    const date_inputs = document.querySelectorAll('.dash-date-group input[type="date"]');
+    const filter_form = document.querySelector('.dash-filter-form');
+    const periodo_hidden = document.querySelector('input[name="periodo"]');
+    const date_group = document.querySelector('.dash-date-group');
 
-    periodoBtns.forEach(btn => {
+    periodo_btns.forEach(btn => {
         btn.addEventListener('click', function(e) {
             e.preventDefault();
-            
-            // Extrair período da URL
+
             const url = new URL(this.href, window.location.origin);
-            const periodoSelecionado = url.searchParams.get('periodo');
-            
-            // Atualizar o input hidden
-            periodoHidden.value = periodoSelecionado;
-            
-            // Se é personalizado, habilitar inputs de data
-            if (periodoSelecionado === 'personalizado') {
-                dateInputs.forEach(input => input.disabled = false);
-                dateGroup.classList.add('active');
-                dateInputs[0].focus(); // Focar no primeiro input
+            const periodo_selecionado = url.searchParams.get('periodo');
+
+            periodo_hidden.value = periodo_selecionado;
+
+            if (periodo_selecionado === 'personalizado') {
+                date_inputs.forEach(input => input.disabled = false);
+                date_group.classList.add('active');
+                date_inputs[0].focus();
             } else {
-                // Otros períodos, desabilitar inputs de data
-                dateInputs.forEach(input => input.disabled = true);
-                dateGroup.classList.remove('active');
-                // Submeter formulário imediatamente
-                filterForm.submit();
+                date_inputs.forEach(input => input.disabled = true);
+                date_group.classList.remove('active');
+                filter_form.submit();
             }
         });
     });
 
-    // Submeter formulário quando ambas as datas forem preenchidas
-    dateInputs.forEach(input => {
+    date_inputs.forEach(input => {
         input.addEventListener('change', function() {
-            const dataInicio = document.querySelector('input[name="data_inicio"]').value;
-            const dataFim = document.querySelector('input[name="data_fim"]').value;
-            
-            // Se ambas as datas foram preenchidas e o período é personalizado
-            if (dataInicio && dataFim && periodoHidden.value === 'personalizado') {
-                filterForm.submit();
+            const data_inicio = document.querySelector('input[name="data_inicio"]').value;
+            const data_fim = document.querySelector('input[name="data_fim"]').value;
+
+            if (data_inicio && data_fim && periodo_hidden.value === 'personalizado') {
+                filter_form.submit();
             }
         });
     });
 
-    // Gráfico de Desempenho
     const ctx = document.getElementById('performanceChart');
     if (ctx) {
-        const chartCtx = ctx.getContext('2d');
-        
-        // Gradiente para a linha (adaptado para tema claro)
-        let gradient = chartCtx.createLinearGradient(0, 0, 0, 400);
+        const chart_ctx = ctx.getContext('2d');
+
+        let gradient = chart_ctx.createLinearGradient(0, 0, 0, 400);
         gradient.addColorStop(0, 'rgba(37, 99, 235, 0.2)');   
         gradient.addColorStop(1, 'rgba(37, 99, 235, 0.0)');
 
-        new Chart(chartCtx, {
+        new Chart(chart_ctx, {
             type: 'line',
             data: {
-                labels: <?php echo json_encode($graficoLabels); ?>,
+                labels: <?php echo json_encode($grafico_labels); ?>,
                 datasets: [{
                     label: 'Receita',
-                    data: <?php echo json_encode($graficoDados); ?>,
+                    data: <?php echo json_encode($grafico_dados); ?>,
                     borderColor: '#2563eb',
                     backgroundColor: gradient,
                     borderWidth: 2,
                     fill: true,
-                    tension: 0.4, // Suaviza a curva
+                    tension: 0.4,
                     pointBackgroundColor: '#ffffff',
                     pointBorderColor: '#2563eb',
                     pointBorderWidth: 2,
@@ -845,7 +796,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     },
                     y: {
                         grid: { color: 'rgba(0, 0, 0, 0.05)', drawBorder: false },
-                        ticks: { display: false }, // Oculta os valores do eixo Y
+                        ticks: { display: false },
                         beginAtZero: true // Isso evita o bug do gráfico descer infinitamente
                     }
                 }

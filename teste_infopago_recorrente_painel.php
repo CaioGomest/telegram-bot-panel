@@ -7,9 +7,9 @@ require_once __DIR__ . '/funcoes/gateways.php';
 require_once __DIR__ . '/funcoes/infopago_banco.php';
 
 verificarLogin();
-$userId = $_SESSION['usuario_id'];
+$user_id = $_SESSION['usuario_id'];
 
-$cfg = getUserGatewayConfig($userId, 'infopago');
+$cfg = getUserGatewayConfig($user_id, 'infopago');
 $resultado = null;
 $erro = null;
 
@@ -24,36 +24,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
         $passos[] = ['nome' => 'Autenticação', 'ok' => $autenticou];
 
         if ($autenticou) {
-            $valorTeste = (float)($_POST['valor'] ?? 10.00);
-            $nomeCliente = $_POST['nome_cliente'] ?? 'Cliente Teste';
-            $cpfCliente = $_POST['cpf_cliente'] ?? '12345678900';
+            $valor_teste = (float)($_POST['valor'] ?? 10.00);
+            $nome_cliente = $_POST['nome_cliente'] ?? 'Cliente Teste';
+            $cpf_cliente = $_POST['cpf_cliente'] ?? '12345678900';
             $periodicidade = $_POST['periodicidade'] ?? 'mensal';
 
             // Jornada 3 (QR composto): cobrança imediata primeiro, depois a recorrência vinculada pelo txid.
-            $payloadCobranca = $banco->montaPayloadCobranca($valorTeste, (string)($cfg['chave_pix'] ?? ''));
-            $respCobranca = $banco->criarCobranca($payloadCobranca);
-            $passos[] = ['nome' => 'Criar cobrança imediata (PUT /cob/{txid})', 'ok' => $respCobranca['sucesso'] ?? false, 'detalhes' => $respCobranca, 'payload_enviado' => $payloadCobranca];
+            $payload_cobranca = $banco->montaPayloadCobranca($valor_teste, (string)($cfg['chave_pix'] ?? ''));
+            $resp_cobranca = $banco->criarCobranca($payload_cobranca);
+            $passos[] = ['nome' => 'Criar cobrança imediata (PUT /cob/{txid})', 'ok' => $resp_cobranca['sucesso'] ?? false, 'detalhes' => $resp_cobranca, 'payload_enviado' => $payload_cobranca];
 
-            if ($respCobranca['sucesso'] ?? false) {
-                $txid = $respCobranca['dados']['txid'] ?? '';
+            if ($resp_cobranca['sucesso'] ?? false) {
+                $txid = $resp_cobranca['dados']['txid'] ?? '';
 
-                $payloadRec = $banco->montaPayloadRecorrencia($valorTeste, null, $periodicidade, $nomeCliente, $cpfCliente, 'Assinatura Teste', $txid);
-                $respRec = $banco->criarRecorrencia($payloadRec);
-                $passos[] = ['nome' => 'Criar recorrência (POST /rec)', 'ok' => $respRec['sucesso'] ?? false, 'detalhes' => $respRec, 'payload_enviado' => $payloadRec];
+                $payload_rec = $banco->montaPayloadRecorrencia($valor_teste, null, $periodicidade, $nome_cliente, $cpf_cliente, 'Assinatura Teste', $txid);
+                $resp_rec = $banco->criarRecorrencia($payload_rec);
+                $passos[] = ['nome' => 'Criar recorrência (POST /rec)', 'ok' => $resp_rec['sucesso'] ?? false, 'detalhes' => $resp_rec, 'payload_enviado' => $payload_rec];
 
-                if ($respRec['sucesso'] ?? false) {
-                    $idRec = $respRec['dados']['idRec'] ?? null;
+                if ($resp_rec['sucesso'] ?? false) {
+                    $id_rec = $resp_rec['dados']['idRec'] ?? null;
 
-                    $respConsulta = $banco->consultarRecorrencia((string)$idRec, $txid);
-                    $passos[] = ['nome' => 'Consultar recorrência (GET /rec/{idRec}?txid=...)', 'ok' => $respConsulta['sucesso'] ?? false, 'detalhes' => $respConsulta];
+                    $resp_consulta = $banco->consultarRecorrencia((string)$id_rec, $txid);
+                    $passos[] = ['nome' => 'Consultar recorrência (GET /rec/{idRec}?txid=...)', 'ok' => $resp_consulta['sucesso'] ?? false, 'detalhes' => $resp_consulta];
 
-                    if ($respConsulta['sucesso'] ?? false) {
-                        $pixCopiaCola = $respConsulta['dados']['dadosQR']['pixCopiaECola'] ?? '';
+                    if ($resp_consulta['sucesso'] ?? false) {
+                        $pix_copia_cola = $resp_consulta['dados']['dadosQR']['pixCopiaECola'] ?? '';
                         $resultado = [
-                            'idRec' => $idRec,
+                            'idRec' => $id_rec,
                             'txid' => $txid,
-                            'pixCopiaCola' => $pixCopiaCola,
-                            'qrCodeUrl' => $pixCopiaCola ? 'https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=' . urlencode($pixCopiaCola) : null,
+                            'pixCopiaCola' => $pix_copia_cola,
+                            'qrCodeUrl' => $pix_copia_cola ? 'https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=' . urlencode($pix_copia_cola) : null,
                         ];
                     }
                 }

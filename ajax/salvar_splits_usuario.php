@@ -10,40 +10,40 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$userId = filter_input(INPUT_POST, 'id_usuario', FILTER_VALIDATE_INT);
-if (!$userId) {
+$user_id = filter_input(INPUT_POST, 'id_usuario', FILTER_VALIDATE_INT);
+if (!$user_id) {
     echo json_encode(['sucesso' => false, 'erro' => 'ID inválido.']);
     exit;
 }
 
-$splitsJson = $_POST['splits'] ?? '[]';
-$splits = json_decode($splitsJson, true);
+$splits_json = $_POST['splits'] ?? '[]';
+$splits = json_decode($splits_json, true);
 if (!is_array($splits)) {
     echo json_encode(['sucesso' => false, 'erro' => 'Dados inválidos.']);
     exit;
 }
 
-$gatewaysValidos = ['infopago'];
+$gateways_validos = ['infopago'];
 
 global $pdo;
 try {
     $pdo->beginTransaction();
-    $pdo->prepare("DELETE FROM usuarios_splits WHERE id_usuario = ?")->execute([$userId]);
+    $pdo->prepare("DELETE FROM usuarios_splits WHERE id_usuario = ?")->execute([$user_id]);
 
     $ordem = 0;
     foreach ($splits as $s) {
-        $gatewayNome = in_array($s['gateway_nome'] ?? '', $gatewaysValidos, true) ? $s['gateway_nome'] : 'infopago';
+        $gateway_nome = in_array($s['gateway_nome'] ?? '', $gateways_validos, true) ? $s['gateway_nome'] : 'infopago';
         $tipo        = in_array($s['tipo_split'] ?? '', ['percentual', 'fixo'], true) ? $s['tipo_split'] : 'percentual';
         $taxa        = max(0, (float)($s['taxa_split'] ?? 0));
         $chave       = trim($s['chave_pix_split'] ?? '');
         $descricao   = substr(trim($s['descricao'] ?? ''), 0, 100);
 
-        if ($chave === '') continue; // ignora linhas sem conta/chave
+        if ($chave === '') continue;
 
         $pdo->prepare(
             "INSERT INTO usuarios_splits (id_usuario, gateway_nome, tipo_split, taxa_split, chave_pix_split, descricao, ordem)
              VALUES (?,?,?,?,?,?,?)"
-        )->execute([$userId, $gatewayNome, $tipo, $taxa, $chave, $descricao, $ordem]);
+        )->execute([$user_id, $gateway_nome, $tipo, $taxa, $chave, $descricao, $ordem]);
         $ordem++;
     }
 

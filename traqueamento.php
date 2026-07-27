@@ -9,13 +9,11 @@ $usuario_id = $_SESSION['usuario_id'];
 $mensagem = '';
 $tipo_mensagem = '';
 
-// Buscar configurações atuais
 $stmt = $pdo->prepare("SELECT * FROM usuarios_traqueamento WHERE id_usuario = ?");
 $stmt->execute([$usuario_id]);
 $config = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$config) {
-    // Inicializa array vazio se não existir
     $config = [
         'facebook_ativo' => 0,
         'facebook_pixel_id' => '',
@@ -28,7 +26,6 @@ if (!$config) {
     ];
 }
 
-// Processar formulário
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $fb_ativo = isset($_POST['facebook_ativo']) ? 1 : 0;
     $fb_pixel = trim($_POST['facebook_pixel_id'] ?? '');
@@ -42,7 +39,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tt_token = trim($_POST['tiktok_access_token'] ?? '');
     
     try {
-        // Verifica se já existe registro
         $check = $pdo->prepare("SELECT id FROM usuarios_traqueamento WHERE id_usuario = ?");
         $check->execute([$usuario_id]);
         $exists = $check->fetchColumn();
@@ -71,7 +67,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $mensagem = 'Configurações de traqueamento salvas com sucesso!';
         $tipo_mensagem = 'sucesso';
         
-        // Atualiza variável local
         $config = [
             'facebook_ativo' => $fb_ativo,
             'facebook_pixel_id' => $fb_pixel,
@@ -193,8 +188,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             color: #b91c1c;
             border: 1px solid #fecaca;
         }
-        
-        /* Toggle Switch */
+
         .switch {
             position: relative;
             display: inline-block;
@@ -262,14 +256,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const container = document.getElementById(id + '_fields');
             if (checkbox.checked) {
                 container.classList.remove('disabled-section');
-                // Habilitar inputs
                 const inputs = container.querySelectorAll('input');
                 inputs.forEach(input => input.disabled = false);
             } else {
                 container.classList.add('disabled-section');
-                // Desabilitar inputs (opcional, mas bom para UX)
-                // const inputs = container.querySelectorAll('input');
-                // inputs.forEach(input => input.disabled = true);
             }
         }
         
@@ -303,7 +293,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 <form method="POST" action="">
                     
-                    <!-- Facebook -->
                     <div class="platform-section" id="facebook_fields">
                         <div class="section-header">
                             <div class="section-title">
@@ -332,7 +321,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </div>
 
-                    <!-- TikTok -->
                     <div class="platform-section" id="tiktok_fields">
                         <div class="section-header">
                             <div class="section-title">
@@ -361,7 +349,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </div>
 
-                    <!-- UTMfy -->
                     <div class="platform-section" id="utmfy_fields">
                         <div class="section-header">
                             <div class="section-title">

@@ -19,9 +19,8 @@ try {
     $menus = [];
 }
 
-$paginaAtual = basename($_SERVER['PHP_SELF']);
+$pagina_atual = basename($_SERVER['PHP_SELF']);
 
-// Ícones SVG mapeados
 function getIcone($nome) {
     $icones = [
         'dashboard' => '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>',
@@ -45,14 +44,13 @@ function getIcone($nome) {
     <nav class="sidebar-nav">
         <ul>
             <?php
-            // Determina qual dashboard mostrar
-            $dashboardLink = 'index.php';
+            $dashboard_link = 'index.php';
             if (ehAdmin()) {
-                $dashboardLink = 'admin_dashboard.php';
+                $dashboard_link = 'admin_dashboard.php';
             }
             ?>
             <li>
-                <a href="<?php echo $dashboardLink; ?>" class="<?php echo basename($_SERVER['PHP_SELF']) == basename($dashboardLink) ? 'active' : ''; ?>">
+                <a href="<?php echo $dashboard_link; ?>" class="<?php echo basename($_SERVER['PHP_SELF']) == basename($dashboard_link) ? 'active' : ''; ?>">
                     <span class="icon"><?php echo getIcone('dashboard'); ?></span>
                     <span class="text">Dashboard</span>
                 </a>

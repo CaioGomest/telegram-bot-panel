@@ -56,7 +56,6 @@ verificarLogin();
             align-items: center;
         }
 
-        /* Modal */
         .modal-overlay {
             display: none;
             position: fixed;
@@ -227,7 +226,6 @@ verificarLogin();
     </main>
 </div>
 
-<!-- Modal Criar/Editar Link -->
 <div class="modal-overlay" id="modal-link">
     <div class="modal-caixa">
         <button class="modal-fechar" id="btn-fechar-modal">&times;</button>

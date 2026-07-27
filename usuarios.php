@@ -97,7 +97,6 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
     </main>
 </div>
 
-<!-- Modal Adicionar Usuário -->
 <div id="modalAdicionar" class="modal-overlay" style="display: none;">
     <div class="modal-content" style="max-width: 460px;">
         <div class="modal-header">
@@ -135,7 +134,6 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
     </div>
 </div>
 
-<!-- Modal Editar Usuário -->
 <div id="modalEditar" class="modal-overlay" style="display: none;">
     <div class="modal-content" style="max-width: 620px;">
         <div class="modal-header">
@@ -189,7 +187,6 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
     </div>
 </div>
 
-<!-- Modal de Detalhes -->
 <div id="modalDetalhes" class="modal-overlay" style="display: none;">
     <div class="modal-content">
         <div class="modal-header">
@@ -237,7 +234,6 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
 </div>
 
 <script>
-    // === Modal Adicionar ===
     function abrirModalAdicionar() {
         document.getElementById('formAdicionar').reset();
         document.getElementById('msgAdicionar').style.display = 'none';
@@ -270,7 +266,6 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
             });
     }
 
-    // === Modal Editar ===
     function abrirModalEditar(id, nome, email, perfil) {
         document.getElementById('editarId').value = id;
         document.getElementById('editarNome').value = nome;
@@ -299,11 +294,10 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
                     msg.style.display = 'block';
                     return;
                 }
-                // Salvar splits em seguida
-                const userId = document.getElementById('editarId').value;
+                const user_id = document.getElementById('editarId').value;
                 const splits = coletarSplits();
                 const fd = new FormData();
-                fd.append('id_usuario', userId);
+                fd.append('id_usuario', user_id);
                 fd.append('splits', JSON.stringify(splits));
                 return fetch('ajax/salvar_splits_usuario.php', { method: 'POST', body: fd })
                     .then(r => r.json())
@@ -324,8 +318,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
             });
     }
 
-    // === Splits ===
-    function carregarSplits(userId) {
+    function carregarSplits(user_id) {
         const lista    = document.getElementById('splitLista');
         const vazio    = document.getElementById('splitVazio');
         const loading  = document.getElementById('splitCarregando');
@@ -333,7 +326,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
         vazio.style.display    = 'none';
         loading.style.display  = 'block';
 
-        fetch('ajax/listar_splits_usuario.php?id=' + userId)
+        fetch('ajax/listar_splits_usuario.php?id=' + user_id)
             .then(r => r.json())
             .then(splits => {
                 loading.style.display = 'none';
@@ -355,7 +348,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
         const tipo = dados?.tipo_split     || 'percentual';
         const taxa = dados?.taxa_split     || '';
         const desc  = dados?.descricao      || '';
-        const chaveSimples = dados?.chave_pix_split || '';
+        const chave_simples = dados?.chave_pix_split || '';
 
         const row = document.createElement('div');
         row.className = 'split-row';
@@ -374,7 +367,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
                 </div>
                 <div class="split-field split-field-lg">
                     <label class="split-label">Chave Pix de destino (InfoPago)</label>
-                    <input type="text" class="form-input split-chave-pix" value="${chaveSimples}" placeholder="CPF, CNPJ, e-mail, EVP, ou telefone c/ +55 (ex: +5511999999999)">
+                    <input type="text" class="form-input split-chave-pix" value="${chave_simples}" placeholder="CPF, CNPJ, e-mail, EVP, ou telefone c/ +55 (ex: +5511999999999)">
                 </div>
                 <div class="split-field split-field-desc">
                     <label class="split-label">Descrição</label>
@@ -414,7 +407,6 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
         return result;
     }
 
-    // === Excluir ===
     function confirmarExcluir(id, nome) {
         if (!confirm('Tem certeza que deseja excluir o usuário "' + nome + '"? Esta ação não pode ser desfeita.')) return;
         const data = new FormData();
@@ -431,11 +423,9 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
             .catch(() => alert('Erro de conexão.'));
     }
 
-    // Fechar modais adicionais ao clicar fora
     document.getElementById('modalAdicionar').addEventListener('click', function(e) { if (e.target === this) fecharModalAdicionar(); });
     document.getElementById('modalEditar').addEventListener('click', function(e) { if (e.target === this) fecharModalEditar(); });
 
-    // ESC fecha todos os modais
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
             fecharModal();
@@ -452,8 +442,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
         modal.style.display = 'flex';
         loading.style.display = 'block';
         dados.style.display = 'none';
-        
-        // Limpar dados anteriores
+
         document.getElementById('modalNome').innerText = 'Carregando...';
         
         fetch(`ajax/detalhes_usuario.php?id=${id}`)
@@ -464,22 +453,19 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
                     fecharModal();
                     return;
                 }
-                
-                // Preencher dados básicos
+
                 document.getElementById('modalNome').innerText = data.nome;
                 document.getElementById('modalEmail').innerText = data.email;
                 
-                const dataCriacao = new Date(data.criado_em);
-                document.getElementById('modalData').innerText = dataCriacao.toLocaleDateString('pt-BR') + ' ' + dataCriacao.toLocaleTimeString('pt-BR');
-                
-                // Formatar moeda
+                const data_criacao = new Date(data.criado_em);
+                document.getElementById('modalData').innerText = data_criacao.toLocaleDateString('pt-BR') + ' ' + data_criacao.toLocaleTimeString('pt-BR');
+
                 const total = parseFloat(data.total_vendas).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
                 document.getElementById('modalVendas').innerText = total;
                 document.getElementById('modalQtdVendas').innerText = data.qtd_vendas;
-                
-                // Bots
-                const listaBots = document.getElementById('listaBots');
-                listaBots.innerHTML = '';
+
+                const lista_bots = document.getElementById('listaBots');
+                lista_bots.innerHTML = '';
                 if (data.bots && data.bots.length > 0) {
                     data.bots.forEach(bot => {
                         const div = document.createElement('div');
@@ -491,15 +477,14 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
                                 <span>Criado em: ${new Date(bot.criado_em).toLocaleDateString('pt-BR')}</span>
                             </div>
                         `;
-                        listaBots.appendChild(div);
+                        lista_bots.appendChild(div);
                     });
                 } else {
-                    listaBots.innerHTML = '<p class="text-muted">Nenhum bot cadastrado.</p>';
+                    lista_bots.innerHTML = '<p class="text-muted">Nenhum bot cadastrado.</p>';
                 }
-                
-                // Logs
-                const listaLogs = document.getElementById('listaLogs');
-                listaLogs.innerHTML = '';
+
+                const lista_logs = document.getElementById('listaLogs');
+                lista_logs.innerHTML = '';
                 if (data.logs && data.logs.length > 0) {
                     data.logs.forEach(log => {
                         const li = document.createElement('li');
@@ -508,10 +493,10 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
                             <span class="log-action">${log.titulo || log.tipo}</span>
                             <span class="log-desc">${log.descricao || ''}</span>
                         `;
-                        listaLogs.appendChild(li);
+                        lista_logs.appendChild(li);
                     });
                 } else {
-                    listaLogs.innerHTML = '<li class="text-muted">Nenhuma atividade recente.</li>';
+                    lista_logs.innerHTML = '<li class="text-muted">Nenhuma atividade recente.</li>';
                 }
                 
                 loading.style.display = 'none';
@@ -528,7 +513,6 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
         document.getElementById('modalDetalhes').style.display = 'none';
     }
 
-    // Fechar ao clicar fora
      document.getElementById('modalDetalhes').addEventListener('click', function(e) {
          if (e.target === this) {
              fecharModal();
@@ -538,7 +522,6 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
  </script>
  
  <style>
-    /* Estilos Gerais da Tabela */
      .table-responsive { overflow-x: auto; }
      .table { width: 100%; border-collapse: collapse; }
      .table th, .table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); }
@@ -549,11 +532,10 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
      .badge-admin { background: #ede9fe; color: #7c3aed; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; }
      .badge-user { background: #e0f2fe; color: #0284c7; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; }
      .text-center { text-align: center; }
-     
-     /* Modal Styles Renovado */
+
      .modal-overlay {
          position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-         background: rgba(15, 23, 42, 0.6); /* Fundo escuro semi-transparente */
+         background: rgba(15, 23, 42, 0.6);
          display: flex; align-items: center; justify-content: center;
          z-index: 9999;
          backdrop-filter: blur(4px);
@@ -563,7 +545,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
      @keyframes fadeIn { to { opacity: 1; } }
 
      .modal-content {
-         background: #ffffff; /* Garante fundo branco */
+         background: #ffffff;
          width: 100%; max-width: 600px;
          border-radius: 16px;
          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
@@ -621,8 +603,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
          margin: 0; font-weight: 600; font-size: 15px; color: #0f172a; 
          word-break: break-all;
      }
-     
-     /* Card Destaque */
+
      .info-card.highlight {
          background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
          border-color: #bfdbfe;
@@ -689,7 +670,6 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
      @keyframes spin { 100% { transform: rotate(360deg); } }
      .text-muted { color: #94a3b8; font-style: italic; font-size: 13px; text-align: center; display: block; padding: 20px 0; }
 
-    /* Split rows */
     .split-row { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 10px; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; }
     .split-row-fields { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; }
     .split-field { display: flex; flex-direction: column; min-width: 90px; }

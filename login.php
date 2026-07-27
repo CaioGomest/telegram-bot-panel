@@ -227,9 +227,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'login')
     <script>
     function abrirEsqueciSenha(){
         var m = document.getElementById('modal-esqueci-senha');
-        var emailLogin = document.getElementById('email');
+        var email_login = document.getElementById('email');
         var rec = document.getElementById('rec-email');
-        if (rec && emailLogin) rec.value = emailLogin.value || '';
+        if (rec && email_login) rec.value = email_login.value || '';
         if (m) m.classList.add('ativo');
     }
     function fecharEsqueciSenha(){

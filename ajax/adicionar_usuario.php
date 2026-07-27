@@ -22,7 +22,6 @@ if (!in_array($perfil, ['usuario', 'admin'], true)) {
 $resultado = criarUsuario($nome, $email, $senha);
 
 if ($resultado['sucesso']) {
-    // Se o perfil for admin, atualiza depois da criação
     if ($perfil === 'admin') {
         global $pdo;
         $stmt = $pdo->prepare("UPDATE usuarios SET perfil = 'admin' WHERE email = ?");

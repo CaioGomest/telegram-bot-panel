@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-function listarLinksRastreamento(int $usuarioId): array
+function listarLinksRastreamento(int $usuario_id): array
 {
     global $pdo;
     $stmt = $pdo->prepare("
@@ -11,11 +11,11 @@ function listarLinksRastreamento(int $usuarioId): array
         WHERE lr.id_usuario = ?
         ORDER BY lr.criado_em DESC
     ");
-    $stmt->execute([$usuarioId]);
+    $stmt->execute([$usuario_id]);
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-function obterLinkRastreamento(int $usuarioId, int $id): array|false
+function obterLinkRastreamento(int $usuario_id, int $id): array|false
 {
     global $pdo;
     $stmt = $pdo->prepare("
@@ -24,23 +24,23 @@ function obterLinkRastreamento(int $usuarioId, int $id): array|false
         JOIN bots b ON lr.bot_id = b.id
         WHERE lr.id = ? AND lr.id_usuario = ?
     ");
-    $stmt->execute([$id, $usuarioId]);
+    $stmt->execute([$id, $usuario_id]);
     return $stmt->fetch(PDO::FETCH_ASSOC);
 }
 
-function criarLinkRastreamento(int $usuarioId, string $titulo, string $identificador, int $botId): array
+function criarLinkRastreamento(int $usuario_id, string $titulo, string $identificador, int $bot_id): array
 {
     global $pdo;
 
-    $stmtBot = $pdo->prepare("SELECT id, nome_usuario FROM bots WHERE id = ? AND id_usuario = ?");
-    $stmtBot->execute([$botId, $usuarioId]);
-    if (!$stmtBot->fetchColumn()) {
+    $stmt_bot = $pdo->prepare("SELECT id, nome_usuario FROM bots WHERE id = ? AND id_usuario = ?");
+    $stmt_bot->execute([$bot_id, $usuario_id]);
+    if (!$stmt_bot->fetchColumn()) {
         return ['sucesso' => false, 'mensagem' => 'Bot não encontrado ou sem permissão.'];
     }
 
-    $stmtCheck = $pdo->prepare("SELECT id FROM links_rastreamento WHERE id_usuario = ? AND identificador = ?");
-    $stmtCheck->execute([$usuarioId, $identificador]);
-    if ($stmtCheck->fetchColumn()) {
+    $stmt_check = $pdo->prepare("SELECT id FROM links_rastreamento WHERE id_usuario = ? AND identificador = ?");
+    $stmt_check->execute([$usuario_id, $identificador]);
+    if ($stmt_check->fetchColumn()) {
         return ['sucesso' => false, 'mensagem' => 'Identificador já em uso. Escolha outro.'];
     }
 
@@ -48,24 +48,24 @@ function criarLinkRastreamento(int $usuarioId, string $titulo, string $identific
         INSERT INTO links_rastreamento (id_usuario, titulo, identificador, bot_id)
         VALUES (?, ?, ?, ?)
     ");
-    $stmt->execute([$usuarioId, $titulo, $identificador, $botId]);
+    $stmt->execute([$usuario_id, $titulo, $identificador, $bot_id]);
 
     return ['sucesso' => true, 'id' => (int) $pdo->lastInsertId(), 'mensagem' => 'Link criado com sucesso.'];
 }
 
-function editarLinkRastreamento(int $usuarioId, int $id, string $titulo, string $identificador, int $botId): array
+function editarLinkRastreamento(int $usuario_id, int $id, string $titulo, string $identificador, int $bot_id): array
 {
     global $pdo;
 
-    $stmtBot = $pdo->prepare("SELECT id FROM bots WHERE id = ? AND id_usuario = ?");
-    $stmtBot->execute([$botId, $usuarioId]);
-    if (!$stmtBot->fetchColumn()) {
+    $stmt_bot = $pdo->prepare("SELECT id FROM bots WHERE id = ? AND id_usuario = ?");
+    $stmt_bot->execute([$bot_id, $usuario_id]);
+    if (!$stmt_bot->fetchColumn()) {
         return ['sucesso' => false, 'mensagem' => 'Bot não encontrado ou sem permissão.'];
     }
 
-    $stmtCheck = $pdo->prepare("SELECT id FROM links_rastreamento WHERE id_usuario = ? AND identificador = ? AND id != ?");
-    $stmtCheck->execute([$usuarioId, $identificador, $id]);
-    if ($stmtCheck->fetchColumn()) {
+    $stmt_check = $pdo->prepare("SELECT id FROM links_rastreamento WHERE id_usuario = ? AND identificador = ? AND id != ?");
+    $stmt_check->execute([$usuario_id, $identificador, $id]);
+    if ($stmt_check->fetchColumn()) {
         return ['sucesso' => false, 'mensagem' => 'Identificador já em uso. Escolha outro.'];
     }
 
@@ -73,7 +73,7 @@ function editarLinkRastreamento(int $usuarioId, int $id, string $titulo, string 
         UPDATE links_rastreamento SET titulo = ?, identificador = ?, bot_id = ?
         WHERE id = ? AND id_usuario = ?
     ");
-    $stmt->execute([$titulo, $identificador, $botId, $id, $usuarioId]);
+    $stmt->execute([$titulo, $identificador, $bot_id, $id, $usuario_id]);
 
     if ($stmt->rowCount() === 0) {
         return ['sucesso' => false, 'mensagem' => 'Link não encontrado.'];
@@ -82,11 +82,11 @@ function editarLinkRastreamento(int $usuarioId, int $id, string $titulo, string 
     return ['sucesso' => true, 'mensagem' => 'Link atualizado com sucesso.'];
 }
 
-function excluirLinkRastreamento(int $usuarioId, int $id): array
+function excluirLinkRastreamento(int $usuario_id, int $id): array
 {
     global $pdo;
     $stmt = $pdo->prepare("DELETE FROM links_rastreamento WHERE id = ? AND id_usuario = ?");
-    $stmt->execute([$id, $usuarioId]);
+    $stmt->execute([$id, $usuario_id]);
 
     if ($stmt->rowCount() === 0) {
         return ['sucesso' => false, 'mensagem' => 'Link não encontrado.'];
@@ -95,7 +95,7 @@ function excluirLinkRastreamento(int $usuarioId, int $id): array
     return ['sucesso' => true, 'mensagem' => 'Link excluído com sucesso.'];
 }
 
-function gerarUrlLink(string $botUsername, string $identificador): string
+function gerarUrlLink(string $bot_username, string $identificador): string
 {
-    return 'https://t.me/' . ltrim($botUsername, '@') . '?start=' . urlencode($identificador);
+    return 'https://t.me/' . ltrim($bot_username, '@') . '?start=' . urlencode($identificador);
 }

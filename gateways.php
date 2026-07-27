@@ -8,18 +8,17 @@ require_once __DIR__ . '/funcoes/paginador.php';
 
 verificarLogin();
 
-$isAdmin = ehAdmin();
-$userId = $_SESSION['usuario_id'];
+$is_admin = ehAdmin();
+$user_id = $_SESSION['usuario_id'];
 
-// AJAX: reordenar gateways por drag-and-drop
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'reordenar_gateways') {
     header('Content-Type: application/json');
     $ordem = $_POST['ordem'] ?? [];
     if (!is_array($ordem)) { echo json_encode(['sucesso' => false]); exit; }
     try {
-        foreach ($ordem as $prioridade => $gwId) {
+        foreach ($ordem as $prioridade => $gw_id) {
             $pdo->prepare("UPDATE usuarios_gateways SET prioridade = ? WHERE id_gateway = ? AND id_usuario = ?")
-                ->execute([(int)$prioridade + 1, (int)$gwId, $userId]);
+                ->execute([(int)$prioridade + 1, (int)$gw_id, $user_id]);
         }
         echo json_encode(['sucesso' => true]);
     } catch (Exception $e) {
@@ -28,7 +27,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'reorden
     exit;
 }
 
-// Paginação
 $pagina_atual = isset($_GET['pagina']) ? max(1, (int)$_GET['pagina']) : 1;
 $por_pagina = 10;
 $offset = ($pagina_atual - 1) * $por_pagina;
@@ -36,19 +34,18 @@ $offset = ($pagina_atual - 1) * $por_pagina;
 $mensagem = '';
 $erro = '';
 
-// Processar Formulário
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if ($isAdmin && isset($_POST['acao']) && $_POST['acao'] === 'salvar_admin') {
+    if ($is_admin && isset($_POST['acao']) && $_POST['acao'] === 'salvar_admin') {
         $salvos = 0;
         $total = 0;
 
         if (!empty($_POST['ids']) && is_array($_POST['ids'])) {
             $ids = $_POST['ids'];
             foreach ($ids as $id) {
-                $gatewayId = (int)$id;
-                $ativo = isset($_POST['ativo'][$gatewayId]) && $_POST['ativo'][$gatewayId] == '1';
+                $gateway_id = (int)$id;
+                $ativo = isset($_POST['ativo'][$gateway_id]) && $_POST['ativo'][$gateway_id] == '1';
 
-                if (saveAdminGatewayConfig($gatewayId, $ativo)) {
+                if (saveAdminGatewayConfig($gateway_id, $ativo)) {
                     $salvos++;
                 }
                 $total++;
@@ -65,9 +62,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $erro = 'Nenhum gateway encontrado para salvar.';
         }
     } elseif (isset($_POST['acao']) && $_POST['acao'] === 'desativar_user') {
-        $gatewayId = (int)$_POST['gateway_id'];
+        $gateway_id = (int)$_POST['gateway_id'];
         $stmt = $pdo->prepare("UPDATE usuarios_gateways SET ativo = 0 WHERE id_usuario = ? AND id_gateway = ?");
-        if ($stmt->execute([$userId, $gatewayId])) {
+        if ($stmt->execute([$user_id, $gateway_id])) {
             $_SESSION['gw_mensagem'] = 'Gateway desativado.';
             header('Location: ' . $_SERVER['PHP_SELF']);
             exit;
@@ -75,9 +72,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $erro = 'Erro ao desativar o gateway.';
         }
     } elseif (isset($_POST['acao']) && $_POST['acao'] === 'ativar_user') {
-        $gatewayId = (int)$_POST['gateway_id'];
+        $gateway_id = (int)$_POST['gateway_id'];
         $stmt = $pdo->prepare("UPDATE usuarios_gateways SET ativo = 1 WHERE id_usuario = ? AND id_gateway = ?");
-        if ($stmt->execute([$userId, $gatewayId])) {
+        if ($stmt->execute([$user_id, $gateway_id])) {
             $_SESSION['gw_mensagem'] = 'Gateway ativado!';
             header('Location: ' . $_SERVER['PHP_SELF']);
             exit;
@@ -85,70 +82,67 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $erro = 'Erro ao ativar o gateway.';
         }
     } elseif (isset($_POST['acao']) && $_POST['acao'] === 'salvar_user') {
-        $gatewayId = (int)$_POST['gateway_id'];
-        $clientId = $_POST['client_id'];
-        $clientSecret = $_POST['client_secret'];
-        $chavePix = $_POST['chave_pix'] ?? '';
+        $gateway_id = (int)$_POST['gateway_id'];
+        $client_id = $_POST['client_id'];
+        $client_secret = $_POST['client_secret'];
+        $chave_pix = $_POST['chave_pix'] ?? '';
         $ativo = isset($_POST['ativo']);
         $prioridade = isset($_POST['prioridade']) ? max(1, min(999, (int)$_POST['prioridade'])) : 100;
-        $tipoConta = in_array($_POST['tipo_conta'] ?? '', ['pf', 'pj']) ? $_POST['tipo_conta'] : 'pj';
+        $tipo_conta = in_array($_POST['tipo_conta'] ?? '', ['pf', 'pj']) ? $_POST['tipo_conta'] : 'pj';
         $stmt = $pdo->prepare("SELECT nome FROM gateways WHERE id = ?");
-        $stmt->execute([$gatewayId]);
-        $gatewayNome = $stmt->fetchColumn();
-        $currentConfig = getUserGatewayConfig($userId, $gatewayNome);
+        $stmt->execute([$gateway_id]);
+        $gateway_nome = $stmt->fetchColumn();
+        $current_config = getUserGatewayConfig($user_id, $gateway_nome);
 
         if (isset($_FILES['certificado']) && $_FILES['certificado']['error'] === UPLOAD_ERR_OK) {
             $ext = pathinfo($_FILES['certificado']['name'], PATHINFO_EXTENSION);
             if (!in_array(strtolower($ext), ['pem', 'p12', 'pfx'])) {
                 $erro = 'Apenas arquivos .pem, .p12 ou .pfx são permitidos.';
             } else {
-                $nomeArquivo = "cert_{$userId}_{$gatewayId}.{$ext}"; // Usa extensão original
-                $caminhoDir = __DIR__ . '/certificados';
-                if (!is_dir($caminhoDir)) mkdir($caminhoDir, 0755, true); // Garante que a pasta existe
-                $caminhoDestino = $caminhoDir . '/' . $nomeArquivo;
+                $nome_arquivo = "cert_{$user_id}_{$gateway_id}.{$ext}";
+                $caminho_dir = __DIR__ . '/certificados';
+                if (!is_dir($caminho_dir)) mkdir($caminho_dir, 0755, true);
+                $caminho_destino = $caminho_dir . '/' . $nome_arquivo;
 
-                // Verifica extensão e converte se necessário
                 if (in_array(strtolower($ext), ['p12', 'pfx'], true)) {
                     // .p12 e .pfx são o mesmo formato (PKCS#12) — salva o binário original, sem conversão
-                    if (move_uploaded_file($_FILES['certificado']['tmp_name'], $caminhoDestino)) {
-                        $certificadoPath = $caminhoDestino;
+                    if (move_uploaded_file($_FILES['certificado']['tmp_name'], $caminho_destino)) {
+                        $certificado_path = $caminho_destino;
                     } else {
                         $erro = 'Erro ao salvar o arquivo do certificado.';
                     }
                 } else {
-                    // Lógica para .pem (Limpeza)
-                    $conteudoCert = file_get_contents($_FILES['certificado']['tmp_name']);
-                    
-                    // Limpar e normalizar o certificado
+                    $conteudo_cert = file_get_contents($_FILES['certificado']['tmp_name']);
+
                     $padrao = '/(-{5}BEGIN [A-Z ]+-{5})(.*?)(-{5}END [A-Z ]+-{5})/Vs';
-                    preg_match_all($padrao, $conteudoCert, $matches);
+                    preg_match_all($padrao, $conteudo_cert, $matches);
                     
-                    $novoConteudo = '';
+                    $novo_conteudo = '';
                     if (!empty($matches[0])) {
                         foreach ($matches[0] as $bloco) {
-                            $novoConteudo .= trim($bloco) . "\n";
+                            $novo_conteudo .= trim($bloco) . "\n";
                         }
                     } else {
-                        $novoConteudo = $conteudoCert;
+                        $novo_conteudo = $conteudo_cert;
                     }
                     
-                    if (file_put_contents($caminhoDestino, trim($novoConteudo))) {
-                        $certificadoPath = $caminhoDestino;
+                    if (file_put_contents($caminho_destino, trim($novo_conteudo))) {
+                        $certificado_path = $caminho_destino;
                     } else {
                         $erro = 'Erro ao salvar o arquivo do certificado.';
                     }
                 }
             }
         } else {
-            $certificadoPath = $currentConfig['certificado'] ?? '';
+            $certificado_path = $current_config['certificado'] ?? '';
         }
         
         if (!$erro) {
-            $certPassword = trim($_POST['cert_password'] ?? '');
-            if ($certPassword === '') {
-                $certPassword = $currentConfig['cert_password'] ?? '';
+            $cert_password = trim($_POST['cert_password'] ?? '');
+            if ($cert_password === '') {
+                $cert_password = $current_config['cert_password'] ?? '';
             }
-            if (saveUserGatewayConfig($userId, $gatewayId, $clientId, $clientSecret, $certificadoPath, $certPassword, $chavePix, $ativo, $prioridade, $tipoConta)) {
+            if (saveUserGatewayConfig($user_id, $gateway_id, $client_id, $client_secret, $certificado_path, $cert_password, $chave_pix, $ativo, $prioridade, $tipo_conta)) {
                 $_SESSION['gw_mensagem'] = 'Suas credenciais foram salvas!';
                 $mensagem = 'Suas credenciais foram salvas!';
             } else {
@@ -159,29 +153,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Credenciais de Cash-Out (API de Contas, separada da de cobrança) — usadas para simular
         // split via transferência manual. O destino/percentual do split é configurado pelo admin
         // em usuarios.php. Ver docs/infopago/01-api-referencia.md §5.
-        $gatewayId = (int)$_POST['gateway_id'];
-        $cashoutClientId = trim($_POST['cashout_client_id'] ?? '');
-        $cashoutClientSecret = trim($_POST['cashout_client_secret'] ?? '');
-        $cashoutCertPassword = trim($_POST['cashout_cert_password'] ?? '');
+        $gateway_id = (int)$_POST['gateway_id'];
+        $cashout_client_id = trim($_POST['cashout_client_id'] ?? '');
+        $cashout_client_secret = trim($_POST['cashout_client_secret'] ?? '');
+        $cashout_cert_password = trim($_POST['cashout_cert_password'] ?? '');
 
-        $cashoutCertificadoPath = null;
+        $cashout_certificado_path = null;
         if (isset($_FILES['cashout_certificado']) && $_FILES['cashout_certificado']['error'] === UPLOAD_ERR_OK) {
             $ext = strtolower(pathinfo($_FILES['cashout_certificado']['name'], PATHINFO_EXTENSION));
             if (!in_array($ext, ['pem', 'p12', 'pfx'], true)) {
                 $erro = 'Certificado de Cash-Out: apenas arquivos .pem, .p12 ou .pfx são permitidos.';
             } else {
-                $caminhoDir = __DIR__ . '/certificados';
-                if (!is_dir($caminhoDir)) mkdir($caminhoDir, 0755, true);
-                $cashoutCertificadoPath = $caminhoDir . "/cashout_cert_{$userId}_{$gatewayId}.{$ext}";
-                if (!move_uploaded_file($_FILES['cashout_certificado']['tmp_name'], $cashoutCertificadoPath)) {
+                $caminho_dir = __DIR__ . '/certificados';
+                if (!is_dir($caminho_dir)) mkdir($caminho_dir, 0755, true);
+                $cashout_certificado_path = $caminho_dir . "/cashout_cert_{$user_id}_{$gateway_id}.{$ext}";
+                if (!move_uploaded_file($_FILES['cashout_certificado']['tmp_name'], $cashout_certificado_path)) {
                     $erro = 'Erro ao salvar o certificado de Cash-Out.';
-                    $cashoutCertificadoPath = null;
+                    $cashout_certificado_path = null;
                 }
             }
         }
 
         if (!$erro) {
-            if (saveInfopagoCashoutConfig($userId, $gatewayId, $cashoutClientId, $cashoutClientSecret, $cashoutCertificadoPath, $cashoutCertPassword)) {
+            if (saveInfopagoCashoutConfig($user_id, $gateway_id, $cashout_client_id, $cashout_client_secret, $cashout_certificado_path, $cashout_cert_password)) {
                 $_SESSION['gw_mensagem'] = 'Credenciais de Cash-Out salvas!';
                 $mensagem = 'Credenciais de Cash-Out salvas!';
             } else {
@@ -196,14 +190,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Recupera mensagem salva na sessão (após redirect)
 if (!isset($mensagem) && !empty($_SESSION['gw_mensagem'])) {
     $mensagem = $_SESSION['gw_mensagem'];
     unset($_SESSION['gw_mensagem']);
 }
 
-// Carregar Dados
-if ($isAdmin) {
+if ($is_admin) {
     $total_gateways = contarGatewaysAdmin();
     $gateways = listarGatewaysAdmin($por_pagina, $offset);
 }
@@ -211,7 +203,7 @@ if ($isAdmin) {
 // então a listagem "de usuário" é sempre carregada (para a própria conta do admin), além do
 // painel de toggle admin-only acima.
 $total_gateways_usuario = contarGatewaysUsuario();
-$gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
+$gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
 
 ?>
 <!DOCTYPE html>
@@ -225,13 +217,11 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/app.css">
     <style>
-        /* ── Utilitários gerais ── */
         .alert { padding: 14px 18px; border-radius: 10px; margin-bottom: 22px; font-weight: 500; font-size: 0.9rem; }
         .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
         .alert-error   { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
         small { color: #64748b; display: block; margin-top: 5px; font-size: 0.82rem; }
 
-        /* ── Formulários ── */
         .form-group  { margin-bottom: 18px; }
         .form-label  { display: block; margin-bottom: 7px; font-weight: 500; color: #475569; font-size: 0.875rem; }
         .form-input  {
@@ -243,7 +233,6 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
         .form-input:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
         select.form-input { appearance: auto; }
 
-        /* ── Botões ── */
         .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all .18s; text-decoration: none; }
         .btn-primary   { background: #2563eb; color: #fff; }
         .btn-primary:hover { background: #1d4ed8; }
@@ -255,7 +244,6 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
         .btn-save:hover { background: #1d4ed8; }
         .btn-sm { padding: 6px 12px; font-size: 0.8rem; }
 
-        /* ── Admin cards (mantém padrão) ── */
         .card-gateway {
             background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
             padding: 24px; margin-bottom: 20px;
@@ -269,11 +257,6 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
         .btn-salvar { background: #2563eb; color: #fff; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: 500; font-size: .95rem; transition: background .2s; width: 100%; }
         .btn-salvar:hover { background: #1d4ed8; }
 
-        /* ════════════════════════════════════════════
-           USER VIEW — NOVA INTERFACE
-        ════════════════════════════════════════════ */
-
-        /* Seção */
         .gw-section-title {
             display: flex; align-items: center; gap: 10px;
             font-size: 1rem; font-weight: 700; color: #1e293b;
@@ -286,7 +269,6 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
         }
         .gw-section { margin-bottom: 36px; }
 
-        /* Cards de Gateways Ativos (linha horizontal) */
         .gw-active-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -351,7 +333,6 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
             display: flex; gap: 8px; flex-wrap: wrap;
         }
 
-        /* Cards de Gateways Disponíveis (grid) */
         .gw-available-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -376,13 +357,11 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
         .gw-avail-name { font-size: 0.88rem; font-weight: 600; color: #1e293b; margin-bottom: 6px; }
         .gw-avail-actions { display: flex; gap: 6px; margin-top: 10px; justify-content: center; flex-wrap: wrap; }
 
-        /* Drag-and-drop */
         .gw-active-card[draggable] { cursor: grab; }
         .gw-active-card[draggable]:active { cursor: grabbing; }
         .gw-active-card.drag-over { opacity: .4; border-style: dashed; }
         .gw-active-card.dragging { opacity: .25; }
 
-        /* Modal de configuração para os disponíveis */
         .gw-modal-overlay {
             display: none; position: fixed; inset: 0;
             background: rgba(15,23,42,.45); z-index: 9999;
@@ -404,7 +383,6 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
         .gw-modal-close:hover { background: #e2e8f0; }
         .gw-modal-body { padding: 20px 24px 24px; }
 
-        /* Empty state */
         .gw-empty {
             text-align: center; padding: 48px 20px; background: #fff;
             border-radius: 14px; border: 1px dashed #cbd5e1;
@@ -413,7 +391,6 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
         .gw-empty h3 { font-size: 1.1rem; font-weight: 600; color: #1e293b; margin-bottom: 8px; }
         .gw-empty p  { color: #64748b; font-size: 0.9rem; max-width: 360px; margin: 0 auto; }
 
-        /* Filtros */
         .gw-filters { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
         .gw-filter-btn {
             padding: 6px 14px; border-radius: 20px; border: 1.5px solid #e2e8f0;
@@ -422,7 +399,6 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
         }
         .gw-filter-btn.active { background: #2563eb; color: #fff; border-color: #2563eb; }
 
-        /* Checkbox toggle personalizado */
         .gw-toggle-wrap { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; cursor: pointer; }
         .gw-toggle-wrap input[type=checkbox] { width: 18px; height: 18px; accent-color: #2563eb; cursor: pointer; }
         .gw-toggle-label { font-size: 0.9rem; font-weight: 500; color: #334155; }
@@ -448,8 +424,7 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
                 <div class="alert alert-error"><?php echo $erro; ?></div>
             <?php endif; ?>
 
-            <?php if ($isAdmin): ?>
-                <!-- ══════════ ADMIN VIEW ══════════ -->
+            <?php if ($is_admin): ?>
                 <style>
                     .adm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 18px; margin-bottom: 24px; }
 
@@ -476,7 +451,6 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
                     .adm-card-name { font-size: .9rem; font-weight: 700; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
                     .adm-card-sub  { font-size: .72rem; color: #94a3b8; margin-top: 1px; }
 
-                    /* Toggle */
                     .adm-switch { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
                     .adm-switch input { opacity: 0; width: 0; height: 0; }
                     .adm-slider { position: absolute; cursor: pointer; inset: 0; background: #cbd5e1; border-radius: 22px; transition: .22s; }
@@ -484,7 +458,6 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
                     .adm-switch input:checked + .adm-slider { background: #2563eb; }
                     .adm-switch input:checked + .adm-slider::before { transform: translateX(18px); }
 
-                    /* Card body */
                     .adm-card-body { padding: 14px 18px; }
 
                     .adm-status-badge {
@@ -504,33 +477,32 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
                 <form method="POST" id="formAdmin">
                     <input type="hidden" name="acao" value="salvar_admin">
 
-                    <!-- Cards de resumo -->
                     <div class="adm-grid">
                         <?php foreach ($gateways as $g):
-                            $gId        = (int)$g['id'];
-                            $isAtivo    = (bool)$g['ativo'];
+                            $g_id        = (int)$g['id'];
+                            $is_ativo    = (bool)$g['ativo'];
                             $nome       = $g['nome'];
-                            $iconClass  = match($nome) { 'infopago' => 'adm-icon-infopago', default => 'adm-icon-default' };
-                            $iconLetter = match($nome) { 'infopago' => 'I', default => '?' };
+                            $icon_class  = match($nome) { 'infopago' => 'adm-icon-infopago', default => 'adm-icon-default' };
+                            $icon_letter = match($nome) { 'infopago' => 'I', default => '?' };
                             $subtitle   = match($nome) { 'infopago' => 'OAuth2 + Certificado mTLS', default => 'Gateway' };
                         ?>
-                        <div class="adm-card <?php echo $isAtivo ? 'is-active' : ''; ?>" id="adm-card-<?php echo $gId; ?>">
-                            <input type="hidden" name="ids[]" value="<?php echo $gId; ?>">
+                        <div class="adm-card <?php echo $is_ativo ? 'is-active' : ''; ?>" id="adm-card-<?php echo $g_id; ?>">
+                            <input type="hidden" name="ids[]" value="<?php echo $g_id; ?>">
 
                             <div class="adm-card-top">
                                 <div class="adm-card-identity">
-                                    <div class="adm-gw-icon <?php echo $iconClass; ?>"><?php echo $iconLetter; ?></div>
+                                    <div class="adm-gw-icon <?php echo $icon_class; ?>"><?php echo $icon_letter; ?></div>
                                     <div style="min-width:0;">
                                         <div class="adm-card-name"><?php echo htmlspecialchars($g['titulo']); ?></div>
                                         <div class="adm-card-sub"><?php echo $subtitle; ?></div>
                                     </div>
                                 </div>
                                 <div>
-                                    <input type="hidden" name="ativo[<?php echo $gId; ?>]" value="0">
+                                    <input type="hidden" name="ativo[<?php echo $g_id; ?>]" value="0">
                                     <label class="adm-switch" title="Ativar/desativar no sistema">
-                                        <input type="checkbox" name="ativo[<?php echo $gId; ?>]" value="1"
-                                               <?php echo $isAtivo ? 'checked' : ''; ?>
-                                               onchange="admToggleCard(<?php echo $gId; ?>, this.checked)">
+                                        <input type="checkbox" name="ativo[<?php echo $g_id; ?>]" value="1"
+                                               <?php echo $is_ativo ? 'checked' : ''; ?>
+                                               onchange="admToggleCard(<?php echo $g_id; ?>, this.checked)">
                                         <span class="adm-slider"></span>
                                     </label>
                                 </div>
@@ -538,9 +510,9 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
 
                             <div class="adm-card-body">
                                 <div class="adm-card-footer">
-                                    <span class="adm-status-badge <?php echo $isAtivo ? 'on' : 'off'; ?>" id="badge-<?php echo $gId; ?>">
+                                    <span class="adm-status-badge <?php echo $is_ativo ? 'on' : 'off'; ?>" id="badge-<?php echo $g_id; ?>">
                                         <span class="adm-dot"></span>
-                                        <?php echo $isAtivo ? 'Ativo' : 'Inativo'; ?>
+                                        <?php echo $is_ativo ? 'Ativo' : 'Inativo'; ?>
                                     </span>
                                 </div>
                             </div>
@@ -563,19 +535,17 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
 
             <?php endif; ?>
 
-            <?php if ($isAdmin): ?>
+            <?php if ($is_admin): ?>
                 <hr style="margin:28px 0;border:none;border-top:1px solid #e2e8f0;">
                 <h2 style="font-size:1.05rem;margin:0 0 4px;">Meus gateways (conta admin)</h2>
                 <p style="font-size:.85rem;color:#94a3b8;margin:0 0 18px;">O admin também pode ter bots próprios — configure suas credenciais de gateway aqui.</p>
             <?php endif; ?>
             <?php
-                // ══════════ USER VIEW (sempre visível — inclusive para admin, para sua própria conta) ══════════
-                $gateways = $gatewaysUsuario;
-                // Separa gateways em ativos pelo usuário e disponíveis
-                    $gwAtivos      = array_filter($gateways, fn($g) => !empty($g['user_config']['ativo']));
-                    $gwDisponiveis = array_filter($gateways, fn($g) =>  empty($g['user_config']['ativo']));
+                // USER VIEW: sempre visível — inclusive para admin, para sua própria conta
+                $gateways = $gateways_usuario;
+                    $gw_ativos      = array_filter($gateways, fn($g) => !empty($g['user_config']['ativo']));
+                    $gw_disponiveis = array_filter($gateways, fn($g) =>  empty($g['user_config']['ativo']));
 
-                    // Helper: ícone por gateway
                     function gwIconClass(string $nome): string {
                         return match($nome) {
                             'infopago'  => 'gw-icon-infopago',
@@ -589,7 +559,6 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
                         };
                     }
 
-                    // Helper: formulário de configuração
                     function renderGwForm(array $g): void {
                         $nome           = $g['nome'];
                         $id = (int)$g['id'];
@@ -725,7 +694,6 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
                 ?>
 
                 <?php if (empty($gateways)): ?>
-                    <!-- Estado vazio -->
                     <div class="gw-empty">
                         <div class="gw-empty-icon">
                             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
@@ -736,28 +704,27 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
 
                 <?php else: ?>
 
-                    <!-- ── Gateways Ativos ── -->
-                    <?php if (!empty($gwAtivos)): ?>
+                    <?php if (!empty($gw_ativos)): ?>
                     <div class="gw-section">
                         <p class="gw-section-title">
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="#2563eb" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                             Gateways Ativos
-                            <span class="gw-count"><?php echo count($gwAtivos); ?></span>
+                            <span class="gw-count"><?php echo count($gw_ativos); ?></span>
                         </p>
                         <p style="margin:-4px 0 14px;font-size:.82rem;color:#94a3b8;">A prioridade é definida pela ordem dos cards — arraste para reordenar.</p>
 
                         <div class="gw-active-grid" id="gw-sortable">
                             <?php
                             $idx = 1;
-                            foreach ($gwAtivos as $g):
-                                $isPrimary   = ($idx === 1);
-                                $modalId     = 'modal-active-' . $g['id'];
+                            foreach ($gw_ativos as $g):
+                                $is_primary   = ($idx === 1);
+                                $modal_id     = 'modal-active-' . $g['id'];
                             ?>
-                            <div class="gw-active-card <?php echo $isPrimary ? 'is-primary' : ''; ?>" draggable="true" data-gw-id="<?php echo $g['id']; ?>">
+                            <div class="gw-active-card <?php echo $is_primary ? 'is-primary' : ''; ?>" draggable="true" data-gw-id="<?php echo $g['id']; ?>">
 
                                 <div class="gw-card-top">
-                                    <span class="gw-priority-badge <?php echo $isPrimary ? 'main' : ''; ?>">
-                                        <?php echo $idx; ?>&nbsp;·&nbsp;<?php echo $isPrimary ? 'Principal' : 'Fallback ' . ($idx - 1); ?>
+                                    <span class="gw-priority-badge <?php echo $is_primary ? 'main' : ''; ?>">
+                                        <?php echo $idx; ?>&nbsp;·&nbsp;<?php echo $is_primary ? 'Principal' : 'Fallback ' . ($idx - 1); ?>
                                     </span>
                                     <span class="gw-method-badge">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 512 512" fill="#15803d"><path d="M242.4 292.5C247.8 287.1 257.1 287.1 262.5 292.5L339.5 369.5C353.7 383.7 372.6 391.5 392.6 391.5H407.7L310.6 488.6C280.3 518.1 231.1 518.1 200.8 488.6L103.3 391.2H112.6C132.6 391.2 151.5 383.4 165.7 369.2L242.4 292.5zM262.5 218.9C257.1 224.4 247.8 224.4 242.4 218.9L165.7 142.2C151.5 127.1 132.6 120.2 112.6 120.2H103.3L200.7 22.8C231.1-7.6 280.3-7.6 310.6 22.8L407.7 119.9H392.6C372.6 119.9 353.7 127.7 339.5 141.9L262.5 218.9zM444.6 181.1L505.1 241.5C514.3 250.8 514.3 261.5 505.1 270.8L444.6 331.3V319.9C444.6 299.9 436.8 281 422.6 266.8L346 190.3C343.8 188.1 343.8 184.6 346 182.3L422.6 105.7C436.8 91.5 444.6 72.6 444.6 52.6V181.1zM67.4 19.9V330.9C67.4 350.9 75.2 369.8 89.4 384L166 460.6C168.2 462.8 168.2 466.3 166 468.5L89.4 545.2C75.2 559.4 67.4 578.3 67.4 598.3V607.6L6.9 547.1C-2.3 537.8-2.3 527.1 6.9 517.8L67.4 457.3V19.9z"/></svg>
@@ -777,7 +744,7 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
                                 </div>
 
                                 <div class="gw-card-actions">
-                                    <button type="button" class="btn btn-ghost btn-sm" onclick="openModal('<?php echo $modalId; ?>')">
+                                    <button type="button" class="btn btn-ghost btn-sm" onclick="openModal('<?php echo $modal_id; ?>')">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.1 4.9A10 10 0 0 0 4.9 19.1M19.1 19.1A10 10 0 0 0 4.9 4.9"/></svg>
                                         Configurar
                                     </button>
@@ -788,8 +755,7 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
                                 </div>
                             </div>
 
-                            <!-- Modal do gateway ativo -->
-                            <div id="<?php echo $modalId; ?>" class="gw-modal-overlay" onclick="if(event.target===this)closeModal('<?php echo $modalId; ?>')">
+                            <div id="<?php echo $modal_id; ?>" class="gw-modal-overlay" onclick="if(event.target===this)closeModal('<?php echo $modal_id; ?>')">
                                 <div class="gw-modal">
                                     <div class="gw-modal-header">
                                         <div class="gw-modal-title">
@@ -798,7 +764,7 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
                                             </div>
                                             <?php echo htmlspecialchars($g['titulo']); ?>
                                         </div>
-                                        <button class="gw-modal-close" onclick="closeModal('<?php echo $modalId; ?>')">✕</button>
+                                        <button class="gw-modal-close" onclick="closeModal('<?php echo $modal_id; ?>')">✕</button>
                                     </div>
                                     <div class="gw-modal-body">
                                         <?php renderGwForm($g); ?>
@@ -810,22 +776,21 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
                     </div>
                     <?php endif; ?>
 
-                    <!-- ── Gateways Disponíveis ── -->
-                    <?php if (!empty($gwDisponiveis)): ?>
+                    <?php if (!empty($gw_disponiveis)): ?>
                     <div class="gw-section">
                         <p class="gw-section-title">
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="#64748b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
                             Gateways Disponíveis
-                            <span class="gw-count" style="background:#64748b;"><?php echo count($gwDisponiveis); ?></span>
+                            <span class="gw-count" style="background:#64748b;"><?php echo count($gw_disponiveis); ?></span>
                         </p>
 
                         <div class="gw-available-grid">
-                            <?php foreach ($gwDisponiveis as $g):
-                                $modalId = 'modal-' . $g['id'];
+                            <?php foreach ($gw_disponiveis as $g):
+                                $modal_id = 'modal-' . $g['id'];
                             ?>
                             <?php
                                 $cfg = $g['user_config'];
-                                $temCredenciais = !empty($cfg['client_id']);
+                                $tem_credenciais = !empty($cfg['client_id']);
                             ?>
                             <div class="gw-avail-card">
                                 <div class="gw-avail-plus">+</div>
@@ -838,11 +803,11 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
                                     PIX
                                 </span>
                                 <div class="gw-avail-actions">
-                                    <button type="button" class="btn btn-ghost btn-sm" onclick="openModal('<?php echo $modalId; ?>')">
+                                    <button type="button" class="btn btn-ghost btn-sm" onclick="openModal('<?php echo $modal_id; ?>')">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.1 4.9A10 10 0 0 0 4.9 19.1M19.1 19.1A10 10 0 0 0 4.9 4.9"/></svg>
                                         Configurar
                                     </button>
-                                    <?php if ($temCredenciais): ?>
+                                    <?php if ($tem_credenciais): ?>
                                     <button type="button" class="btn btn-primary btn-sm" onclick="ativarGateway(<?php echo $g['id']; ?>)">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                                         Ativar
@@ -851,8 +816,7 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
                                 </div>
                             </div>
 
-                            <!-- Modal de configuração -->
-                            <div id="<?php echo $modalId; ?>" class="gw-modal-overlay" onclick="if(event.target===this)closeModal('<?php echo $modalId; ?>')">
+                            <div id="<?php echo $modal_id; ?>" class="gw-modal-overlay" onclick="if(event.target===this)closeModal('<?php echo $modal_id; ?>')">
                                 <div class="gw-modal">
                                     <div class="gw-modal-header">
                                         <div class="gw-modal-title">
@@ -861,7 +825,7 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
                                             </div>
                                             <?php echo htmlspecialchars($g['titulo']); ?>
                                         </div>
-                                        <button class="gw-modal-close" onclick="closeModal('<?php echo $modalId; ?>')">✕</button>
+                                        <button class="gw-modal-close" onclick="closeModal('<?php echo $modal_id; ?>')">✕</button>
                                     </div>
                                     <div class="gw-modal-body">
                                         <?php renderGwForm($g); ?>
@@ -873,7 +837,6 @@ $gatewaysUsuario = listarGatewaysUsuario($userId, $por_pagina, $offset);
                     </div>
                     <?php endif; ?>
 
-                    <!-- Formulários ocultos para ativar/desativar gateway -->
                     <form id="form-desativar" method="POST" style="display:none;">
                         <input type="hidden" name="acao"       value="desativar_user">
                         <input type="hidden" name="gateway_id" id="desativar-gw-id">
@@ -905,8 +868,6 @@ function ativarGateway(id) {
     document.getElementById('form-ativar').submit();
 }
 
-
-// ── Drag-and-drop para reordenar gateways ativos ──
 (function () {
     const grid = document.getElementById('gw-sortable');
     if (!grid) return;
@@ -944,18 +905,16 @@ function ativarGateway(id) {
     });
 
     function salvarOrdem() {
-        // Atualiza badges de prioridade visualmente
         const cards = [...grid.querySelectorAll('.gw-active-card')];
         cards.forEach((card, i) => {
             const badge = card.querySelector('.gw-priority-badge');
             if (!badge) return;
-            const isPrimary = i === 0;
-            badge.className = 'gw-priority-badge' + (isPrimary ? ' main' : '');
-            badge.innerHTML = (i + 1) + '&nbsp;·&nbsp;' + (isPrimary ? 'Principal' : 'Fallback ' + i);
-            card.classList.toggle('is-primary', isPrimary);
+            const is_primary = i === 0;
+            badge.className = 'gw-priority-badge' + (is_primary ? ' main' : '');
+            badge.innerHTML = (i + 1) + '&nbsp;·&nbsp;' + (is_primary ? 'Principal' : 'Fallback ' + i);
+            card.classList.toggle('is-primary', is_primary);
         });
 
-        // Salva via AJAX
         const ordem = cards.map(c => c.dataset.gwId);
         const fd = new FormData();
         fd.append('acao', 'reordenar_gateways');

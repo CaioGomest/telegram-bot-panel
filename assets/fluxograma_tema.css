@@ -1,8 +1,4 @@
 
-/* 
- * Customização do jQuery Flowchart para o tema
- */
-
 .flowchart-container {
     background-image: 
         linear-gradient(rgba(226, 232, 240, 0.5) 1px, transparent 1px),
@@ -43,10 +39,9 @@
 .flowchart-operator.selected {
     border-color: #2563eb;
     box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2), 0 10px 15px -3px rgba(0, 0, 0, 0.08);
-    z-index: 50 !important; /* Z-index bem alto para garantir prioridade */
+    z-index: 50 !important;
 }
 
-/* Controles de Zoom */
 .controles-zoom {
     position: absolute;
     bottom: 20px;
@@ -67,7 +62,6 @@
     font-weight: 600;
 }
 
-/* Título do Bloco */
 .flowchart-operator-title {
     background: #f8fafc;
     color: #334155;
@@ -83,8 +77,6 @@
     height: auto !important;
 }
 
-/* Ícones e Cores por Tipo de Bloco */
-/* Início */
 .flowchart-operator.no-inicio .flowchart-operator-title {
     background: #dcfce7;
     color: #166534;
@@ -92,70 +84,60 @@
 }
 .flowchart-operator.no-inicio.selected { border-color: #16a34a; }
 
-/* Mensagem */
 .flowchart-operator.no-mensagem .flowchart-operator-title {
     background: #eff6ff;
     color: #1e40af;
     border-bottom-color: #dbeafe;
 }
 
-/* Imagem */
 .flowchart-operator.no-imagem .flowchart-operator-title {
     background: #f0f9ff;
     color: #0369a1;
     border-bottom-color: #e0f2fe;
 }
 
-/* Vídeo */
 .flowchart-operator.no-video .flowchart-operator-title {
     background: #fef2f2;
     color: #b91c1c;
     border-bottom-color: #fee2e2;
 }
 
-/* Áudio */
 .flowchart-operator.no-audio .flowchart-operator-title {
     background: #eef2ff;
     color: #4338ca;
     border-bottom-color: #e0e7ff;
 }
 
-/* Botões */
 .flowchart-operator.no-botoes .flowchart-operator-title {
     background: #f5f3ff;
     color: #5b21b6;
     border-bottom-color: #ede9fe;
 }
 
-/* PIX */
 .flowchart-operator.no-pix .flowchart-operator-title {
     background: #fffbeb;
     color: #92400e;
     border-bottom-color: #fef3c7;
 }
 
-/* Delay */
 .flowchart-operator.no-delay .flowchart-operator-title {
     background: #fff7ed;
     color: #9a3412;
     border-bottom-color: #ffedd5;
 }
 
-/* Links */
 .flowchart-operator.no-link .flowchart-operator-title {
     background: #ecfeff;
     color: #0e7490;
     border-bottom-color: #cffafe;
 }
 
-/* Grupo */
 .flowchart-operator.no-grupo .flowchart-operator-title {
     background: #fdf2f8;
     color: #be185d;
     border-bottom-color: #fce7f3;
 }
 
-/* Botões de Adicionar (Palette) */
 .botao.adicionar-no {
     display: inline-flex;
     align-items: center;
@@ -179,7 +161,6 @@
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
-/* Cores dos Botões (iguais aos headers dos blocos) */
 .botao.adicionar-no[data-node-type="message"] {
     background: #eff6ff;
     color: #1e40af;
@@ -270,15 +251,13 @@
     border-color: #fbcfe8;
 }
 
-/* Corpo do Bloco */
 .flowchart-operator-body {
     padding: 14px;
     font-size: 13px;
     color: #475569;
 }
 
-/* Inputs internos */
-.flowchart-operator input, 
+.flowchart-operator input,
 .flowchart-operator textarea, 
 .flowchart-operator select {
     width: 100%;
@@ -314,7 +293,6 @@
     margin: 0;
 }
 
-/* Botão Excluir no Título */
 .btn-excluir {
     background: transparent;
     border: none;
@@ -332,7 +310,6 @@
     opacity: 1;
 }
 
-/* Links */
 .flowchart-link .flowchart-link-path {
     stroke: #2563eb !important;
     stroke-width: 3px !important;
@@ -364,7 +341,6 @@
     stroke: #3b82f6 !important;
 }
 
-/* Conectores */
 .flowchart-operator-connector-arrow {
     border-left-color: #2563eb;
 }
@@ -375,7 +351,6 @@
     border-left-color: #2563eb;
 }
 
-/* Ajustes Específicos */
 .bloco-imagem .area-previa,
 .bloco-video .area-previa,
 .bloco-audio .area-previa {

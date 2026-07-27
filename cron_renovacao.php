@@ -9,21 +9,20 @@ date_default_timezone_set('America/Sao_Paulo');
 
 // Grava toda a saída desta execução em arquivo, para permitir auditoria
 // posterior de quando/se este cron rodou e o que decidiu para cada venda.
-$logFileRenovacao = __DIR__ . '/logs/cron_renovacao.log';
+$log_file_renovacao = __DIR__ . '/logs/cron_renovacao.log';
 ob_start();
-register_shutdown_function(function () use ($logFileRenovacao) {
+register_shutdown_function(function () use ($log_file_renovacao) {
     $conteudo = ob_get_contents();
     file_put_contents(
-        $logFileRenovacao,
+        $log_file_renovacao,
         '[' . date('Y-m-d H:i:s') . "] Execução iniciada\n" . $conteudo . str_repeat('-', 60) . "\n",
         FILE_APPEND
     );
 });
 
-// Configurações
-$DIAS_ANTECEDENCIA_RENOVACAO = 3; // Gera cobrança 3 dias antes de vencer
+$DIAS_ANTECEDENCIA_RENOVACAO = 3;
 
-function telegram_request(string $token, string $metodo, array $parametros = []): array {
+function telegramRequest(string $token, string $metodo, array $parametros = []): array {
     $url = 'https://api.telegram.org/bot' . $token . '/' . $metodo;
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -37,19 +36,8 @@ function telegram_request(string $token, string $metodo, array $parametros = [])
 echo "Iniciando processamento de renovações automáticas (" . date('Y-m-d H:i:s') . ")...\n";
 
 try {
-    // 1. Busca assinaturas ativas que vencem em breve (ou já venceram e ainda não têm renovação)
-    // Precisamos olhar para a tabela 'membros_grupos' para saber a expiração real,
-    // e cruzar com 'vendas' para saber se é assinatura.
-    
-    // Data alvo: Hoje + X dias
-    $dataAlvo = date('Y-m-d H:i:s', strtotime("+$DIAS_ANTECEDENCIA_RENOVACAO days"));
-    
-    // Busca membros que:
-    // - Estão ativos
-    // - Vencem nos próximos X dias (data_expiracao <= dataAlvo)
-    // - Venda original é do tipo 'assinatura'
-    // - Ainda não têm uma renovação pendente (venda filha com status 'gerado' ou 'pago' criada recentemente)
-    
+    $data_alvo = date('Y-m-d H:i:s', strtotime("+$DIAS_ANTECEDENCIA_RENOVACAO days"));
+
     // Cron de renovação manual por PIX: APENAS para assinaturas SEM id_assinatura.
     // Assinaturas com id_assinatura (PIX Automático nativo) são renovadas
     // automaticamente pelo gateway — não precisam de PIX manual.
@@ -74,59 +62,56 @@ try {
     ";
     
     $stmt = $pdo->prepare($sql);
-    $stmt->execute([$dataAlvo]);
-    $assinaturasParaRenovar = $stmt->fetchAll();
+    $stmt->execute([$data_alvo]);
+    $assinaturas_para_renovar = $stmt->fetchAll();
     
-    echo "Encontradas " . count($assinaturasParaRenovar) . " assinaturas para renovar.\n";
+    echo "Encontradas " . count($assinaturas_para_renovar) . " assinaturas para renovar.\n";
     
-    foreach ($assinaturasParaRenovar as $item) {
+    foreach ($assinaturas_para_renovar as $item) {
         echo "Processando renovação para usuário {$item['id_telegram']} (Venda Pai: {$item['venda_id']})...\n";
-        
-        // 2. Gerar nova cobrança Pix
-        $idUsuarioDono = $item['dono_id'];
-        $userGateways = getUserGateways((int)$idUsuarioDono, true);
-        if (empty($userGateways)) {
+
+        $id_usuario_dono = $item['dono_id'];
+        $user_gateways = getUserGateways((int)$id_usuario_dono, true);
+        if (empty($user_gateways)) {
             echo " - Erro: Nenhum gateway ativo configurado para o dono do bot.\n";
             continue;
         }
 
-        $gatewayConfig = $userGateways[0];
-        $nomeGateway = $gatewayConfig['gateway_nome'] ?? null;
-        $provedor = resolveGatewayProvider($nomeGateway, $gatewayConfig);
+        $gateway_config = $user_gateways[0];
+        $nome_gateway = $gateway_config['gateway_nome'] ?? null;
+        $provedor = resolveGatewayProvider($nome_gateway, $gateway_config);
         if (!$provedor) {
-            echo " - Erro: Gateway $nomeGateway não suportado.\n";
+            echo " - Erro: Gateway $nome_gateway não suportado.\n";
             continue;
         }
 
         
         $valor = (float)$item['valor'];
-        $chavePix = $gatewayConfig['chave_pix'];
+        $chave_pix = $gateway_config['chave_pix'];
         
         // Expiração do Pix: Até a data de vencimento da assinatura + Tolerância?
         // Vamos colocar 3 dias de validade para o Pix
-        $expiracaoSegundos = 3 * 86400; 
-        
-        // Split por usuário
-        $splitData = null;
-        $userSplits = getUserSplits((int)$idUsuarioDono, $nomeGateway);
-        if (!empty($userSplits)) {
-            $splitData = array_map(fn($s) => [
+        $expiracao_segundos = 3 * 86400;
+
+        $split_data = null;
+        $user_splits = getUserSplits((int)$id_usuario_dono, $nome_gateway);
+        if (!empty($user_splits)) {
+            $split_data = array_map(fn($s) => [
                 'chave' => $s['chave_pix_split'],
                 'valor' => $s['taxa_split'],
                 'tipo'  => $s['tipo_split'] ?? 'percentual'
-            ], $userSplits);
+            ], $user_splits);
         }
 
-        $payload = $provedor->montaPayloadCobranca($valor, $chavePix, $splitData, $expiracaoSegundos);
+        $payload = $provedor->montaPayloadCobranca($valor, $chave_pix, $split_data, $expiracao_segundos);
         $resp = $provedor->criarCobranca($payload);
 
         $txid = $resp['dados']['txid'] ?? '';
-        $pixCopiaCola = $resp['dados']['pixCopiaECola'] ?? '';
+        $pix_copia_cola = $resp['dados']['pixCopiaECola'] ?? '';
 
         if ($resp['sucesso']) {
-            
-            // 3. Salvar nova venda no banco (Venda Filha)
-            $stmtInsert = $pdo->prepare("
+
+            $stmt_insert = $pdo->prepare("
                 INSERT INTO vendas (
                     id_telegram, bot_id, valor, status, transacao_id, 
                     id_grupo_telegram, dias_acesso, tempo_acesso_minutos, 
@@ -141,7 +126,7 @@ try {
             ");
             
             // Mantém os mesmos parâmetros de acesso da venda pai
-            $stmtInsert->execute([
+            $stmt_insert->execute([
                 $item['id_telegram'],
                 $item['bot_id'],
                 $valor,
@@ -150,10 +135,9 @@ try {
                 $item['dias_acesso'],
                 $item['tempo_acesso_minutos'],
                 $item['venda_id'], // venda_pai_id
-                ($expiracaoSegundos / 60)
+                ($expiracao_segundos / 60)
             ]);
-            
-            // 4. Enviar mensagem para o usuário
+
             $msg = "🔄 *Renovação de Assinatura*\n\n";
             $msg .= "Olá! Sua assinatura do grupo vence em breve.\n";
             $msg .= "Para continuar com seu acesso ininterrupto, realize o pagamento da renovação abaixo:\n\n";
@@ -167,16 +151,16 @@ try {
                 ]]
             ];
             
-            telegram_request($item['token'], 'sendMessage', [
+            telegramRequest($item['token'], 'sendMessage', [
                 'chat_id' => $item['id_telegram'],
                 'text' => $msg,
                 'parse_mode' => 'Markdown',
                 'reply_markup' => json_encode($teclado)
             ]);
             
-            telegram_request($item['token'], 'sendMessage', [
+            telegramRequest($item['token'], 'sendMessage', [
                 'chat_id' => $item['id_telegram'],
-                'text' => "<code>$pixCopiaCola</code>",
+                'text' => "<code>$pix_copia_cola</code>",
                 'parse_mode' => 'HTML'
             ]);
             

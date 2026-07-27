@@ -1,60 +1,59 @@
 <?php
 
-function enviarEventoUtmfy($token, $evento, $dados, $userData = []) {
+function enviarEventoUtmfy($token, $evento, $dados, $user_data = []) {
     if (empty($token)) {
         return ['sucesso' => false, 'erro' => 'Token UTMfy não configurado'];
     }
 
-    $isUrl = filter_var($token, FILTER_VALIDATE_URL);
+    $is_url = filter_var($token, FILTER_VALIDATE_URL);
 
-    if ($isUrl) {
+    if ($is_url) {
         $url = $token;
         // Payload genérico de webhook para quem configurou URL completa
         $payload = [
-            'event' => $evento, // pix_gerado, pix_pago
+            'event' => $evento,
             'value' => (float)($dados['valor'] ?? 0),
             'currency' => 'BRL',
             'transaction_id' => $dados['transacao_id'] ?? '',
-            'email' => $userData['email'] ?? '',
-            'phone' => $userData['telefone'] ?? '',
-            'ip' => $userData['ip'] ?? '',
-            'user_agent' => $userData['user_agent'] ?? '',
-            'first_name' => $userData['first_name'] ?? '',
-            'utm_source' => $userData['utm_source'] ?? '',
-            'utm_campaign' => $userData['utm_campaign'] ?? '',
-            'utm_medium' => $userData['utm_medium'] ?? '',
-            'utm_content' => $userData['utm_content'] ?? '',
-            'utm_term' => $userData['utm_term'] ?? '',
+            'email' => $user_data['email'] ?? '',
+            'phone' => $user_data['telefone'] ?? '',
+            'ip' => $user_data['ip'] ?? '',
+            'user_agent' => $user_data['user_agent'] ?? '',
+            'first_name' => $user_data['first_name'] ?? '',
+            'utm_source' => $user_data['utm_source'] ?? '',
+            'utm_campaign' => $user_data['utm_campaign'] ?? '',
+            'utm_medium' => $user_data['utm_medium'] ?? '',
+            'utm_content' => $user_data['utm_content'] ?? '',
+            'utm_term' => $user_data['utm_term'] ?? '',
         ];
         $headers = ['Content-Type: application/json'];
     } else {
         // Integração Oficial via API Utmify (Usando o Token)
         $url = "https://api.utmify.com.br/api-credentials/orders";
         
-        // Mapeia nossos eventos para o status da API da Utmify
-        $statusMap = [
+        $status_map = [
             'pix_gerado' => 'waiting_payment',
             'pix_pago' => 'paid',
             'compra' => 'paid',
             'cadastro' => 'waiting_payment'
         ];
         
-        $status = $statusMap[$evento] ?? 'paid';
-        $valorCentavos = (int)round((float)($dados['valor'] ?? 0) * 100);
-        $dataAtual = gmdate('Y-m-d H:i:s'); // API Utmify exige UTC
+        $status = $status_map[$evento] ?? 'paid';
+        $valor_centavos = (int)round((float)($dados['valor'] ?? 0) * 100);
+        $data_atual = gmdate('Y-m-d H:i:s'); // API Utmify exige UTC
         
-        $telefone = preg_replace('/[^0-9]/', '', $userData['telefone'] ?? '');
+        $telefone = preg_replace('/[^0-9]/', '', $user_data['telefone'] ?? '');
         if (empty($telefone)) {
             $telefone = '00000000000'; // Fallback para não quebrar a API
         }
         
-        $email = $userData['email'] ?? '';
+        $email = $user_data['email'] ?? '';
         if (empty($email)) {
             // Alguns sistemas exigem e-mail. Se não tivermos, geramos um provisório baseado no ID
-            $email = 'cliente' . ($userData['id_telegram'] ?? time()) . '@telegram.com';
+            $email = 'cliente' . ($user_data['id_telegram'] ?? time()) . '@telegram.com';
         }
         
-        $nome = trim($userData['first_name'] ?? '');
+        $nome = trim($user_data['first_name'] ?? '');
         if (empty($nome)) {
             $nome = 'Cliente Telegram';
         }
@@ -64,8 +63,8 @@ function enviarEventoUtmfy($token, $evento, $dados, $userData = []) {
             'platform' => 'BotTelegram',
             'paymentMethod' => 'pix',
             'status' => $status,
-            'createdAt' => $dataAtual,
-            'approvedDate' => $status === 'paid' ? $dataAtual : null,
+            'createdAt' => $data_atual,
+            'approvedDate' => $status === 'paid' ? $data_atual : null,
             'customer' => [
                 'name' => $nome,
                 'email' => $email,
@@ -79,13 +78,13 @@ function enviarEventoUtmfy($token, $evento, $dados, $userData = []) {
                     'planId' => '1',
                     'planName' => 'Unico',
                     'quantity' => 1,
-                    'priceInCents' => $valorCentavos
+                    'priceInCents' => $valor_centavos
                 ]
             ],
             'commission' => [
                 'gatewayFeeInCents' => 0,
-                'totalPriceInCents' => $valorCentavos,
-                'userCommissionInCents' => $valorCentavos
+                'totalPriceInCents' => $valor_centavos,
+                'userCommissionInCents' => $valor_centavos
             ],
             'trackingParameters' => [
                 'utm_campaign' => null,
@@ -110,14 +109,14 @@ function enviarEventoUtmfy($token, $evento, $dados, $userData = []) {
     curl_setopt($ch, CURLOPT_TIMEOUT, 15);
     
     $resposta = curl_exec($ch);
-    $codigoHttp = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $erroCurl = curl_error($ch);
+    $codigo_http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $erro_curl = curl_error($ch);
     curl_close($ch);
 
     return [
-        'sucesso' => $codigoHttp >= 200 && $codigoHttp < 300,
-        'resposta' => $resposta ? json_decode($resposta, true) : ['erro' => $erroCurl],
-        'codigo' => $codigoHttp,
+        'sucesso' => $codigo_http >= 200 && $codigo_http < 300,
+        'resposta' => $resposta ? json_decode($resposta, true) : ['erro' => $erro_curl],
+        'codigo' => $codigo_http,
         'payload' => $payload
     ];
 }

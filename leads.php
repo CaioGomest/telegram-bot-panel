@@ -2,14 +2,12 @@
 require_once __DIR__ . '/funcoes/usuario.php';
 verificarLogin();
 
-$idUsuario = $_SESSION['usuario_id'];
+$id_usuario = $_SESSION['usuario_id'];
 $is_admin = ehAdmin();
 
-// Filtros
-$botId = isset($_GET['bot_id']) ? (int)$_GET['bot_id'] : 0;
+$bot_id = isset($_GET['bot_id']) ? (int)$_GET['bot_id'] : 0;
 $status = isset($_GET['status']) ? $_GET['status'] : '';
 
-// Consulta base
 $sql = "
     SELECT 
         l.id,
@@ -33,11 +31,11 @@ $sql = "
     WHERE b.id_usuario = :id_usuario
 ";
 
-$params = ['id_usuario' => $idUsuario];
+$params = ['id_usuario' => $id_usuario];
 
-if ($botId > 0) {
+if ($bot_id > 0) {
     $sql .= " AND l.bot_id = :bot_id";
-    $params['bot_id'] = $botId;
+    $params['bot_id'] = $bot_id;
 }
 
 if ($status === 'pago') {
@@ -52,7 +50,6 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $leads = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Exportar CSV
 if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename=leads.csv');
@@ -60,11 +57,11 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     fputcsv($output, ['Nome', 'ID Telegram', 'Bot', 'Data Inicio', 'Status', 'Plano Ativo', 'Total Compras', 'Total Gasto']);
     
     foreach ($leads as $lead) {
-        $statusTexto = 'Iniciou Conversa';
+        $status_texto = 'Iniciou Conversa';
         if ($lead['total_compras'] > 0) {
-            $statusTexto = 'Cliente (Pagou)';
+            $status_texto = 'Cliente (Pagou)';
         } elseif ($lead['ultimo_status_pagamento'] === 'gerado') {
-            $statusTexto = 'Gerou Pix (Não Pago)';
+            $status_texto = 'Gerou Pix (Não Pago)';
         }
         
         fputcsv($output, [
@@ -72,7 +69,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             $lead['id_telegram'],
             $lead['nome_bot'],
             date('d/m/Y H:i', strtotime($lead['data_inicio'])),
-            $statusTexto,
+            $status_texto,
             $lead['plano_ativo'] ? 'Ativo' : 'Inativo',
             $lead['total_compras'],
             number_format((float)$lead['total_gasto'], 2, ',', '.')
@@ -82,10 +79,9 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     exit;
 }
 
-// Buscar lista de bots para filtro
-$stmtBots = $pdo->prepare("SELECT id, COALESCE(primeiro_nome, nome_usuario) as nome FROM bots WHERE id_usuario = ?");
-$stmtBots->execute([$idUsuario]);
-$meusBots = $stmtBots->fetchAll(PDO::FETCH_ASSOC);
+$stmt_bots = $pdo->prepare("SELECT id, COALESCE(primeiro_nome, nome_usuario) as nome FROM bots WHERE id_usuario = ?");
+$stmt_bots->execute([$id_usuario]);
+$meus_bots = $stmt_bots->fetchAll(PDO::FETCH_ASSOC);
 
 ?>
 <!DOCTYPE html>
@@ -132,8 +128,8 @@ $meusBots = $stmtBots->fetchAll(PDO::FETCH_ASSOC);
                     <label for="bot_id">Filtrar por Bot</label>
                     <select name="bot_id" id="bot_id" class="input-campo">
                         <option value="">Todos os Bots</option>
-                        <?php foreach ($meusBots as $b): ?>
-                            <option value="<?php echo $b['id']; ?>" <?php echo $botId == $b['id'] ? 'selected' : ''; ?>>
+                        <?php foreach ($meus_bots as $b): ?>
+                            <option value="<?php echo $b['id']; ?>" <?php echo $bot_id == $b['id'] ? 'selected' : ''; ?>>
                                 <?php echo htmlspecialchars($b['nome']); ?>
                             </option>
                         <?php endforeach; ?>
@@ -172,11 +168,11 @@ $meusBots = $stmtBots->fetchAll(PDO::FETCH_ASSOC);
                         <?php else: ?>
                             <?php foreach ($leads as $lead): ?>
                                 <?php
-                                    $statusBadge = '<span class="badge badge-gray">Iniciou</span>';
+                                    $status_badge = '<span class="badge badge-gray">Iniciou</span>';
                                     if ($lead['total_compras'] > 0) {
-                                        $statusBadge = '<span class="badge badge-success">Cliente</span>';
+                                        $status_badge = '<span class="badge badge-success">Cliente</span>';
                                     } elseif ($lead['ultimo_status_pagamento'] === 'gerado') {
-                                        $statusBadge = '<span class="badge badge-warning">Gerou Pix</span>';
+                                        $status_badge = '<span class="badge badge-warning">Gerou Pix</span>';
                                     }
                                 ?>
                                 <tr>
@@ -187,7 +183,7 @@ $meusBots = $stmtBots->fetchAll(PDO::FETCH_ASSOC);
                             <td><?php echo $lead['telefone'] ? htmlspecialchars($lead['telefone']) : '<span style="color:#9ca3af">—</span>'; ?></td>
                                     <td><?php echo htmlspecialchars($lead['nome_bot']); ?></td>
                                     <td><?php echo date('d/m/Y H:i', strtotime($lead['data_inicio'])); ?></td>
-                                    <td><?php echo $statusBadge; ?></td>
+                                    <td><?php echo $status_badge; ?></td>
                             <td>
                                 <?php echo $lead['plano_ativo'] ? '<span class="badge badge-success">Ativo</span>' : '<span class="badge badge-gray">Inativo</span>'; ?>
                             </td>

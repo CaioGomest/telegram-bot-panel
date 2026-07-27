@@ -17,7 +17,6 @@ if (!$id) {
     exit;
 }
 
-// Impede que o admin delete a si mesmo
 if ($id === (int)$_SESSION['usuario_id']) {
     echo json_encode(['sucesso' => false, 'erro' => 'Você não pode excluir sua própria conta.']);
     exit;

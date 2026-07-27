@@ -9,16 +9,16 @@ require_once __DIR__ . '/funcoes/gateways.php';
 
 date_default_timezone_set('America/Sao_Paulo');
 
-$logDir = __DIR__ . '/logs';
-if (!is_dir($logDir)) mkdir($logDir, 0755, true);
-$logFile = $logDir . '/webhook_infopago.log';
+$log_dir = __DIR__ . '/logs';
+if (!is_dir($log_dir)) mkdir($log_dir, 0755, true);
+$log_file = $log_dir . '/webhook_infopago.log';
 
 function logWebhookInfopago(string $msg): void {
-    global $logFile;
-    file_put_contents($logFile, '[' . date('Y-m-d H:i:s') . '] ' . $msg . PHP_EOL, FILE_APPEND);
+    global $log_file;
+    file_put_contents($log_file, '[' . date('Y-m-d H:i:s') . '] ' . $msg . PHP_EOL, FILE_APPEND);
 }
 
-function requisicao_telegram_infopago(string $token, string $metodo, array $parametros = []): array {
+function requisicaoTelegramInfopago(string $token, string $metodo, array $parametros = []): array {
     $url = 'https://api.telegram.org/bot' . $token . '/' . $metodo;
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -29,26 +29,26 @@ function requisicao_telegram_infopago(string $token, string $metodo, array $para
     return json_decode($resposta ?: '', true) ?: ['ok' => false];
 }
 
-function obter_proximo_no_infopago(array $links, string $idAtual, string $conectorSaida = 'output_1'): ?string {
+function obterProximoNoInfopago(array $links, string $id_atual, string $conector_saida = 'output_1'): ?string {
     foreach ($links as $link) {
-        if (($link['fromOperator'] ?? '') === $idAtual && ($link['fromConnector'] ?? '') === $conectorSaida) {
+        if (($link['fromOperator'] ?? '') === $id_atual && ($link['fromConnector'] ?? '') === $conector_saida) {
             return $link['toOperator'] ?? null;
         }
     }
-    if ($conectorSaida !== 'output_1') {
-        return obter_proximo_no_infopago($links, $idAtual, 'output_1');
+    if ($conector_saida !== 'output_1') {
+        return obterProximoNoInfopago($links, $id_atual, 'output_1');
     }
     return null;
 }
 
-function processar_bloco_infopago(string $token, $idChat, array $operador, int $idUsuarioDono): void {
+function processarBlocoInfopago(string $token, $id_chat, array $operador, int $id_usuario_dono): void {
     $propriedades = $operador['properties'] ?? [];
     $tipo = $propriedades['type'] ?? '';
 
     if ($tipo === 'message') {
         $texto = trim((string)($propriedades['conteudo'] ?? $propriedades['body'] ?? ''));
         if ($texto !== '') {
-            requisicao_telegram_infopago($token, 'sendMessage', ['chat_id' => $idChat, 'text' => $texto]);
+            requisicaoTelegramInfopago($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => $texto]);
         }
     } elseif ($tipo === 'image') {
         $caminho = $propriedades['image_path'] ?? '';
@@ -58,90 +58,90 @@ function processar_bloco_infopago(string $token, $idChat, array $operador, int $
             }
             $real = realpath($caminho);
             if ($real) {
-                requisicao_telegram_infopago($token, 'sendPhoto', ['chat_id' => $idChat, 'photo' => $real]);
+                requisicaoTelegramInfopago($token, 'sendPhoto', ['chat_id' => $id_chat, 'photo' => $real]);
             }
         }
     } elseif ($tipo === 'botoes') {
         $texto = trim((string)($propriedades['texto'] ?? ''));
         $botoes = $propriedades['botoes'] ?? [];
         $keyboard = [];
-        $currentRow = [];
-        foreach ($botoes as $btnTexto) {
-            $currentRow[] = ['text' => $btnTexto, 'callback_data' => $btnTexto];
-            if (count($currentRow) >= 2) { $keyboard[] = $currentRow; $currentRow = []; }
+        $current_row = [];
+        foreach ($botoes as $btn_texto) {
+            $current_row[] = ['text' => $btn_texto, 'callback_data' => $btn_texto];
+            if (count($current_row) >= 2) { $keyboard[] = $current_row; $current_row = []; }
         }
-        if (!empty($currentRow)) $keyboard[] = $currentRow;
-        requisicao_telegram_infopago($token, 'sendMessage', [
-            'chat_id'      => $idChat,
+        if (!empty($current_row)) $keyboard[] = $current_row;
+        requisicaoTelegramInfopago($token, 'sendMessage', [
+            'chat_id'      => $id_chat,
             'text'         => $texto ?: 'Escolha:',
             'reply_markup' => json_encode(['inline_keyboard' => $keyboard])
         ]);
     }
 }
 
-function executar_fluxo_infopago(string $token, string $idChat, int $botId, string $idOperadorInicial, int $idUsuarioDono, string $conector = 'output_pago'): void {
+function executarFluxoInfopago(string $token, string $id_chat, int $bot_id, string $id_operador_inicial, int $id_usuario_dono, string $conector = 'output_pago'): void {
     global $pdo;
     $stmt = $pdo->prepare("SELECT f.dados_fluxograma FROM bots b JOIN fluxos f ON b.id_fluxo_conectado = f.id WHERE b.id = ?");
-    $stmt->execute([$botId]);
-    $dadosJson = $stmt->fetchColumn();
-    if (!$dadosJson) return;
+    $stmt->execute([$bot_id]);
+    $dados_json = $stmt->fetchColumn();
+    if (!$dados_json) return;
 
-    $dadosFluxo = json_decode($dadosJson, true);
-    $operadores = $dadosFluxo['operators'] ?? [];
-    $links      = $dadosFluxo['links'] ?? [];
+    $dados_fluxo = json_decode($dados_json, true);
+    $operadores = $dados_fluxo['operators'] ?? [];
+    $links      = $dados_fluxo['links'] ?? [];
 
-    $proximoId = obter_proximo_no_infopago($links, $idOperadorInicial, $conector);
-    if (!$proximoId) {
-        logWebhookInfopago("Nenhuma conexão saindo de '$conector' no bloco $idOperadorInicial.");
+    $proximo_id = obterProximoNoInfopago($links, $id_operador_inicial, $conector);
+    if (!$proximo_id) {
+        logWebhookInfopago("Nenhuma conexão saindo de '$conector' no bloco $id_operador_inicial.");
         return;
     }
 
-    logWebhookInfopago("Executando fluxo ($conector) para chat $idChat a partir de $proximoId");
+    logWebhookInfopago("Executando fluxo ($conector) para chat $id_chat a partir de $proximo_id");
 
-    while ($proximoId && isset($operadores[$proximoId])) {
-        $operador = $operadores[$proximoId];
-        processar_bloco_infopago($token, $idChat, $operador, $idUsuarioDono);
+    while ($proximo_id && isset($operadores[$proximo_id])) {
+        $operador = $operadores[$proximo_id];
+        processarBlocoInfopago($token, $id_chat, $operador, $id_usuario_dono);
         $tipo = $operador['properties']['type'] ?? '';
         if ($tipo === 'botoes' || $tipo === 'pix') break;
         if ($tipo === 'delay') sleep(1);
-        $proximoId = obter_proximo_no_infopago($links, $proximoId, 'output_1');
+        $proximo_id = obterProximoNoInfopago($links, $proximo_id, 'output_1');
     }
 }
 
 /**
  * Libera ou renova acesso ao grupo. Estende da expiração atual se ainda ativo.
  */
-function liberarAcessoGrupoInfopago(array $venda, string $tokenBot): ?string {
+function liberarAcessoGrupoInfopago(array $venda, string $token_bot): ?string {
     global $pdo;
 
-    $idGrupo = $venda['id_grupo_telegram'] ?? '';
-    if (empty($idGrupo)) return null;
+    $id_grupo = $venda['id_grupo_telegram'] ?? '';
+    if (empty($id_grupo)) return null;
 
-    $tempoMinutos = (int)($venda['tempo_acesso_minutos'] ?? ($venda['dias_acesso'] * 1440));
+    $tempo_minutos = (int)($venda['tempo_acesso_minutos'] ?? ($venda['dias_acesso'] * 1440));
 
-    $stmtM = $pdo->prepare("SELECT data_expiracao FROM membros_grupos WHERE id_telegram = ? AND id_grupo_telegram = ? AND bot_id = ?");
-    $stmtM->execute([$venda['id_telegram'], $idGrupo, $venda['bot_id']]);
-    $expiracaoAtual = $stmtM->fetchColumn();
+    $stmt_m = $pdo->prepare("SELECT data_expiracao FROM membros_grupos WHERE id_telegram = ? AND id_grupo_telegram = ? AND bot_id = ?");
+    $stmt_m->execute([$venda['id_telegram'], $id_grupo, $venda['bot_id']]);
+    $expiracao_atual = $stmt_m->fetchColumn();
 
-    if ($expiracaoAtual && strtotime($expiracaoAtual) > time()) {
-        $dataExpiracao = date('Y-m-d H:i:s', strtotime($expiracaoAtual) + ($tempoMinutos * 60));
+    if ($expiracao_atual && strtotime($expiracao_atual) > time()) {
+        $data_expiracao = date('Y-m-d H:i:s', strtotime($expiracao_atual) + ($tempo_minutos * 60));
     } else {
-        $dataExpiracao = date('Y-m-d H:i:s', time() + ($tempoMinutos * 60));
+        $data_expiracao = date('Y-m-d H:i:s', time() + ($tempo_minutos * 60));
     }
 
     // Revoga convite anterior para impedir reuso do mesmo link entre pessoas.
-    $stmtLinkAnterior = $pdo->prepare("SELECT invite_link FROM membros_grupos WHERE id_telegram = ? AND id_grupo_telegram = ? AND bot_id = ? LIMIT 1");
-    $stmtLinkAnterior->execute([$venda['id_telegram'], $idGrupo, $venda['bot_id']]);
-    $linkAnterior = (string)($stmtLinkAnterior->fetchColumn() ?: '');
-    if ($linkAnterior !== '') {
-        requisicao_telegram_infopago($tokenBot, 'revokeChatInviteLink', [
-            'chat_id' => $idGrupo,
-            'invite_link' => $linkAnterior
+    $stmt_link_anterior = $pdo->prepare("SELECT invite_link FROM membros_grupos WHERE id_telegram = ? AND id_grupo_telegram = ? AND bot_id = ? LIMIT 1");
+    $stmt_link_anterior->execute([$venda['id_telegram'], $id_grupo, $venda['bot_id']]);
+    $link_anterior = (string)($stmt_link_anterior->fetchColumn() ?: '');
+    if ($link_anterior !== '') {
+        requisicaoTelegramInfopago($token_bot, 'revokeChatInviteLink', [
+            'chat_id' => $id_grupo,
+            'invite_link' => $link_anterior
         ]);
     }
 
-    $invite = requisicao_telegram_infopago($tokenBot, 'createChatInviteLink', [
-        'chat_id'      => $idGrupo,
+    $invite = requisicaoTelegramInfopago($token_bot, 'createChatInviteLink', [
+        'chat_id'      => $id_grupo,
         'member_limit' => 1,
         'expire_date' => time() + (15 * 60),
         'name'         => 'Venda #' . $venda['id']
@@ -165,17 +165,15 @@ function liberarAcessoGrupoInfopago(array $venda, string $tokenBot): ?string {
             em_renovacao  = 0
     ")->execute([
         $venda['id_telegram'],
-        $idGrupo,
+        $id_grupo,
         $venda['bot_id'],
         $venda['id'],
-        $dataExpiracao,
+        $data_expiracao,
         $link
     ]);
 
     return $link;
 }
-
-// ── Entrada ──────────────────────────────────────────────────────────────────
 
 $entrada = file_get_contents('php://input');
 
@@ -200,78 +198,78 @@ if (!is_array($notificacao)) {
 // [A CONFIRMAR] formato exato ainda não testado com uma cobrança recorrente real.
 if (isset($notificacao['cobsr'])) {
     foreach ($notificacao['cobsr'] as $cobsr) {
-        $idRec  = $cobsr['idRec'] ?? '';
+        $id_rec  = $cobsr['idRec'] ?? '';
         $status = strtoupper(trim($cobsr['status'] ?? ''));
 
-        if (empty($idRec)) {
+        if (empty($id_rec)) {
             logWebhookInfopago("cobsr sem idRec. Ignorado.");
             continue;
         }
 
-        logWebhookInfopago("PIX Automático | idRec=$idRec | status=$status");
+        logWebhookInfopago("PIX Automático | idRec=$id_rec | status=$status");
 
         $stmt = $pdo->prepare("SELECT v.*, b.token, b.id_usuario FROM vendas v JOIN bots b ON v.bot_id = b.id WHERE v.id_assinatura = ? ORDER BY v.id DESC LIMIT 1");
-        $stmt->execute([$idRec]);
+        $stmt->execute([$id_rec]);
         $venda = $stmt->fetch();
 
         if (!$venda) {
-            logWebhookInfopago("Nenhuma venda encontrada para idRec=$idRec.");
+            logWebhookInfopago("Nenhuma venda encontrada para idRec=$id_rec.");
             continue;
         }
 
-        $tokenBot   = $venda['token'];
-        $idDono     = (int)$venda['id_usuario'];
-        $idTelegram = $venda['id_telegram'];
-        $idGrupo    = $venda['id_grupo_telegram'] ?? '';
+        $token_bot   = $venda['token'];
+        $id_dono     = (int)$venda['id_usuario'];
+        $id_telegram = $venda['id_telegram'];
+        $id_grupo    = $venda['id_grupo_telegram'] ?? '';
 
-        $stmtMembro = $pdo->prepare("SELECT * FROM membros_grupos WHERE id_telegram = ? AND id_grupo_telegram = ? AND bot_id = ?");
-        $stmtMembro->execute([$idTelegram, $idGrupo, $venda['bot_id']]);
-        $membro = $stmtMembro->fetch();
+        $stmt_membro = $pdo->prepare("SELECT * FROM membros_grupos WHERE id_telegram = ? AND id_grupo_telegram = ? AND bot_id = ?");
+        $stmt_membro->execute([$id_telegram, $id_grupo, $venda['bot_id']]);
+        $membro = $stmt_membro->fetch();
 
         if ($status === 'ATIVA') {
-            $txidRenovacao = (string)($cobsr['txid'] ?? $idRec);
+            $txid_renovacao = (string)($cobsr['txid'] ?? $id_rec);
 
-            if (!empty($venda['ultimo_txid_renovacao']) && $venda['ultimo_txid_renovacao'] === $txidRenovacao) {
-                logWebhookInfopago("Renovação idRec=$idRec txid=$txidRenovacao já processada. Ignorando duplicata (reenvio de webhook).");
+            if (!empty($venda['ultimo_txid_renovacao']) && $venda['ultimo_txid_renovacao'] === $txid_renovacao) {
+                logWebhookInfopago("Renovação idRec=$id_rec txid=$txid_renovacao já processada. Ignorando duplicata (reenvio de webhook).");
                 continue;
             }
 
-            logWebhookInfopago("Cobrança recorrente PAGA para idRec=$idRec. Renovando acesso do usuário $idTelegram.");
+            logWebhookInfopago("Cobrança recorrente PAGA para idRec=$id_rec. Renovando acesso do usuário $id_telegram.");
 
-            $pdo->prepare("UPDATE vendas SET ultimo_txid_renovacao = ? WHERE id = ?")->execute([$txidRenovacao, $venda['id']]);
+            $pdo->prepare("UPDATE vendas SET ultimo_txid_renovacao = ? WHERE id = ?")->execute([$txid_renovacao, $venda['id']]);
 
-            $link = liberarAcessoGrupoInfopago($venda, $tokenBot);
-            dispararSplitInfopago($idDono, (float)$venda['valor'], $txidRenovacao);
+            $link = liberarAcessoGrupoInfopago($venda, $token_bot);
+            dispararSplitInfopago($id_dono, (float)$venda['valor'], $txid_renovacao);
 
-            $msgRenovacao = "✅ *Assinatura Renovada!*\n\nSua assinatura foi renovada automaticamente com sucesso.";
+            $msg_renovacao = "✅ *Assinatura Renovada!*\n\nSua assinatura foi renovada automaticamente com sucesso.";
             if ($link) {
-                $msgRenovacao .= "\n\nCaso tenha sido removido do grupo, use o link abaixo para voltar:\n$link";
+                $msg_renovacao .= "\n\nCaso tenha sido removido do grupo, use o link abaixo para voltar:\n$link";
             }
-            requisicao_telegram_infopago($tokenBot, 'sendMessage', [
-                'chat_id' => $idTelegram,
-                'text' => $msgRenovacao,
+            requisicaoTelegramInfopago($token_bot, 'sendMessage', [
+                'chat_id' => $id_telegram,
+                'text' => $msg_renovacao,
                 'parse_mode' => 'Markdown'
             ]);
 
-            registrarAtividade($idDono, 'venda', 'Renovação Automática', "PIX Automático InfoPago renovado para usuário $idTelegram (idRec=$idRec).");
+            registrarAtividade($id_dono, 'venda', 'Renovação Automática', "PIX Automático InfoPago renovado para usuário $id_telegram (idRec=$id_rec).");
 
         } elseif (in_array($status, ['REJEITADA', 'CANCELADA', 'EXPIRADA'])) {
-            logWebhookInfopago("Cobrança recorrente FALHOU ($status) para idRec=$idRec. Removendo usuário $idTelegram.");
+            logWebhookInfopago("Cobrança recorrente FALHOU ($status) para idRec=$id_rec. Removendo usuário $id_telegram.");
 
             if ($membro && $membro['status'] === 'ativo') {
-                requisicao_telegram_infopago($tokenBot, 'banChatMember', ['chat_id' => $idGrupo, 'user_id' => $idTelegram, 'until_date' => time() + 35]);
-                requisicao_telegram_infopago($tokenBot, 'unbanChatMember', ['chat_id' => $idGrupo, 'user_id' => $idTelegram, 'only_if_banned' => true]);
+                requisicaoTelegramInfopago($token_bot, 'banChatMember', ['chat_id' => $id_grupo, 'user_id' => $id_telegram, 'until_date' => time() + 35]);
+                requisicaoTelegramInfopago($token_bot, 'unbanChatMember', ['chat_id' => $id_grupo, 'user_id' => $id_telegram, 'only_if_banned' => true]);
                 $pdo->prepare("UPDATE membros_grupos SET status = 'expirado' WHERE id = ?")->execute([$membro['id']]);
-                requisicao_telegram_infopago($tokenBot, 'sendMessage', [
-                    'chat_id' => $idTelegram,
+                requisicaoTelegramInfopago($token_bot, 'sendMessage', [
+                    'chat_id' => $id_telegram,
                     'text' => "⚠️ *Seu acesso ao grupo foi encerrado.*\n\nNão conseguimos processar o pagamento da sua assinatura. Para voltar, inicie uma nova assinatura no bot.",
                     'parse_mode' => 'Markdown'
                 ]);
             }
 
-            registrarAtividade($idDono, 'sistema', 'Remoção por Falha', "PIX Automático InfoPago falhou ($status) para usuário $idTelegram (idRec=$idRec).");
+            registrarAtividade($id_dono, 'sistema', 'Remoção por Falha', "PIX Automático InfoPago falhou ($status) para usuário $id_telegram (idRec=$id_rec).");
         } else {
-            logWebhookInfopago("Status '$status' para idRec=$idRec não requer ação imediata.");
+            logWebhookInfopago("Status '$status' para idRec=$id_rec não requer ação imediata.");
         }
     }
 
@@ -289,14 +287,14 @@ if (!isset($notificacao['pix'])) {
 foreach ($notificacao['pix'] as $pix) {
     $txid       = $pix['txid'] ?? '';
     $valor      = $pix['valor'] ?? 0;
-    $endToEndId = $pix['endToEndId'] ?? '';
+    $end_to_end_id = $pix['endToEndId'] ?? '';
 
     if (empty($txid)) {
         logWebhookInfopago("PIX sem txid. Ignorado.");
         continue;
     }
 
-    logWebhookInfopago("Processando PIX TXID=$txid | Valor=$valor | endToEndId=$endToEndId");
+    logWebhookInfopago("Processando PIX TXID=$txid | Valor=$valor | endToEndId=$end_to_end_id");
 
     $stmt = $pdo->prepare("SELECT * FROM vendas WHERE transacao_id = ?");
     $stmt->execute([$txid]);
@@ -312,7 +310,6 @@ foreach ($notificacao['pix'] as $pix) {
         continue;
     }
 
-    // Marca como pago
     try {
         $pdo->beginTransaction();
         $pdo->prepare("UPDATE vendas SET status = 'pago', pago_em = NOW() WHERE id = ?")->execute([$venda['id']]);
@@ -324,34 +321,34 @@ foreach ($notificacao['pix'] as $pix) {
         continue;
     }
 
-    $stmtBot = $pdo->prepare("SELECT token, id_usuario FROM bots WHERE id = ?");
-    $stmtBot->execute([$venda['bot_id']]);
-    $botData  = $stmtBot->fetch();
-    $tokenBot = $botData['token'] ?? null;
-    $idDono   = (int)($botData['id_usuario'] ?? 0);
+    $stmt_bot = $pdo->prepare("SELECT token, id_usuario FROM bots WHERE id = ?");
+    $stmt_bot->execute([$venda['bot_id']]);
+    $bot_data  = $stmt_bot->fetch();
+    $token_bot = $bot_data['token'] ?? null;
+    $id_dono   = (int)($bot_data['id_usuario'] ?? 0);
 
-    if ($idDono) {
-        $valorFmt = number_format((float)$venda['valor'], 2, ',', '.');
-        registrarAtividade($idDono, 'venda', 'Venda Aprovada', "PIX InfoPago R$ {$valorFmt} pago (TXID=$txid).");
+    if ($id_dono) {
+        $valor_fmt = number_format((float)$venda['valor'], 2, ',', '.');
+        registrarAtividade($id_dono, 'venda', 'Venda Aprovada', "PIX InfoPago R$ {$valor_fmt} pago (TXID=$txid).");
 
-        dispararSplitInfopago($idDono, (float)$venda['valor'], $txid);
+        dispararSplitInfopago($id_dono, (float)$venda['valor'], $txid);
 
         require_once __DIR__ . '/funcoes/traqueamento.php';
-        $nomeLead = '';
+        $nome_lead = '';
         try {
             $r = $pdo->prepare("SELECT nome FROM leads WHERE id_telegram = ? AND bot_id = ?");
             $r->execute([$venda['id_telegram'], $venda['bot_id']]);
-            $nomeLead = $r->fetchColumn() ?: '';
+            $nome_lead = $r->fetchColumn() ?: '';
         } catch (Exception $e) {}
 
-        enviarEventosTraqueamento($idDono, 'compra', [
+        enviarEventosTraqueamento($id_dono, 'compra', [
             'valor'        => (float)$venda['valor'],
             'transacao_id' => $txid,
             'event_id'     => $txid
-        ], ['id_telegram' => $venda['id_telegram'], 'first_name' => $nomeLead]);
+        ], ['id_telegram' => $venda['id_telegram'], 'first_name' => $nome_lead]);
     }
 
-    if (!$tokenBot) {
+    if (!$token_bot) {
         logWebhookInfopago("Token do bot não encontrado para venda #{$venda['id']}.");
         continue;
     }
@@ -359,17 +356,17 @@ foreach ($notificacao['pix'] as $pix) {
     $msg = "✅ <b>Pagamento Confirmado!</b>\n\nObrigado pela sua compra.";
 
     if (!empty($venda['id_grupo_telegram'])) {
-        $link = liberarAcessoGrupoInfopago($venda, $tokenBot);
-        $tempoMinutos = (int)($venda['tempo_acesso_minutos'] ?? ($venda['dias_acesso'] * 1440));
+        $link = liberarAcessoGrupoInfopago($venda, $token_bot);
+        $tempo_minutos = (int)($venda['tempo_acesso_minutos'] ?? ($venda['dias_acesso'] * 1440));
 
         if ($link) {
             $msg .= "\n\n🚀 <b>Acesso Liberado!</b>\nClique no link abaixo para entrar no grupo exclusivo:\n\n$link\n\n⚠️ Este link é válido apenas para você.";
-            if ($tempoMinutos < 60) {
-                $msg .= "\n⏳ <b>Seu acesso expira em {$tempoMinutos} minutos.</b>";
-            } elseif ($tempoMinutos < 1440) {
-                $msg .= "\n⏳ <b>Seu acesso expira em " . floor($tempoMinutos / 60) . " horas.</b>";
+            if ($tempo_minutos < 60) {
+                $msg .= "\n⏳ <b>Seu acesso expira em {$tempo_minutos} minutos.</b>";
+            } elseif ($tempo_minutos < 1440) {
+                $msg .= "\n⏳ <b>Seu acesso expira em " . floor($tempo_minutos / 60) . " horas.</b>";
             } else {
-                $msg .= "\n⏳ <b>Seu acesso expira em " . floor($tempoMinutos / 1440) . " dias.</b>";
+                $msg .= "\n⏳ <b>Seu acesso expira em " . floor($tempo_minutos / 1440) . " dias.</b>";
             }
         } else {
             $msg .= "\n\n⚠️ Não foi possível gerar o link do grupo automaticamente. O administrador entrará em contato.";
@@ -377,15 +374,15 @@ foreach ($notificacao['pix'] as $pix) {
         }
     }
 
-    $respMsg = requisicao_telegram_infopago($tokenBot, 'sendMessage', [
+    $resp_msg = requisicaoTelegramInfopago($token_bot, 'sendMessage', [
         'chat_id'    => $venda['id_telegram'],
         'text'       => $msg,
         'parse_mode' => 'HTML'
     ]);
-    logWebhookInfopago("Mensagem enviada: " . json_encode($respMsg));
+    logWebhookInfopago("Mensagem enviada: " . json_encode($resp_msg));
 
-    if (!empty($venda['id_operador_fluxo']) && $idDono) {
-        executar_fluxo_infopago($tokenBot, (string)$venda['id_telegram'], (int)$venda['bot_id'], $venda['id_operador_fluxo'], $idDono, 'output_pago');
+    if (!empty($venda['id_operador_fluxo']) && $id_dono) {
+        executarFluxoInfopago($token_bot, (string)$venda['id_telegram'], (int)$venda['bot_id'], $venda['id_operador_fluxo'], $id_dono, 'output_pago');
     }
 }
 

@@ -1,13 +1,12 @@
 (function ($) {
-    const urlApi = 'api.php';
-    let botAtual = null;
+    const url_api = 'api.php';
+    let bot_atual = null;
 
     function exibirAviso(message, type = 'sucesso') {
         const $toast = $('#toast');
         $toast.removeClass('sucesso erro visivel').addClass(type).text(message);
         requestAnimationFrame(() => $toast.addClass('visivel'));
         clearTimeout(window.__toastTimeout);
-        // Se for erro, deixa mais tempo (6s), se sucesso 3s
         const tempo = type === 'erro' ? 6000 : 3000;
         window.__toastTimeout = setTimeout(() => $toast.removeClass('visivel'), tempo);
     }
@@ -21,9 +20,8 @@
             .replace(/'/g, '&#039;');
     }
 
-    function atualizarCardStatus(botInfo, isOnline) {
-        // Se não tiver botInfo, reseta para estado inicial
-        if (!botInfo) {
+    function atualizarCardStatus(bot_info, is_online) {
+        if (!bot_info) {
             $('#status-avatar-container').html('<div class="bot-avatar-placeholder">?</div>');
             $('#status-nome').text('Novo Bot');
             $('#status-username').text('@...');
@@ -31,21 +29,18 @@
             return;
         }
 
-        // Avatar
-        if (botInfo.caminho_foto) {
-             $('#status-avatar-container').html(`<img src="${escaparHtml(botInfo.caminho_foto)}?t=${Date.now()}" class="bot-avatar" alt="Bot Avatar">`);
+        if (bot_info.caminho_foto) {
+             $('#status-avatar-container').html(`<img src="${escaparHtml(bot_info.caminho_foto)}?t=${Date.now()}" class="bot-avatar" alt="Bot Avatar">`);
         } else {
-             const inicial = (botInfo.first_name || 'B').charAt(0).toUpperCase();
+             const inicial = (bot_info.first_name || 'B').charAt(0).toUpperCase();
              $('#status-avatar-container').html(`<div class="bot-avatar-placeholder">${inicial}</div>`);
         }
 
-        // Textos
-        $('#status-nome').text(botInfo.first_name || 'Sem nome');
-        $('#status-username').text(botInfo.username ? `@${botInfo.username}` : 'Sem username');
+        $('#status-nome').text(bot_info.first_name || 'Sem nome');
+        $('#status-username').text(bot_info.username ? `@${bot_info.username}` : 'Sem username');
 
-        // Badge
         const $badge = $('#status-badge');
-        if (isOnline) {
+        if (is_online) {
             $badge.removeClass('offline').addClass('online').html('<span class="status-dot"></span> <span class="status-text">Online</span>');
         } else {
             $badge.removeClass('online').addClass('offline').html('<span class="status-dot"></span> <span class="status-text">Offline</span>');
@@ -55,31 +50,27 @@
     function preencherFormularioBot(bot) {
         if (!bot) return;
         
-        botAtual = bot;
-        
-        // Logs para debug
+        bot_atual = bot;
+
         console.log('Preenchendo bot:', bot);
-        
-        // Garante que os valores existam
+
         $('#id-bot').val(bot.id || '');
         $('#token').val(bot.token || '');
         
         // O select de fluxos pode não estar carregado ainda
-        const $selectFluxo = $('#id-fluxo-conectado');
-        if ($selectFluxo.find('option').length <= 1) {
-            // Se ainda não carregou, agenda o preenchimento
+        const $select_fluxo = $('#id-fluxo-conectado');
+        if ($select_fluxo.find('option').length <= 1) {
             setTimeout(() => {
-                $selectFluxo.val(bot.id_fluxo_conectado || '');
+                $select_fluxo.val(bot.id_fluxo_conectado || '');
             }, 1000);
         } else {
-            $selectFluxo.val(bot.id_fluxo_conectado || '');
+            $select_fluxo.val(bot.id_fluxo_conectado || '');
         }
 
         $('#name').val(bot.primeiro_nome || '');
         $('#description').val(bot.descricao || '');
         $('#descricao-curta').val(bot.descricao_curta || '');
 
-        // Atualiza card lateral
         atualizarCardStatus({
             first_name: bot.primeiro_nome,
             username: bot.nome_usuario,
@@ -88,7 +79,7 @@
     }
 
     function limparFormularioBot() {
-        botAtual = null;
+        bot_atual = null;
         $('#id-bot').val('');
         $('#token').val('');
         $('#name').val('');
@@ -99,29 +90,28 @@
         
         atualizarCardStatus(null, false);
 
-        // Atualiza a URL
         if (window.history.pushState) {
-            const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
-            window.history.pushState({path:newUrl},'',newUrl);
+            const new_url = window.location.protocol + "//" + window.location.host + window.location.pathname;
+            window.history.pushState({path:new_url},'',new_url);
         }
     }
 
     function carregarFluxos() {
-        return $.getJSON(urlApi + '?action=listar_fluxos')
+        return $.getJSON(url_api + '?action=listar_fluxos')
             .done(function (response) {
                 if (!response.sucesso) return;
                 const $select = $('#id-fluxo-conectado');
-                const currentValue = $select.val();
+                const current_value = $select.val();
                 $select.html('<option value="">Selecione um fluxo...</option>');
                 (response.fluxos || []).forEach(function (flow) {
                     $select.append(`<option value="${escaparHtml(flow.id)}">${escaparHtml(flow.nome)}</option>`);
                 });
-                if (currentValue) $select.val(currentValue);
+                if (current_value) $select.val(current_value);
             });
     }
 
     function carregarBotPeloId(id) {
-        $.getJSON(urlApi + '?action=obter_bot&id=' + encodeURIComponent(id))
+        $.getJSON(url_api + '?action=obter_bot&id=' + encodeURIComponent(id))
             .done(function (response) {
                 if (!response.sucesso) {
                     exibirAviso(response.mensagem || 'Bot não encontrado.', 'erro');
@@ -140,14 +130,13 @@
             exibirAviso('Informe o token do bot.', 'erro');
             return;
         }
-        
-        // Estado de loading visual
+
         const $btn = $('#btn-testar-token');
-        const originalText = $btn.text();
+        const original_text = $btn.text();
         $btn.text('Testando...').prop('disabled', true);
 
         $.ajax({
-            url: urlApi + '?action=testar_bot',
+            url: url_api + '?action=testar_bot',
             method: 'POST',
             contentType: 'application/json',
             data: JSON.stringify({ token: token })
@@ -158,10 +147,8 @@
                 return;
             }
             const info = response.info_bot || {};
-            // Preenche campos de perfil se estiverem vazios
             if (!$('#name').val()) $('#name').val(info.first_name || '');
-            
-            // Atualiza Card Lateral
+
             atualizarCardStatus({
                 first_name: info.first_name,
                 username: info.username,
@@ -172,7 +159,7 @@
         }).fail(function () {
             exibirAviso('Erro ao testar conexão.', 'erro');
         }).always(function() {
-            $btn.text(originalText).prop('disabled', false);
+            $btn.text(original_text).prop('disabled', false);
         });
     }
 
@@ -189,11 +176,11 @@
         }
 
         const $btn = $('#btn-salvar-bot');
-        const originalText = $btn.text();
+        const original_text = $btn.text();
         $btn.text('Salvando...').prop('disabled', true);
 
         $.ajax({
-            url: urlApi + '?action=salvar_bot',
+            url: url_api + '?action=salvar_bot',
             method: 'POST',
             contentType: 'application/json',
             data: JSON.stringify(dados)
@@ -204,45 +191,44 @@
             }
             preencherFormularioBot(response.bot);
             exibirAviso('Configurações salvas com sucesso.');
-            
-            // Atualiza URL se for novo
+
             if (!dados.id && response.bot && response.bot.id) {
-                const newUrl = window.location.pathname + '?id=' + response.bot.id;
-                window.history.pushState({path:newUrl},'',newUrl);
+                const new_url = window.location.pathname + '?id=' + response.bot.id;
+                window.history.pushState({path:new_url},'',new_url);
             }
         }).fail(function () {
             exibirAviso('Erro ao salvar bot.', 'erro');
         }).always(function() {
-            $btn.text(originalText).prop('disabled', false);
+            $btn.text(original_text).prop('disabled', false);
         });
     }
 
     function atualizarPerfilTelegram(event) {
         event.preventDefault();
-        
+
         const $form = $(this);
         const $btn = $form.find('button[type="submit"]');
-        const originalText = $btn.text();
+        const original_text = $btn.text();
         $btn.text('Atualizando...').prop('disabled', true);
 
-        const formData = new FormData();
-        formData.append('id', $('#id-bot').val());
-        formData.append('token', $('#token').val().trim());
-        formData.append('nome', $('#name').val().trim());
-        formData.append('descricao', $('#description').val().trim());
-        formData.append('descricao_curta', $('#descricao-curta').val().trim());
+        const form_data = new FormData();
+        form_data.append('id', $('#id-bot').val());
+        form_data.append('token', $('#token').val().trim());
+        form_data.append('nome', $('#name').val().trim());
+        form_data.append('descricao', $('#description').val().trim());
+        form_data.append('descricao_curta', $('#descricao-curta').val().trim());
         // Enviamos o fluxo tbm pra garantir consistência, mas o foco é perfil
-        formData.append('id_fluxo_conectado', $('#id-fluxo-conectado').val());
+        form_data.append('id_fluxo_conectado', $('#id-fluxo-conectado').val());
 
-        const photoInput = $('#photo')[0];
-        if (photoInput.files && photoInput.files[0]) {
-            formData.append('photo', photoInput.files[0]);
+        const photo_input = $('#photo')[0];
+        if (photo_input.files && photo_input.files[0]) {
+            form_data.append('photo', photo_input.files[0]);
         }
 
         $.ajax({
-            url: urlApi + '?action=atualizar_perfil_bot',
+            url: url_api + '?action=atualizar_perfil_bot',
             method: 'POST',
-            data: formData,
+            data: form_data,
             processData: false,
             contentType: false
         }).done(function (response) {
@@ -259,28 +245,26 @@
                 exibirAviso(response.mensagem || 'Erro ao atualizar perfil.', 'erro');
                 return;
             }
-            $('#photo').val(''); // Limpa input file
+            $('#photo').val('');
             exibirAviso(response.mensagem || 'Perfil atualizado no Telegram!');
         }).fail(function () {
             exibirAviso('Erro de conexão ao atualizar perfil.', 'erro');
         }).always(function() {
-            $btn.text(originalText).prop('disabled', false);
+            $btn.text(original_text).prop('disabled', false);
         });
     }
 
-    // Listeners
     $('#btn-testar-token').on('click', testarConexaoBot);
     $('#btn-salvar-bot').on('click', salvarConfiguracoes);
 
     $('#formulario-perfil').on('submit', atualizarPerfilTelegram);
 
-    // Tools
     $('#btn-info-webhook').on('click', function () {
         const token = $('#token').val().trim();
         if (!token) return exibirAviso('Token necessário.', 'erro');
 
         $.ajax({
-            url: urlApi + '?action=obter_info_webhook',
+            url: url_api + '?action=obter_info_webhook',
             method: 'POST',
             contentType: 'application/json',
             data: JSON.stringify({ token: token })
@@ -300,20 +284,20 @@
 
     $('#btn-reiniciar-webhook').on('click', function () {
         const token = $('#token').val().trim();
-        const idBot = $('#id-bot').val();
-        
+        const id_bot = $('#id-bot').val();
+
         if (!token) return exibirAviso('Token necessário.', 'erro');
         if (!confirm('Isso irá limpar todas as mensagens pendentes e reiniciar a conexão. Use se o bot estiver travado.\n\nDeseja continuar?')) return;
 
         const $btn = $(this);
-        const originalText = $btn.html();
+        const original_text = $btn.html();
         $btn.prop('disabled', true).text('Processando...');
 
         $.ajax({
-            url: urlApi + '?action=reiniciar_webhook',
+            url: url_api + '?action=reiniciar_webhook',
             method: 'POST',
             contentType: 'application/json',
-            data: JSON.stringify({ token: token, id: idBot })
+            data: JSON.stringify({ token: token, id: id_bot })
         }).done(function (response) {
             if (response.sucesso) {
                 exibirAviso(response.mensagem);
@@ -323,19 +307,17 @@
         }).fail(function () {
             exibirAviso('Erro de conexão.', 'erro');
         }).always(function() {
-            $btn.prop('disabled', false).html(originalText);
+            $btn.prop('disabled', false).html(original_text);
         });
     });
 
-    // Init
-    // Verifica parâmetro ID na URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const botId = urlParams.get('id');
+    const url_params = new URLSearchParams(window.location.search);
+    const bot_id = url_params.get('id');
 
     // Carrega fluxos primeiro e só depois carrega o bot (se houver ID)
     carregarFluxos().always(function() {
-        if (botId) {
-            carregarBotPeloId(botId);
+        if (bot_id) {
+            carregarBotPeloId(bot_id);
         } else {
             limparFormularioBot();
         }

@@ -5,82 +5,77 @@ require_once __DIR__ . '/funcoes/paginador.php';
 require_once __DIR__ . '/conexao.php';
 verificarAdmin();
 
-// Filtro de Data
 $periodo = $_GET['periodo'] ?? '7dias';
-$whereDataVendas = ''; // Para vendas com alias 'v'
-$whereBotVendas = '';
-$botIdSelecionado = 'todos';
+$where_data_vendas = '';
+$where_bot_vendas = '';
+$bot_id_selecionado = 'todos';
 
-$stmtBots = $pdo->prepare("
+$stmt_bots = $pdo->prepare("
     SELECT 
         id,
         COALESCE(NULLIF(primeiro_nome, ''), NULLIF(nome_usuario, ''), CONCAT('Bot #', id)) AS nome
     FROM bots
     ORDER BY nome ASC
 ");
-$stmtBots->execute();
-$botsFiltro = $stmtBots->fetchAll(PDO::FETCH_ASSOC);
-$mostrarFiltroBot = count($botsFiltro) > 1;
-$idsBotsPermitidos = array_map(static function (array $bot): int {
+$stmt_bots->execute();
+$bots_filtro = $stmt_bots->fetchAll(PDO::FETCH_ASSOC);
+$mostrar_filtro_bot = count($bots_filtro) > 1;
+$ids_bots_permitidos = array_map(static function (array $bot): int {
     return (int) $bot['id'];
-}, $botsFiltro);
+}, $bots_filtro);
 
 if (isset($_GET['bot_id']) && $_GET['bot_id'] !== 'todos') {
-    $botIdInformado = (int) $_GET['bot_id'];
-    if ($botIdInformado > 0 && in_array($botIdInformado, $idsBotsPermitidos, true)) {
-        $botIdSelecionado = (string) $botIdInformado;
-        $whereBotVendas = " AND v.bot_id = $botIdInformado";
+    $bot_id_informado = (int) $_GET['bot_id'];
+    if ($bot_id_informado > 0 && in_array($bot_id_informado, $ids_bots_permitidos, true)) {
+        $bot_id_selecionado = (string) $bot_id_informado;
+        $where_bot_vendas = " AND v.bot_id = $bot_id_informado";
     }
 }
 
-$dataInicio = $_GET['data_inicio'] ?? '';
-$dataFim = $_GET['data_fim'] ?? '';
-$dataInicioObj = DateTime::createFromFormat('Y-m-d', $dataInicio);
-$dataFimObj = DateTime::createFromFormat('Y-m-d', $dataFim);
-$datasValidas = $dataInicioObj !== false
-    && $dataFimObj !== false
-    && $dataInicioObj->format('Y-m-d') === $dataInicio
-    && $dataFimObj->format('Y-m-d') === $dataFim;
+$data_inicio = $_GET['data_inicio'] ?? '';
+$data_fim = $_GET['data_fim'] ?? '';
+$data_inicio_obj = DateTime::createFromFormat('Y-m-d', $data_inicio);
+$data_fim_obj = DateTime::createFromFormat('Y-m-d', $data_fim);
+$datas_validas = $data_inicio_obj !== false
+    && $data_fim_obj !== false
+    && $data_inicio_obj->format('Y-m-d') === $data_inicio
+    && $data_fim_obj->format('Y-m-d') === $data_fim;
 
-if ($periodo === 'personalizado' && $datasValidas) {
-    if ($dataInicio > $dataFim) {
-        $tmp = $dataInicio;
-        $dataInicio = $dataFim;
-        $dataFim = $tmp;
+if ($periodo === 'personalizado' && $datas_validas) {
+    if ($data_inicio > $data_fim) {
+        $tmp = $data_inicio;
+        $data_inicio = $data_fim;
+        $data_fim = $tmp;
     }
-    $whereDataVendas = "AND DATE(v.criado_em) BETWEEN '$dataInicio' AND '$dataFim'";
+    $where_data_vendas = "AND DATE(v.criado_em) BETWEEN '$data_inicio' AND '$data_fim'";
 }
 
 switch ($periodo) {
     case 'hoje':
-        $whereDataVendas = "AND DATE(v.criado_em) = CURDATE()";
+        $where_data_vendas = "AND DATE(v.criado_em) = CURDATE()";
         break;
     case 'ontem':
-        $whereDataVendas = "AND DATE(v.criado_em) = CURDATE() - INTERVAL 1 DAY";
+        $where_data_vendas = "AND DATE(v.criado_em) = CURDATE() - INTERVAL 1 DAY";
         break;
     case '7dias':
-        $whereDataVendas = "AND v.criado_em >= CURDATE() - INTERVAL 7 DAY";
+        $where_data_vendas = "AND v.criado_em >= CURDATE() - INTERVAL 7 DAY";
         break;
     case '30dias':
-        $whereDataVendas = "AND v.criado_em >= CURDATE() - INTERVAL 30 DAY";
+        $where_data_vendas = "AND v.criado_em >= CURDATE() - INTERVAL 30 DAY";
         break;
     case 'total':
-        $whereDataVendas = "";
+        $where_data_vendas = "";
         break;
     case 'personalizado':
-        // Manter como personalizado mesmo se as datas não forem válidas 
+        // Manter como personalizado mesmo se as datas não forem válidas
         // para que o usuário consiga preencher os inputs de data
-        if ($datasValidas) {
-            // Se as datas são válidas, usar o WHERE com intervalo
-            // (já foi definido acima)
+        if ($datas_validas) {
         } else {
-            // Se as datas não forem válidas, não aplicar WHERE de data
-            // deixando os inputs habilitados para o usuário preencher
-            $whereDataVendas = "";
+            $where_data_vendas = "";
         }
         break;
     default:
-        $whereDataVendas = "AND v.criado_em >= CURDATE() - INTERVAL 7 DAY";
+        $where_data_vendas = "AND v.criado_em >= CURDATE() - INTERVAL 7 DAY";
         $periodo = '7dias';
         break;
 }
@@ -103,148 +98,133 @@ function montarUrlFiltroAdminDashboard(array $overrides = []): string
     return '?' . http_build_query($params);
 }
 
-// Estatísticas Globais
-// 1. Total Transacionado (Volume Bruto)
-$stmt = $pdo->prepare("SELECT SUM(v.valor) FROM vendas v WHERE v.status = 'pago' $whereDataVendas $whereBotVendas");
+$stmt = $pdo->prepare("SELECT SUM(v.valor) FROM vendas v WHERE v.status = 'pago' $where_data_vendas $where_bot_vendas");
 $stmt->execute();
-$totalTransacionado = (float) $stmt->fetchColumn();
+$total_transacionado = (float) $stmt->fetchColumn();
 
-// 2. Receita Admin (Comissões)
-$stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' $whereDataVendas $whereBotVendas");
+$stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' $where_data_vendas $where_bot_vendas");
 $stmt->execute();
-$receitaAdmin = (float) $stmt->fetchColumn();
+$receita_admin = (float) $stmt->fetchColumn();
 
-// 2.1. Quantidade de Vendas
-$stmt = $pdo->prepare("SELECT COUNT(*) FROM vendas v WHERE v.status = 'pago' $whereDataVendas $whereBotVendas");
+$stmt = $pdo->prepare("SELECT COUNT(*) FROM vendas v WHERE v.status = 'pago' $where_data_vendas $where_bot_vendas");
 $stmt->execute();
-$totalVendas = (int) $stmt->fetchColumn();
+$total_vendas = (int) $stmt->fetchColumn();
 
-// 3. Total de Usuários
 $stmt = $pdo->query("SELECT COUNT(*) FROM usuarios WHERE perfil != 'admin'");
-$totalUsuarios = (int) $stmt->fetchColumn();
+$total_usuarios = (int) $stmt->fetchColumn();
 
-// 4. Total de Bots Ativos
 $stmt = $pdo->query("SELECT COUNT(*) FROM bots");
-$totalBots = (int) $stmt->fetchColumn();
+$total_bots = (int) $stmt->fetchColumn();
 
-// 5. Gráfico de Receita Admin (Dinâmico baseado no filtro)
-$graficoDados = [];
-$graficoLabels = [];
-$textoGrafico = "";
+$grafico_dados = [];
+$grafico_labels = [];
+$texto_grafico = "";
 
 if ($periodo == 'hoje') {
-    $textoGrafico = "HOJE (POR HORA)";
+    $texto_grafico = "HOJE (POR HORA)";
     for ($i = 0; $i <= date('H'); $i++) {
         $hora = sprintf('%02d:00', $i);
-        $graficoLabels[] = $hora;
+        $grafico_labels[] = $hora;
         
-        $stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = CURDATE() AND HOUR(v.criado_em) = ? $whereBotVendas");
+        $stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = CURDATE() AND HOUR(v.criado_em) = ? $where_bot_vendas");
         $stmt->execute([$i]);
-        $graficoDados[] = (float) $stmt->fetchColumn();
+        $grafico_dados[] = (float) $stmt->fetchColumn();
     }
 } elseif ($periodo == 'ontem') {
-    $textoGrafico = "ONTEM (POR HORA)";
+    $texto_grafico = "ONTEM (POR HORA)";
     for ($i = 0; $i <= 23; $i++) {
         $hora = sprintf('%02d:00', $i);
-        $graficoLabels[] = $hora;
+        $grafico_labels[] = $hora;
         
-        $stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = CURDATE() - INTERVAL 1 DAY AND HOUR(v.criado_em) = ? $whereBotVendas");
+        $stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = CURDATE() - INTERVAL 1 DAY AND HOUR(v.criado_em) = ? $where_bot_vendas");
         $stmt->execute([$i]);
-        $graficoDados[] = (float) $stmt->fetchColumn();
+        $grafico_dados[] = (float) $stmt->fetchColumn();
     }
 } elseif ($periodo == '30dias') {
-    $textoGrafico = "ÚLTIMOS 30 DIAS";
+    $texto_grafico = "ÚLTIMOS 30 DIAS";
     for ($i = 29; $i >= 0; $i--) {
         $data = date('Y-m-d', strtotime("-$i days"));
-        $graficoLabels[] = date('d/m', strtotime("-$i days"));
+        $grafico_labels[] = date('d/m', strtotime("-$i days"));
 
-        $stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = ? $whereBotVendas");
+        $stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = ? $where_bot_vendas");
         $stmt->execute([$data]);
-        $graficoDados[] = (float) $stmt->fetchColumn();
+        $grafico_dados[] = (float) $stmt->fetchColumn();
     }
 } elseif ($periodo == 'total') {
-    $textoGrafico = "HISTÓRICO TOTAL (ÚLTIMOS 12 MESES)";
-    
-    // Preparar array com os últimos 12 meses (incluindo o atual) com valor zero
-    $mesesData = [];
+    $texto_grafico = "HISTÓRICO TOTAL (ÚLTIMOS 12 MESES)";
+
+    $meses_data = [];
     for ($i = 11; $i >= 0; $i--) {
-        $mesAno = date('Y-m', strtotime("-$i months"));
-        $mesesData[$mesAno] = 0;
+        $mes_ano = date('Y-m', strtotime("-$i months"));
+        $meses_data[$mes_ano] = 0;
     }
 
     $stmt = $pdo->prepare("
         SELECT DATE_FORMAT(v.criado_em, '%Y-%m') as mes, SUM(v.comissao_admin) as total 
         FROM vendas v 
-        WHERE v.status = 'pago' AND v.criado_em >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH) $whereBotVendas
+        WHERE v.status = 'pago' AND v.criado_em >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH) $where_bot_vendas
         GROUP BY mes 
         ORDER BY mes ASC
     ");
     $stmt->execute();
     $resultados = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Preencher os dados encontrados no array base
+
     foreach ($resultados as $row) {
-        if (isset($mesesData[$row['mes']])) {
-            $mesesData[$row['mes']] = (float) $row['total'];
+        if (isset($meses_data[$row['mes']])) {
+            $meses_data[$row['mes']] = (float) $row['total'];
         }
     }
-    
-    // Transformar o array base em labels e dados para o gráfico
-    foreach ($mesesData as $mes => $total) {
-        $dateObj = DateTime::createFromFormat('Y-m', $mes);
+
+    foreach ($meses_data as $mes => $total) {
+        $date_obj = DateTime::createFromFormat('Y-m', $mes);
+
+        $meses_pt = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+        $mes_index = (int)$date_obj->format('n') - 1;
+        $label_formatada = $meses_pt[$mes_index] . '/' . $date_obj->format('y');
         
-        // Traduzir o mês para português
-        $mesesPt = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-        $mesIndex = (int)$dateObj->format('n') - 1;
-        $labelFormatada = $mesesPt[$mesIndex] . '/' . $dateObj->format('y');
-        
-        $graficoLabels[] = $labelFormatada;
-        $graficoDados[] = $total;
+        $grafico_labels[] = $label_formatada;
+        $grafico_dados[] = $total;
     }
 } else {
-    // 7 dias (Padrão)
-    $textoGrafico = "ÚLTIMOS 7 DIAS";
+    $texto_grafico = "ÚLTIMOS 7 DIAS";
     for ($i = 6; $i >= 0; $i--) {
         $data = date('Y-m-d', strtotime("-$i days"));
-        $diaSemana = date('D', strtotime("-$i days"));
-        $diasMap = ['Sun'=>'Dom', 'Mon'=>'Seg', 'Tue'=>'Ter', 'Wed'=>'Qua', 'Thu'=>'Qui', 'Fri'=>'Sex', 'Sat'=>'Sáb'];
-        $graficoLabels[] = $diasMap[$diaSemana] ?? $diaSemana;
+        $dia_semana = date('D', strtotime("-$i days"));
+        $dias_map = ['Sun'=>'Dom', 'Mon'=>'Seg', 'Tue'=>'Ter', 'Wed'=>'Qua', 'Thu'=>'Qui', 'Fri'=>'Sex', 'Sat'=>'Sáb'];
+        $grafico_labels[] = $dias_map[$dia_semana] ?? $dia_semana;
 
-        $stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = ? $whereBotVendas");
+        $stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = ? $where_bot_vendas");
         $stmt->execute([$data]);
-        $graficoDados[] = (float) $stmt->fetchColumn();
+        $grafico_dados[] = (float) $stmt->fetchColumn();
     }
 }
 
 if ($periodo === 'personalizado') {
-    $textoGrafico = "PERÍODO PERSONALIZADO";
-    $graficoDados = [];
-    $graficoLabels = [];
-    if ($datasValidas) {
-        $dataAtual = new DateTime($dataInicio);
-        $dataFinal = new DateTime($dataFim);
-        while ($dataAtual <= $dataFinal) {
-            $dataIso = $dataAtual->format('Y-m-d');
-            $graficoLabels[] = $dataAtual->format('d/m');
-            $stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = ? $whereBotVendas");
-            $stmt->execute([$dataIso]);
-            $graficoDados[] = (float) $stmt->fetchColumn();
-            $dataAtual->modify('+1 day');
+    $texto_grafico = "PERÍODO PERSONALIZADO";
+    $grafico_dados = [];
+    $grafico_labels = [];
+    if ($datas_validas) {
+        $data_atual = new DateTime($data_inicio);
+        $data_final = new DateTime($data_fim);
+        while ($data_atual <= $data_final) {
+            $data_iso = $data_atual->format('Y-m-d');
+            $grafico_labels[] = $data_atual->format('d/m');
+            $stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = ? $where_bot_vendas");
+            $stmt->execute([$data_iso]);
+            $grafico_dados[] = (float) $stmt->fetchColumn();
+            $data_atual->modify('+1 day');
         }
     }
 }
 
-// 6. Log de Atividades Recentes (Global)
-// Admin vê tudo ou apenas logs de sistema?
-// Se o usuário pediu "os reais logs do o adm veem", ele quer ver as ações de sistema (login, config, etc)
-// Então vamos excluir 'venda' e 'lead' daqui também para focar em ações administrativas/sistema
-$filtrosLogs = ['excluir_tipos' => ['venda', 'lead', 'pix_gerado']];
+// Exclui 'venda'/'lead'/'pix_gerado' para o log do admin focar em ações administrativas/de sistema
+$filtros_logs = ['excluir_tipos' => ['venda', 'lead', 'pix_gerado']];
 $por_pagina = 10;
 $pagina_atual = isset($_GET['pagina']) ? max(1, (int)$_GET['pagina']) : 1;
 $offset = ($pagina_atual - 1) * $por_pagina;
 
-$total_logs = contarAtividades($filtrosLogs);
-$atividades = listarAtividades($filtrosLogs, $por_pagina, $offset);
+$total_logs = contarAtividades($filtros_logs);
+$atividades = listarAtividades($filtros_logs, $por_pagina, $offset);
 
 ?>
 <!DOCTYPE html>
@@ -519,14 +499,14 @@ $atividades = listarAtividades($filtrosLogs, $por_pagina, $offset);
                 <form method="GET" class="dash-filter-form">
                     <input type="hidden" name="periodo" value="<?php echo htmlspecialchars($periodo); ?>">
                     <div class="dash-date-group <?php echo ($periodo === 'personalizado' ? 'active' : ''); ?>">
-                        <input type="date" name="data_inicio" value="<?php echo htmlspecialchars($dataInicio); ?>" <?php echo ($periodo === 'personalizado' ? '' : 'disabled'); ?>>
-                        <input type="date" name="data_fim" value="<?php echo htmlspecialchars($dataFim); ?>" <?php echo ($periodo === 'personalizado' ? '' : 'disabled'); ?>>
+                        <input type="date" name="data_inicio" value="<?php echo htmlspecialchars($data_inicio); ?>" <?php echo ($periodo === 'personalizado' ? '' : 'disabled'); ?>>
+                        <input type="date" name="data_fim" value="<?php echo htmlspecialchars($data_fim); ?>" <?php echo ($periodo === 'personalizado' ? '' : 'disabled'); ?>>
                     </div>
-                    <?php if ($mostrarFiltroBot): ?>
+                    <?php if ($mostrar_filtro_bot): ?>
                         <select name="bot_id">
-                            <option value="todos" <?php echo ($botIdSelecionado === 'todos' ? 'selected' : ''); ?>>Todos os bots</option>
-                            <?php foreach ($botsFiltro as $bot): ?>
-                                <option value="<?php echo (int) $bot['id']; ?>" <?php echo ($botIdSelecionado === (string) $bot['id'] ? 'selected' : ''); ?>>
+                            <option value="todos" <?php echo ($bot_id_selecionado === 'todos' ? 'selected' : ''); ?>>Todos os bots</option>
+                            <?php foreach ($bots_filtro as $bot): ?>
+                                <option value="<?php echo (int) $bot['id']; ?>" <?php echo ($bot_id_selecionado === (string) $bot['id'] ? 'selected' : ''); ?>>
                                     <?php echo htmlspecialchars($bot['nome']); ?>
                                 </option>
                             <?php endforeach; ?>
@@ -537,79 +517,72 @@ $atividades = listarAtividades($filtrosLogs, $por_pagina, $offset);
             </div>
 
             <div class="dash-grid">
-                <!-- Total Transacionado -->
                 <div class="dash-card">
                     <div class="dash-card-header">
                         <svg class="admin-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         Volume Total
                     </div>
-                    <div class="dash-card-value">R$ <?php echo number_format($totalTransacionado, 2, ',', '.'); ?></div>
+                    <div class="dash-card-value">R$ <?php echo number_format($total_transacionado, 2, ',', '.'); ?></div>
                     <div class="dash-card-sub">
                         <span>Vendas Brutas (Global)</span>
                     </div>
                 </div>
 
-                <!-- Qtd Vendas -->
                 <div class="dash-card">
                     <div class="dash-card-header">
                         <svg class="admin-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
                         Qtd. Vendas
                     </div>
-                    <div class="dash-card-value"><?php echo $totalVendas; ?></div>
+                    <div class="dash-card-value"><?php echo $total_vendas; ?></div>
                     <div class="dash-card-sub">
                         <span>Vendas aprovadas</span>
                     </div>
                 </div>
 
-                <!-- Receita Admin -->
                 <div class="dash-card">
                     <div class="dash-card-header">
                         <svg class="admin-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                         Receita Líquida (Admin)
                     </div>
-                    <div class="dash-card-value" style="color: #7c3aed;">R$ <?php echo number_format($receitaAdmin, 2, ',', '.'); ?></div>
+                    <div class="dash-card-value" style="color: #7c3aed;">R$ <?php echo number_format($receita_admin, 2, ',', '.'); ?></div>
                     <div class="dash-card-sub">
                         <span>Sua comissão acumulada</span>
                     </div>
                 </div>
 
-                <!-- Total Usuários -->
                 <div class="dash-card">
                     <div class="dash-card-header">
                         <svg class="admin-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
                         Usuários
                     </div>
-                    <div class="dash-card-value"><?php echo $totalUsuarios; ?></div>
+                    <div class="dash-card-value"><?php echo $total_usuarios; ?></div>
                     <div class="dash-card-sub">
                         <span>Clientes registrados</span>
                     </div>
                 </div>
 
-                <!-- Total Bots -->
                 <div class="dash-card">
                     <div class="dash-card-header">
                         <svg class="admin-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                         Bots Ativos
                     </div>
-                    <div class="dash-card-value"><?php echo $totalBots; ?></div>
+                    <div class="dash-card-value"><?php echo $total_bots; ?></div>
                     <div class="dash-card-sub">
                         <span>Bots na plataforma</span>
                     </div>
                 </div>
 
-                <!-- Chart (Receita Admin) -->
                 <div class="dash-card span-3">
                     <div class="dash-card-header">
                         <svg class="admin-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" /></svg>
                         Evolução da Receita (Admin)
-                        <span style="font-size: 11px; margin-left: 10px; color: var(--muted);"><?php echo $textoGrafico; ?></span>
+                        <span style="font-size: 11px; margin-left: 10px; color: var(--muted);"><?php echo $texto_grafico; ?></span>
                     </div>
                     <div class="chart-container">
                         <canvas id="adminChart"></canvas>
                     </div>
                 </div>
 
-                <!-- Log de Atividades do Sistema -->
                 <div class="dash-card span-2">
                     <div class="dash-card-header">
                         <svg class="admin-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
@@ -617,36 +590,34 @@ $atividades = listarAtividades($filtrosLogs, $por_pagina, $offset);
                     </div>
                     <div class="dash-log-list">
                         <?php foreach($atividades as $ativ): ?>
-                            <?php 
-                                // Ícone e cor baseados no tipo
-                                $iconeSvg = '<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
+                            <?php
+                                $icone_svg = '<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
                                 if ($ativ['tipo'] == 'venda') {
-                                    $iconeSvg = '<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
+                                    $icone_svg = '<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
                                 } elseif ($ativ['tipo'] == 'lead') {
-                                    $iconeSvg = '<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>';
+                                    $icone_svg = '<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>';
                                 }
 
-                                // Tempo decorrido
-                                $dataCriado = strtotime($ativ['criado_em']);
-                                $diff = abs(time() - $dataCriado);
+                                $data_criado = strtotime($ativ['criado_em']);
+                                $diff = abs(time() - $data_criado);
                                 if ($diff < 60) $tempo = 'agora';
                                 elseif ($diff < 3600) $tempo = floor($diff / 60) . 'm';
                                 elseif ($diff < 86400) $tempo = floor($diff / 3600) . 'h';
                                 else $tempo = floor($diff / 86400) . 'd';
                                 
-                                $nomeUser = $ativ['nome_usuario'] ? " (" . htmlspecialchars($ativ['nome_usuario']) . ")" : "";
+                                $nome_user = $ativ['nome_usuario'] ? " (" . htmlspecialchars($ativ['nome_usuario']) . ")" : "";
                             ?>
                             <div class="dash-log-item">
                                 <div class="log-icon admin">
-                                    <?php echo $iconeSvg; ?>
+                                    <?php echo $icone_svg; ?>
                                 </div>
                                 <div class="log-content">
-                                    <p class="log-title"><?php echo htmlspecialchars($ativ['titulo']); ?><span style="font-weight:400; font-size:12px; color:#94a3b8;"><?php echo $nomeUser; ?></span></p>
+                                    <p class="log-title"><?php echo htmlspecialchars($ativ['titulo']); ?><span style="font-weight:400; font-size:12px; color:#94a3b8;"><?php echo $nome_user; ?></span></p>
                                     <p class="log-desc"><?php echo htmlspecialchars($ativ['descricao']); ?></p>
                                 </div>
                                 <div class="log-time">
                                     <?php echo $tempo; ?><br>
-                                    <?php echo date('d/m, H:i', $dataCriado); ?>
+                                    <?php echo date('d/m, H:i', $data_criado); ?>
                                 </div>
                             </div>
                         <?php endforeach; ?>
@@ -664,69 +635,59 @@ $atividades = listarAtividades($filtrosLogs, $por_pagina, $offset);
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Configurar clique nos botões de período
-    const periodoBtns = document.querySelectorAll('.dash-filters a');
-    const dateInputs = document.querySelectorAll('.dash-date-group input[type="date"]');
-    const filterForm = document.querySelector('.dash-filter-form');
-    const periodoHidden = document.querySelector('input[name="periodo"]');
-    const dateGroup = document.querySelector('.dash-date-group');
+    const periodo_btns = document.querySelectorAll('.dash-filters a');
+    const date_inputs = document.querySelectorAll('.dash-date-group input[type="date"]');
+    const filter_form = document.querySelector('.dash-filter-form');
+    const periodo_hidden = document.querySelector('input[name="periodo"]');
+    const date_group = document.querySelector('.dash-date-group');
 
-    periodoBtns.forEach(btn => {
+    periodo_btns.forEach(btn => {
         btn.addEventListener('click', function(e) {
             e.preventDefault();
-            
-            // Extrair período da URL
+
             const url = new URL(this.href, window.location.origin);
-            const periodoSelecionado = url.searchParams.get('periodo');
-            
-            // Atualizar o input hidden
-            periodoHidden.value = periodoSelecionado;
-            
-            // Se é personalizado, habilitar inputs de data
-            if (periodoSelecionado === 'personalizado') {
-                dateInputs.forEach(input => input.disabled = false);
-                dateGroup.classList.add('active');
-                dateInputs[0].focus(); // Focar no primeiro input
+            const periodo_selecionado = url.searchParams.get('periodo');
+
+            periodo_hidden.value = periodo_selecionado;
+
+            if (periodo_selecionado === 'personalizado') {
+                date_inputs.forEach(input => input.disabled = false);
+                date_group.classList.add('active');
+                date_inputs[0].focus();
             } else {
-                // Otros períodos, desabilitar inputs de data
-                dateInputs.forEach(input => input.disabled = true);
-                dateGroup.classList.remove('active');
-                // Submeter formulário imediatamente
-                filterForm.submit();
+                date_inputs.forEach(input => input.disabled = true);
+                date_group.classList.remove('active');
+                filter_form.submit();
             }
         });
     });
 
-    // Submeter formulário quando ambas as datas forem preenchidas
-    dateInputs.forEach(input => {
+    date_inputs.forEach(input => {
         input.addEventListener('change', function() {
-            const dataInicio = document.querySelector('input[name="data_inicio"]').value;
-            const dataFim = document.querySelector('input[name="data_fim"]').value;
-            
-            // Se ambas as datas foram preenchidas e o período é personalizado
-            if (dataInicio && dataFim && periodoHidden.value === 'personalizado') {
-                filterForm.submit();
+            const data_inicio = document.querySelector('input[name="data_inicio"]').value;
+            const data_fim = document.querySelector('input[name="data_fim"]').value;
+
+            if (data_inicio && data_fim && periodo_hidden.value === 'personalizado') {
+                filter_form.submit();
             }
         });
     });
 
-    // Gráfico de Receita Admin
     const ctx = document.getElementById('adminChart');
     if (ctx) {
-        const chartCtx = ctx.getContext('2d');
-        
-        // Gradiente Roxo para Admin
-        let gradient = chartCtx.createLinearGradient(0, 0, 0, 400);
+        const chart_ctx = ctx.getContext('2d');
+
+        let gradient = chart_ctx.createLinearGradient(0, 0, 0, 400);
         gradient.addColorStop(0, 'rgba(124, 58, 237, 0.2)');   
         gradient.addColorStop(1, 'rgba(124, 58, 237, 0.0)');
 
-        new Chart(chartCtx, {
+        new Chart(chart_ctx, {
             type: 'line',
             data: {
-                labels: <?php echo json_encode($graficoLabels); ?>,
+                labels: <?php echo json_encode($grafico_labels); ?>,
                 datasets: [{
                     label: 'Receita Admin',
-                    data: <?php echo json_encode($graficoDados); ?>,
+                    data: <?php echo json_encode($grafico_dados); ?>,
                     borderColor: '#7c3aed',
                     backgroundColor: gradient,
                     borderWidth: 2,

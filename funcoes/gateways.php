@@ -26,10 +26,10 @@ function saveAdminGatewayConfig(int $id, bool $ativo): bool {
     }
 }
 
-function getUserSplits(int $userId, string $gatewayNome): array {
+function getUserSplits(int $user_id, string $gateway_nome): array {
     global $pdo;
     $stmt = $pdo->prepare("SELECT * FROM usuarios_splits WHERE id_usuario = ? AND gateway_nome = ? ORDER BY ordem, id");
-    $stmt->execute([$userId, $gatewayNome]);
+    $stmt->execute([$user_id, $gateway_nome]);
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
@@ -52,7 +52,7 @@ function getInfopagoCredenciaisAdmin(): ?array {
     return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
 }
 
-function getUserGatewayConfig(int $userId, string $gatewayNome): ?array {
+function getUserGatewayConfig(int $user_id, string $gateway_nome): ?array {
     global $pdo;
     $sql = "
         SELECT ug.*, g.nome as gateway_nome
@@ -62,15 +62,15 @@ function getUserGatewayConfig(int $userId, string $gatewayNome): ?array {
         LIMIT 1
     ";
     $stmt = $pdo->prepare($sql);
-    $stmt->execute([$userId, $gatewayNome]);
+    $stmt->execute([$user_id, $gateway_nome]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
 
-    if ($gatewayNome === 'infopago') {
-        $credenciaisAdmin = getInfopagoCredenciaisAdmin();
-        if ($credenciaisAdmin) {
+    if ($gateway_nome === 'infopago') {
+        $credenciais_admin = getInfopagoCredenciaisAdmin();
+        if ($credenciais_admin) {
             // Mantém o "ativo"/"prioridade" do próprio usuário (se existir uma linha), mas usa
             // sempre as credenciais compartilhadas do admin para autenticação na API.
-            $row = array_merge($credenciaisAdmin, [
+            $row = array_merge($credenciais_admin, [
                 'ativo' => $row['ativo'] ?? 0,
                 'prioridade' => $row['prioridade'] ?? 100,
                 'gateway_nome' => 'infopago',
@@ -81,7 +81,7 @@ function getUserGatewayConfig(int $userId, string $gatewayNome): ?array {
     return $row;
 }
 
-function getUserGateways(int $userId, bool $somenteAtivos = true): array {
+function getUserGateways(int $user_id, bool $somente_ativos = true): array {
     global $pdo;
     $sql = "
         SELECT g.id as gateway_id, g.nome as gateway_nome, g.titulo, g.ativo as admin_ativo,
@@ -91,31 +91,31 @@ function getUserGateways(int $userId, bool $somenteAtivos = true): array {
         LEFT JOIN usuarios_gateways ug ON ug.id_gateway = g.id AND ug.id_usuario = :user_id
         WHERE g.ativo = 1";
 
-    if ($somenteAtivos) {
+    if ($somente_ativos) {
         $sql .= " AND (ug.ativo = 1 OR ug.id IS NULL)";
     }
 
     $sql .= " ORDER BY COALESCE(ug.prioridade, 999), g.nome";
 
     $stmt = $pdo->prepare($sql);
-    $stmt->bindValue(':user_id', $userId, PDO::PARAM_INT);
+    $stmt->bindValue(':user_id', $user_id, PDO::PARAM_INT);
     $stmt->execute();
 
     $gateways = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    $credenciaisAdminInfopago = null;
+    $credenciais_admin_infopago = null;
     foreach ($gateways as &$gw) {
         $gw['user_ativo'] = (bool)($gw['user_ativo'] ?? 0);
         $gw['prioridade'] = (int)($gw['prioridade'] ?? 100);
 
         if ($gw['gateway_nome'] === 'infopago') {
-            $credenciaisAdminInfopago ??= getInfopagoCredenciaisAdmin();
-            if ($credenciaisAdminInfopago) {
-                $gw['client_id'] = $credenciaisAdminInfopago['client_id'];
-                $gw['client_secret'] = $credenciaisAdminInfopago['client_secret'];
-                $gw['certificado'] = $credenciaisAdminInfopago['certificado'];
-                $gw['cert_password'] = $credenciaisAdminInfopago['cert_password'] ?? '';
-                $gw['chave_pix'] = $credenciaisAdminInfopago['chave_pix'];
-                $gw['tipo_conta'] = $credenciaisAdminInfopago['tipo_conta'] ?? 'pj';
+            $credenciais_admin_infopago ??= getInfopagoCredenciaisAdmin();
+            if ($credenciais_admin_infopago) {
+                $gw['client_id'] = $credenciais_admin_infopago['client_id'];
+                $gw['client_secret'] = $credenciais_admin_infopago['client_secret'];
+                $gw['certificado'] = $credenciais_admin_infopago['certificado'];
+                $gw['cert_password'] = $credenciais_admin_infopago['cert_password'] ?? '';
+                $gw['chave_pix'] = $credenciais_admin_infopago['chave_pix'];
+                $gw['tipo_conta'] = $credenciais_admin_infopago['tipo_conta'] ?? 'pj';
             }
         }
     }
@@ -123,13 +123,13 @@ function getUserGateways(int $userId, bool $somenteAtivos = true): array {
     return $gateways;
 }
 
-function getPrimaryUserGatewayConfig(int $userId): ?array {
-    $gateways = getUserGateways($userId, true);
+function getPrimaryUserGatewayConfig(int $user_id): ?array {
+    $gateways = getUserGateways($user_id, true);
     return $gateways[0] ?? null;
 }
 
-function resolveGatewayProvider(string $gatewayNome, array $config): ?object {
-    switch (strtolower($gatewayNome)) {
+function resolveGatewayProvider(string $gateway_nome, array $config): ?object {
+    switch (strtolower($gateway_nome)) {
         case 'infopago':
             require_once __DIR__ . '/infopago_banco.php';
             return new InfopagoBanco($config['client_id'], $config['client_secret'], $config['certificado'] ?? '', true, $config['cert_password'] ?? '');
@@ -138,31 +138,29 @@ function resolveGatewayProvider(string $gatewayNome, array $config): ?object {
     }
 }
 
-function saveUserGatewayConfig(int $userId, int $gatewayId, string $clientId, string $clientSecret, string $certificado, string $certPassword, string $chavePix, bool $ativo, int $prioridade = 100, string $tipoConta = 'pj'): bool {
+function saveUserGatewayConfig(int $user_id, int $gateway_id, string $client_id, string $client_secret, string $certificado, string $cert_password, string $chave_pix, bool $ativo, int $prioridade = 100, string $tipo_conta = 'pj'): bool {
     global $pdo;
-    $tipoConta = in_array($tipoConta, ['pf', 'pj']) ? $tipoConta : 'pj';
+    $tipo_conta = in_array($tipo_conta, ['pf', 'pj']) ? $tipo_conta : 'pj';
     try {
-        // Verifica se já existe
         $stmt = $pdo->prepare("SELECT id FROM usuarios_gateways WHERE id_usuario = ? AND id_gateway = ?");
-        $stmt->execute([$userId, $gatewayId]);
+        $stmt->execute([$user_id, $gateway_id]);
         $exists = $stmt->fetch();
 
         if ($exists) {
             $sql = "UPDATE usuarios_gateways SET client_id = ?, client_secret = ?, certificado = ?, cert_password = ?, chave_pix = ?, ativo = ?, prioridade = ?, tipo_conta = ? WHERE id = ?";
-            $params = [$clientId, $clientSecret, $certificado, $certPassword, $chavePix, $ativo ? 1 : 0, $prioridade, $tipoConta, $exists['id']];
+            $params = [$client_id, $client_secret, $certificado, $cert_password, $chave_pix, $ativo ? 1 : 0, $prioridade, $tipo_conta, $exists['id']];
         } else {
             $sql = "INSERT INTO usuarios_gateways (id_usuario, id_gateway, client_id, client_secret, certificado, cert_password, chave_pix, ativo, prioridade, tipo_conta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-            $params = [$userId, $gatewayId, $clientId, $clientSecret, $certificado, $certPassword, $chavePix, $ativo ? 1 : 0, $prioridade, $tipoConta];
+            $params = [$user_id, $gateway_id, $client_id, $client_secret, $certificado, $cert_password, $chave_pix, $ativo ? 1 : 0, $prioridade, $tipo_conta];
         }
 
-        // Busca nome do gateway para log
-        $stmtName = $pdo->prepare("SELECT nome FROM gateways WHERE id = ?");
-        $stmtName->execute([$gatewayId]);
-        $gatewayName = $stmtName->fetchColumn() ?: "Desconhecido";
+        $stmt_name = $pdo->prepare("SELECT nome FROM gateways WHERE id = ?");
+        $stmt_name->execute([$gateway_id]);
+        $gateway_name = $stmt_name->fetchColumn() ?: "Desconhecido";
 
         $stmt = $pdo->prepare($sql);
         if ($stmt->execute($params)) {
-            registrarAtividade($userId, 'sistema', 'Gateway Usuário', "Atualizou credenciais do gateway $gatewayName (ID $gatewayId)");
+            registrarAtividade($user_id, 'sistema', 'Gateway Usuário', "Atualizou credenciais do gateway $gateway_name (ID $gateway_id)");
             return true;
         }
         return false;
@@ -177,23 +175,23 @@ function saveUserGatewayConfig(int $userId, int $gatewayId, string $clientId, st
  * Usadas para simular split via transferência manual após o Pix cair, já que a API
  * de cobrança da InfoPago não tem split nativo (ver docs/infopago/01-api-referencia.md §5).
  */
-function saveInfopagoCashoutConfig(int $userId, int $gatewayId, string $cashoutClientId, string $cashoutClientSecret, ?string $cashoutCertificado, string $cashoutCertPassword = ''): bool {
+function saveInfopagoCashoutConfig(int $user_id, int $gateway_id, string $cashout_client_id, string $cashout_client_secret, ?string $cashout_certificado, string $cashout_cert_password = ''): bool {
     global $pdo;
     try {
         $stmt = $pdo->prepare("SELECT id, cashout_certificado, cashout_cert_password FROM usuarios_gateways WHERE id_usuario = ? AND id_gateway = ?");
-        $stmt->execute([$userId, $gatewayId]);
+        $stmt->execute([$user_id, $gateway_id]);
         $exists = $stmt->fetch();
 
         if (!$exists) {
             return false; // credenciais de cobrança precisam existir primeiro
         }
 
-        $certificadoFinal = $cashoutCertificado ?: $exists['cashout_certificado'];
-        $certPasswordFinal = $cashoutCertPassword !== '' ? $cashoutCertPassword : $exists['cashout_cert_password'];
+        $certificado_final = $cashout_certificado ?: $exists['cashout_certificado'];
+        $cert_password_final = $cashout_cert_password !== '' ? $cashout_cert_password : $exists['cashout_cert_password'];
 
         $stmt = $pdo->prepare("UPDATE usuarios_gateways SET cashout_client_id = ?, cashout_client_secret = ?, cashout_certificado = ?, cashout_cert_password = ? WHERE id = ?");
-        if ($stmt->execute([$cashoutClientId, $cashoutClientSecret, $certificadoFinal, $certPasswordFinal, $exists['id']])) {
-            registrarAtividade($userId, 'sistema', 'Gateway Usuário', "Atualizou credenciais de Cash-Out (split) do gateway ID $gatewayId");
+        if ($stmt->execute([$cashout_client_id, $cashout_client_secret, $certificado_final, $cert_password_final, $exists['id']])) {
+            registrarAtividade($user_id, 'sistema', 'Gateway Usuário', "Atualizou credenciais de Cash-Out (split) do gateway ID $gateway_id");
             return true;
         }
         return false;
@@ -218,7 +216,7 @@ function contarGatewaysAdmin(): int {
     return (int)$pdo->query("SELECT COUNT(*) FROM gateways")->fetchColumn();
 }
 
-function listarGatewaysUsuario(int $userId, int $limite = 20, int $offset = 0): array {
+function listarGatewaysUsuario(int $user_id, int $limite = 20, int $offset = 0): array {
     global $pdo;
     $sql = "
         SELECT g.*, ug.ativo AS user_ativo, ug.client_id, ug.client_secret, ug.certificado, ug.chave_pix, ug.prioridade,
@@ -232,14 +230,14 @@ function listarGatewaysUsuario(int $userId, int $limite = 20, int $offset = 0): 
     ";
 
     $stmt = $pdo->prepare($sql);
-    $stmt->bindValue(':user_id', $userId, PDO::PARAM_INT);
+    $stmt->bindValue(':user_id', $user_id, PDO::PARAM_INT);
     $stmt->bindValue(':limite', $limite, PDO::PARAM_INT);
     $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
     $stmt->execute();
     $gateways = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $ehAdminAtual = isset($_SESSION['usuario_perfil']) && $_SESSION['usuario_perfil'] === 'admin';
-    $credenciaisAdminInfopago = null;
+    $eh_admin_atual = isset($_SESSION['usuario_perfil']) && $_SESSION['usuario_perfil'] === 'admin';
+    $credenciais_admin_infopago = null;
 
     foreach ($gateways as &$g) {
         $g['user_config'] = [
@@ -256,10 +254,10 @@ function listarGatewaysUsuario(int $userId, int $limite = 20, int $offset = 0): 
         ];
 
         // InfoPago usa credenciais únicas do admin (compartilhadas) — usuário comum só liga/desliga.
-        if ($g['nome'] === 'infopago' && !$ehAdminAtual) {
-            $credenciaisAdminInfopago ??= (getInfopagoCredenciaisAdmin() ?: []);
-            $g['user_config']['client_id'] = $credenciaisAdminInfopago['client_id'] ?? '';
-            $g['user_config']['chave_pix'] = $credenciaisAdminInfopago['chave_pix'] ?? '';
+        if ($g['nome'] === 'infopago' && !$eh_admin_atual) {
+            $credenciais_admin_infopago ??= (getInfopagoCredenciaisAdmin() ?: []);
+            $g['user_config']['client_id'] = $credenciais_admin_infopago['client_id'] ?? '';
+            $g['user_config']['chave_pix'] = $credenciais_admin_infopago['chave_pix'] ?? '';
             $g['user_config']['gerenciado_pelo_admin'] = true;
         }
 

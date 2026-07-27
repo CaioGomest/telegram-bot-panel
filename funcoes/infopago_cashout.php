@@ -14,34 +14,34 @@ class InfopagoCashout {
     /** Mesma observação de InfopagoBanco: CA própria da ONZ Software, sem certificado raiz disponível. */
     private const VERIFICAR_CERTIFICADO_SERVIDOR = false;
 
-    private string $clientId;
-    private string $clientSecret;
-    private string $certificadoPath;
-    private string $certPassword;
-    private string $baseUrl;
-    private ?string $accessToken = null;
+    private string $client_id;
+    private string $client_secret;
+    private string $certificado_path;
+    private string $cert_password;
+    private string $base_url;
+    private ?string $access_token = null;
 
-    public function __construct(string $clientId, string $clientSecret, string $certificadoPath, string $certPassword = '') {
-        $this->clientId = $clientId;
-        $this->clientSecret = $clientSecret;
-        $this->certificadoPath = $certificadoPath;
-        $this->certPassword = $certPassword;
+    public function __construct(string $client_id, string $client_secret, string $certificado_path, string $cert_password = '') {
+        $this->clientId = $client_id;
+        $this->clientSecret = $client_secret;
+        $this->certificadoPath = $certificado_path;
+        $this->certPassword = $cert_password;
         $this->baseUrl = 'https://cashout.infopago.com.br/api/v2';
     }
 
     private function writeLog(string $msg): void {
-        $logFile = __DIR__ . '/../logs/split_debug.log';
+        $log_file = __DIR__ . '/../logs/split_debug.log';
         $line = '[' . date('Y-m-d H:i:s') . '] [InfoPagoCashout] ' . $msg . PHP_EOL;
-        file_put_contents($logFile, $line, FILE_APPEND | LOCK_EX);
+        file_put_contents($log_file, $line, FILE_APPEND | LOCK_EX);
     }
 
     private function aplicarCertificado($ch): void {
-        $certReal = realpath($this->certificadoPath);
-        if (!$certReal || !file_exists($certReal)) {
+        $cert_real = realpath($this->certificadoPath);
+        if (!$cert_real || !file_exists($cert_real)) {
             return;
         }
-        curl_setopt($ch, CURLOPT_SSLCERT, $certReal);
-        $ext = strtolower(pathinfo($certReal, PATHINFO_EXTENSION));
+        curl_setopt($ch, CURLOPT_SSLCERT, $cert_real);
+        $ext = strtolower(pathinfo($cert_real, PATHINFO_EXTENSION));
         curl_setopt($ch, CURLOPT_SSLCERTTYPE, in_array($ext, ['p12', 'pfx'], true) ? 'P12' : 'PEM');
         if (!empty($this->certPassword)) {
             curl_setopt($ch, CURLOPT_SSLCERTPASSWD, $this->certPassword);
@@ -49,8 +49,8 @@ class InfopagoCashout {
     }
 
     public function autenticar(): bool {
-        $certReal = realpath($this->certificadoPath);
-        if (!$certReal || !file_exists($certReal)) {
+        $cert_real = realpath($this->certificadoPath);
+        if (!$cert_real || !file_exists($cert_real)) {
             $this->writeLog("Certificado mTLS de Cash-Out não encontrado: {$this->certificadoPath}");
             return false;
         }
@@ -76,24 +76,24 @@ class InfopagoCashout {
         $this->aplicarCertificado($ch);
 
         $response  = curl_exec($ch);
-        $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
+        $http_code  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curl_error = curl_error($ch);
         curl_close($ch);
 
-        if ($curlError) {
-            $this->writeLog("Erro de conexão na autenticação: $curlError");
+        if ($curl_error) {
+            $this->writeLog("Erro de conexão na autenticação: $curl_error");
             return false;
         }
 
         $data = json_decode((string)$response, true);
 
-        if (($httpCode === 200 || $httpCode === 201 || $httpCode === 202) && isset($data['access_token'])) {
+        if (($http_code === 200 || $http_code === 201 || $http_code === 202) && isset($data['access_token'])) {
             $this->accessToken = $data['access_token'];
             return true;
         }
 
-        $corpoBruto = is_string($response) ? substr($response, 0, 500) : '(vazio)';
-        $this->writeLog("Falha na autenticação de Cash-Out (HTTP $httpCode) | corpo_bruto=" . $corpoBruto);
+        $corpo_bruto = is_string($response) ? substr($response, 0, 500) : '(vazio)';
+        $this->writeLog("Falha na autenticação de Cash-Out (HTTP $http_code) | corpo_bruto=" . $corpo_bruto);
         return false;
     }
 
@@ -101,7 +101,7 @@ class InfopagoCashout {
         return $this->autenticar();
     }
 
-    private function sendRequest(string $method, string $uri, ?array $body = null, array $headersExtra = []): array {
+    private function sendRequest(string $method, string $uri, ?array $body = null, array $headers_extra = []): array {
         if (!$this->accessToken) {
             if (!$this->autenticar()) {
                 return ['sucesso' => false, 'erro' => 'Falha na autenticação', 'codigo_http' => 0];
@@ -112,7 +112,7 @@ class InfopagoCashout {
         $headers = array_merge([
             'Authorization: Bearer ' . $this->accessToken,
             'Content-Type: application/json',
-        ], $headersExtra);
+        ], $headers_extra);
 
         $ch = curl_init();
         $options = [
@@ -131,13 +131,13 @@ class InfopagoCashout {
         $this->aplicarCertificado($ch);
 
         $response  = curl_exec($ch);
-        $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
+        $http_code  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curl_error = curl_error($ch);
         curl_close($ch);
 
-        if ($curlError) {
-            $this->writeLog("cURL Error ($method $uri): $curlError");
-            return ['sucesso' => false, 'erro' => "Erro de conexão: $curlError", 'codigo_http' => 0];
+        if ($curl_error) {
+            $this->writeLog("cURL Error ($method $uri): $curl_error");
+            return ['sucesso' => false, 'erro' => "Erro de conexão: $curl_error", 'codigo_http' => 0];
         }
 
         $data = json_decode((string)$response, true);
@@ -145,13 +145,13 @@ class InfopagoCashout {
             $data = ['raw' => $response];
         }
 
-        if ($httpCode >= 200 && $httpCode < 300) {
-            return ['sucesso' => true, 'dados' => $data, 'codigo_http' => $httpCode];
+        if ($http_code >= 200 && $http_code < 300) {
+            return ['sucesso' => true, 'dados' => $data, 'codigo_http' => $http_code];
         }
 
-        $this->writeLog("Requisição falhou | $method $uri | HTTP $httpCode | " . json_encode($data));
+        $this->writeLog("Requisição falhou | $method $uri | HTTP $http_code | " . json_encode($data));
         $mensagem = $data['detail'] ?? ($data['title'] ?? 'Erro na requisição');
-        return ['sucesso' => false, 'erro' => $mensagem, 'detalhes' => $data, 'codigo_http' => $httpCode];
+        return ['sucesso' => false, 'erro' => $mensagem, 'detalhes' => $data, 'codigo_http' => $http_code];
     }
 
     /**
@@ -165,18 +165,18 @@ class InfopagoCashout {
             return $chave; // e-mail ou EVP (UUID) — não é telefone
         }
 
-        $somenteDigitos = preg_replace('/\D/', '', $chave);
+        $somente_digitos = preg_replace('/\D/', '', $chave);
 
-        if (str_starts_with($chave, '+55') && strlen($somenteDigitos) === 13) {
-            return $chave; // já está correto
+        if (str_starts_with($chave, '+55') && strlen($somente_digitos) === 13) {
+            return $chave;
         }
         // Celular brasileiro: DDD (2) + 9 fixo + 8 dígitos = 11 dígitos, com '9' na 3ª posição.
         // Esse terceiro dígito distingue de CPF (também 11 dígitos, mas sem esse padrão fixo).
-        if (strlen($somenteDigitos) === 11 && $somenteDigitos[2] === '9') {
-            return '+55' . $somenteDigitos;
+        if (strlen($somente_digitos) === 11 && $somente_digitos[2] === '9') {
+            return '+55' . $somente_digitos;
         }
-        if (strlen($somenteDigitos) === 13 && str_starts_with($somenteDigitos, '55') && $somenteDigitos[4] === '9') {
-            return '+' . $somenteDigitos; // DDI + DDD + celular, sem o "+"
+        if (strlen($somente_digitos) === 13 && str_starts_with($somente_digitos, '55') && $somente_digitos[4] === '9') {
+            return '+' . $somente_digitos; // DDI + DDD + celular, sem o "+"
         }
 
         return $chave; // CPF, CNPJ, e-mail ou EVP: deixa como está
@@ -187,15 +187,15 @@ class InfopagoCashout {
      * "amount" é em REAIS (não centavos) — confirmado pelo suporte InfoPago em 2026-07-21:
      * um envio com amount=30 foi cobrado como R$30,00, e amount=1 como R$1,00.
      *
-     * @param string $chavePixDestino Chave Pix de destino (CPF, CNPJ, e-mail, telefone ou EVP)
+     * @param string $chave_pix_destino Chave Pix de destino (CPF, CNPJ, e-mail, telefone ou EVP)
      * @param float  $valor           Valor em reais
      * @param string $descricao       Descrição da transferência (aparece pro destinatário)
      */
-    public function transferirPorChavePix(string $chavePixDestino, float $valor, string $descricao = 'Split'): array {
-        $chavePixDestino = self::normalizarChaveTelefone($chavePixDestino);
-        $idempotencyKey = bin2hex(random_bytes(16));
+    public function transferirPorChavePix(string $chave_pix_destino, float $valor, string $descricao = 'Split'): array {
+        $chave_pix_destino = self::normalizarChaveTelefone($chave_pix_destino);
+        $idempotency_key = bin2hex(random_bytes(16));
         $payload = [
-            'pixKey'      => $chavePixDestino,
+            'pixKey'      => $chave_pix_destino,
             // NORM (não HIGH) — HIGH exige creditorDocument (CPF/CNPJ do destinatário), que não coletamos.
             'priority'    => 'NORM',
             'description' => substr($descricao, 0, 140),
@@ -207,12 +207,12 @@ class InfopagoCashout {
             ],
         ];
 
-        $resp = $this->sendRequest('POST', '/pix/payments/dict', $payload, ["x-idempotency-key: $idempotencyKey"]);
+        $resp = $this->sendRequest('POST', '/pix/payments/dict', $payload, ["x-idempotency-key: $idempotency_key"]);
 
         if (!($resp['sucesso'] ?? false)) {
-            $this->writeLog("transferirPorChavePix FALHOU | chave={$chavePixDestino} valor={$valor} | erro=" . json_encode($resp['erro'] ?? ''));
+            $this->writeLog("transferirPorChavePix FALHOU | chave={$chave_pix_destino} valor={$valor} | erro=" . json_encode($resp['erro'] ?? ''));
         } else {
-            $this->writeLog("transferirPorChavePix OK | chave={$chavePixDestino} valor={$valor} | endToEndId=" . ($resp['dados']['endToEndId'] ?? '?'));
+            $this->writeLog("transferirPorChavePix OK | chave={$chave_pix_destino} valor={$valor} | endToEndId=" . ($resp['dados']['endToEndId'] ?? '?'));
         }
 
         return $resp;

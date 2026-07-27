@@ -8,7 +8,6 @@ $usuario_id = $_SESSION['usuario_id'];
 $mensagem = '';
 $tipo_mensagem = '';
 
-// Processar formulário
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nome = trim($_POST['nome'] ?? '');
     $email = trim($_POST['email'] ?? '');
@@ -23,7 +22,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($resultado['sucesso']) {
             $mensagem = 'Perfil atualizado com sucesso!';
             $tipo_mensagem = 'sucesso';
-            // Atualizar dados na variável local para refletir na tela imediatamente
             $dados_usuario = obterDetalhesUsuario($usuario_id);
         } else {
             $mensagem = $resultado['erro'];
@@ -34,7 +32,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 } else {
-    // Buscar dados atuais
     $dados_usuario = obterDetalhesUsuario($usuario_id);
 }
 

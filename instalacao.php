@@ -9,17 +9,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nome_banco = $_POST['nome_banco'] ?? 'telegram_bot_saas';
 
     try {
-        // Conexão sem banco de dados para criar o banco
         $pdo = new PDO("mysql:host=$banco_host;charset=utf8mb4", $usuario_banco, $senha_banco, [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
         ]);
 
-        // Criar banco de dados
         $pdo->exec("CREATE DATABASE IF NOT EXISTS `$nome_banco` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
         $pdo->exec("USE `$nome_banco`");
 
-        // Criar tabela de Usuários
-        $sqlUsuarios = "CREATE TABLE IF NOT EXISTS usuarios (
+        $sql_usuarios = "CREATE TABLE IF NOT EXISTS usuarios (
             id INT AUTO_INCREMENT PRIMARY KEY,
             nome VARCHAR(100) NOT NULL,
             email VARCHAR(100) NOT NULL UNIQUE,
@@ -27,10 +24,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB;";
-        $pdo->exec($sqlUsuarios);
+        $pdo->exec($sql_usuarios);
 
-        // Criar tabela de Fluxos
-        $sqlFluxos = "CREATE TABLE IF NOT EXISTS fluxos (
+        $sql_fluxos = "CREATE TABLE IF NOT EXISTS fluxos (
             id INT AUTO_INCREMENT PRIMARY KEY,
             id_usuario INT NOT NULL,
             nome VARCHAR(120) NOT NULL,
@@ -40,10 +36,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE
         ) ENGINE=InnoDB;";
-        $pdo->exec($sqlFluxos);
+        $pdo->exec($sql_fluxos);
 
-        // Criar tabela de Bots
-        $sqlBots = "CREATE TABLE IF NOT EXISTS bots (
+        $sql_bots = "CREATE TABLE IF NOT EXISTS bots (
             id INT AUTO_INCREMENT PRIMARY KEY,
             id_usuario INT NOT NULL,
             token VARCHAR(255) NOT NULL,
@@ -60,22 +55,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE,
             FOREIGN KEY (id_fluxo_conectado) REFERENCES fluxos(id) ON DELETE SET NULL
         ) ENGINE=InnoDB;";
-        $pdo->exec($sqlBots);
+        $pdo->exec($sql_bots);
 
-        // Criar usuário padrão para testes
-        $senhaHash = password_hash('123456', PASSWORD_DEFAULT);
-        $sqlUserPadrao = "INSERT IGNORE INTO usuarios (id, nome, email, senha) VALUES (1, 'Admin', 'admin@exemplo.com', '$senhaHash')";
-        $pdo->exec($sqlUserPadrao);
+        $senha_hash = password_hash('123456', PASSWORD_DEFAULT);
+        $sql_user_padrao = "INSERT IGNORE INTO usuarios (id, nome, email, senha) VALUES (1, 'Admin', 'admin@exemplo.com', '$senha_hash')";
+        $pdo->exec($sql_user_padrao);
 
-        // Atualizar arquivo config.php
-        $configContent = "<?php\n";
-        $configContent .= "// config.php\n";
-        $configContent .= "define('BANCO_HOST', '" . addslashes($banco_host) . "');\n";
-        $configContent .= "define('BANCO_NOME', '" . addslashes($nome_banco) . "');\n";
-        $configContent .= "define('BANCO_USUARIO', '" . addslashes($usuario_banco) . "');\n";
-        $configContent .= "define('BANCO_SENHA', '" . addslashes($senha_banco) . "');\n";
+        $config_content = "<?php\n";
+        $config_content .= "// config.php\n";
+        $config_content .= "define('BANCO_HOST', '" . addslashes($banco_host) . "');\n";
+        $config_content .= "define('BANCO_NOME', '" . addslashes($nome_banco) . "');\n";
+        $config_content .= "define('BANCO_USUARIO', '" . addslashes($usuario_banco) . "');\n";
+        $config_content .= "define('BANCO_SENHA', '" . addslashes($senha_banco) . "');\n";
         
-        file_put_contents('config.php', $configContent);
+        file_put_contents('config.php', $config_content);
 
         $mensagem = "Instalação concluída com sucesso! Banco de dados criado e configurado.";
         $tipo_mensagem = "sucesso";

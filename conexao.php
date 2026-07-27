@@ -11,12 +11,10 @@ try {
     $pdo = new PDO($dsn, BANCO_USUARIO, BANCO_SENHA, $options);
     $pdo->exec("SET time_zone = '-03:00'");
 } catch (PDOException $e) {
-    // Log do erro para debug
     error_log("Erro na conexão com o banco: " . $e->getMessage());
-    
+
     // Se o banco não existir, o instalador deve lidar com isso.
     // Para uso normal, pode lançar erro ou redirecionar para instalação.
     if (strpos($e->getMessage(), 'Unknown database') !== false) {
-        // Banco não existe
     }
 }

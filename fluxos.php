@@ -30,7 +30,6 @@ verificarLogin();
                 <a class="botao botao-primario" href="fluxo.php">Novo Fluxo</a>
             </div>
             <div id="lista-fluxos" class="grade-cards">
-                <!-- A lista será carregada via JS -->
                 <div class="estado-vazio">Carregando fluxos...</div>
             </div>
         </div>

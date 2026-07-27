@@ -14,7 +14,6 @@ try {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ");
 
-    // Adicionar a coluna se ela não existir
     try {
         $pdo->exec("ALTER TABLE menus ADD COLUMN apenas_admin TINYINT(1) DEFAULT 0");
     } catch (PDOException $e) {

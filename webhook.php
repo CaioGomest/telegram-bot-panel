@@ -1,6 +1,5 @@
 <?php
 declare(strict_types=1);
-// Define o fuso horário para São Paulo/Brasil para garantir datas corretas
 date_default_timezone_set('America/Sao_Paulo');
 require_once 'conexao.php';
 require_once __DIR__ . '/funcoes/gateways.php';
@@ -8,7 +7,7 @@ require_once __DIR__ . '/funcoes/infopago_split.php';
 const DIRETORIO_UPLOADS = __DIR__ . '/uploads';
 /** CNPJ fixo (65.915.116/0001-04) para todas as cobranças PIX recorrentes — apenas dígitos */
 const CNPJ_PIX_RECORRENTE_FIXO = '65915116000104';
-function requisicao_telegram(string $token, string $metodo, array $parametros = [], array $arquivos = []): array
+function requisicaoTelegram(string $token, string $metodo, array $parametros = [], array $arquivos = []): array
 {
     $url = 'https://api.telegram.org/bot' . $token . '/' . $metodo;
     $ch = curl_init($url);
@@ -31,34 +30,34 @@ function requisicao_telegram(string $token, string $metodo, array $parametros = 
     $decodificado = json_decode($resposta ?: '', true);
     return is_array($decodificado) ? $decodificado : ['ok' => false, 'description' => 'resposta inválida'];
 }
-function buscar_proximo_do_inicio(array $dados): ?string
+function buscarProximoDoInicio(array $dados): ?string
 {
     $operadores = $dados['operators'] ?? [];
     $conexoes = $dados['links'] ?? [];
-    $idInicio = null;
+    $id_inicio = null;
     foreach ($operadores as $id => $op) {
         if (($op['properties']['type'] ?? '') === 'start') {
-            $idInicio = $id;
+            $id_inicio = $id;
             break;
         }
     }
-    if (!$idInicio) {
+    if (!$id_inicio) {
         return null;
     }
     foreach ($conexoes as $conexao) {
-        if (($conexao['fromOperator'] ?? '') === $idInicio) {
+        if (($conexao['fromOperator'] ?? '') === $id_inicio) {
             return $conexao['toOperator'] ?? null;
         }
     }
     return null;
 }
-function caminho_estado_pix_recorrente(): string
+function caminhoEstadoPixRecorrente(): string
 {
     return __DIR__ . '/storage/pix_recorrente_estado.json';
 }
-function carregar_estado_pix_recorrente(): array
+function carregarEstadoPixRecorrente(): array
 {
-    $arquivo = caminho_estado_pix_recorrente();
+    $arquivo = caminhoEstadoPixRecorrente();
     if (!file_exists($arquivo)) {
         return [];
     }
@@ -66,43 +65,43 @@ function carregar_estado_pix_recorrente(): array
     $dados = json_decode($conteudo ?: '{}', true);
     return is_array($dados) ? $dados : [];
 }
-function salvar_estado_pix_recorrente(array $estado): void
+function salvarEstadoPixRecorrente(array $estado): void
 {
-    $arquivo = caminho_estado_pix_recorrente();
+    $arquivo = caminhoEstadoPixRecorrente();
     $diretorio = dirname($arquivo);
     if (!is_dir($diretorio)) {
         @mkdir($diretorio, 0775, true);
     }
     file_put_contents($arquivo, json_encode($estado, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
 }
-function chave_estado_pix_recorrente(int $botId, string $idChat): string
+function chaveEstadoPixRecorrente(int $bot_id, string $id_chat): string
 {
-    return $botId . ':' . $idChat;
+    return $bot_id . ':' . $id_chat;
 }
-function obter_estado_pix_recorrente(int $botId, string $idChat): ?array
+function obterEstadoPixRecorrente(int $bot_id, string $id_chat): ?array
 {
-    $estado = carregar_estado_pix_recorrente();
-    $chave = chave_estado_pix_recorrente($botId, $idChat);
+    $estado = carregarEstadoPixRecorrente();
+    $chave = chaveEstadoPixRecorrente($bot_id, $id_chat);
     return isset($estado[$chave]) && is_array($estado[$chave]) ? $estado[$chave] : null;
 }
-function limpar_estado_pix_recorrente(int $botId, string $idChat): void
+function limparEstadoPixRecorrente(int $bot_id, string $id_chat): void
 {
-    $estado = carregar_estado_pix_recorrente();
-    $chave = chave_estado_pix_recorrente($botId, $idChat);
+    $estado = carregarEstadoPixRecorrente();
+    $chave = chaveEstadoPixRecorrente($bot_id, $id_chat);
     if (!isset($estado[$chave])) {
         return;
     }
     unset($estado[$chave]);
-    salvar_estado_pix_recorrente($estado);
+    salvarEstadoPixRecorrente($estado);
 }
-function processar_e_enviar_bloco(string $token, $idChat, array $operador, string $idOperador = '', string $documentoComprador = ''): void
+function processarEEnviarBloco(string $token, $id_chat, array $operador, string $id_operador = '', string $documento_comprador = ''): void
 {
     $propriedades = $operador['properties'] ?? [];
     $tipo = $propriedades['type'] ?? '';
     if ($tipo === 'message') {
         $texto = trim((string) ($propriedades['conteudo'] ?? $propriedades['body'] ?? ''));
         if ($texto !== '') {
-            requisicao_telegram($token, 'sendMessage', ['chat_id' => $idChat, 'text' => $texto]);
+            requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => $texto]);
         }
         return;
     }
@@ -111,30 +110,28 @@ function processar_e_enviar_bloco(string $token, $idChat, array $operador, strin
         if ($caminho === '') {
             return;
         }
-        // Corrige caminho se for relativo
         if (strpos($caminho, 'uploads/') === 0) {
-            $caminhoAbsoluto = __DIR__ . '/' . str_replace(['..', '\\'], ['', '/'], $caminho);
+            $caminho_absoluto = __DIR__ . '/' . str_replace(['..', '\\'], ['', '/'], $caminho);
         } else {
-            $caminhoAbsoluto = $caminho;
+            $caminho_absoluto = $caminho;
         }
-        // Tenta resolver caminho real
-        $real = realpath($caminhoAbsoluto);
+        $real = realpath($caminho_absoluto);
         if ($real) {
-            $caminhoAbsoluto = $real;
+            $caminho_absoluto = $real;
         }
-        $parametros = ['chat_id' => $idChat];
+        $parametros = ['chat_id' => $id_chat];
         $legenda = trim((string) ($propriedades['caption'] ?? ''));
         if ($legenda !== '') {
             $parametros['caption'] = $legenda;
         }
         $modo = $propriedades['mode'] ?? 'foto';
         if ($modo === 'documento') {
-            requisicao_telegram($token, 'sendDocument', $parametros, ['document' => $caminhoAbsoluto]);
+            requisicaoTelegram($token, 'sendDocument', $parametros, ['document' => $caminho_absoluto]);
         } else {
             if (!empty($propriedades['spoiler'])) {
                 $parametros['has_spoiler'] = true;
             }
-            requisicao_telegram($token, 'sendPhoto', $parametros, ['photo' => $caminhoAbsoluto]);
+            requisicaoTelegram($token, 'sendPhoto', $parametros, ['photo' => $caminho_absoluto]);
         }
         return;
     }
@@ -144,15 +141,15 @@ function processar_e_enviar_bloco(string $token, $idChat, array $operador, strin
             return;
         }
         if (strpos($caminho, 'uploads/') === 0) {
-            $caminhoAbsoluto = __DIR__ . '/' . str_replace(['..', '\\'], ['', '/'], $caminho);
+            $caminho_absoluto = __DIR__ . '/' . str_replace(['..', '\\'], ['', '/'], $caminho);
         } else {
-            $caminhoAbsoluto = $caminho;
+            $caminho_absoluto = $caminho;
         }
-        $real = realpath($caminhoAbsoluto);
+        $real = realpath($caminho_absoluto);
         if ($real) {
-            $caminhoAbsoluto = $real;
+            $caminho_absoluto = $real;
         }
-        $parametros = ['chat_id' => $idChat];
+        $parametros = ['chat_id' => $id_chat];
         $legenda = trim((string) ($propriedades['caption'] ?? ''));
         if ($legenda !== '') {
             $parametros['caption'] = $legenda;
@@ -160,7 +157,7 @@ function processar_e_enviar_bloco(string $token, $idChat, array $operador, strin
         if (!empty($propriedades['spoiler'])) {
             $parametros['has_spoiler'] = true;
         }
-        requisicao_telegram($token, 'sendVideo', $parametros, ['video' => $caminhoAbsoluto]);
+        requisicaoTelegram($token, 'sendVideo', $parametros, ['video' => $caminho_absoluto]);
         return;
     }
     if ($tipo === 'audio') {
@@ -169,15 +166,15 @@ function processar_e_enviar_bloco(string $token, $idChat, array $operador, strin
             return;
         }
         if (strpos($caminho, 'uploads/') === 0) {
-            $caminhoAbsoluto = __DIR__ . '/' . str_replace(['..', '\\'], ['', '/'], $caminho);
+            $caminho_absoluto = __DIR__ . '/' . str_replace(['..', '\\'], ['', '/'], $caminho);
         } else {
-            $caminhoAbsoluto = $caminho;
+            $caminho_absoluto = $caminho;
         }
-        $real = realpath($caminhoAbsoluto);
+        $real = realpath($caminho_absoluto);
         if ($real) {
-            $caminhoAbsoluto = $real;
+            $caminho_absoluto = $real;
         }
-        $parametros = ['chat_id' => $idChat];
+        $parametros = ['chat_id' => $id_chat];
         $legenda = trim((string) ($propriedades['caption'] ?? ''));
         if ($legenda !== '') {
             $parametros['caption'] = $legenda;
@@ -185,48 +182,46 @@ function processar_e_enviar_bloco(string $token, $idChat, array $operador, strin
         // Tenta enviar como Note de Voz (sendVoice) para parecer gravado na hora
         // Se falhar (por formato não suportado), poderíamos tentar fallback para sendAudio,
         // mas o Telegram costuma aceitar mp3/m4a/ogg como voice.
-        $resposta = requisicao_telegram($token, 'sendVoice', $parametros, ['voice' => $caminhoAbsoluto]);
+        $resposta = requisicaoTelegram($token, 'sendVoice', $parametros, ['voice' => $caminho_absoluto]);
         // Se falhar o envio como voice (ex: formato inválido para voice), tenta como áudio normal
         if (!($resposta['ok'] ?? false)) {
-             requisicao_telegram($token, 'sendAudio', $parametros, ['audio' => $caminhoAbsoluto]);
+             requisicaoTelegram($token, 'sendAudio', $parametros, ['audio' => $caminho_absoluto]);
         }
         return;
     }
     if ($tipo === 'grupo') {
-        $idGrupo = $propriedades['id_grupo'] ?? '';
-        $textoBotao = $propriedades['texto_botao'] ?? 'Entrar no Grupo';
-        if (empty($idGrupo)) {
-            requisicao_telegram($token, 'sendMessage', ['chat_id' => $idChat, 'text' => 'Erro: Grupo não configurado.']);
+        $id_grupo = $propriedades['id_grupo'] ?? '';
+        $texto_botao = $propriedades['texto_botao'] ?? 'Entrar no Grupo';
+        if (empty($id_grupo)) {
+            requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Erro: Grupo não configurado.']);
             return;
         }
-        // Tenta gerar link de convite único
-        $invite = requisicao_telegram($token, 'createChatInviteLink', [
-            'chat_id' => $idGrupo,
+        $invite = requisicaoTelegram($token, 'createChatInviteLink', [
+            'chat_id' => $id_grupo,
             'member_limit' => 1,
             'expire_date' => time() + (15 * 60),
-            'name' => 'Acesso via Bot' // Nome opcional para controle
+            'name' => 'Acesso via Bot'
         ]);
         $link = '';
         if (($invite['ok'] ?? false) && isset($invite['result']['invite_link'])) {
             $link = $invite['result']['invite_link'];
         } else {
             // Se falhar (ex: bot não é admin), tenta pegar link permanente se disponível ou avisa erro
-            // Fallback: Tenta exportar o link existente
-            $export = requisicao_telegram($token, 'exportChatInviteLink', ['chat_id' => $idGrupo]);
+            $export = requisicaoTelegram($token, 'exportChatInviteLink', ['chat_id' => $id_grupo]);
             if (($export['ok'] ?? false)) {
                 $link = $export['result'];
             } else {
-                requisicao_telegram($token, 'sendMessage', ['chat_id' => $idChat, 'text' => 'Não foi possível gerar o link do grupo. Verifique se o bot é administrador do grupo.']);
+                requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Não foi possível gerar o link do grupo. Verifique se o bot é administrador do grupo.']);
                 return;
             }
         }
         $teclado = [
             'inline_keyboard' => [[
-                ['text' => $textoBotao, 'url' => $link]
+                ['text' => $texto_botao, 'url' => $link]
             ]]
         ];
-        requisicao_telegram($token, 'sendMessage', [
-            'chat_id' => $idChat,
+        requisicaoTelegram($token, 'sendMessage', [
+            'chat_id' => $id_chat,
             'text' => "Clique abaixo para entrar:",
             'reply_markup' => json_encode($teclado)
         ]);
@@ -234,15 +229,15 @@ function processar_e_enviar_bloco(string $token, $idChat, array $operador, strin
     }
     if ($tipo === 'link') {
         $url = trim((string)($propriedades['url'] ?? ''));
-        $textoBotao = trim((string)($propriedades['texto_botao'] ?? '')) ?: 'Acessar';
+        $texto_botao = trim((string)($propriedades['texto_botao'] ?? '')) ?: 'Acessar';
         if (empty($url)) {
-            requisicao_telegram($token, 'sendMessage', ['chat_id' => $idChat, 'text' => 'Erro: link não configurado.']);
+            requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Erro: link não configurado.']);
             return;
         }
-        requisicao_telegram($token, 'sendMessage', [
-            'chat_id' => $idChat,
+        requisicaoTelegram($token, 'sendMessage', [
+            'chat_id' => $id_chat,
             'text' => "Clique abaixo:",
-            'reply_markup' => json_encode(['inline_keyboard' => [[['text' => $textoBotao, 'url' => $url]]]])
+            'reply_markup' => json_encode(['inline_keyboard' => [[['text' => $texto_botao, 'url' => $url]]]])
         ]);
         return;
     }
@@ -250,133 +245,125 @@ function processar_e_enviar_bloco(string $token, $idChat, array $operador, strin
         $texto = trim((string) ($propriedades['texto'] ?? ''));
         $botoes = $propriedades['botoes'] ?? [];
         $keyboard = [];
-        $currentRow = [];
-        foreach ($botoes as $btnTexto) {
-            $currentRow[] = ['text' => $btnTexto, 'callback_data' => $btnTexto];
-            if (count($currentRow) >= 2) {
-                $keyboard[] = $currentRow;
-                $currentRow = [];
+        $current_row = [];
+        foreach ($botoes as $btn_texto) {
+            $current_row[] = ['text' => $btn_texto, 'callback_data' => $btn_texto];
+            if (count($current_row) >= 2) {
+                $keyboard[] = $current_row;
+                $current_row = [];
             }
         }
-        if (!empty($currentRow)) {
-            $keyboard[] = $currentRow;
+        if (!empty($current_row)) {
+            $keyboard[] = $current_row;
         }
         $parametros = [
-            'chat_id' => $idChat,
+            'chat_id' => $id_chat,
             'text' => $texto ?: 'Escolha:',
             'reply_markup' => json_encode([
                 'inline_keyboard' => $keyboard
             ])
         ];
-        requisicao_telegram($token, 'sendMessage', $parametros);
+        requisicaoTelegram($token, 'sendMessage', $parametros);
         return;
     }
     if ($tipo === 'pix') {
-        // Carrega credenciais do usuário dono do bot
-        // Como a função requer ID do usuário, precisamos buscar o bot no banco antes de chamar essa função, ou passar o ID do usuário para processar_e_enviar_bloco.
-        // A função processar_e_enviar_bloco recebe $token, mas não o ID do usuário dono do bot.
-        // Vou precisar ajustar a chamada ou buscar o bot aqui dentro (ineficiente).
-        // Melhor passar o $bot inteiro para a função.
-        // Ajuste rápido: buscar o bot pelo token (já tenho o token)
         global $pdo;
-        $stmtBot = $pdo->prepare("SELECT id_usuario FROM bots WHERE token = ?");
-        $stmtBot->execute([$token]);
-        $idUsuarioDono = $stmtBot->fetchColumn();
-        if (!$idUsuarioDono) {
-            requisicao_telegram($token, 'sendMessage', ['chat_id' => $idChat, 'text' => 'Erro interno: Bot não identificado.']);
+        $stmt_bot = $pdo->prepare("SELECT id_usuario FROM bots WHERE token = ?");
+        $stmt_bot->execute([$token]);
+        $id_usuario_dono = $stmt_bot->fetchColumn();
+        if (!$id_usuario_dono) {
+            requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Erro interno: Bot não identificado.']);
             return;
         }
-        $gatewaysUsuario = getUserGateways((int)$idUsuarioDono, true);
-        // Busca o ID real do bot (Movido para o início para uso na assinatura)
-        $stmtBotReal = $pdo->prepare("SELECT id FROM bots WHERE token = ?");
-        $stmtBotReal->execute([$token]);
-        $idBotReal = $stmtBotReal->fetchColumn();
-        $idBotInsert = $idBotReal ? (int)$idBotReal : null;
-        // Busca nome do usuário para cadastro (para usar em metadados de cobrança se precisar)
-        $stmtNome = $pdo->prepare("SELECT nome FROM leads WHERE id_telegram = ? AND bot_id = ?");
-        $stmtNome->execute([$idChat, $idBotInsert]);
-        $nomeUsuario = $stmtNome->fetchColumn() ?: "Cliente Telegram";
-        $nomeUsuario = substr($nomeUsuario, 0, 50);
+        $gateways_usuario = getUserGateways((int)$id_usuario_dono, true);
+        $stmt_bot_real = $pdo->prepare("SELECT id FROM bots WHERE token = ?");
+        $stmt_bot_real->execute([$token]);
+        $id_bot_real = $stmt_bot_real->fetchColumn();
+        $id_bot_insert = $id_bot_real ? (int)$id_bot_real : null;
+        $stmt_nome = $pdo->prepare("SELECT nome FROM leads WHERE id_telegram = ? AND bot_id = ?");
+        $stmt_nome->execute([$id_chat, $id_bot_insert]);
+        $nome_usuario = $stmt_nome->fetchColumn() ?: "Cliente Telegram";
+        $nome_usuario = substr($nome_usuario, 0, 50);
 
-        if (empty($gatewaysUsuario)) {
-            requisicao_telegram($token, 'sendMessage', ['chat_id' => $idChat, 'text' => 'Erro: Nenhum gateway configurado para este usuário.']);
+        if (empty($gateways_usuario)) {
+            requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Erro: Nenhum gateway configurado para este usuário.']);
             return;
         }
 
         $tentativas = [];
-        $gatewaySelecionado = null;
+        $gateway_selecionado = null;
         $resp = ['sucesso' => false];
         $provedor = null;
 
-        $ehRecorrente = ($propriedades['tipo_cobranca'] ?? 'unica') === 'recorrente';
-        $periodicidadeRecorrente = strtolower((string)($propriedades['periodicidade'] ?? 'mensal'));
-        if ($ehRecorrente) {
-            $documentoLimpo = CNPJ_PIX_RECORRENTE_FIXO;
-            $tipoDocumento = 'CNPJ';
+        $eh_recorrente = ($propriedades['tipo_cobranca'] ?? 'unica') === 'recorrente';
+        $periodicidade_recorrente = strtolower((string)($propriedades['periodicidade'] ?? 'mensal'));
+        if ($eh_recorrente) {
+            $documento_limpo = CNPJ_PIX_RECORRENTE_FIXO;
+            $tipo_documento = 'CNPJ';
         } else {
-            $documentoLimpo = preg_replace('/\D/', '', $documentoComprador);
-            $tipoDocumento = strlen($documentoLimpo) === 14 ? 'CNPJ' : 'CPF';
+            $documento_limpo = preg_replace('/\D/', '', $documento_comprador);
+            $tipo_documento = strlen($documento_limpo) === 14 ? 'CNPJ' : 'CPF';
         }
 
-        if ($ehRecorrente && $periodicidadeRecorrente === 'semanal') {
-            requisicao_telegram($token, 'sendMessage', [
-                'chat_id' => $idChat,
+        if ($eh_recorrente && $periodicidade_recorrente === 'semanal') {
+            requisicaoTelegram($token, 'sendMessage', [
+                'chat_id' => $id_chat,
                 'text' => 'Periodicidade semanal nao esta disponivel no momento. Use mensal, trimestral, semestral ou anual.'
             ]);
             return;
         }
 
-        foreach ($gatewaysUsuario as $gw) {
-            $nomeGateway = $gw['gateway_nome'] ?? '';
+        foreach ($gateways_usuario as $gw) {
+            $nome_gateway = $gw['gateway_nome'] ?? '';
 
             // Gateway PF não suporta PIX Recorrente — pula para o próximo
-            if ($ehRecorrente && ($gw['tipo_conta'] ?? 'pj') === 'pf') {
-                $tentativas[] = "Gateway {$nomeGateway} é conta PF, não suporta PIX Recorrente";
+            if ($eh_recorrente && ($gw['tipo_conta'] ?? 'pj') === 'pf') {
+                $tentativas[] = "Gateway {$nome_gateway} é conta PF, não suporta PIX Recorrente";
                 continue;
             }
 
             $incompleto = empty($gw['client_id']) || empty($gw['client_secret']) || empty($gw['chave_pix']);
             if ($incompleto) {
-                $tentativas[] = "Gateway {$nomeGateway} não configurado completamente";
+                $tentativas[] = "Gateway {$nome_gateway} não configurado completamente";
                 continue;
             }
 
-            $provedor = resolveGatewayProvider($nomeGateway, $gw);
+            $provedor = resolveGatewayProvider($nome_gateway, $gw);
             if (!$provedor) {
-                $tentativas[] = "Provedor $nomeGateway não suportado";
+                $tentativas[] = "Provedor $nome_gateway não suportado";
                 continue;
             }
 
-            $splitData = null;
-            $userSplits = getUserSplits((int)$idUsuarioDono, $nomeGateway);
-            if (!empty($userSplits)) {
-                $splitData = array_map(fn($s) => [
+            $split_data = null;
+            $user_splits = getUserSplits((int)$id_usuario_dono, $nome_gateway);
+            if (!empty($user_splits)) {
+                $split_data = array_map(fn($s) => [
                     'chave' => $s['chave_pix_split'],
                     'valor' => $s['taxa_split'],
                     'tipo'  => $s['tipo_split'] ?? 'percentual'
-                ], $userSplits);
+                ], $user_splits);
             }
 
-            $chavePix = $gw['chave_pix'] ?? '';
-            if (empty($chavePix)) {
-                $tentativas[] = "Gateway {$nomeGateway} sem chave Pix de recebedor";
+            $chave_pix = $gw['chave_pix'] ?? '';
+            if (empty($chave_pix)) {
+                $tentativas[] = "Gateway {$nome_gateway} sem chave Pix de recebedor";
                 continue;
             }
 
             $valor = (float)($propriedades['valor'] ?? 0);
             if ($valor <= 0) {
-                requisicao_telegram($token, 'sendMessage', ['chat_id' => $idChat, 'text' => 'Erro: Valor inválido para o pagamento.']);
+                requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Erro: Valor inválido para o pagamento.']);
                 return;
             }
 
-            $ehRecorrenteOficial = false;
-            $idAssinatura = null;
+            $eh_recorrente_oficial = false;
+            $id_assinatura = null;
 
             try {
-                $tempoExpiracao = (int)($propriedades['expiracao_minutos'] ?? $propriedades['tempo_nao_pago'] ?? 15);
-                $expiracaoSegundos = $tempoExpiracao * 60;
+                $tempo_expiracao = (int)($propriedades['expiracao_minutos'] ?? $propriedades['tempo_nao_pago'] ?? 15);
+                $expiracao_segundos = $tempo_expiracao * 60;
 
-                if ($ehRecorrente && $nomeGateway === 'infopago') {
+                if ($eh_recorrente && $nome_gateway === 'infopago') {
                     // ── InfoPago: PIX Automático, Jornada 3 (QR Code composto com cobrança imediata) ──
                     // Paga na hora (acesso liberado igual ao Pix único) e já autoriza a renovação
                     // automática no mesmo QR. Corrigido (2026-07-07): o passo /locrec não faz parte
@@ -385,92 +372,90 @@ function processar_e_enviar_bloco(string $token, $idChat, array $operador, strin
                     // vinculando a cobrança) → GET /rec/{idRec}?txid={txid} (QR composto em dadosQR.pixCopiaECola).
                     $periodicidade = $propriedades['periodicidade'] ?? 'mensal';
 
-                    $payloadCobranca = $provedor->montaPayloadCobranca($valor, $chavePix, $splitData, $expiracaoSegundos);
-                    $respCobranca = $provedor->criarCobranca($payloadCobranca);
-                    if (!($respCobranca['sucesso'] ?? false)) {
-                        $tentativas[] = "{$nomeGateway} criarCobranca (imediata p/ recorrência) falhou: " . ($respCobranca['erro'] ?? 'desconhecido');
+                    $payload_cobranca = $provedor->montaPayloadCobranca($valor, $chave_pix, $split_data, $expiracao_segundos);
+                    $resp_cobranca = $provedor->criarCobranca($payload_cobranca);
+                    if (!($resp_cobranca['sucesso'] ?? false)) {
+                        $tentativas[] = "{$nome_gateway} criarCobranca (imediata p/ recorrência) falhou: " . ($resp_cobranca['erro'] ?? 'desconhecido');
                         continue;
                     }
-                    $txidImediata = $respCobranca['dados']['txid'] ?? '';
+                    $txid_imediata = $resp_cobranca['dados']['txid'] ?? '';
 
-                    $payloadRec = $provedor->montaPayloadRecorrencia(
+                    $payload_rec = $provedor->montaPayloadRecorrencia(
                         $valor,
                         null,
                         $periodicidade,
-                        $nomeUsuario,
-                        $documentoLimpo,
+                        $nome_usuario,
+                        $documento_limpo,
                         $propriedades['nome'] ?? 'Assinatura',
-                        $txidImediata
+                        $txid_imediata
                     );
-                    $respRec = $provedor->criarRecorrencia($payloadRec);
-                    if (!($respRec['sucesso'] ?? false)) {
-                        $tentativas[] = "{$nomeGateway} criarRecorrencia falhou: " . ($respRec['erro'] ?? 'desconhecido');
+                    $resp_rec = $provedor->criarRecorrencia($payload_rec);
+                    if (!($resp_rec['sucesso'] ?? false)) {
+                        $tentativas[] = "{$nome_gateway} criarRecorrencia falhou: " . ($resp_rec['erro'] ?? 'desconhecido');
                         continue;
                     }
-                    $idAssinatura = $respRec['dados']['idRec'] ?? null;
-                    if (!$idAssinatura) {
-                        $tentativas[] = "{$nomeGateway} idRec ausente na resposta da recorrência";
-                        continue;
-                    }
-
-                    $respConsultaRec = $provedor->consultarRecorrencia($idAssinatura, $txidImediata);
-                    if (!($respConsultaRec['sucesso'] ?? false)) {
-                        $tentativas[] = "{$nomeGateway} consultarRecorrencia falhou: " . ($respConsultaRec['erro'] ?? 'desconhecido');
+                    $id_assinatura = $resp_rec['dados']['idRec'] ?? null;
+                    if (!$id_assinatura) {
+                        $tentativas[] = "{$nome_gateway} idRec ausente na resposta da recorrência";
                         continue;
                     }
 
-                    $ehRecorrenteOficial = true;
-                    $resp = $respCobranca;
+                    $resp_consulta_rec = $provedor->consultarRecorrencia($id_assinatura, $txid_imediata);
+                    if (!($resp_consulta_rec['sucesso'] ?? false)) {
+                        $tentativas[] = "{$nome_gateway} consultarRecorrencia falhou: " . ($resp_consulta_rec['erro'] ?? 'desconhecido');
+                        continue;
+                    }
+
+                    $eh_recorrente_oficial = true;
+                    $resp = $resp_cobranca;
                     // QR composto (paga + autoriza recorrência); some pra trás pro copia-e-cola simples da cobrança se a API não devolver o composto.
-                    $pixCopiaCola  = $respConsultaRec['dados']['dadosQR']['pixCopiaECola'] ?? ($respCobranca['dados']['pixCopiaECola'] ?? '');
-                    $txid          = $txidImediata;
-                    $linkPagamento = '';
+                    $pix_copia_cola  = $resp_consulta_rec['dados']['dadosQR']['pixCopiaECola'] ?? ($resp_cobranca['dados']['pixCopiaECola'] ?? '');
+                    $txid          = $txid_imediata;
+                    $link_pagamento = '';
 
                 } else {
-                    $payload = $provedor->montaPayloadCobranca($valor, $chavePix, $splitData, $expiracaoSegundos);
+                    $payload = $provedor->montaPayloadCobranca($valor, $chave_pix, $split_data, $expiracao_segundos);
 
                     $resp = $provedor->criarCobranca($payload);
                     if (!($resp['sucesso'] ?? false)) {
-                        $tentativas[] = "{$nomeGateway} criarCobranca falhou: " . ($resp['erro'] ?? 'desconhecido');
+                        $tentativas[] = "{$nome_gateway} criarCobranca falhou: " . ($resp['erro'] ?? 'desconhecido');
                         continue;
                     }
 
                     // InfoPago já devolve o pixCopiaECola direto na criação da cobrança (sem passo extra de QR code).
-                    $pixCopiaCola  = $resp['dados']['pixCopiaECola'] ?? '';
+                    $pix_copia_cola  = $resp['dados']['pixCopiaECola'] ?? '';
                     $txid          = $resp['dados']['txid'] ?? '';
-                    $linkPagamento = '';
+                    $link_pagamento = '';
                 }
 
-                $gatewaySelecionado = $gw;
+                $gateway_selecionado = $gw;
                 break;
             } catch (Exception $e) {
-                $tentativas[] = "{$nomeGateway} causou exceção: " . $e->getMessage();
+                $tentativas[] = "{$nome_gateway} causou exceção: " . $e->getMessage();
                 continue;
             }
         }
 
-        if (!$gatewaySelecionado || !($resp['sucesso'] ?? false)) {
-            $erroMsg = "Erro ao gerar Pix. Tentativas:\n" . implode("\n", $tentativas);
-            requisicao_telegram($token, 'sendMessage', ['chat_id' => $idChat, 'text' => $erroMsg]);
+        if (!$gateway_selecionado || !($resp['sucesso'] ?? false)) {
+            $erro_msg = "Erro ao gerar Pix. Tentativas:\n" . implode("\n", $tentativas);
+            requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => $erro_msg]);
             return;
         }
 
         $valor = (float)($propriedades['valor'] ?? 0);
-        $nomeProduto = $propriedades['nome'] ?? 'Produto';
-        $ehRecorrente = ($propriedades['tipo_cobranca'] ?? 'unica') === 'recorrente';
-        // O restante do fluxo pode usar $resp, $pixCopiaCola, $txid, $linkPagamento calculados acima.
+        $nome_produto = $propriedades['nome'] ?? 'Produto';
+        $eh_recorrente = ($propriedades['tipo_cobranca'] ?? 'unica') === 'recorrente';
 
         if ($resp['sucesso']) {
             $msg = "✅ *Pedido Criado com Sucesso!*\n\n";
-            $msg .= "🛒 *Produto:* $nomeProduto\n";
+            $msg .= "🛒 *Produto:* $nome_produto\n";
             $msg .= "💲 *Valor:* R$ " . number_format($valor, 2, ',', '.') . "\n\n";
             $msg .= "⏳ *Aguardando pagamento...*\n";
             $msg .= "Seu acesso será liberado automaticamente em até 1 minuto após a confirmação do pagamento.\n\n";
             $msg .= "👇 *Toque no código abaixo para copiar e pague no app do seu banco:*";
-            // Teclado para confirmar pagamento
-            $tecladoPix = null;
+            $teclado_pix = null;
             if (!empty($propriedades['mostrar_confirmar'])) {
-                $tecladoPix = [
+                $teclado_pix = [
                     'inline_keyboard' => [
                         [
                             ['text' => 'Já fiz o pagamento ✅', 'callback_data' => 'verificar_pagamento_' . $txid]
@@ -478,130 +463,120 @@ function processar_e_enviar_bloco(string $token, $idChat, array $operador, strin
                     ]
                 ];
             }
-            // Salvar venda no banco
             try {
-                $diasAcesso = isset($propriedades['dias_acesso']) ? (int)$propriedades['dias_acesso'] : 30; // Valor bruto
-                $unidadeAcesso = $propriedades['unidade_acesso'] ?? 'dias';
-                // Converte tudo para minutos para o banco
-                $tempoMinutos = 0;
-                if ($ehRecorrente) {
+                $dias_acesso = isset($propriedades['dias_acesso']) ? (int)$propriedades['dias_acesso'] : 30;
+                $unidade_acesso = $propriedades['unidade_acesso'] ?? 'dias';
+                $tempo_minutos = 0;
+                if ($eh_recorrente) {
                     switch($propriedades['periodicidade'] ?? 'mensal') {
-                        case 'semanal': $tempoMinutos = 7 * 1440; break;
-                        case 'trimestral': $tempoMinutos = 90 * 1440; break;
-                        case 'semestral': $tempoMinutos = 180 * 1440; break;
-                        case 'anual': $tempoMinutos = 365 * 1440; break;
-                        default: $tempoMinutos = 30 * 1440; // mensal
+                        case 'semanal': $tempo_minutos = 7 * 1440; break;
+                        case 'trimestral': $tempo_minutos = 90 * 1440; break;
+                        case 'semestral': $tempo_minutos = 180 * 1440; break;
+                        case 'anual': $tempo_minutos = 365 * 1440; break;
+                        default: $tempo_minutos = 30 * 1440;
                     }
                     // Mantém compatibilidade com coluna dias_acesso para recorrência
-                    $diasAcesso = (int)($tempoMinutos / 1440);
+                    $dias_acesso = (int)($tempo_minutos / 1440);
                 } else {
-                    // Pagamento Único com tempo customizado
-                    switch($unidadeAcesso) {
+                    switch($unidade_acesso) {
                         case 'minutos':
-                            $tempoMinutos = $diasAcesso;
-                            $diasAcesso = 0; // Marca 0 dias pois é menos que 1 dia (ou não exato)
+                            $tempo_minutos = $dias_acesso;
+                            $dias_acesso = 0; // Marca 0 dias pois é menos que 1 dia (ou não exato)
                             break;
                         case 'horas':
-                            $tempoMinutos = $diasAcesso * 60;
-                            $diasAcesso = 0; 
+                            $tempo_minutos = $dias_acesso * 60;
+                            $dias_acesso = 0; 
                             break;
                         case 'dias':
                         default:
-                            $tempoMinutos = $diasAcesso * 1440;
+                            $tempo_minutos = $dias_acesso * 1440;
                             break;
                     }
                 }
-                $idGrupoAcesso = $propriedades['id_grupo'] ?? null;
-                if (empty($idGrupoAcesso) || $idGrupoAcesso === '0' || $idGrupoAcesso === '') {
-                     $idGrupoAcesso = null;
+                $id_grupo_acesso = $propriedades['id_grupo'] ?? null;
+                if (empty($id_grupo_acesso) || $id_grupo_acesso === '0' || $id_grupo_acesso === '') {
+                     $id_grupo_acesso = null;
                 }
-                // $tempoExpiracao já foi calculado acima para o payload do Pix
                 // Força a conversão do idOperador para garantir que não seja vazio/nulo se estiver dentro do fluxo
-                if (empty($idOperador)) $idOperador = null;
+                if (empty($id_operador)) $id_operador = null;
                 // Força os tipos de dados para evitar erro silencioso de banco
-                $diasAcessoInsert = (int) $diasAcesso;
-                $tempoMinutosInsert = (int) $tempoMinutos;
-                $tempoExpiracaoInsert = (int) $tempoExpiracao;
-                $idUsuarioDonoInsert = (int) $idUsuarioDono;
-                $valorInsert = (float) $valor;
+                $dias_acesso_insert = (int) $dias_acesso;
+                $tempo_minutos_insert = (int) $tempo_minutos;
+                $tempo_expiracao_insert = (int) $tempo_expiracao;
+                $id_usuario_dono_insert = (int) $id_usuario_dono;
+                $valor_insert = (float) $valor;
                 // A chave estrangeira vendas_ibfk_1 falha se passarmos um idUsuarioDono em bot_id.
                 // Na tabela vendas, a coluna 'bot_id' deve receber o ID do bot, e não o ID do usuário dono do bot.
-                // Mas não temos o ID do bot na função processar_e_enviar_bloco.
+                // Mas não temos o ID do bot na função processarEEnviarBloco.
                 // Vamos buscar o ID real do bot usando o token
-                $stmtBotReal = $pdo->prepare("SELECT id FROM bots WHERE token = ?");
-                $stmtBotReal->execute([$token]);
-                $idBotReal = $stmtBotReal->fetchColumn();
-                $idBotInsert = $idBotReal ? (int)$idBotReal : null;
-                // Log direto no arquivo local para garantir que estamos vendo
-                file_put_contents(__DIR__ . '/logs/vendas_debug.log', "[" . date('Y-m-d H:i:s') . "] TENTANDO INSERIR VENDA - TXID: $txid | OPERADOR: $idOperador | BOT_ID: $idBotInsert\n", FILE_APPEND);
-                // Define data de criação explicitamente com o fuso horário correto
-                $dataCriacao = date('Y-m-d H:i:s');
-                $stmtVenda = $pdo->prepare("INSERT INTO vendas (id_telegram, bot_id, valor, status, transacao_id, id_grupo_telegram, dias_acesso, tempo_acesso_minutos, id_operador_fluxo, id_gateway, tempo_expiracao_minutos, criado_em, tipo_cobranca, id_assinatura) VALUES (?, ?, ?, 'gerado', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $executou = $stmtVenda->execute([
-                    $idChat,
-                    $idBotInsert,
-                    $valorInsert,
+                $stmt_bot_real = $pdo->prepare("SELECT id FROM bots WHERE token = ?");
+                $stmt_bot_real->execute([$token]);
+                $id_bot_real = $stmt_bot_real->fetchColumn();
+                $id_bot_insert = $id_bot_real ? (int)$id_bot_real : null;
+                file_put_contents(__DIR__ . '/logs/vendas_debug.log', "[" . date('Y-m-d H:i:s') . "] TENTANDO INSERIR VENDA - TXID: $txid | OPERADOR: $id_operador | BOT_ID: $id_bot_insert\n", FILE_APPEND);
+                $data_criacao = date('Y-m-d H:i:s');
+                $stmt_venda = $pdo->prepare("INSERT INTO vendas (id_telegram, bot_id, valor, status, transacao_id, id_grupo_telegram, dias_acesso, tempo_acesso_minutos, id_operador_fluxo, id_gateway, tempo_expiracao_minutos, criado_em, tipo_cobranca, id_assinatura) VALUES (?, ?, ?, 'gerado', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $executou = $stmt_venda->execute([
+                    $id_chat,
+                    $id_bot_insert,
+                    $valor_insert,
                     $txid,
-                    $idGrupoAcesso,
-                    $diasAcessoInsert,
-                    $tempoMinutosInsert,
-                    $idOperador,
-                    $gatewaySelecionado['gateway_id'] ?? $gatewaySelecionado['id_gateway'] ?? null,
-                    $tempoExpiracaoInsert,
-                    $dataCriacao,
-                    $ehRecorrenteOficial ? 'assinatura' : 'unica',
-                    $idAssinatura
+                    $id_grupo_acesso,
+                    $dias_acesso_insert,
+                    $tempo_minutos_insert,
+                    $id_operador,
+                    $gateway_selecionado['gateway_id'] ?? $gateway_selecionado['id_gateway'] ?? null,
+                    $tempo_expiracao_insert,
+                    $data_criacao,
+                    $eh_recorrente_oficial ? 'assinatura' : 'unica',
+                    $id_assinatura
                 ]);
                 if (!$executou) {
-                     file_put_contents(__DIR__ . '/logs/vendas_debug.log', "[" . date('Y-m-d H:i:s') . "] ERRO PDO: " . print_r($stmtVenda->errorInfo(), true) . "\n", FILE_APPEND);
+                     file_put_contents(__DIR__ . '/logs/vendas_debug.log', "[" . date('Y-m-d H:i:s') . "] ERRO PDO: " . print_r($stmt_venda->errorInfo(), true) . "\n", FILE_APPEND);
                 } else {
                      file_put_contents(__DIR__ . '/logs/vendas_debug.log', "[" . date('Y-m-d H:i:s') . "] VENDA INSERIDA COM SUCESSO!\n", FILE_APPEND);
-                     // Registra no Log
-                     if ($idUsuarioDonoInsert) {
+                     if ($id_usuario_dono_insert) {
                          require_once __DIR__ . '/funcoes/log.php';
-                         $valorFormatado = number_format($valorInsert, 2, ',', '.');
-                         registrarAtividade($idUsuarioDonoInsert, 'pix_gerado', 'Pix Gerado', "Novo PIX de R$ {$valorFormatado} foi gerado.");
-                         
-                         // Traqueamento de Eventos (Pixel/API)
+                         $valor_formatado = number_format($valor_insert, 2, ',', '.');
+                         registrarAtividade($id_usuario_dono_insert, 'pix_gerado', 'Pix Gerado', "Novo PIX de R$ {$valor_formatado} foi gerado.");
+
                          require_once __DIR__ . '/funcoes/traqueamento.php';
                          // Tenta buscar dados do lead se houver (futuro: email/telefone)
-                         $dadosEvento = [
-                             'valor' => $valorInsert,
-                             'nome_produto' => $nomeProduto,
+                         $dados_evento = [
+                             'valor' => $valor_insert,
+                             'nome_produto' => $nome_produto,
                              'transacao_id' => $txid,
                              'event_id' => $txid
                          ];
-                         $userData = [
-                             'id_telegram' => $idChat,
-                             // 'email' => ..., 'telefone' => ... (se tiver capturado antes)
+                         $user_data = [
+                             'id_telegram' => $id_chat,
                          ];
-                         enviarEventosTraqueamento($idUsuarioDonoInsert, 'pix_gerado', $dadosEvento, $userData);
+                         enviarEventosTraqueamento($id_usuario_dono_insert, 'pix_gerado', $dados_evento, $user_data);
                      }
                 }
             } catch (Exception $e) {
                 file_put_contents(__DIR__ . '/logs/vendas_debug.log', "[" . date('Y-m-d H:i:s') . "] EXCECAO: " . $e->getMessage() . "\n", FILE_APPEND);
             }
-            requisicao_telegram($token, 'sendMessage', [
-                'chat_id' => $idChat, 
-                'text' => $msg, 
+            requisicaoTelegram($token, 'sendMessage', [
+                'chat_id' => $id_chat,
+                'text' => $msg,
                 'parse_mode' => 'Markdown'
             ]);
-                        // Lógica melhorada para QR Code - COM LOGS
             if (!empty($propriedades['mostrar_qrcode'])) {
-                 $urlQrCode = '';
+                 $url_qr_code = '';
                  // Prioriza gerar o QR Code a partir do Copia e Cola para garantir compatibilidade
-                 if (!empty($pixCopiaCola)) {
-                     $urlQrCode = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' . urlencode($pixCopiaCola);
-                     file_put_contents(__DIR__ . "/logs/vendas_debug.log", "[" . date("Y-m-d H:i:s") . "] GERANDO QR CODE VIA API: $urlQrCode\n", FILE_APPEND);
-                 } elseif (!empty($linkPagamento) && strpos($linkPagamento, '/loc//') === false) {
-                     $urlQrCode = $linkPagamento;
-                     file_put_contents(__DIR__ . "/logs/vendas_debug.log", "[" . date("Y-m-d H:i:s") . "] USANDO LINK DE PAGAMENTO: $urlQrCode\n", FILE_APPEND);
+                 if (!empty($pix_copia_cola)) {
+                     $url_qr_code = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' . urlencode($pix_copia_cola);
+                     file_put_contents(__DIR__ . "/logs/vendas_debug.log", "[" . date("Y-m-d H:i:s") . "] GERANDO QR CODE VIA API: $url_qr_code\n", FILE_APPEND);
+                 } elseif (!empty($link_pagamento) && strpos($link_pagamento, '/loc//') === false) {
+                     $url_qr_code = $link_pagamento;
+                     file_put_contents(__DIR__ . "/logs/vendas_debug.log", "[" . date("Y-m-d H:i:s") . "] USANDO LINK DE PAGAMENTO: $url_qr_code\n", FILE_APPEND);
                  }
                  
-                 if ($urlQrCode) {
-                     $res = requisicao_telegram($token, 'sendPhoto', [
-                        'chat_id' => $idChat, 
-                        'photo' => $urlQrCode,
+                 if ($url_qr_code) {
+                     $res = requisicaoTelegram($token, 'sendPhoto', [
+                        'chat_id' => $id_chat, 
+                        'photo' => $url_qr_code,
                         'caption' => 'Escaneie o QR Code acima para pagar.'
                      ]);
                      file_put_contents(__DIR__ . "/logs/vendas_debug.log", "[" . date("Y-m-d H:i:s") . "] SEND PHOTO RES: " . json_encode($res) . "\n", FILE_APPEND);
@@ -609,31 +584,29 @@ function processar_e_enviar_bloco(string $token, $idChat, array $operador, strin
                      file_put_contents(__DIR__ . "/logs/vendas_debug.log", "[" . date("Y-m-d H:i:s") . "] SEM URL QR CODE\n", FILE_APPEND);
                  }
             }
-            if ($pixCopiaCola) {
+            if ($pix_copia_cola) {
                 $params = [
-                    'chat_id' => $idChat, 
-                    'text' => "<code>$pixCopiaCola</code>",
+                    'chat_id' => $id_chat, 
+                    'text' => "<code>$pix_copia_cola</code>",
                     'parse_mode' => 'HTML'
                 ];
-                if ($tecladoPix) {
-                    $params['reply_markup'] = json_encode($tecladoPix);
+                if ($teclado_pix) {
+                    $params['reply_markup'] = json_encode($teclado_pix);
                 }
-                requisicao_telegram($token, 'sendMessage', $params);
+                requisicaoTelegram($token, 'sendMessage', $params);
             }
         } else {
-            requisicao_telegram($token, 'sendMessage', ['chat_id' => $idChat, 'text' => 'Erro ao gerar Pix: ' . ($resp['erro'] ?? 'Desconhecido')]);
+            requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Erro ao gerar Pix: ' . ($resp['erro'] ?? 'Desconhecido')]);
         }
         return;
     }
 }
-// Lógica principal
 http_response_code(200);
 $token = $_GET['token'] ?? '';
 if ($token === '') {
     echo 'token ausente';
     exit;
 }
-// Busca o bot no banco de dados
 try {
     $stmt = $pdo->prepare("SELECT * FROM bots WHERE token = ?");
     $stmt->execute([$token]);
@@ -646,15 +619,12 @@ if (!$bot) {
     echo 'bot não encontrado';
     exit;
 }
-// Processa o update do Telegram
 $entrada = file_get_contents('php://input');
 $atualizacao = json_decode($entrada ?: '{}', true);
-// 1. Detectar adição/remoção do bot em grupos (my_chat_member)
 if (isset($atualizacao['my_chat_member'])) {
     $chat = $atualizacao['my_chat_member']['chat'];
-    $novoStatus = $atualizacao['my_chat_member']['new_chat_member']['status'] ?? '';
-    // Status que indicam que o bot é membro ou admin
-    if (in_array($novoStatus, ['member', 'administrator', 'creator'])) {
+    $novo_status = $atualizacao['my_chat_member']['new_chat_member']['status'] ?? '';
+    if (in_array($novo_status, ['member', 'administrator', 'creator'])) {
         $stmt = $pdo->prepare("
             INSERT INTO bot_grupos (bot_id, id_telegram, titulo, tipo) 
             VALUES (?, ?, ?, ?)
@@ -667,9 +637,8 @@ if (isset($atualizacao['my_chat_member'])) {
             $chat['type'] ?? 'group'
         ]);
         registrarAtividade($bot['id_usuario'], 'sistema', 'Grupo', "Bot adicionado ao grupo: " . ($chat['title'] ?? $chat['id']));
-    } 
-    // Status que indicam saída
-    elseif (in_array($novoStatus, ['left', 'kicked'])) {
+    }
+    elseif (in_array($novo_status, ['left', 'kicked'])) {
         $stmt = $pdo->prepare("DELETE FROM bot_grupos WHERE bot_id = ? AND id_telegram = ?");
         $stmt->execute([$bot['id'], (string)$chat['id']]);
         registrarAtividade($bot['id_usuario'], 'sistema', 'Grupo', "Bot removido do grupo: " . ($chat['title'] ?? $chat['id']));
@@ -677,133 +646,125 @@ if (isset($atualizacao['my_chat_member'])) {
     echo 'ok status';
     exit;
 }
-$idChat = null;
+$id_chat = null;
 $texto = '';
 if (isset($atualizacao['callback_query'])) {
-    $idChat = (string) $atualizacao['callback_query']['message']['chat']['id'];
+    $id_chat = (string) $atualizacao['callback_query']['message']['chat']['id'];
     $texto = (string) $atualizacao['callback_query']['data'];
-    requisicao_telegram($token, 'answerCallbackQuery', ['callback_query_id' => $atualizacao['callback_query']['id']]);
+    requisicaoTelegram($token, 'answerCallbackQuery', ['callback_query_id' => $atualizacao['callback_query']['id']]);
 } elseif (isset($atualizacao['message']['chat']['id'])) {
-    $idChat = (string) $atualizacao['message']['chat']['id'];
+    $id_chat = (string) $atualizacao['message']['chat']['id'];
     $texto = trim((string) ($atualizacao['message']['text'] ?? ''));
-    // Captura telefone quando o usuário compartilha o contato
     if (isset($atualizacao['message']['contact']['phone_number'])) {
-        $telefoneLead = preg_replace('/\D/', '', $atualizacao['message']['contact']['phone_number']);
+        $telefone_lead = preg_replace('/\D/', '', $atualizacao['message']['contact']['phone_number']);
         try {
             $pdo->prepare("UPDATE leads SET telefone = ? WHERE id_telegram = ? AND bot_id = ?")
-                ->execute([$telefoneLead, $idChat, $bot['id']]);
+                ->execute([$telefone_lead, $id_chat, $bot['id']]);
         } catch (Exception $e) {}
         echo 'ok';
         exit;
     }
 }
-if ($idChat && isset($atualizacao['message']['text'])) {
-    $estadoDocumento = obter_estado_pix_recorrente((int)$bot['id'], $idChat);
-    if ($estadoDocumento) {
-        limpar_estado_pix_recorrente((int)$bot['id'], $idChat);
-        requisicao_telegram($token, 'sendMessage', [
-            'chat_id' => $idChat,
+if ($id_chat && isset($atualizacao['message']['text'])) {
+    $estado_documento = obterEstadoPixRecorrente((int)$bot['id'], $id_chat);
+    if ($estado_documento) {
+        limparEstadoPixRecorrente((int)$bot['id'], $id_chat);
+        requisicaoTelegram($token, 'sendMessage', [
+            'chat_id' => $id_chat,
             'text' => 'O fluxo de pagamento foi atualizado. Toque de novo no botao ou passo de PIX recorrente no menu para continuar.'
         ]);
         exit;
     }
 }
-// Extrai parâmetro do /start (ex: "/start campanha_maio" → $startParam = "campanha_maio")
-$startParam = null;
-if (preg_match('/^\/start\s+(.+)$/i', $texto, $startMatch)) {
-    $startParam = trim($startMatch[1]);
+// Extrai parâmetro do /start (ex: "/start campanha_maio" → $start_param = "campanha_maio")
+$start_param = null;
+if (preg_match('/^\/start\s+(.+)$/i', $texto, $start_match)) {
+    $start_param = trim($start_match[1]);
     $texto = '/start'; // normaliza para o fluxo tratar igual ao /start comum
 }
 if (strpos($texto, 'verificar_pagamento_') === 0) {
     $txid = str_replace('verificar_pagamento_', '', $texto);
-    // Busca venda no banco
     try {
         $stmt = $pdo->prepare("SELECT * FROM vendas WHERE transacao_id = ?");
         $stmt->execute([$txid]);
         $venda = $stmt->fetch();
         if ($venda) {
             if ($venda['status'] === 'pago') {
-                requisicao_telegram($token, 'sendMessage', ['chat_id' => $idChat, 'text' => '✅ Seu pagamento já foi confirmado!']);
+                requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => '✅ Seu pagamento já foi confirmado!']);
             } else {
-                // Usa o gateway registrado na venda para verificar o pagamento
-                $stmtDono = $pdo->prepare("SELECT id_usuario FROM bots WHERE id = ?");
-                $stmtDono->execute([$venda['bot_id']]);
-                $idUsuarioDono = $stmtDono->fetchColumn();
+                $stmt_dono = $pdo->prepare("SELECT id_usuario FROM bots WHERE id = ?");
+                $stmt_dono->execute([$venda['bot_id']]);
+                $id_usuario_dono = $stmt_dono->fetchColumn();
 
-                // Descobre qual gateway foi usado na venda
-                $nomeGwVenda = null;
+                $nome_gw_venda = null;
                 if (!empty($venda['id_gateway'])) {
-                    $stmtGwNome = $pdo->prepare("SELECT nome FROM gateways WHERE id = ?");
-                    $stmtGwNome->execute([$venda['id_gateway']]);
-                    $nomeGwVenda = $stmtGwNome->fetchColumn() ?: null;
+                    $stmt_gw_nome = $pdo->prepare("SELECT nome FROM gateways WHERE id = ?");
+                    $stmt_gw_nome->execute([$venda['id_gateway']]);
+                    $nome_gw_venda = $stmt_gw_nome->fetchColumn() ?: null;
                 }
-                if (!$nomeGwVenda) {
-                    $nomeGwVenda = 'infopago';
+                if (!$nome_gw_venda) {
+                    $nome_gw_venda = 'infopago';
                 }
 
-                $gatewayConfig = getUserGatewayConfig((int)$idUsuarioDono, $nomeGwVenda);
-                $debugLog = __DIR__ . '/logs/verificar_pag_debug.log';
-                file_put_contents($debugLog, '[' . date('Y-m-d H:i:s') . '] TXID=' . $txid . ' | gateway=' . $nomeGwVenda . ' | gatewayConfig=' . ($gatewayConfig ? 'ok' : 'NULL') . PHP_EOL, FILE_APPEND);
-                if ($gatewayConfig) {
-                    $provVerif = resolveGatewayProvider($nomeGwVenda, $gatewayConfig);
-                    $resp = $provVerif ? $provVerif->consultarCobranca($txid) : ['sucesso' => false];
-                    $statusVerif = strtoupper(trim($resp['dados']['status'] ?? $resp['dados']['statusCob'] ?? ''));
-                    file_put_contents($debugLog, '[' . date('Y-m-d H:i:s') . '] resp=' . json_encode($resp) . ' | statusVerif=' . $statusVerif . PHP_EOL, FILE_APPEND);
-                    if ($resp['sucesso'] && in_array($statusVerif, ['CONCLUIDA', 'PAGO', 'LIQUIDADO', 'PAID', 'APPROVED', 'COMPLETED'])) {
-                        // Foi pago! Atualiza e libera
+                $gateway_config = getUserGatewayConfig((int)$id_usuario_dono, $nome_gw_venda);
+                $debug_log = __DIR__ . '/logs/verificar_pag_debug.log';
+                file_put_contents($debug_log, '[' . date('Y-m-d H:i:s') . '] TXID=' . $txid . ' | gateway=' . $nome_gw_venda . ' | gatewayConfig=' . ($gateway_config ? 'ok' : 'NULL') . PHP_EOL, FILE_APPEND);
+                if ($gateway_config) {
+                    $prov_verif = resolveGatewayProvider($nome_gw_venda, $gateway_config);
+                    $resp = $prov_verif ? $prov_verif->consultarCobranca($txid) : ['sucesso' => false];
+                    $status_verif = strtoupper(trim($resp['dados']['status'] ?? $resp['dados']['statusCob'] ?? ''));
+                    file_put_contents($debug_log, '[' . date('Y-m-d H:i:s') . '] resp=' . json_encode($resp) . ' | statusVerif=' . $status_verif . PHP_EOL, FILE_APPEND);
+                    if ($resp['sucesso'] && in_array($status_verif, ['CONCLUIDA', 'PAGO', 'LIQUIDADO', 'PAID', 'APPROVED', 'COMPLETED'])) {
                         // VERIFICA SE JÁ ESTAVA PAGO ANTES DE PROCESSAR
-                        $stmtCheck = $pdo->prepare("SELECT status FROM vendas WHERE id = ?");
-                        $stmtCheck->execute([$venda['id']]);
-                        if ($stmtCheck->fetchColumn() === 'pago') {
+                        $stmt_check = $pdo->prepare("SELECT status FROM vendas WHERE id = ?");
+                        $stmt_check->execute([$venda['id']]);
+                        if ($stmt_check->fetchColumn() === 'pago') {
                              // Já foi processado por outra requisição simultânea. Para aqui.
                              exit;
                         }
 
                         $pdo->prepare("UPDATE vendas SET status = 'pago', pago_em = NOW() WHERE id = ?")->execute([$venda['id']]);
 
-                        if ($nomeGwVenda === 'infopago') {
-                            dispararSplitInfopago((int)$idUsuarioDono, (float)$venda['valor'], $txid);
+                        if ($nome_gw_venda === 'infopago') {
+                            dispararSplitInfopago((int)$id_usuario_dono, (float)$venda['valor'], $txid);
                         }
 
-                        // Traqueamento de Eventos (Pixel/API) - Manual Check
                         require_once __DIR__ . '/funcoes/traqueamento.php';
-                        $nomeLeadManual = '';
+                        $nome_lead_manual = '';
                         try {
-                            $stmtLead = $pdo->prepare("SELECT nome FROM leads WHERE id_telegram = ? AND bot_id = ?");
-                            $stmtLead->execute([$venda['id_telegram'], $venda['bot_id']]);
-                            $nomeLeadManual = $stmtLead->fetchColumn() ?: '';
+                            $stmt_lead = $pdo->prepare("SELECT nome FROM leads WHERE id_telegram = ? AND bot_id = ?");
+                            $stmt_lead->execute([$venda['id_telegram'], $venda['bot_id']]);
+                            $nome_lead_manual = $stmt_lead->fetchColumn() ?: '';
                         } catch (Exception $e) {}
 
-                        $dadosEventoManual = [
+                        $dados_evento_manual = [
                             'valor' => (float)$venda['valor'],
                             'transacao_id' => $txid,
                             'event_id' => $txid
                         ];
-                        $userDataManual = [
+                        $user_data_manual = [
                             'id_telegram' => $venda['id_telegram'],
-                            'first_name' => $nomeLeadManual
+                            'first_name' => $nome_lead_manual
                         ];
-                        
-                        // Mapeamento correto de evento para PIX PAGO
-                        enviarEventosTraqueamento((int)$idUsuarioDono, 'compra', $dadosEventoManual, $userDataManual);
 
-                        // Libera grupo
+                        enviarEventosTraqueamento((int)$id_usuario_dono, 'compra', $dados_evento_manual, $user_data_manual);
+
                          $msg = "✅ *Pagamento Confirmado!*\n\nObrigado pela sua compra.";
                         if (!empty($venda['id_grupo_telegram'])) {
-                            $idGrupo = $venda['id_grupo_telegram'];
-                            $tempoMinutos = (int)($venda['tempo_acesso_minutos'] ?? ($venda['dias_acesso'] * 1440));
+                            $id_grupo = $venda['id_grupo_telegram'];
+                            $tempo_minutos = (int)($venda['tempo_acesso_minutos'] ?? ($venda['dias_acesso'] * 1440));
                             // Revoga link antigo do mesmo usuário para impedir reuso/compartilhamento.
-                            $stmtLinkAnterior = $pdo->prepare("SELECT invite_link FROM membros_grupos WHERE id_telegram = ? AND id_grupo_telegram = ? AND bot_id = ? LIMIT 1");
-                            $stmtLinkAnterior->execute([$venda['id_telegram'], $idGrupo, $venda['bot_id']]);
-                            $linkAnterior = (string)($stmtLinkAnterior->fetchColumn() ?: '');
-                            if ($linkAnterior !== '') {
-                                requisicao_telegram($token, 'revokeChatInviteLink', [
-                                    'chat_id' => $idGrupo,
-                                    'invite_link' => $linkAnterior
+                            $stmt_link_anterior = $pdo->prepare("SELECT invite_link FROM membros_grupos WHERE id_telegram = ? AND id_grupo_telegram = ? AND bot_id = ? LIMIT 1");
+                            $stmt_link_anterior->execute([$venda['id_telegram'], $id_grupo, $venda['bot_id']]);
+                            $link_anterior = (string)($stmt_link_anterior->fetchColumn() ?: '');
+                            if ($link_anterior !== '') {
+                                requisicaoTelegram($token, 'revokeChatInviteLink', [
+                                    'chat_id' => $id_grupo,
+                                    'invite_link' => $link_anterior
                                 ]);
                             }
-                            $invite = requisicao_telegram($token, 'createChatInviteLink', [
-                                'chat_id' => $idGrupo,
+                            $invite = requisicaoTelegram($token, 'createChatInviteLink', [
+                                'chat_id' => $id_grupo,
                                 'member_limit' => 1,
                                 'expire_date' => time() + (15 * 60),
                                 'name' => 'Venda #' . $venda['id']
@@ -811,31 +772,31 @@ if (strpos($texto, 'verificar_pagamento_') === 0) {
                             if (($invite['ok'] ?? false) && isset($invite['result']['invite_link'])) {
                             $link = $invite['result']['invite_link'];
                             // Usa a mesma lógica de cálculo de minutos que foi usada na criação da venda
-                            $minutosAcesso = $venda['tempo_acesso_minutos'] ?? 0;
-                            if ($minutosAcesso <= 0) {
+                            $minutos_acesso = $venda['tempo_acesso_minutos'] ?? 0;
+                            if ($minutos_acesso <= 0) {
                                 // Fallback para dias se tempo_acesso_minutos estiver zerado (legado)
-                                $minutosAcesso = ($venda['dias_acesso'] ?? 0) * 1440;
+                                $minutos_acesso = ($venda['dias_acesso'] ?? 0) * 1440;
                             }
-                            $dataExpiracao = date('Y-m-d H:i:s', strtotime("+$minutosAcesso minutes"));
+                            $data_expiracao = date('Y-m-d H:i:s', strtotime("+$minutos_acesso minutes"));
                             $pdo->prepare("
                                 INSERT INTO membros_grupos (id_telegram, id_grupo_telegram, bot_id, venda_id, data_expiracao, invite_link, status)
                                 VALUES (?, ?, ?, ?, ?, ?, 'ativo')
                                 ON DUPLICATE KEY UPDATE status = 'ativo', data_expiracao = VALUES(data_expiracao), venda_id = VALUES(venda_id), invite_link = VALUES(invite_link), aviso_enviado = 0
-                            ")->execute([$venda['id_telegram'], $idGrupo, $venda['bot_id'], $venda['id'], $dataExpiracao, $link]);
+                            ")->execute([$venda['id_telegram'], $id_grupo, $venda['bot_id'], $venda['id'], $data_expiracao, $link]);
                             $msg .= "\n\n🚀 *Acesso Liberado!*\nClique no link abaixo para entrar no grupo exclusivo:\n\n$link\n\n⚠️ Este link é válido apenas para você.";
-                            if ($minutosAcesso < 60) {
-                                 $msg .= "\n⏳ *Seu acesso expira em {$minutosAcesso} minutos.*";
-                            } elseif ($minutosAcesso < 1440) {
-                                 $horas = floor($minutosAcesso / 60);
+                            if ($minutos_acesso < 60) {
+                                 $msg .= "\n⏳ *Seu acesso expira em {$minutos_acesso} minutos.*";
+                            } elseif ($minutos_acesso < 1440) {
+                                 $horas = floor($minutos_acesso / 60);
                                  $msg .= "\n⏳ *Seu acesso expira em {$horas} horas.*";
                             } else {
-                                 $dias = floor($minutosAcesso / 1440);
+                                 $dias = floor($minutos_acesso / 1440);
                                  $msg .= "\n⏳ *Seu acesso expira em {$dias} dias.*";
                             }
-                            $msg .= "\n*(Data exata: " . date('d/m/Y \à\s H:i', strtotime($dataExpiracao)) . ")*";
+                            $msg .= "\n*(Data exata: " . date('d/m/Y \à\s H:i', strtotime($data_expiracao)) . ")*";
                         }
                         }
-                        requisicao_telegram($token, 'sendMessage', ['chat_id' => $idChat, 'text' => $msg, 'parse_mode' => 'Markdown']);
+                        requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => $msg, 'parse_mode' => 'Markdown']);
                         
                         // Atualização: Verifica se já foi processado para evitar duplicidade no fluxo
                         // Se for uma renovação (tem venda_pai_id ou foi gerado via cron), o fluxo já pode ter sido processado ou não se aplica.
@@ -845,45 +806,40 @@ if (strpos($texto, 'verificar_pagamento_') === 0) {
                         // Vamos verificar se já enviamos algo recentemente? Não, o update status protege.
                         // Mas se o update acontecer muito rápido em paralelo?
                         
-                        // Continua Fluxo SOMENTE se tiver operador definido
                         if (!empty($venda['id_operador_fluxo'])) {
-                            // Precisamos carregar o fluxo
-                             $stmtFluxo = $pdo->prepare("SELECT f.dados_fluxograma FROM bots b JOIN fluxos f ON b.id_fluxo_conectado = f.id WHERE b.id = ?");
-                             $stmtFluxo->execute([$venda['bot_id']]);
-                             $dadosJson = $stmtFluxo->fetchColumn();
-                             if ($dadosJson) {
-                                 $dadosFluxo = json_decode($dadosJson, true);
-                                 $proximoId = obter_proximo_no($dadosFluxo['links'], $venda['id_operador_fluxo']); // Tenta output_pago (precisaria ajustar obter_proximo_no para aceitar conector)
-                                 // Ajuste rápido: obter_proximo_no padrão pega qualquer saída.
-                                 // Para pegar 'output_pago', precisamos iterar manualmente ou melhorar a função.
-                                 // Vou iterar manualmente aqui rapidinho
-                                 $proximoIdPago = null;
-                                 foreach ($dadosFluxo['links'] as $link) {
+                             $stmt_fluxo = $pdo->prepare("SELECT f.dados_fluxograma FROM bots b JOIN fluxos f ON b.id_fluxo_conectado = f.id WHERE b.id = ?");
+                             $stmt_fluxo->execute([$venda['bot_id']]);
+                             $dados_json = $stmt_fluxo->fetchColumn();
+                             if ($dados_json) {
+                                 $dados_fluxo = json_decode($dados_json, true);
+                                 $proximo_id = obterProximoNo($dados_fluxo['links'], $venda['id_operador_fluxo']);
+                                 $proximo_id_pago = null;
+                                 foreach ($dados_fluxo['links'] as $link) {
                                      if (($link['fromOperator'] ?? '') === $venda['id_operador_fluxo'] && ($link['fromConnector'] ?? '') === 'output_pago') {
-                                         $proximoIdPago = $link['toOperator'] ?? null;
+                                         $proximo_id_pago = $link['toOperator'] ?? null;
                                          break;
                                      }
                                  }
-                                 if ($proximoIdPago) {
-                                     while ($proximoIdPago && isset($dadosFluxo['operators'][$proximoIdPago])) {
-                                         $operador = $dadosFluxo['operators'][$proximoIdPago];
-                                         processar_e_enviar_bloco($token, $idChat, $operador, $proximoIdPago);
+                                 if ($proximo_id_pago) {
+                                     while ($proximo_id_pago && isset($dados_fluxo['operators'][$proximo_id_pago])) {
+                                         $operador = $dados_fluxo['operators'][$proximo_id_pago];
+                                         processarEEnviarBloco($token, $id_chat, $operador, $proximo_id_pago);
                                          if (in_array($operador['properties']['type'] ?? '', ['botoes', 'pix'])) break;
-                                         $proximoIdPago = obter_proximo_no($dadosFluxo['links'], $proximoIdPago);
+                                         $proximo_id_pago = obterProximoNo($dados_fluxo['links'], $proximo_id_pago);
                                      }
                                  }
                              }
                         }
                     } else {
-                        requisicao_telegram($token, 'sendMessage', ['chat_id' => $idChat, 'text' => '⏳ Pagamento ainda não identificado. Aguarde alguns instantes e tente novamente.']);
+                        requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => '⏳ Pagamento ainda não identificado. Aguarde alguns instantes e tente novamente.']);
                     }
                 }
             }
         } else {
-            requisicao_telegram($token, 'sendMessage', ['chat_id' => $idChat, 'text' => '❌ Pagamento não encontrado.']);
+            requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => '❌ Pagamento não encontrado.']);
         }
     } catch (Exception $e) {
-        requisicao_telegram($token, 'sendMessage', ['chat_id' => $idChat, 'text' => 'Erro ao verificar.']);
+        requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Erro ao verificar.']);
     }
     exit;
 }
@@ -891,7 +847,6 @@ if (strpos($texto, 'verificar_pagamento_') === 0) {
 if (isset($atualizacao['message']['new_chat_members'])) {
     foreach ($atualizacao['message']['new_chat_members'] as $membro) {
         if (($membro['id'] ?? 0) == ($bot['id_bot_telegram'] ?? 0)) {
-             // É o próprio bot
              $chat = $atualizacao['message']['chat'];
              $stmt = $pdo->prepare("
                 INSERT INTO bot_grupos (bot_id, id_telegram, titulo, tipo) 
@@ -907,80 +862,70 @@ if (isset($atualizacao['message']['new_chat_members'])) {
         }
     }
 }
-// Detectar se o título do grupo mudou
 if (isset($atualizacao['message']['new_chat_title'])) {
     $chat = $atualizacao['message']['chat'];
     $stmt = $pdo->prepare("UPDATE bot_grupos SET titulo = ? WHERE bot_id = ? AND id_telegram = ?");
     $stmt->execute([$atualizacao['message']['new_chat_title'], $bot['id'], (string)$chat['id']]);
 }
-// Detectar migração de grupo para supergrupo
 if (isset($atualizacao['message']['migrate_to_chat_id'])) {
-    $chatAntigo = (string)$atualizacao['message']['chat']['id'];
-    $chatNovo = (string)$atualizacao['message']['migrate_to_chat_id'];
+    $chat_antigo = (string)$atualizacao['message']['chat']['id'];
+    $chat_novo = (string)$atualizacao['message']['migrate_to_chat_id'];
     $stmt = $pdo->prepare("UPDATE bot_grupos SET id_telegram = ?, tipo = 'supergroup' WHERE bot_id = ? AND id_telegram = ?");
-    $stmt->execute([$chatNovo, $bot['id'], $chatAntigo]);
+    $stmt->execute([$chat_novo, $bot['id'], $chat_antigo]);
 }
-if (!$idChat) {
+if (!$id_chat) {
     echo 'sem chat';
     exit;
 }
-// Resposta simples ao /start
 if ($texto === '/start') {
-    // Registrar Lead e Atividade
     try {
-        $isNovoLead = false;
-        // Verifica se já existe o lead para este bot
-        $stmtLead = $pdo->prepare("SELECT id FROM leads WHERE id_telegram = ? AND bot_id = ?");
-        $stmtLead->execute([$idChat, $bot['id']]);
-        if (!$stmtLead->fetch()) {
-            $isNovoLead = true;
+        $is_novo_lead = false;
+        $stmt_lead = $pdo->prepare("SELECT id FROM leads WHERE id_telegram = ? AND bot_id = ?");
+        $stmt_lead->execute([$id_chat, $bot['id']]);
+        if (!$stmt_lead->fetch()) {
+            $is_novo_lead = true;
             // /start pode chegar como mensagem de texto OU clique num botão (callback_query,
             // ex: botão "Recomeçar" do aviso de renovação) — o campo "from" mora em lugares diferentes.
-            $dadosRemetente = $atualizacao['message']['from'] ?? $atualizacao['callback_query']['from'] ?? [];
-            $nomeUsuario = trim(($dadosRemetente['first_name'] ?? '') . ' ' . ($dadosRemetente['last_name'] ?? ''));
-            if ($nomeUsuario === '') $nomeUsuario = 'Usuário ' . $idChat;
-            $dataCriacao = date('Y-m-d H:i:s');
-            $stmtInsertLead = $pdo->prepare("INSERT INTO leads (id_telegram, nome, bot_id, criado_em) VALUES (?, ?, ?, ?)");
-            $stmtInsertLead->execute([$idChat, $nomeUsuario, $bot['id'], $dataCriacao]);
-            $stmtInsertAtiv = $pdo->prepare("INSERT INTO atividades (id_usuario, tipo, titulo, descricao, icone, criado_em) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmtInsertAtiv->execute([$bot['id_usuario'], 'lead', 'Novo Lead', $nomeUsuario . ' iniciou conversa', 'user', $dataCriacao]);
+            $dados_remetente = $atualizacao['message']['from'] ?? $atualizacao['callback_query']['from'] ?? [];
+            $nome_usuario = trim(($dados_remetente['first_name'] ?? '') . ' ' . ($dados_remetente['last_name'] ?? ''));
+            if ($nome_usuario === '') $nome_usuario = 'Usuário ' . $id_chat;
+            $data_criacao = date('Y-m-d H:i:s');
+            $stmt_insert_lead = $pdo->prepare("INSERT INTO leads (id_telegram, nome, bot_id, criado_em) VALUES (?, ?, ?, ?)");
+            $stmt_insert_lead->execute([$id_chat, $nome_usuario, $bot['id'], $data_criacao]);
+            $stmt_insert_ativ = $pdo->prepare("INSERT INTO atividades (id_usuario, tipo, titulo, descricao, icone, criado_em) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt_insert_ativ->execute([$bot['id_usuario'], 'lead', 'Novo Lead', $nome_usuario . ' iniciou conversa', 'user', $data_criacao]);
         }
         // Se veio de um link de rastreamento, incrementa starts (sempre) e leads (só se for novo lead)
-        if ($startParam) {
-            $camposRast = 'starts = starts + 1' . ($isNovoLead ? ', leads = leads + 1' : '');
-            $pdo->prepare("UPDATE links_rastreamento SET $camposRast WHERE bot_id = ? AND identificador = ?")
-                ->execute([$bot['id'], $startParam]);
+        if ($start_param) {
+            $campos_rast = 'starts = starts + 1' . ($is_novo_lead ? ', leads = leads + 1' : '');
+            $pdo->prepare("UPDATE links_rastreamento SET $campos_rast WHERE bot_id = ? AND identificador = ?")
+                ->execute([$bot['id'], $start_param]);
         }
     } catch (Exception $e) {
         // Ignora erro para não quebrar o webhook
     }
 }
-// Função auxiliar para encontrar o próximo nó (conexão padrão)
-function obter_proximo_no(array $links, string $idAtual): ?string {
+function obterProximoNo(array $links, string $id_atual): ?string {
     foreach ($links as $link) {
-        // Procura link saindo deste operador (considera output_1 ou qualquer um se for único)
-        if (($link['fromOperator'] ?? '') === $idAtual) {
+        if (($link['fromOperator'] ?? '') === $id_atual) {
             return $link['toOperator'] ?? null;
         }
     }
     return null;
 }
-// Se o bot tem um fluxo conectado, tenta executar
 if (!empty($bot['id_fluxo_conectado'])) {
     try {
         $stmt = $pdo->prepare("SELECT * FROM fluxos WHERE id = ?");
         $stmt->execute([$bot['id_fluxo_conectado']]);
         $fluxo = $stmt->fetch();
         if ($fluxo) {
-            $dadosFluxo = json_decode($fluxo['dados_fluxograma'] ?? '{}', true);
-            $dadosFluxo = is_array($dadosFluxo) ? $dadosFluxo : ['operators' => [], 'links' => []];
+            $dados_fluxo = json_decode($fluxo['dados_fluxograma'] ?? '{}', true);
+            $dados_fluxo = is_array($dados_fluxo) ? $dados_fluxo : ['operators' => [], 'links' => []];
             if ($texto === '/start') {
-                // Início do fluxo
-                $proximoId = buscar_proximo_do_inicio($dadosFluxo);
-                // Executa em loop até encontrar um ponto de parada (ex: botões)
-                while ($proximoId && isset($dadosFluxo['operators'][$proximoId])) {
-                    $operador = $dadosFluxo['operators'][$proximoId];
-                    processar_e_enviar_bloco($token, $idChat, $operador, $proximoId);
+                $proximo_id = buscarProximoDoInicio($dados_fluxo);
+                while ($proximo_id && isset($dados_fluxo['operators'][$proximo_id])) {
+                    $operador = $dados_fluxo['operators'][$proximo_id];
+                    processarEEnviarBloco($token, $id_chat, $operador, $proximo_id);
                     // Se for Botões, para a execução automática e aguarda interação do usuário
                     if (($operador['properties']['type'] ?? '') === 'botoes') {
                         break;
@@ -989,46 +934,39 @@ if (!empty($bot['id_fluxo_conectado'])) {
                     if (($operador['properties']['type'] ?? '') === 'pix') {
                         break;
                     }
-                    // Se for Delay
                     if (($operador['properties']['type'] ?? '') === 'delay') {
                          $segundos = (int)($operador['properties']['delay_min'] ?? 0);
                          if ($segundos > 0 && $segundos <= 5) sleep($segundos);
                     }
-                    // Busca o próximo nó
-                    $proximoId = obter_proximo_no($dadosFluxo['links'], $proximoId);
+                    $proximo_id = obterProximoNo($dados_fluxo['links'], $proximo_id);
                 }
             } else {
                 // Tenta identificar resposta a botões (lógica sem estado)
                 $encontrou = false;
-                foreach ($dadosFluxo['operators'] as $opId => $op) {
+                foreach ($dados_fluxo['operators'] as $op_id => $op) {
                     if (($op['properties']['type'] ?? '') === 'botoes') {
                          $botoes = $op['properties']['botoes'] ?? [];
-                         // Verifica se o texto recebido corresponde a algum botão deste bloco
                          if (in_array($texto, $botoes)) {
-                             // Encontrou o botão clicado
                              $index = array_search($texto, $botoes);
-                             $outputKey = 'output_' . $index;
-                             // Busca para onde esse botão leva
-                             $proximoId = null;
-                             foreach ($dadosFluxo['links'] as $link) {
-                                 if (($link['fromOperator'] ?? '') === $opId && ($link['fromConnector'] ?? '') === $outputKey) {
-                                     $proximoId = $link['toOperator'] ?? null;
+                             $output_key = 'output_' . $index;
+                             $proximo_id = null;
+                             foreach ($dados_fluxo['links'] as $link) {
+                                 if (($link['fromOperator'] ?? '') === $op_id && ($link['fromConnector'] ?? '') === $output_key) {
+                                     $proximo_id = $link['toOperator'] ?? null;
                                      break;
                                  }
                              }
-                             // Se encontrou destino, executa o fluxo a partir dele
-                             if ($proximoId) {
+                             if ($proximo_id) {
                                 $encontrou = true;
-                                while ($proximoId && isset($dadosFluxo['operators'][$proximoId])) {
-                                    $operador = $dadosFluxo['operators'][$proximoId];
-                                    // Adicionei a passagem de $proximoId aqui também!
-                                    processar_e_enviar_bloco($token, $idChat, $operador, $proximoId);
+                                while ($proximo_id && isset($dados_fluxo['operators'][$proximo_id])) {
+                                    $operador = $dados_fluxo['operators'][$proximo_id];
+                                    processarEEnviarBloco($token, $id_chat, $operador, $proximo_id);
                                     if (($operador['properties']['type'] ?? '') === 'botoes') break;
                                     if (($operador['properties']['type'] ?? '') === 'pix') break;
-                                    $proximoId = obter_proximo_no($dadosFluxo['links'], $proximoId);
+                                    $proximo_id = obterProximoNo($dados_fluxo['links'], $proximo_id);
                                 }
                             }
-                             break; // Sai do loop de operadores se achou o botão
+                             break;
                          }
                     }
                 }

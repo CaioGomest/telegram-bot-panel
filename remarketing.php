@@ -1,71 +1,68 @@
 <?php
 require_once __DIR__ . '/funcoes/usuario.php';
 verificarLogin();
-$idUsuario = $_SESSION['usuario_id'];
-$stmtBots = $pdo->prepare("SELECT id, COALESCE(primeiro_nome, nome_usuario) as nome FROM bots WHERE id_usuario = ?");
-$stmtBots->execute([$idUsuario]);
-$meusBots = $stmtBots->fetchAll(PDO::FETCH_ASSOC);
+$id_usuario = $_SESSION['usuario_id'];
+$stmt_bots = $pdo->prepare("SELECT id, COALESCE(primeiro_nome, nome_usuario) as nome FROM bots WHERE id_usuario = ?");
+$stmt_bots->execute([$id_usuario]);
+$meus_bots = $stmt_bots->fetchAll(PDO::FETCH_ASSOC);
 
-function processarCampanha(array $input, PDO $pdo, int $idUsuario): array {
-    $botId = isset($input['bot_id']) ? (int)$input['bot_id'] : 0;
+function processarCampanha(array $input, PDO $pdo, int $id_usuario): array {
+    $bot_id = isset($input['bot_id']) ? (int)$input['bot_id'] : 0;
     $audiencia = isset($input['audiencia']) ? $input['audiencia'] : '';
     $mensagem = isset($input['mensagem']) ? trim((string)$input['mensagem']) : '';
-    $agendadoStr = isset($input['agendado_em']) ? trim((string)$input['agendado_em']) : '';
+    $agendado_str = isset($input['agendado_em']) ? trim((string)$input['agendado_em']) : '';
     if (!in_array($audiencia, ['nao_comprou', 'comprou'], true)) {
         return ['sucesso' => false, 'mensagem' => 'Audiência inválida.'];
     }
-    if ($botId <= 0 || $mensagem === '') {
+    if ($bot_id <= 0 || $mensagem === '') {
         return ['sucesso' => false, 'mensagem' => 'Informe bot e mensagem.'];
     }
     // Sempre agenda via cron — nunca envia inline para não travar a requisição
-    $agendadoEm = $agendadoStr !== '' ? date('Y-m-d H:i:s', strtotime($agendadoStr)) : date('Y-m-d H:i:s');
+    $agendado_em = $agendado_str !== '' ? date('Y-m-d H:i:s', strtotime($agendado_str)) : date('Y-m-d H:i:s');
     $pdo->prepare("INSERT INTO remarketing_campanhas (id_usuario, bot_id, audiencia, mensagem, agendado_em, status, criado_em) VALUES (?, ?, ?, ?, ?, 'pendente', NOW())")
-        ->execute([$idUsuario, $botId, $audiencia, $mensagem, $agendadoEm]);
-    $campanhaId = (int)$pdo->lastInsertId();
+        ->execute([$id_usuario, $bot_id, $audiencia, $mensagem, $agendado_em]);
+    $campanha_id = (int)$pdo->lastInsertId();
 
-    if ($agendadoStr !== '') {
-        return ['sucesso' => true, 'mensagem' => 'Campanha agendada para ' . date('d/m/Y H:i', strtotime($agendadoEm)) . '.', 'campanha_id' => $campanhaId];
+    if ($agendado_str !== '') {
+        return ['sucesso' => true, 'mensagem' => 'Campanha agendada para ' . date('d/m/Y H:i', strtotime($agendado_em)) . '.', 'campanha_id' => $campanha_id];
     }
-    return ['sucesso' => true, 'mensagem' => 'Campanha criada! O envio será processado em instantes pelo cron.', 'campanha_id' => $campanhaId];
+    return ['sucesso' => true, 'mensagem' => 'Campanha criada! O envio será processado em instantes pelo cron.', 'campanha_id' => $campanha_id];
 }
 
-// Modo AJAX: retorna JSON e encerra antes do HTML
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
+    $is_ajax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
         || (stripos($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json') !== false);
-    if ($isAjax) {
+    if ($is_ajax) {
         header('Content-Type: application/json; charset=utf-8');
-        $resp = processarCampanha($_POST, $pdo, $idUsuario);
+        $resp = processarCampanha($_POST, $pdo, $id_usuario);
         echo json_encode($resp, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }
 }
 
-// Contar destinatários (UX no modal)
 if (($_GET['action'] ?? '') === 'contar_destinatarios') {
     header('Content-Type: application/json; charset=utf-8');
-    $botId = isset($_GET['bot_id']) ? (int)$_GET['bot_id'] : 0;
+    $bot_id = isset($_GET['bot_id']) ? (int)$_GET['bot_id'] : 0;
     $audiencia = $_GET['audiencia'] ?? '';
-    if ($botId <= 0 || !in_array($audiencia, ['nao_comprou', 'comprou'], true)) {
+    if ($bot_id <= 0 || !in_array($audiencia, ['nao_comprou', 'comprou'], true)) {
         echo json_encode(['sucesso' => false, 'mensagem' => 'Parâmetros inválidos.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }
-    // Garante que o bot pertence ao usuário
     $chk = $pdo->prepare("SELECT 1 FROM bots WHERE id = ? AND id_usuario = ?");
-    $chk->execute([$botId, $idUsuario]);
+    $chk->execute([$bot_id, $id_usuario]);
     if (!$chk->fetchColumn()) {
         echo json_encode(['sucesso' => false, 'mensagem' => 'Bot não encontrado.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }
-    $sqlDest = "SELECT COUNT(*) FROM leads l WHERE l.bot_id = :bot_id";
+    $sql_dest = "SELECT COUNT(*) FROM leads l WHERE l.bot_id = :bot_id";
     if ($audiencia === 'nao_comprou') {
-        $sqlDest .= " AND NOT EXISTS (SELECT 1 FROM vendas v WHERE v.id_telegram = l.id_telegram AND v.bot_id = l.bot_id AND v.status = 'pago')";
+        $sql_dest .= " AND NOT EXISTS (SELECT 1 FROM vendas v WHERE v.id_telegram = l.id_telegram AND v.bot_id = l.bot_id AND v.status = 'pago')";
     } else {
-        $sqlDest .= " AND EXISTS (SELECT 1 FROM vendas v WHERE v.id_telegram = l.id_telegram AND v.bot_id = l.bot_id AND v.status = 'pago')";
+        $sql_dest .= " AND EXISTS (SELECT 1 FROM vendas v WHERE v.id_telegram = l.id_telegram AND v.bot_id = l.bot_id AND v.status = 'pago')";
     }
-    $stmtDest = $pdo->prepare($sqlDest);
-    $stmtDest->execute(['bot_id' => $botId]);
-    $total = (int)$stmtDest->fetchColumn();
+    $stmt_dest = $pdo->prepare($sql_dest);
+    $stmt_dest->execute(['bot_id' => $bot_id]);
+    $total = (int)$stmt_dest->fetchColumn();
     echo json_encode(['sucesso' => true, 'total' => $total], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
@@ -113,17 +110,17 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
             </div>
             <form class="filtros" method="GET">
                 <?php
-                    $fBot = isset($_GET['bot_id']) ? (int)$_GET['bot_id'] : 0;
-                    $fAud = $_GET['audiencia'] ?? '';
-                    $fStatus = $_GET['status'] ?? '';
+                    $f_bot = isset($_GET['bot_id']) ? (int)$_GET['bot_id'] : 0;
+                    $f_aud = $_GET['audiencia'] ?? '';
+                    $f_status = $_GET['status'] ?? '';
                     $limite = max(5, min(50, (int)($_GET['limite'] ?? 10)));
                 ?>
                 <div class="form-group">
                     <label for="bot_id">Bot</label>
                     <select name="bot_id" id="bot_id" class="input-campo">
                         <option value="">Todos</option>
-                        <?php foreach ($meusBots as $b): ?>
-                            <option value="<?php echo $b['id']; ?>" <?php echo $fBot == $b['id'] ? 'selected' : ''; ?>>
+                        <?php foreach ($meus_bots as $b): ?>
+                            <option value="<?php echo $b['id']; ?>" <?php echo $f_bot == $b['id'] ? 'selected' : ''; ?>>
                                 <?php echo htmlspecialchars($b['nome']); ?>
                             </option>
                         <?php endforeach; ?>
@@ -133,17 +130,17 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                     <label for="audiencia">Audiência</label>
                     <select name="audiencia" id="audiencia" class="input-campo">
                         <option value="">Todas</option>
-                        <option value="nao_comprou" <?php echo $fAud === 'nao_comprou' ? 'selected' : ''; ?>>Não comprou</option>
-                        <option value="comprou" <?php echo $fAud === 'comprou' ? 'selected' : ''; ?>>Comprou</option>
+                        <option value="nao_comprou" <?php echo $f_aud === 'nao_comprou' ? 'selected' : ''; ?>>Não comprou</option>
+                        <option value="comprou" <?php echo $f_aud === 'comprou' ? 'selected' : ''; ?>>Comprou</option>
                     </select>
                 </div>
                 <div class="form-group">
                     <label for="status">Status</label>
                     <select name="status" id="status" class="input-campo">
                         <option value="">Todos</option>
-                        <option value="pendente" <?php echo $fStatus === 'pendente' ? 'selected' : ''; ?>>Pendente</option>
-                        <option value="processando" <?php echo $fStatus === 'processando' ? 'selected' : ''; ?>>Processando</option>
-                        <option value="concluida" <?php echo $fStatus === 'concluida' ? 'selected' : ''; ?>>Concluída</option>
+                        <option value="pendente" <?php echo $f_status === 'pendente' ? 'selected' : ''; ?>>Pendente</option>
+                        <option value="processando" <?php echo $f_status === 'processando' ? 'selected' : ''; ?>>Processando</option>
+                        <option value="concluida" <?php echo $f_status === 'concluida' ? 'selected' : ''; ?>>Concluída</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -160,24 +157,24 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
             $pagina = max(1, (int)($_GET['pagina'] ?? 1));
             $offset = ($pagina - 1) * $limite;
             $where = "c.id_usuario = :uid";
-            $params = ['uid' => $idUsuario];
-            if ($fBot > 0) { $where .= " AND c.bot_id = :bot"; $params['bot'] = $fBot; }
-            if ($fAud === 'nao_comprou' || $fAud === 'comprou') { $where .= " AND c.audiencia = :aud"; $params['aud'] = $fAud; }
-            if (in_array($fStatus, ['pendente','processando','concluida'], true)) { $where .= " AND c.status = :status"; $params['status'] = $fStatus; }
-            $stmtTotal = $pdo->prepare("SELECT COUNT(*) FROM remarketing_campanhas c WHERE $where");
-            $stmtTotal->execute($params);
-            $totalReg = (int)$stmtTotal->fetchColumn();
-            $totalPaginas = max(1, (int)ceil($totalReg / $limite));
+            $params = ['uid' => $id_usuario];
+            if ($f_bot > 0) { $where .= " AND c.bot_id = :bot"; $params['bot'] = $f_bot; }
+            if ($f_aud === 'nao_comprou' || $f_aud === 'comprou') { $where .= " AND c.audiencia = :aud"; $params['aud'] = $f_aud; }
+            if (in_array($f_status, ['pendente','processando','concluida'], true)) { $where .= " AND c.status = :status"; $params['status'] = $f_status; }
+            $stmt_total = $pdo->prepare("SELECT COUNT(*) FROM remarketing_campanhas c WHERE $where");
+            $stmt_total->execute($params);
+            $total_reg = (int)$stmt_total->fetchColumn();
+            $total_paginas = max(1, (int)ceil($total_reg / $limite));
             ?>
             <?php
-            $stmtList = $pdo->prepare("SELECT c.*, COALESCE(b.primeiro_nome, b.nome_usuario) as nome_bot FROM remarketing_campanhas c JOIN bots b ON c.bot_id = b.id WHERE $where ORDER BY c.criado_em DESC LIMIT :lim OFFSET :off");
+            $stmt_list = $pdo->prepare("SELECT c.*, COALESCE(b.primeiro_nome, b.nome_usuario) as nome_bot FROM remarketing_campanhas c JOIN bots b ON c.bot_id = b.id WHERE $where ORDER BY c.criado_em DESC LIMIT :lim OFFSET :off");
             foreach ($params as $k => $v) {
-                $stmtList->bindValue(':' . $k, $v);
+                $stmt_list->bindValue(':' . $k, $v);
             }
-            $stmtList->bindValue(':lim', $limite, PDO::PARAM_INT);
-            $stmtList->bindValue(':off', $offset, PDO::PARAM_INT);
-            $stmtList->execute();
-            $campanhas = $stmtList->fetchAll(PDO::FETCH_ASSOC);
+            $stmt_list->bindValue(':lim', $limite, PDO::PARAM_INT);
+            $stmt_list->bindValue(':off', $offset, PDO::PARAM_INT);
+            $stmt_list->execute();
+            $campanhas = $stmt_list->fetchAll(PDO::FETCH_ASSOC);
             ?>
             <div class="table-responsive">
                 <table>
@@ -219,9 +216,9 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                                     <?php 
                                         $status = $c['status'];
                                         $cor = '#f1f5f9'; $texto = '#6b7280';
-                                        if ($status === 'pendente') { $cor = '#fff7ed'; $texto = '#c2410c'; } // amber
-                                        if ($status === 'processando') { $cor = '#eff6ff'; $texto = '#1d4ed8'; } // blue
-                                        if ($status === 'concluida') { $cor = '#ecfdf5'; $texto = '#047857'; } // green
+                                        if ($status === 'pendente') { $cor = '#fff7ed'; $texto = '#c2410c'; }
+                                        if ($status === 'processando') { $cor = '#eff6ff'; $texto = '#1d4ed8'; }
+                                        if ($status === 'concluida') { $cor = '#ecfdf5'; $texto = '#047857'; }
                                     ?>
                                     <span class="badge" style="background: <?php echo $cor; ?>; color: <?php echo $texto; ?>;"><?php echo htmlspecialchars($status); ?></span>
                                 </td>
@@ -240,28 +237,28 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
             <div class="paginacao" style="margin-top:12px; display:flex;justify-content: center; gap:8px; align-items:center;">
                 <?php
                 $qs = [
-                    'bot_id' => $fBot ?: null,
-                    'audiencia' => $fAud ?: null,
-                    'status' => $fStatus ?: null,
+                    'bot_id' => $f_bot ?: null,
+                    'audiencia' => $f_aud ?: null,
+                    'status' => $f_status ?: null,
                     'limite' => $limite
                 ];
                 $qs = array_filter($qs, function($v){ return $v !== null && $v !== ''; });
                 $base = 'remarketing.php?' . http_build_query($qs) . '&pagina=';
                 $prev = max(1, $pagina - 1);
-                $next = min($totalPaginas, $pagina + 1);
+                $next = min($total_paginas, $pagina + 1);
                 ?>
                 <a class="paginacao-botao" href="<?php echo $base . $prev; ?>">&laquo;</a>
-                <span class="paginacao-info">Página <?php echo $pagina; ?> de <?php echo $totalPaginas; ?> (<?php echo $totalReg; ?> campanhas)</span>
+                <span class="paginacao-info">Página <?php echo $pagina; ?> de <?php echo $total_paginas; ?> (<?php echo $total_reg; ?> campanhas)</span>
                 <a class="paginacao-botao" href="<?php echo $base . $next; ?>">&raquo;</a>
             </div>
             
             <?php
             if (isset($_GET['detalhes'])) {
-                $detId = (int)$_GET['detalhes'];
-                $stmtDet = $pdo->prepare("SELECT e.* FROM remarketing_envios e WHERE e.campanha_id = ? ORDER BY e.enviado_em DESC");
-                $stmtDet->execute([$detId]);
-                $envios = $stmtDet->fetchAll(PDO::FETCH_ASSOC);
-                echo '<h3 style="margin-top:20px;">Detalhes da Campanha #' . $detId . '</h3>';
+                $det_id = (int)$_GET['detalhes'];
+                $stmt_det = $pdo->prepare("SELECT e.* FROM remarketing_envios e WHERE e.campanha_id = ? ORDER BY e.enviado_em DESC");
+                $stmt_det->execute([$det_id]);
+                $envios = $stmt_det->fetchAll(PDO::FETCH_ASSOC);
+                echo '<h3 style="margin-top:20px;">Detalhes da Campanha #' . $det_id . '</h3>';
                 echo '<div class="table-responsive"><table><thead><tr><th>ID Telegram</th><th>Resultado</th><th>Enviado Em</th></tr></thead><tbody>';
                 if (empty($envios)) {
                     echo '<tr><td colspan="3" style="text-align:center; padding: 10px; color:#6b7280;">Sem envios registrados.</td></tr>';
@@ -286,7 +283,7 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                             <label for="modal-bot_id">Bot</label>
                             <select id="modal-bot_id" name="bot_id" class="input-campo" required>
                                 <option value="">Selecione um Bot</option>
-                                <?php foreach ($meusBots as $b): ?>
+                                <?php foreach ($meus_bots as $b): ?>
                                     <option value="<?php echo $b['id']; ?>"><?php echo htmlspecialchars($b['nome']); ?></option>
                                 <?php endforeach; ?>
                             </select>

@@ -1,13 +1,6 @@
 <?php
 declare(strict_types=1);
 
-/**
- * Gera os links de paginação para listagens
- * 
- * @param int $total Registros totais
- * @param int $por_pagina Registros por página
- * @return string HTML da paginação
- */
 function paginador(int $total, int $por_pagina): string {
     if ($total <= $por_pagina) {
         return '';
@@ -20,13 +13,12 @@ function paginador(int $total, int $por_pagina): string {
     // Preservar outros parâmetros da URL (filtros, buscas)
     $params = $_GET;
     unset($params['pagina']);
-    $queryString = http_build_query($params);
-    $prefixo = $queryString ? "?{$queryString}&pagina=" : "?pagina=";
+    $query_string = http_build_query($params);
+    $prefixo = $query_string ? "?{$query_string}&pagina=" : "?pagina=";
 
     $html = '<div class="paginacao-container">';
     $html .= '<ul class="paginacao-lista">';
 
-    // Botão Anterior
     if ($atual > 1) {
         $prev = $atual - 1;
         $html .= "<li><a href='{$prefixo}{$prev}' class='paginacao-link'>&laquo; Anterior</a></li>";
@@ -34,7 +26,6 @@ function paginador(int $total, int $por_pagina): string {
         $html .= "<li><span class='paginacao-link disabled'>&laquo; Anterior</span></li>";
     }
 
-    // Links numéricos
     $inicio = max(1, $atual - 2);
     $fim = min($paginas, $atual + 2);
 
@@ -57,7 +48,6 @@ function paginador(int $total, int $por_pagina): string {
         $html .= "<li><a href='{$prefixo}{$paginas}' class='paginacao-link'>{$paginas}</a></li>";
     }
 
-    // Botão Próximo
     if ($atual < $paginas) {
         $next = $atual + 1;
         $html .= "<li><a href='{$prefixo}{$next}' class='paginacao-link'>Próximo &raquo;</a></li>";

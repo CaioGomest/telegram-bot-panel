@@ -8,19 +8,18 @@ date_default_timezone_set('America/Sao_Paulo');
 
 // Grava toda a saída desta execução em arquivo, para permitir auditoria
 // posterior de quando/se este cron rodou e quais membros removeu/manteve.
-$logFileVerificacao = __DIR__ . '/logs/cron_verificar_acessos.log';
+$log_file_verificacao = __DIR__ . '/logs/cron_verificar_acessos.log';
 ob_start();
-register_shutdown_function(function () use ($logFileVerificacao) {
+register_shutdown_function(function () use ($log_file_verificacao) {
     $conteudo = ob_get_contents();
     file_put_contents(
-        $logFileVerificacao,
+        $log_file_verificacao,
         '[' . date('Y-m-d H:i:s') . "] Execução iniciada\n" . $conteudo . str_repeat('-', 60) . "\n",
         FILE_APPEND
     );
 });
 
-// Função auxiliar para Telegram
-function telegram_request(string $token, string $metodo, array $parametros = []): array {
+function telegramRequest(string $token, string $metodo, array $parametros = []): array {
     $url = 'https://api.telegram.org/bot' . $token . '/' . $metodo;
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -35,7 +34,6 @@ $hoje = date('Y-m-d H:i:s');
 echo "Iniciando verificação de acessos em $hoje...\n";
 
 try {
-    // Busca acessos ativos vencidos.
     // Inclui id_assinatura para identificar recorrentes nativos.
     // link_suporte vem do fluxo atualmente conectado ao bot (cada fluxo pode ter o seu).
     $stmt = $pdo->prepare("
@@ -56,84 +54,82 @@ try {
 
     echo "Encontrados " . count($expirados) . " acessos expirados.\n";
 
-    // Configuração de Tolerância (Carência) em dias
     $DIAS_CARENCIA = 5;
 
     foreach ($expirados as $membro) {
         $token = $membro['token'];
-        $idChat = $membro['id_telegram'];
-        $idGrupo = $membro['id_grupo_telegram'];
-        $tipoCobranca = $membro['tipo_cobranca'] ?? 'unica';
+        $id_chat = $membro['id_telegram'];
+        $id_grupo = $membro['id_grupo_telegram'];
+        $tipo_cobranca = $membro['tipo_cobranca'] ?? 'unica';
 
-        echo "Processando usuário $idChat no grupo $idGrupo (Bot @{$membro['nome_usuario']})...\n";
+        echo "Processando usuário $id_chat no grupo $id_grupo (Bot @{$membro['nome_usuario']})...\n";
 
-        $idAssinatura = $membro['id_assinatura'] ?? null;
-        $ehRecorrenteNativo = !empty($idAssinatura); // PIX Automático nativo do gateway
+        $id_assinatura = $membro['id_assinatura'] ?? null;
+        $eh_recorrente_nativo = !empty($id_assinatura); // PIX Automático nativo do gateway
 
         // Botões da mensagem de aviso: "Recomeçar" sempre aparece — o callback_data "/start"
         // é tratado pelo webhook.php exatamente como se o usuário tivesse digitado /start,
         // reiniciando o fluxo (útil pra pagar a renovação de novo). "Falar com Suporte" só
         // aparece se o fluxo conectado ao bot tiver um link configurado.
-        $linkSuporte = trim((string)($membro['link_suporte'] ?? ''));
-        $botoesAviso = [[['text' => '🔄 Recomeçar / Renovar', 'callback_data' => '/start']]];
-        if ($linkSuporte !== '') {
-            $botoesAviso[] = [['text' => '💬 Falar com Suporte', 'url' => $linkSuporte]];
+        $link_suporte = trim((string)($membro['link_suporte'] ?? ''));
+        $botoes_aviso = [[['text' => '🔄 Recomeçar / Renovar', 'callback_data' => '/start']]];
+        if ($link_suporte !== '') {
+            $botoes_aviso[] = [['text' => '💬 Falar com Suporte', 'url' => $link_suporte]];
         }
-        $tecladoSuporte = ['reply_markup' => json_encode(['inline_keyboard' => $botoesAviso])];
+        $teclado_suporte = ['reply_markup' => json_encode(['inline_keyboard' => $botoes_aviso])];
 
         // Tolerância:
         // - Recorrente nativo: 2 dias (gateway tenta cobrar automaticamente; webhook pode demorar)
         // - Assinatura manual sem id_assinatura: 5 dias (usuário precisa pagar manualmente)
         // - Único: sem tolerância
-        if ($tipoCobranca === 'assinatura' || $ehRecorrenteNativo) {
-            $diasCarencia = $ehRecorrenteNativo ? 2 : $DIAS_CARENCIA;
-            $dataExpiracao = strtotime($membro['data_expiracao']);
-            $dataLimite = strtotime("+{$diasCarencia} days", $dataExpiracao);
+        if ($tipo_cobranca === 'assinatura' || $eh_recorrente_nativo) {
+            $dias_carencia = $eh_recorrente_nativo ? 2 : $DIAS_CARENCIA;
+            $data_expiracao = strtotime($membro['data_expiracao']);
+            $data_limite = strtotime("+{$dias_carencia} days", $data_expiracao);
             $agora = time();
 
-            if ($agora < $dataLimite) {
-                $diasRestantes = ceil(($dataLimite - $agora) / 86400);
-                echo " - Usuário em período de tolerância (restam $diasRestantes dias). Não removendo.\n";
+            if ($agora < $data_limite) {
+                $dias_restantes = ceil(($data_limite - $agora) / 86400);
+                echo " - Usuário em período de tolerância (restam $dias_restantes dias). Não removendo.\n";
 
                 // Só manda o aviso uma vez por vencimento — sem isso, o cron (que roda a cada
                 // minuto) reenviaria a mesma mensagem repetidamente durante toda a tolerância.
-                $jaAvisado = !empty($membro['aviso_enviado']);
+                $ja_avisado = !empty($membro['aviso_enviado']);
 
-                if ($ehRecorrenteNativo) {
+                if ($eh_recorrente_nativo) {
                     // Para recorrente nativo a cobrança é automática — apenas avisa se tolerância
                     // estiver quase esgotada e o gateway ainda não renovou
-                    if ($diasRestantes <= 1 && !$jaAvisado) {
-                        telegram_request($token, 'sendMessage', array_merge([
-                            'chat_id' => $idChat,
+                    if ($dias_restantes <= 1 && !$ja_avisado) {
+                        telegramRequest($token, 'sendMessage', array_merge([
+                            'chat_id' => $id_chat,
                             'text' => "⚠️ *Atenção: problema na renovação da sua assinatura!*\n\nNão conseguimos confirmar o pagamento automático. Você será removido do grupo em breve caso não seja regularizado.",
                             'parse_mode' => 'Markdown'
-                        ], $tecladoSuporte));
+                        ], $teclado_suporte));
                         $pdo->prepare("UPDATE membros_grupos SET aviso_enviado = 1 WHERE id = ?")->execute([$membro['id']]);
                     }
                 } else {
                     // Assinatura manual: lembra o usuário de pagar o PIX de renovação
-                    if ($diasRestantes <= 2 && !$jaAvisado) {
-                        telegram_request($token, 'sendMessage', array_merge([
-                            'chat_id' => $idChat,
-                            'text' => "⚠️ *Atenção: Seu acesso venceu!*\n\nVocê tem mais *$diasRestantes dias* de tolerância para renovar sua assinatura antes de ser removido do grupo.\nProcure a mensagem de renovação enviada anteriormente e faça o Pix.",
+                    if ($dias_restantes <= 2 && !$ja_avisado) {
+                        telegramRequest($token, 'sendMessage', array_merge([
+                            'chat_id' => $id_chat,
+                            'text' => "⚠️ *Atenção: Seu acesso venceu!*\n\nVocê tem mais *$dias_restantes dias* de tolerância para renovar sua assinatura antes de ser removido do grupo.\nProcure a mensagem de renovação enviada anteriormente e faça o Pix.",
                             'parse_mode' => 'Markdown'
-                        ], $tecladoSuporte));
+                        ], $teclado_suporte));
                         $pdo->prepare("UPDATE membros_grupos SET aviso_enviado = 1 WHERE id = ?")->execute([$membro['id']]);
                     }
                 }
 
                 continue;
             } else {
-                echo " - Tolerância de {$diasCarencia} dias esgotada. Removendo...\n";
+                echo " - Tolerância de {$dias_carencia} dias esgotada. Removendo...\n";
             }
         } else {
             echo " - Cobrança única (sem recorrência). Removendo imediatamente.\n";
         }
 
-        // Tenta revogar o link de convite se houver
         if (!empty($membro['invite_link'])) {
-             $revoke = telegram_request($token, 'revokeChatInviteLink', [
-                 'chat_id' => $idGrupo,
+             $revoke = telegramRequest($token, 'revokeChatInviteLink', [
+                 'chat_id' => $id_grupo,
                  'invite_link' => $membro['invite_link']
              ]);
              if ($revoke['ok'] ?? false) {
@@ -143,62 +139,57 @@ try {
              }
         }
 
-        // 1. Remove do grupo (Banir e Desbanir = Kick)
         // unbanChatMember com only_if_banned=true só funciona se estiver banido, mas queremos kickar.
         // O padrão para kickar é banir e desbanir.
         
-        $ban = telegram_request($token, 'banChatMember', [
-            'chat_id' => $idGrupo,
-            'user_id' => $idChat,
+        $ban = telegramRequest($token, 'banChatMember', [
+            'chat_id' => $id_grupo,
+            'user_id' => $id_chat,
             'until_date' => time() + 35 // Banido por 35 segundos (mínimo permitido é 30s ou permanente)
         ]);
 
         if ($ban['ok'] ?? false) {
-            // Sucesso ao remover
             echo " - Removido com sucesso.\n";
             
             // Desbanir imediatamente para permitir reentrada futura (se pagar)
-            telegram_request($token, 'unbanChatMember', [
-                'chat_id' => $idGrupo,
-                'user_id' => $idChat,
+            telegramRequest($token, 'unbanChatMember', [
+                'chat_id' => $id_grupo,
+                'user_id' => $id_chat,
                 'only_if_banned' => true
             ]);
 
-            // Atualiza status no banco
-            $stmtUpdate = $pdo->prepare("UPDATE membros_grupos SET status = 'expirado' WHERE id = ?");
-            $stmtUpdate->execute([$membro['id']]);
+            $stmt_update = $pdo->prepare("UPDATE membros_grupos SET status = 'expirado' WHERE id = ?");
+            $stmt_update->execute([$membro['id']]);
 
-            // Avisa o usuário
-            telegram_request($token, 'sendMessage', array_merge([
-                'chat_id' => $idChat,
+            telegramRequest($token, 'sendMessage', array_merge([
+                'chat_id' => $id_chat,
                 'text' => "⚠️ *Seu acesso ao grupo expirou!*\n\nVocê foi removido automaticamente pois seu período de acesso acabou.\nPara voltar, realize uma nova assinatura ou compra no bot.",
                 'parse_mode' => 'Markdown'
-            ], $tecladoSuporte));
+            ], $teclado_suporte));
 
-            registrarAtividade($membro['bot_id'], 'sistema', 'Acesso', "Usuário $idChat removido do grupo $idGrupo por expiração.");
+            registrarAtividade($membro['bot_id'], 'sistema', 'Acesso', "Usuário $id_chat removido do grupo $id_grupo por expiração.");
 
         } else {
-            $erroDesc = $ban['description'] ?? 'Desconhecido';
-            echo " - Erro ao remover: " . $erroDesc . "\n";
+            $erro_desc = $ban['description'] ?? 'Desconhecido';
+            echo " - Erro ao remover: " . $erro_desc . "\n";
             
             // Se o erro for porque não pode remover o dono (chat owner) ou o criador do grupo,
             // ou um erro permanente (grupo excluído, bot removido dele, etc) — marca como
             // expirado mesmo assim, senão fica tentando de novo a cada execução do cron pra sempre.
-            $errosPermanentes = ["can't remove chat owner", "user is an administrator", "chat not found", "group chat was deactivated", "bot was kicked", "user not found", "bot is not a member"];
-            $ehErroPermanente = false;
-            foreach ($errosPermanentes as $padrao) {
-                if (stripos($erroDesc, $padrao) !== false) {
-                    $ehErroPermanente = true;
+            $erros_permanentes = ["can't remove chat owner", "user is an administrator", "chat not found", "group chat was deactivated", "bot was kicked", "user not found", "bot is not a member"];
+            $eh_erro_permanente = false;
+            foreach ($erros_permanentes as $padrao) {
+                if (stripos($erro_desc, $padrao) !== false) {
+                    $eh_erro_permanente = true;
                     break;
                 }
             }
 
-            if ($ehErroPermanente) {
-                echo " - Erro permanente ($erroDesc). Marcando como expirado no banco sem tentar de novo.\n";
+            if ($eh_erro_permanente) {
+                echo " - Erro permanente ($erro_desc). Marcando como expirado no banco sem tentar de novo.\n";
 
-                // Atualiza status no banco para não ficar tentando remover infinitamente
-                $stmtUpdate = $pdo->prepare("UPDATE membros_grupos SET status = 'expirado' WHERE id = ?");
-                $stmtUpdate->execute([$membro['id']]);
+                $stmt_update = $pdo->prepare("UPDATE membros_grupos SET status = 'expirado' WHERE id = ?");
+                $stmt_update->execute([$membro['id']]);
             }
         }
     }

@@ -7,8 +7,7 @@ try {
     echo "<h1>Atualização Unificada do Banco de Dados</h1>";
     echo "Iniciando verificação e atualização das tabelas...<br>";
 
-    // --- 1. Tabela de Usuários ---
-    $sqlUsuarios = "
+    $sql_usuarios = "
         CREATE TABLE IF NOT EXISTS usuarios (
             id INT AUTO_INCREMENT PRIMARY KEY,
             nome VARCHAR(100) NOT NULL,
@@ -19,9 +18,8 @@ try {
             atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ";
-    $pdo->exec($sqlUsuarios);
-    
-    // Atualização: coluna perfil
+    $pdo->exec($sql_usuarios);
+
     try {
         $pdo->exec("ALTER TABLE usuarios ADD COLUMN perfil ENUM('admin', 'usuario') DEFAULT 'usuario' AFTER senha");
         echo "Coluna 'perfil' verificada em 'usuarios'.<br>";
@@ -29,8 +27,7 @@ try {
     echo "Tabela 'usuarios' OK.<br>";
 
 
-    // --- 2. Tabela de Fluxos ---
-    $sqlFluxos = "
+    $sql_fluxos = "
         CREATE TABLE IF NOT EXISTS fluxos (
             id INT AUTO_INCREMENT PRIMARY KEY,
             id_usuario INT NOT NULL,
@@ -42,13 +39,12 @@ try {
             FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ";
-    $pdo->exec($sqlFluxos);
+    $pdo->exec($sql_fluxos);
     try { $pdo->exec("ALTER TABLE fluxos ADD COLUMN link_suporte VARCHAR(255) DEFAULT NULL AFTER descricao"); } catch (PDOException $e) {}
     echo "Tabela 'fluxos' OK.<br>";
 
 
-    // --- 3. Tabela de Bots ---
-    $sqlBots = "
+    $sql_bots = "
         CREATE TABLE IF NOT EXISTS bots (
             id INT AUTO_INCREMENT PRIMARY KEY,
             id_usuario INT NOT NULL,
@@ -67,12 +63,11 @@ try {
             FOREIGN KEY (id_fluxo_conectado) REFERENCES fluxos(id) ON DELETE SET NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ";
-    $pdo->exec($sqlBots);
+    $pdo->exec($sql_bots);
     echo "Tabela 'bots' OK.<br>";
 
 
-    // --- 4. Tabela de Leads ---
-    $sqlLeads = "
+    $sql_leads = "
         CREATE TABLE IF NOT EXISTS leads (
             id INT AUTO_INCREMENT PRIMARY KEY,
             id_telegram VARCHAR(50) NOT NULL,
@@ -82,13 +77,12 @@ try {
             FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE SET NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ";
-    $pdo->exec($sqlLeads);
+    $pdo->exec($sql_leads);
     try { $pdo->exec("ALTER TABLE leads ADD COLUMN telefone VARCHAR(30) DEFAULT NULL AFTER nome"); } catch (PDOException $e) {}
     echo "Tabela 'leads' OK.<br>";
 
 
-    // --- 5. Tabela de Vendas ---
-    $sqlVendas = "
+    $sql_vendas = "
         CREATE TABLE IF NOT EXISTS vendas (
             id INT AUTO_INCREMENT PRIMARY KEY,
             id_telegram VARCHAR(50) NOT NULL,
@@ -105,10 +99,9 @@ try {
             FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE SET NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ";
-    $pdo->exec($sqlVendas);
+    $pdo->exec($sql_vendas);
 
-    // Atualizações da tabela vendas
-    $colunasVendas = [
+    $colunas_vendas = [
         "ADD COLUMN bot_id INT AFTER id_telegram",
         "ADD CONSTRAINT fk_vendas_bot FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE SET NULL",
         "ADD COLUMN comissao_admin DECIMAL(10,2) DEFAULT 0.00 AFTER pago_em",
@@ -119,7 +112,6 @@ try {
         "ADD COLUMN id_operador_fluxo VARCHAR(50) NULL AFTER transacao_id",
         "ADD COLUMN id_gateway INT DEFAULT NULL AFTER id_operador_fluxo",
         "ADD COLUMN tempo_expiracao_minutos INT DEFAULT 15 AFTER id_gateway",
-        // Colunas para Recorrência
         "ADD COLUMN tipo_cobranca ENUM('unica', 'assinatura', 'recorrente') DEFAULT 'unica'",
         "ADD COLUMN status_renovacao ENUM('pendente', 'renovada', 'cancelada') DEFAULT 'pendente'",
         "ADD COLUMN venda_pai_id INT DEFAULT NULL",
@@ -128,7 +120,7 @@ try {
         "ADD COLUMN ultimo_txid_renovacao VARCHAR(255) DEFAULT NULL" // Idempotência do webhook de PIX Automático (cobsr)
     ];
 
-    foreach ($colunasVendas as $alter) {
+    foreach ($colunas_vendas as $alter) {
         try {
             $pdo->exec("ALTER TABLE vendas $alter");
             echo "Vendas atualizada: $alter<br>";
@@ -143,8 +135,7 @@ try {
     echo "Tabela 'vendas' OK.<br>";
 
 
-    // --- 6. Tabela de Atividades ---
-    $sqlAtividades = "
+    $sql_atividades = "
         CREATE TABLE IF NOT EXISTS atividades (
             id INT AUTO_INCREMENT PRIMARY KEY,
             id_usuario INT NOT NULL,
@@ -156,12 +147,11 @@ try {
             FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ";
-    $pdo->exec($sqlAtividades);
+    $pdo->exec($sql_atividades);
     echo "Tabela 'atividades' OK.<br>";
 
 
-    // --- 7. Tabela de Grupos do Bot ---
-    $sqlGrupos = "
+    $sql_grupos = "
         CREATE TABLE IF NOT EXISTS bot_grupos (
             id INT AUTO_INCREMENT PRIMARY KEY,
             bot_id INT NOT NULL,
@@ -173,12 +163,11 @@ try {
             UNIQUE KEY unique_bot_grupo (bot_id, id_telegram)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ";
-    $pdo->exec($sqlGrupos);
+    $pdo->exec($sql_grupos);
     echo "Tabela 'bot_grupos' OK.<br>";
 
 
-    // --- 8. Tabela de Membros de Grupos ---
-    $sqlMembros = "
+    $sql_membros = "
         CREATE TABLE IF NOT EXISTS membros_grupos (
             id INT AUTO_INCREMENT PRIMARY KEY,
             id_telegram VARCHAR(50) NOT NULL,
@@ -194,17 +183,16 @@ try {
             UNIQUE KEY unico_membro (id_telegram, id_grupo_telegram, bot_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ";
-    $pdo->exec($sqlMembros);
+    $pdo->exec($sql_membros);
 
-    // Atualizações Membros
-    $colunasMembros = [
-        "ADD COLUMN invite_link VARCHAR(255) DEFAULT NULL AFTER venda_id", // Atualização de Segurança
-        "ADD COLUMN data_tolerancia DATETIME DEFAULT NULL", // Recorrência
-        "ADD COLUMN em_renovacao TINYINT(1) DEFAULT 0",      // Recorrência
-        "ADD COLUMN aviso_enviado TINYINT(1) DEFAULT 0"      // Aviso de Vencimento
+    $colunas_membros = [
+        "ADD COLUMN invite_link VARCHAR(255) DEFAULT NULL AFTER venda_id",
+        "ADD COLUMN data_tolerancia DATETIME DEFAULT NULL",
+        "ADD COLUMN em_renovacao TINYINT(1) DEFAULT 0",
+        "ADD COLUMN aviso_enviado TINYINT(1) DEFAULT 0"
     ];
 
-    foreach ($colunasMembros as $alter) {
+    foreach ($colunas_membros as $alter) {
         try {
             $pdo->exec("ALTER TABLE membros_grupos $alter");
             echo "Membros atualizada: $alter<br>";
@@ -213,8 +201,7 @@ try {
     echo "Tabela 'membros_grupos' OK.<br>";
 
 
-    // --- 9. Tabela de Gateways ---
-    $sqlGateways = "
+    $sql_gateways = "
         CREATE TABLE IF NOT EXISTS gateways (
             id INT AUTO_INCREMENT PRIMARY KEY,
             nome VARCHAR(50) NOT NULL,
@@ -227,15 +214,14 @@ try {
             atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ";
-    $pdo->exec($sqlGateways);
+    $pdo->exec($sql_gateways);
     
     try {
         $pdo->exec("ALTER TABLE gateways ADD COLUMN tipo_split ENUM('percentual', 'fixo') DEFAULT 'percentual' AFTER chave_pix_split");
     } catch (PDOException $e) {}
     echo "Tabela 'gateways' OK.<br>";
 
-    // --- 10. Tabela de Configuração de Gateways por Usuário ---
-    $sqlUsuariosGateways = "
+    $sql_usuarios_gateways = "
         CREATE TABLE IF NOT EXISTS usuarios_gateways (
             id INT AUTO_INCREMENT PRIMARY KEY,
             id_usuario INT NOT NULL,
@@ -252,7 +238,7 @@ try {
             UNIQUE KEY unique_user_gateway (id_usuario, id_gateway)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ";
-    $pdo->exec($sqlUsuariosGateways);
+    $pdo->exec($sql_usuarios_gateways);
 
     try {
         $pdo->exec("ALTER TABLE usuarios_gateways ADD COLUMN chave_pix VARCHAR(255) AFTER certificado");
@@ -290,8 +276,7 @@ try {
 
     echo "Tabela 'usuarios_gateways' OK.<br>";
 
-    // --- 10b. Tabela de Splits por Usuário ---
-    $sqlUsuariosSplits = "
+    $sql_usuarios_splits = "
         CREATE TABLE IF NOT EXISTS usuarios_splits (
             id INT AUTO_INCREMENT PRIMARY KEY,
             id_usuario INT NOT NULL,
@@ -305,11 +290,10 @@ try {
             FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ";
-    $pdo->exec($sqlUsuariosSplits);
+    $pdo->exec($sql_usuarios_splits);
     echo "Tabela 'usuarios_splits' OK.<br>";
 
-    // --- 11. Tabelas de Remarketing ---
-    $sqlRemarketingCampanhas = "
+    $sql_remarketing_campanhas = "
         CREATE TABLE IF NOT EXISTS remarketing_campanhas (
             id INT AUTO_INCREMENT PRIMARY KEY,
             id_usuario INT NOT NULL,
@@ -328,14 +312,12 @@ try {
             FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ";
-    $pdo->exec($sqlRemarketingCampanhas);
-    // Coluna de progresso para batch processing
+    $pdo->exec($sql_remarketing_campanhas);
     try { $pdo->exec("ALTER TABLE remarketing_campanhas ADD COLUMN offset_envio INT DEFAULT 0 AFTER falhas"); } catch (PDOException $e) {}
-    // Indexes para acelerar a query do cron
     try { $pdo->exec("ALTER TABLE remarketing_campanhas ADD INDEX idx_status_agendado (status, agendado_em)"); } catch (PDOException $e) {}
     echo "Tabela 'remarketing_campanhas' OK.<br>";
 
-    $sqlRemarketingEnvios = "
+    $sql_remarketing_envios = "
         CREATE TABLE IF NOT EXISTS remarketing_envios (
             id INT AUTO_INCREMENT PRIMARY KEY,
             campanha_id INT NOT NULL,
@@ -347,15 +329,13 @@ try {
             INDEX idx_campanha (campanha_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ";
-    $pdo->exec($sqlRemarketingEnvios);
+    $pdo->exec($sql_remarketing_envios);
     echo "Tabela 'remarketing_envios' OK.<br>";
 
-    // Indexes para acelerar filtros de audiência
     try { $pdo->exec("ALTER TABLE leads ADD INDEX idx_leads_bot (bot_id, id_telegram)"); } catch (PDOException $e) {}
     try { $pdo->exec("ALTER TABLE vendas ADD INDEX idx_vendas_lookup (id_telegram, bot_id, status)"); } catch (PDOException $e) {}
 
-    // --- 12. Tabela de Traqueamento de Usuários ---
-    $sqlTraqueamento = "
+    $sql_traqueamento = "
         CREATE TABLE IF NOT EXISTS usuarios_traqueamento (
             id INT AUTO_INCREMENT PRIMARY KEY,
             id_usuario INT NOT NULL,
@@ -373,9 +353,8 @@ try {
             FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ";
-    $pdo->exec($sqlTraqueamento);
-    
-    // Tenta atualizar colunas se tabela já existir
+    $pdo->exec($sql_traqueamento);
+
     try { $pdo->exec("ALTER TABLE usuarios_traqueamento ADD COLUMN facebook_ativo TINYINT(1) DEFAULT 0 AFTER id_usuario"); } catch (PDOException $e) {}
     try { $pdo->exec("ALTER TABLE usuarios_traqueamento ADD COLUMN tiktok_ativo TINYINT(1) DEFAULT 0 AFTER facebook_access_token"); } catch (PDOException $e) {}
     try { $pdo->exec("ALTER TABLE usuarios_traqueamento ADD COLUMN utmfy_ativo TINYINT(1) DEFAULT 0 AFTER tiktok_access_token"); } catch (PDOException $e) {}
@@ -383,17 +362,13 @@ try {
     echo "Tabela 'usuarios_traqueamento' OK.<br>";
 
 
-    // --- INSERÇÃO DE DADOS PADRÃO ---
-
-    // Gateway InfoPago
-    $stmtGateway = $pdo->query("SELECT COUNT(*) FROM gateways WHERE nome = 'infopago'");
-    if ($stmtGateway->fetchColumn() == 0) {
+    $stmt_gateway = $pdo->query("SELECT COUNT(*) FROM gateways WHERE nome = 'infopago'");
+    if ($stmt_gateway->fetchColumn() == 0) {
         $pdo->exec("INSERT INTO gateways (nome, titulo, ativo) VALUES ('infopago', 'InfoPago (Pix)', 0)");
         echo "Gateway 'InfoPago' inserido.<br>";
     }
 
-    // --- Links de Rastreamento ---
-    $sqlLinksRastreamento = "
+    $sql_links_rastreamento = "
         CREATE TABLE IF NOT EXISTS links_rastreamento (
             id INT AUTO_INCREMENT PRIMARY KEY,
             id_usuario INT NOT NULL,
@@ -410,23 +385,21 @@ try {
             UNIQUE KEY unique_identificador_usuario (id_usuario, identificador)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ";
-    $pdo->exec($sqlLinksRastreamento);
+    $pdo->exec($sql_links_rastreamento);
     try { $pdo->exec("ALTER TABLE links_rastreamento ADD COLUMN starts INT DEFAULT 0 AFTER bot_id"); } catch (PDOException $e) {}
     echo "Tabela 'links_rastreamento' OK.<br>";
 
-    // Usuário Admin
     $stmt = $pdo->query("SELECT COUNT(*) FROM usuarios");
     $total = $stmt->fetchColumn();
 
     if ($total == 0) {
-        $senhaHash = password_hash('admin123', PASSWORD_DEFAULT);
-        $stmtInsert = $pdo->prepare("INSERT INTO usuarios (nome, email, senha, perfil) VALUES (?, ?, ?, 'admin')");
-        $stmtInsert->execute(['Administrador', 'admin@admin.com', $senhaHash]);
+        $senha_hash = password_hash('admin123', PASSWORD_DEFAULT);
+        $stmt_insert = $pdo->prepare("INSERT INTO usuarios (nome, email, senha, perfil) VALUES (?, ?, ?, 'admin')");
+        $stmt_insert->execute(['Administrador', 'admin@admin.com', $senha_hash]);
         echo "Usuário padrão criado. Email: admin@admin.com | Senha: admin123<br>";
     } else {
-        // Garantir que exista ao menos um admin
-        $stmtAdmin = $pdo->query("SELECT COUNT(*) FROM usuarios WHERE perfil = 'admin'");
-        if ($stmtAdmin->fetchColumn() == 0) {
+        $stmt_admin = $pdo->query("SELECT COUNT(*) FROM usuarios WHERE perfil = 'admin'");
+        if ($stmt_admin->fetchColumn() == 0) {
             $pdo->exec("UPDATE usuarios SET perfil = 'admin' WHERE id = (SELECT id FROM (SELECT id FROM usuarios ORDER BY id ASC LIMIT 1) as t)");
             echo "Primeiro usuário definido como admin.<br>";
         }

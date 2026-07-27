@@ -9,9 +9,8 @@ verificarAdmin();
 
 $filtros = ['excluir_tipos' => ['venda', 'lead']];
 
-// Configuração da Paginação
 $pagina_atual = isset($_GET['pagina']) ? max(1, (int)$_GET['pagina']) : 1;
-$por_pagina = 20; // 20 logs por página
+$por_pagina = 20;
 $offset = ($pagina_atual - 1) * $por_pagina;
 
 $total_logs = contarAtividades($filtros);

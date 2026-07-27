@@ -20,13 +20,11 @@ a { color: inherit; text-decoration: none; }
 button, input, textarea, select { font: inherit; }
 button { cursor: pointer; }
 
-/* Layout Dashboard */
 .dashboard-layout {
     display: flex;
     min-height: 100vh;
 }
 
-/* Sidebar */
 .sidebar {
     width: var(--sidebar-width);
     background: var(--sidebar-bg);
@@ -89,7 +87,6 @@ button { cursor: pointer; }
     box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
 
-/* Conteúdo Principal */
 .main-content {
     flex: 1;
     padding: 32px;
@@ -99,8 +96,7 @@ button { cursor: pointer; }
 
 .conteudo-largo { max-width: 1200px; margin: 0 auto; width: 100%; }
 
-/* Componentes Antigos Adaptados */
-.layout-principal { 
+.layout-principal {
     /* Fallback para páginas antigas se houver, mas idealmente não usar mais */
     display: block; 
     padding: 0;
@@ -143,7 +139,6 @@ button { cursor: pointer; }
 .cabecalho-pagina h1 { margin: 0 0 8px; font-size: 28px; letter-spacing: -0.02em; }
 .cabecalho-pagina p { margin: 0; color: var(--muted); font-size: 15px; }
 
-/* Grid de Cards */
 .grade-cards {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -199,7 +194,6 @@ button { cursor: pointer; }
     margin-top: auto;
 }
 
-/* Botões de Ação com Ícone */
 .btn-icon {
     display: inline-flex;
     align-items: center;
@@ -253,7 +247,6 @@ button { cursor: pointer; }
 .linha-acoes { display: flex; gap: 10px; align-items: center; }
 .linha-acoes.quebrar { flex-wrap: wrap; }
 
-/* Toast */
 #toast {
     position: fixed;
     right: 24px;
@@ -277,8 +270,7 @@ button { cursor: pointer; }
 #toast.sucesso { background: var(--green); }
 #toast.erro { background: var(--red); }
 
-/* Outros elementos */
-.estado-vazio { 
+.estado-vazio {
     grid-column: 1 / -1; 
     text-align: center; 
     padding: 60px 20px; 
@@ -391,19 +383,18 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
 
-/* Fluxograma Customização */
-.conteiner-fluxo { 
-    padding: 0; 
+.conteiner-fluxo {
+    padding: 0;
     overflow: hidden; /* Controlado pelo js */
-    height: 85vh; /* Aumentado para ocupar mais espaço vertical */
+    height: 85vh;
     border: 1px solid var(--border);
     border-radius: 12px;
-    background: #fff; /* Garante fundo branco se necessário */
-    width: 100%; /* Garante largura total disponível */
+    background: #fff;
+    width: 100%;
 }
 #area-trabalho-fluxograma {
-    width: 5000px; /* Aumentado a área útil interna */
-    height: 5000px; /* Aumentado a área útil interna */
+    width: 5000px;
+    height: 5000px;
     background:
         linear-gradient(to right, rgba(15, 23, 42, 0.04) 1px, transparent 1px),
         linear-gradient(to bottom, rgba(15, 23, 42, 0.04) 1px, transparent 1px);
@@ -411,7 +402,6 @@ hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
     transform-origin: 0 0; /* Importante para o zoom funcionar a partir do canto */
 }
 
-/* Responsividade */
 @media (max-width: 900px) {
     .dashboard-layout { flex-direction: column; }
     .sidebar { width: 100%; height: auto; position: static; }
@@ -427,7 +417,6 @@ hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
     .grade-cards { grid-template-columns: 1fr; }
 }
 
-/* Pagina��o */
 .paginacao-container {
     display: flex;
     justify-content: center;

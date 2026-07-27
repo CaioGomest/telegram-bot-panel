@@ -14,9 +14,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nome = $_POST['nome'] ?? '';
     $email = $_POST['email'] ?? '';
     $senha = $_POST['senha'] ?? '';
-    $confirmaSenha = $_POST['confirma_senha'] ?? '';
+    $confirma_senha = $_POST['confirma_senha'] ?? '';
     
-    if ($senha !== $confirmaSenha) {
+    if ($senha !== $confirma_senha) {
         $erro = 'As senhas não conferem.';
     } else {
         $resultado = criarUsuario($nome, $email, $senha);

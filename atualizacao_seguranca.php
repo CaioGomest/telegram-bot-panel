@@ -1,12 +1,10 @@
 <?php
-// atualizacao_seguranca.php
 // Adiciona coluna invite_link na tabela membros_grupos para permitir revogação de links
 require_once 'conexao.php';
 
 echo "<h1>Atualização de Segurança</h1>";
 
 try {
-    // Verifica se a coluna já existe
     $stmt = $pdo->query("SHOW COLUMNS FROM membros_grupos LIKE 'invite_link'");
     $coluna = $stmt->fetch();
 

@@ -1,51 +1,48 @@
 <?php
 
-function enviarEventoFacebook($pixelId, $accessToken, $evento, $dados, $userData = []) {
-    if (empty($pixelId) || empty($accessToken)) {
+function enviarEventoFacebook($pixel_id, $access_token, $evento, $dados, $user_data = []) {
+    if (empty($pixel_id) || empty($access_token)) {
         return ['sucesso' => false, 'erro' => 'Pixel ID ou Access Token não configurados'];
     }
 
-    $url = "https://graph.facebook.com/v19.0/{$pixelId}/events?access_token={$accessToken}";
+    $url = "https://graph.facebook.com/v19.0/{$pixel_id}/events?access_token={$access_token}";
     
     $timestamp = time();
 
-    // Mapeamento de eventos padrão do Facebook
-    $eventoMap = [
+    $evento_map = [
         'pix_gerado' => 'InitiateCheckout',
         'pix_pago' => 'Purchase',
         'compra' => 'Purchase',
         'cadastro' => 'Lead'
     ];
-    
-    // Se não houver mapeamento, usa o nome original (Custom Event)
-    $nomeEvento = $eventoMap[$evento] ?? $evento;
-    
-    // Preparar dados do usuário (hashing necessário para alguns campos)
-    $userParams = [];
-    if (!empty($userData['email'])) {
-        $userParams['em'] = hash('sha256', strtolower(trim($userData['email'])));
+
+    $nome_evento = $evento_map[$evento] ?? $evento;
+
+    $user_params = [];
+    if (!empty($user_data['email'])) {
+        $user_params['em'] = hash('sha256', strtolower(trim($user_data['email'])));
     }
-    if (!empty($userData['telefone'])) {
-        $userParams['ph'] = hash('sha256', preg_replace('/[^0-9]/', '', $userData['telefone']));
+    if (!empty($user_data['telefone'])) {
+        $user_params['ph'] = hash('sha256', preg_replace('/[^0-9]/', '', $user_data['telefone']));
     }
-    if (!empty($userData['ip'])) {
-        $userParams['client_ip_address'] = $userData['ip'];
+    if (!empty($user_data['ip'])) {
+        $user_params['client_ip_address'] = $user_data['ip'];
     }
-    if (!empty($userData['user_agent'])) {
-        $userParams['client_user_agent'] = $userData['user_agent'];
+    if (!empty($user_data['user_agent'])) {
+        $user_params['client_user_agent'] = $user_data['user_agent'];
     }
     // Telegram ID como External ID é uma boa prática para bots
-    if (!empty($userData['id_telegram'])) {
-        $userParams['external_id'] = hash('sha256', (string)$userData['id_telegram']);
+    if (!empty($user_data['id_telegram'])) {
+        $user_params['external_id'] = hash('sha256', (string)$user_data['id_telegram']);
     }
 
     $payload = [
         'data' => [
             [
-                'event_name' => $nomeEvento,
+                'event_name' => $nome_evento,
                 'event_time' => $timestamp,
                 'action_source' => 'system_generated', // Como é bot, system_generated ou website se tiver link
-                'user_data' => $userParams,
+                'user_data' => $user_params,
                 'custom_data' => [
                     'currency' => 'BRL',
                     'value' => (float)($dados['valor'] ?? 0),
@@ -55,7 +52,6 @@ function enviarEventoFacebook($pixelId, $accessToken, $evento, $dados, $userData
                 'event_id' => $dados['event_id'] ?? ($dados['transacao_id'] ?? null)
             ]
         ]
-        // 'test_event_code' => 'TEST12345' // Útil para testes
     ];
 
     $ch = curl_init($url);
@@ -65,14 +61,14 @@ function enviarEventoFacebook($pixelId, $accessToken, $evento, $dados, $userData
     curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
     
     $resposta = curl_exec($ch);
-    $codigoHttp = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $erroCurl = curl_error($ch);
+    $codigo_http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $erro_curl = curl_error($ch);
     curl_close($ch);
 
     return [
-        'sucesso' => $codigoHttp >= 200 && $codigoHttp < 300,
-        'resposta' => $resposta ? json_decode($resposta, true) : ['erro' => $erroCurl],
-        'codigo' => $codigoHttp,
+        'sucesso' => $codigo_http >= 200 && $codigo_http < 300,
+        'resposta' => $resposta ? json_decode($resposta, true) : ['erro' => $erro_curl],
+        'codigo' => $codigo_http,
         'payload' => $payload
     ];
 }
