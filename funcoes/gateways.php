@@ -89,7 +89,7 @@ function getUserGateways(int $user_id, bool $somente_ativos = true): array {
                COALESCE(ug.tipo_conta, 'pj') as tipo_conta
         FROM gateways g
         LEFT JOIN usuarios_gateways ug ON ug.id_gateway = g.id AND ug.id_usuario = :user_id
-        WHERE g.ativo = 1";
+        WHERE g.ativo = 1 AND g.nome IN ('" . implode("','", gatewaysSuportados()) . "')";
 
     if ($somente_ativos) {
         $sql .= " AND (ug.ativo = 1 OR ug.id IS NULL)";
@@ -136,6 +136,12 @@ function resolveGatewayProvider(string $gateway_nome, array $config): ?object {
         default:
             return null;
     }
+}
+
+// Gateways sem provider implementado (ex-EFI, ex-PushinPay) continuam na tabela por causa do
+// histórico de vendas, mas não devem aparecer como opção pra ativar/configurar.
+function gatewaysSuportados(): array {
+    return ['infopago'];
 }
 
 function saveUserGatewayConfig(int $user_id, int $gateway_id, string $client_id, string $client_secret, string $certificado, string $cert_password, string $chave_pix, bool $ativo, int $prioridade = 100, string $tipo_conta = 'pj'): bool {
@@ -203,7 +209,7 @@ function saveInfopagoCashoutConfig(int $user_id, int $gateway_id, string $cashou
 
 function listarGatewaysAdmin(int $limite = 20, int $offset = 0): array {
     global $pdo;
-    $sql = "SELECT * FROM gateways ORDER BY nome LIMIT :limite OFFSET :offset";
+    $sql = "SELECT * FROM gateways WHERE nome IN ('" . implode("','", gatewaysSuportados()) . "') ORDER BY nome LIMIT :limite OFFSET :offset";
     $stmt = $pdo->prepare($sql);
     $stmt->bindValue(':limite', $limite, PDO::PARAM_INT);
     $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
@@ -213,7 +219,7 @@ function listarGatewaysAdmin(int $limite = 20, int $offset = 0): array {
 
 function contarGatewaysAdmin(): int {
     global $pdo;
-    return (int)$pdo->query("SELECT COUNT(*) FROM gateways")->fetchColumn();
+    return (int)$pdo->query("SELECT COUNT(*) FROM gateways WHERE nome IN ('" . implode("','", gatewaysSuportados()) . "')")->fetchColumn();
 }
 
 function listarGatewaysUsuario(int $user_id, int $limite = 20, int $offset = 0): array {
@@ -224,7 +230,7 @@ function listarGatewaysUsuario(int $user_id, int $limite = 20, int $offset = 0):
                ug.cashout_client_id, ug.cashout_client_secret, ug.cashout_certificado
         FROM gateways g
         LEFT JOIN usuarios_gateways ug ON ug.id_gateway = g.id AND ug.id_usuario = :user_id
-        WHERE g.ativo = 1
+        WHERE g.ativo = 1 AND g.nome IN ('" . implode("','", gatewaysSuportados()) . "')
         ORDER BY COALESCE(ug.prioridade, 999), g.nome
         LIMIT :limite OFFSET :offset
     ";
@@ -269,5 +275,5 @@ function listarGatewaysUsuario(int $user_id, int $limite = 20, int $offset = 0):
 
 function contarGatewaysUsuario(): int {
     global $pdo;
-    return (int)$pdo->query("SELECT COUNT(*) FROM gateways WHERE ativo = 1")->fetchColumn();
+    return (int)$pdo->query("SELECT COUNT(*) FROM gateways WHERE ativo = 1 AND nome IN ('" . implode("','", gatewaysSuportados()) . "')")->fetchColumn();
 }
