@@ -726,7 +726,7 @@ if (strpos($texto, 'verificar_pagamento_') === 0) {
                         $pdo->prepare("UPDATE vendas SET status = 'pago', pago_em = NOW() WHERE id = ?")->execute([$venda['id']]);
 
                         if ($nome_gw_venda === 'infopago') {
-                            dispararSplitInfopago((int)$id_usuario_dono, (float)$venda['valor'], $txid);
+                            dispararSplitInfopago((int)$id_usuario_dono, (float)$venda['valor'], $txid, (int)$venda['id']);
                         }
 
                         require_once __DIR__ . '/funcoes/traqueamento.php';

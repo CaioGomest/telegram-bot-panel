@@ -117,7 +117,10 @@ try {
         "ADD COLUMN venda_pai_id INT DEFAULT NULL",
         "ADD COLUMN id_assinatura VARCHAR(100) DEFAULT NULL", // Novo nome (ex-subscription_id)
         "ADD COLUMN id_plano INT DEFAULT NULL",      // Novo nome (ex-plan_id)
-        "ADD COLUMN ultimo_txid_renovacao VARCHAR(255) DEFAULT NULL" // Idempotência do webhook de PIX Automático (cobsr)
+        "ADD COLUMN ultimo_txid_renovacao VARCHAR(255) DEFAULT NULL", // Idempotência do webhook de PIX Automático (cobsr)
+        "ADD COLUMN split_status ENUM('sem_split', 'sem_credenciais', 'pago', 'falhou') DEFAULT NULL AFTER comissao_admin",
+        "ADD COLUMN split_valor DECIMAL(10,2) DEFAULT NULL AFTER split_status",
+        "ADD COLUMN split_em DATETIME DEFAULT NULL AFTER split_valor"
     ];
 
     foreach ($colunas_vendas as $alter) {

@@ -8,7 +8,7 @@ require_once __DIR__ . '/infopago_cashout.php';
  * Chamado tanto pelo webhook (webhook_infopago.php) quanto pelo cron de fallback (cron_verificar_pix.php).
  * Falha aqui não deve impedir a liberação de acesso do comprador — só loga o erro.
  */
-function dispararSplitInfopago(int $id_dono, float $valor_venda, string $txid): void {
+function dispararSplitInfopago(int $id_dono, float $valor_venda, string $txid, int $venda_id = 0): void {
     global $pdo;
 
     $log_file = __DIR__ . '/../logs/split_debug.log';
@@ -16,11 +16,20 @@ function dispararSplitInfopago(int $id_dono, float $valor_venda, string $txid): 
         file_put_contents($log_file, '[' . date('Y-m-d H:i:s') . '] [SplitInfoPago] ' . $msg . PHP_EOL, FILE_APPEND | LOCK_EX);
     };
 
+    $marcar_split = function (string $status, ?float $valor = null) use ($pdo, $venda_id): void {
+        if ($venda_id <= 0) {
+            return;
+        }
+        $pdo->prepare("UPDATE vendas SET split_status = ?, split_valor = ?, split_em = NOW() WHERE id = ?")
+            ->execute([$status, $valor, $venda_id]);
+    };
+
     $stmt = $pdo->prepare("SELECT chave_pix_split, taxa_split, tipo_split FROM usuarios_splits WHERE id_usuario = ? AND gateway_nome = 'infopago' LIMIT 1");
     $stmt->execute([$id_dono]);
     $split = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$split || empty($split['chave_pix_split'])) {
+        $marcar_split('sem_split');
         return;
     }
 
@@ -40,6 +49,7 @@ function dispararSplitInfopago(int $id_dono, float $valor_venda, string $txid): 
 
     if (!$cred || empty($cred['cashout_client_id']) || empty($cred['cashout_certificado'])) {
         $log("Split configurado mas o admin ainda não configurou as credenciais de Cash-Out. Ignorando split (venda dono=$id_dono).");
+        $marcar_split('sem_credenciais');
         return;
     }
 
@@ -48,6 +58,7 @@ function dispararSplitInfopago(int $id_dono, float $valor_venda, string $txid): 
         : round($valor_venda * ((float)$split['taxa_split'] / 100), 2);
 
     if ($valor_split <= 0) {
+        $marcar_split('sem_split');
         return;
     }
 
@@ -56,7 +67,9 @@ function dispararSplitInfopago(int $id_dono, float $valor_venda, string $txid): 
 
     if ($resp['sucesso'] ?? false) {
         $log("Split transferido | txid=$txid | valor=$valor_split | destino={$split['chave_pix_split']}");
+        $marcar_split('pago', $valor_split);
     } else {
         $log("Split FALHOU | txid=$txid | valor=$valor_split | erro=" . json_encode($resp['erro'] ?? ''));
+        $marcar_split('falhou', $valor_split);
     }
 }

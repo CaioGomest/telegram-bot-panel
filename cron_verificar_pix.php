@@ -172,7 +172,7 @@ foreach ($vendas_pendentes as $venda) {
             $pagos_count++;
 
             if ($nome_gateway === 'infopago') {
-                dispararSplitInfopago((int)$venda['id_dono'], (float)$venda['valor'], (string)$venda['transacao_id']);
+                dispararSplitInfopago((int)$venda['id_dono'], (float)$venda['valor'], (string)$venda['transacao_id'], (int)$venda['id']);
             }
 
             $msg = "✅ *Pagamento Confirmado!*\n\nObrigado pela sua compra.";

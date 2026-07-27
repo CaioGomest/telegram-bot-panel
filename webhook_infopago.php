@@ -239,7 +239,7 @@ if (isset($notificacao['cobsr'])) {
             $pdo->prepare("UPDATE vendas SET ultimo_txid_renovacao = ? WHERE id = ?")->execute([$txid_renovacao, $venda['id']]);
 
             $link = liberarAcessoGrupoInfopago($venda, $token_bot);
-            dispararSplitInfopago($id_dono, (float)$venda['valor'], $txid_renovacao);
+            dispararSplitInfopago($id_dono, (float)$venda['valor'], $txid_renovacao, (int)$venda['id']);
 
             $msg_renovacao = "✅ *Assinatura Renovada!*\n\nSua assinatura foi renovada automaticamente com sucesso.";
             if ($link) {
@@ -331,7 +331,7 @@ foreach ($notificacao['pix'] as $pix) {
         $valor_fmt = number_format((float)$venda['valor'], 2, ',', '.');
         registrarAtividade($id_dono, 'venda', 'Venda Aprovada', "PIX InfoPago R$ {$valor_fmt} pago (TXID=$txid).");
 
-        dispararSplitInfopago($id_dono, (float)$venda['valor'], $txid);
+        dispararSplitInfopago($id_dono, (float)$venda['valor'], $txid, (int)$venda['id']);
 
         require_once __DIR__ . '/funcoes/traqueamento.php';
         $nome_lead = '';
