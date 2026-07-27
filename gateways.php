@@ -537,8 +537,6 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
 
             <?php if ($is_admin): ?>
                 <hr style="margin:28px 0;border:none;border-top:1px solid #e2e8f0;">
-                <h2 style="font-size:1.05rem;margin:0 0 4px;">Meus gateways (conta admin)</h2>
-                <p style="font-size:.85rem;color:#94a3b8;margin:0 0 18px;">O admin também pode ter bots próprios — configure suas credenciais de gateway aqui.</p>
             <?php endif; ?>
             <?php
                 // USER VIEW: sempre visível — inclusive para admin, para sua própria conta
