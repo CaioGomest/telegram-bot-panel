@@ -88,7 +88,7 @@ try {
             id_telegram VARCHAR(50) NOT NULL,
             bot_id INT,
             valor DECIMAL(10,2) NOT NULL,
-            status ENUM('gerado', 'pago', 'cancelado') DEFAULT 'gerado',
+            status ENUM('gerado', 'pago', 'cancelado', 'expirado') DEFAULT 'gerado',
             transacao_id VARCHAR(255),
             id_grupo_telegram VARCHAR(50),
             dias_acesso INT DEFAULT 30,
@@ -134,7 +134,16 @@ try {
     try {
         $pdo->exec("UPDATE vendas SET tempo_acesso_minutos = dias_acesso * 1440 WHERE tempo_acesso_minutos IS NULL AND dias_acesso IS NOT NULL");
     } catch (PDOException $e) {}
-    
+
+    // 'expirado' não existia no ENUM original de status; gravações antigas desse valor foram
+    // silenciosamente salvas como '' pelo MySQL. Amplia o ENUM e corrige as linhas afetadas.
+    try {
+        $pdo->exec("ALTER TABLE vendas MODIFY COLUMN status ENUM('gerado', 'pago', 'cancelado', 'expirado') DEFAULT 'gerado'");
+    } catch (PDOException $e) {}
+    try {
+        $pdo->exec("UPDATE vendas SET status = 'expirado' WHERE status = ''");
+    } catch (PDOException $e) {}
+
     echo "Tabela 'vendas' OK.<br>";
 
 
