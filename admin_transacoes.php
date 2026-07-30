@@ -170,23 +170,6 @@ function celulaSplit(array $venda, array $linhas_split): string {
         return '<span class="badge badge-cinza">—</span>';
     }
 
-    if (!empty($linhas_split)) {
-        $html = '';
-        foreach ($linhas_split as $linha) {
-            $ok = $linha['status'] === 'pago';
-            $classe = $ok ? 'badge-sucesso' : 'badge-perigo';
-            $texto = $ok ? 'Pago' : 'Falhou';
-            $nome = htmlspecialchars($linha['descricao'] ?: $linha['chave_pix']);
-            $valor = number_format((float)$linha['valor'], 2, ',', '.');
-            $html .= "<div style=\"margin-bottom:4px;\"><span class=\"badge $classe\">$texto</span> <span style=\"font-size:12px;\">$nome — R$ $valor</span></div>";
-        }
-        return $html;
-    }
-
-    $mapa = [
-        'sem_split' => ['Sem split configurado', 'badge-cinza'],
-        'sem_credenciais' => ['Sem credenciais de Cash-Out', 'badge-alerta'],
-    ];
     if ($venda['split_status'] === null) {
         $html = '<span class="badge badge-alerta">Pendente</span>';
         if ($venda['soma_pct'] !== null) {
@@ -195,8 +178,27 @@ function celulaSplit(array $venda, array $linhas_split): string {
         }
         return $html;
     }
-    [$texto, $classe] = $mapa[$venda['split_status']] ?? [$venda['split_status'], 'badge-cinza'];
-    return "<span class=\"badge $classe\">$texto</span>";
+
+    $mapa_resumo = [
+        'pago' => ['Pago', 'badge-sucesso'],
+        'falhou' => ['Falhou', 'badge-perigo'],
+        'parcial' => ['Incompleto', 'badge-alerta'],
+        'sem_split' => ['Sem split configurado', 'badge-cinza'],
+        'sem_credenciais' => ['Sem credenciais de Cash-Out', 'badge-alerta'],
+    ];
+    [$texto_resumo, $classe_resumo] = $mapa_resumo[$venda['split_status']] ?? [$venda['split_status'], 'badge-cinza'];
+    $html = "<span class=\"badge $classe_resumo\">$texto_resumo</span>";
+
+    foreach ($linhas_split as $linha) {
+        $ok = $linha['status'] === 'pago';
+        $classe = $ok ? 'badge-sucesso' : 'badge-perigo';
+        $texto = $ok ? 'Pago' : 'Falhou';
+        $nome = htmlspecialchars($linha['descricao'] ?: $linha['chave_pix']);
+        $valor = number_format((float)$linha['valor'], 2, ',', '.');
+        $html .= "<div style=\"margin-top:4px;font-size:12px;\"><span class=\"badge $classe\">$texto</span> $nome — R$ $valor</div>";
+    }
+
+    return $html;
 }
 ?>
 <!DOCTYPE html>
