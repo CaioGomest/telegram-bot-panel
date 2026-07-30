@@ -303,7 +303,36 @@ try {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ";
     $pdo->exec($sql_usuarios_splits);
+
+    // Splits salvos com gateway_nome de gateways já removidos (ex-pushinpay) nunca foram
+    // usados de fato pelo motor de split (que só olha 'infopago') — remove esse lixo.
+    try {
+        $pdo->exec("DELETE FROM usuarios_splits WHERE gateway_nome <> 'infopago'");
+    } catch (PDOException $e) {}
+
     echo "Tabela 'usuarios_splits' OK.<br>";
+
+    $sql_vendas_splits = "
+        CREATE TABLE IF NOT EXISTS vendas_splits (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            venda_id INT NOT NULL,
+            usuario_split_id INT DEFAULT NULL,
+            chave_pix VARCHAR(255) NOT NULL,
+            descricao VARCHAR(100) DEFAULT NULL,
+            valor DECIMAL(10,2) NOT NULL,
+            status ENUM('pago', 'falhou') NOT NULL,
+            erro TEXT DEFAULT NULL,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (venda_id) REFERENCES vendas(id) ON DELETE CASCADE,
+            FOREIGN KEY (usuario_split_id) REFERENCES usuarios_splits(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ";
+    $pdo->exec($sql_vendas_splits);
+    echo "Tabela 'vendas_splits' OK.<br>";
+
+    try {
+        $pdo->exec("ALTER TABLE vendas MODIFY COLUMN split_status ENUM('sem_split', 'sem_credenciais', 'pago', 'falhou', 'parcial') DEFAULT NULL");
+    } catch (PDOException $e) {}
 
     $sql_remarketing_campanhas = "
         CREATE TABLE IF NOT EXISTS remarketing_campanhas (

@@ -23,7 +23,25 @@ if (!is_array($splits)) {
     exit;
 }
 
-$gateways_validos = ['infopago'];
+$linhas_validas = [];
+$soma_percentual = 0.0;
+foreach ($splits as $s) {
+    $chave = trim($s['chave_pix_split'] ?? '');
+    if ($chave === '') continue;
+
+    $taxa = max(0, (float)($s['taxa_split'] ?? 0));
+    $linhas_validas[] = [
+        'taxa'      => $taxa,
+        'chave'     => $chave,
+        'descricao' => substr(trim($s['descricao'] ?? ''), 0, 100),
+    ];
+    $soma_percentual += $taxa;
+}
+
+if ($soma_percentual > 100) {
+    echo json_encode(['sucesso' => false, 'erro' => 'A soma dos percentuais de split não pode passar de 100% (atual: ' . number_format($soma_percentual, 2, ',', '.') . '%).']);
+    exit;
+}
 
 global $pdo;
 try {
@@ -31,19 +49,11 @@ try {
     $pdo->prepare("DELETE FROM usuarios_splits WHERE id_usuario = ?")->execute([$user_id]);
 
     $ordem = 0;
-    foreach ($splits as $s) {
-        $gateway_nome = in_array($s['gateway_nome'] ?? '', $gateways_validos, true) ? $s['gateway_nome'] : 'infopago';
-        $tipo        = in_array($s['tipo_split'] ?? '', ['percentual', 'fixo'], true) ? $s['tipo_split'] : 'percentual';
-        $taxa        = max(0, (float)($s['taxa_split'] ?? 0));
-        $chave       = trim($s['chave_pix_split'] ?? '');
-        $descricao   = substr(trim($s['descricao'] ?? ''), 0, 100);
-
-        if ($chave === '') continue;
-
+    foreach ($linhas_validas as $linha) {
         $pdo->prepare(
             "INSERT INTO usuarios_splits (id_usuario, gateway_nome, tipo_split, taxa_split, chave_pix_split, descricao, ordem)
-             VALUES (?,?,?,?,?,?,?)"
-        )->execute([$user_id, $gateway_nome, $tipo, $taxa, $chave, $descricao, $ordem]);
+             VALUES (?, 'infopago', 'percentual', ?, ?, ?, ?)"
+        )->execute([$user_id, $linha['taxa'], $linha['chave'], $linha['descricao'], $ordem]);
         $ordem++;
     }
 

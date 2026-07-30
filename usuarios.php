@@ -283,6 +283,15 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
         e.preventDefault();
         const form = document.getElementById('formEditar');
         const msg  = document.getElementById('msgEditar');
+
+        const somaPercentual = coletarSplits().reduce((soma, s) => soma + (parseFloat(s.taxa_split) || 0), 0);
+        if (somaPercentual > 100) {
+            msg.textContent = `A soma dos percentuais de split não pode passar de 100% (atual: ${somaPercentual.toFixed(2)}%).`;
+            msg.className = 'msg-box msg-erro';
+            msg.style.display = 'block';
+            return;
+        }
+
         const data = new FormData(form);
 
         fetch('ajax/editar_usuario.php', { method: 'POST', body: data })
@@ -344,8 +353,6 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
         const vazio = document.getElementById('splitVazio');
         vazio.style.display = 'none';
 
-        const gw   = 'infopago';
-        const tipo = dados?.tipo_split     || 'percentual';
         const taxa = dados?.taxa_split     || '';
         const desc  = dados?.descricao      || '';
         const chave_simples = dados?.chave_pix_split || '';
@@ -354,16 +361,9 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
         row.className = 'split-row';
         row.innerHTML = `
             <div class="split-row-fields">
-                <div class="split-field">
-                    <label class="split-label">Tipo</label>
-                    <select class="form-input split-tipo">
-                        <option value="percentual" ${tipo === 'percentual' ? 'selected' : ''}>% Percentual</option>
-                        <option value="fixo"       ${tipo === 'fixo'       ? 'selected' : ''}>R$ Fixo</option>
-                    </select>
-                </div>
                 <div class="split-field split-field-sm">
-                    <label class="split-label">Valor</label>
-                    <input type="number" step="0.01" min="0" class="form-input split-taxa" value="${taxa}" placeholder="Ex: 10">
+                    <label class="split-label">Percentual (%)</label>
+                    <input type="number" step="0.01" min="0" max="100" class="form-input split-taxa" value="${taxa}" placeholder="Ex: 10">
                 </div>
                 <div class="split-field split-field-lg">
                     <label class="split-label">Chave Pix de destino (InfoPago)</label>
@@ -394,13 +394,11 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
         const rows = document.querySelectorAll('#splitLista .split-row');
         const result = [];
         rows.forEach(row => {
-            const gw = 'infopago';
-            const chave = row.querySelector('.split-chave-pix').value;
             result.push({
-                gateway_nome:    gw,
-                tipo_split:      row.querySelector('.split-tipo').value,
+                gateway_nome:    'infopago',
+                tipo_split:      'percentual',
                 taxa_split:      row.querySelector('.split-taxa').value,
-                chave_pix_split: chave,
+                chave_pix_split: row.querySelector('.split-chave-pix').value,
                 descricao:       row.querySelector('.split-desc').value,
             });
         });

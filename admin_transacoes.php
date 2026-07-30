@@ -51,7 +51,12 @@ $sql_base = "
     JOIN bots b ON v.bot_id = b.id
     JOIN usuarios u ON b.id_usuario = u.id
     LEFT JOIN gateways g ON v.id_gateway = g.id
-    LEFT JOIN usuarios_splits us ON us.id_usuario = u.id AND us.gateway_nome = 'infopago'
+    LEFT JOIN (
+        SELECT id_usuario, SUM(taxa_split) AS soma_pct
+        FROM usuarios_splits
+        WHERE gateway_nome = 'infopago'
+        GROUP BY id_usuario
+    ) us ON us.id_usuario = u.id
     WHERE $where_sql
 ";
 
@@ -66,11 +71,11 @@ $offset = ($pagina_atual - 1) * $por_pagina;
 $sql = "
     SELECT
         v.id, v.valor, v.status, v.transacao_id, v.id_telegram, v.criado_em, v.pago_em,
-        v.tipo_cobranca, v.comissao_admin, v.split_status, v.split_valor, v.split_em,
+        v.tipo_cobranca, v.comissao_admin, v.split_status, v.split_em,
         b.id AS id_bot, COALESCE(b.primeiro_nome, b.nome_usuario) AS nome_bot,
         u.id AS id_usuario, u.nome AS nome_usuario,
         g.titulo AS titulo_gateway,
-        us.tipo_split, us.taxa_split
+        us.soma_pct
     $sql_base
     ORDER BY v.criado_em DESC
     LIMIT $por_pagina OFFSET $offset
@@ -79,26 +84,58 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $transacoes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+$splits_por_venda = [];
+$venda_ids = array_column($transacoes, 'id');
+if (!empty($venda_ids)) {
+    $placeholders = implode(',', array_fill(0, count($venda_ids), '?'));
+    $stmt_splits = $pdo->prepare("SELECT venda_id, chave_pix, descricao, valor, status FROM vendas_splits WHERE venda_id IN ($placeholders) ORDER BY id");
+    $stmt_splits->execute($venda_ids);
+    foreach ($stmt_splits->fetchAll(PDO::FETCH_ASSOC) as $linha) {
+        $splits_por_venda[$linha['venda_id']][] = $linha;
+    }
+}
+
 if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename=transacoes.csv');
     $output = fopen('php://output', 'w');
-    fputcsv($output, ['Data', 'Usuário', 'Bot', 'Valor', 'Status', 'Gateway', 'TXID', 'Status do Split', 'Valor do Split', 'Split em']);
+    fputcsv($output, ['Data', 'Usuário', 'Bot', 'Valor', 'Status', 'Gateway', 'TXID', 'Status do Split', 'Detalhe do Split']);
 
     $sql_export = "
         SELECT
-            v.valor, v.status, v.transacao_id, v.criado_em,
+            v.id, v.valor, v.status, v.transacao_id, v.criado_em,
             b.id AS id_bot, COALESCE(b.primeiro_nome, b.nome_usuario) AS nome_bot,
             u.nome AS nome_usuario,
             g.titulo AS titulo_gateway,
-            v.split_status, v.split_valor, v.split_em
+            v.split_status
         $sql_base
         ORDER BY v.criado_em DESC
     ";
     $stmt_export = $pdo->prepare($sql_export);
     $stmt_export->execute($params);
+    $vendas_export = $stmt_export->fetchAll(PDO::FETCH_ASSOC);
 
-    while ($linha = $stmt_export->fetch(PDO::FETCH_ASSOC)) {
+    $splits_export = [];
+    $ids_export = array_column($vendas_export, 'id');
+    if (!empty($ids_export)) {
+        $placeholders = implode(',', array_fill(0, count($ids_export), '?'));
+        $stmt_splits_export = $pdo->prepare("SELECT venda_id, chave_pix, descricao, valor, status FROM vendas_splits WHERE venda_id IN ($placeholders) ORDER BY id");
+        $stmt_splits_export->execute($ids_export);
+        foreach ($stmt_splits_export->fetchAll(PDO::FETCH_ASSOC) as $linha) {
+            $splits_export[$linha['venda_id']][] = $linha;
+        }
+    }
+
+    foreach ($vendas_export as $linha) {
+        $detalhe_split = '-';
+        if (!empty($splits_export[$linha['id']])) {
+            $partes = array_map(function ($s) {
+                $nome = $s['descricao'] ?: $s['chave_pix'];
+                return "$nome: R$ " . number_format((float)$s['valor'], 2, ',', '.') . " ({$s['status']})";
+            }, $splits_export[$linha['id']]);
+            $detalhe_split = implode(' | ', $partes);
+        }
+
         fputcsv($output, [
             date('d/m/Y H:i', strtotime($linha['criado_em'])),
             $linha['nome_usuario'],
@@ -108,8 +145,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             $linha['titulo_gateway'] ?? '-',
             $linha['transacao_id'] ?? '-',
             $linha['split_status'] ?? 'pendente',
-            $linha['split_valor'] !== null ? number_format((float)$linha['split_valor'], 2, ',', '.') : '-',
-            $linha['split_em'] ? date('d/m/Y H:i', strtotime($linha['split_em'])) : '-',
+            $detalhe_split,
         ]);
     }
     fclose($output);
@@ -117,15 +153,6 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
 }
 
 $usuarios_filtro = $pdo->query('SELECT id, nome FROM usuarios ORDER BY nome')->fetchAll(PDO::FETCH_ASSOC);
-
-function calcularSplitEsperado(?string $tipo_split, ?string $taxa_split, string $valor_venda): ?float {
-    if ($tipo_split === null || $taxa_split === null) {
-        return null;
-    }
-    return $tipo_split === 'fixo'
-        ? (float)$taxa_split
-        : round((float)$valor_venda * ((float)$taxa_split / 100), 2);
-}
 
 function badgeStatusVenda(string $status): string {
     $mapa = [
@@ -138,18 +165,35 @@ function badgeStatusVenda(string $status): string {
     return "<span class=\"badge $classe\">$texto</span>";
 }
 
-function badgeSplit(array $venda): string {
+function celulaSplit(array $venda, array $linhas_split): string {
     if ($venda['status'] !== 'pago') {
         return '<span class="badge badge-cinza">—</span>';
     }
+
+    if (!empty($linhas_split)) {
+        $html = '';
+        foreach ($linhas_split as $linha) {
+            $ok = $linha['status'] === 'pago';
+            $classe = $ok ? 'badge-sucesso' : 'badge-perigo';
+            $texto = $ok ? 'Pago' : 'Falhou';
+            $nome = htmlspecialchars($linha['descricao'] ?: $linha['chave_pix']);
+            $valor = number_format((float)$linha['valor'], 2, ',', '.');
+            $html .= "<div style=\"margin-bottom:4px;\"><span class=\"badge $classe\">$texto</span> <span style=\"font-size:12px;\">$nome — R$ $valor</span></div>";
+        }
+        return $html;
+    }
+
     $mapa = [
-        'pago' => ['Pago', 'badge-sucesso'],
-        'falhou' => ['Falhou', 'badge-perigo'],
         'sem_split' => ['Sem split configurado', 'badge-cinza'],
         'sem_credenciais' => ['Sem credenciais de Cash-Out', 'badge-alerta'],
     ];
     if ($venda['split_status'] === null) {
-        return '<span class="badge badge-alerta">Pendente</span>';
+        $html = '<span class="badge badge-alerta">Pendente</span>';
+        if ($venda['soma_pct'] !== null) {
+            $valor_esperado = round((float)$venda['valor'] * ((float)$venda['soma_pct'] / 100), 2);
+            $html .= '<div class="valor-esperado">≈ R$ ' . number_format($valor_esperado, 2, ',', '.') . '</div>';
+        }
+        return $html;
     }
     [$texto, $classe] = $mapa[$venda['split_status']] ?? [$venda['split_status'], 'badge-cinza'];
     return "<span class=\"badge $classe\">$texto</span>";
@@ -180,10 +224,6 @@ function badgeSplit(array $venda): string {
         .badge-cinza { background: #f3f4f6; color: #374151; }
         .text-muted { color: var(--muted); font-size: 13px; }
         .valor-esperado { font-size: 12px; color: var(--muted); }
-        .resumo-cards { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
-        .resumo-card { flex: 1; min-width: 180px; background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; }
-        .resumo-card .titulo { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
-        .resumo-card .valor { font-size: 22px; font-weight: 700; color: var(--text); }
     </style>
 </head>
 <body>
@@ -229,9 +269,10 @@ function badgeSplit(array $venda): string {
                     <label for="split_status">Split</label>
                     <select name="split_status" id="split_status" class="input-campo">
                         <option value="">Todos</option>
-                        <option value="pago" <?php echo $split_status === 'pago' ? 'selected' : ''; ?>>Pago</option>
+                        <option value="pago" <?php echo $split_status === 'pago' ? 'selected' : ''; ?>>Pago (todos)</option>
+                        <option value="parcial" <?php echo $split_status === 'parcial' ? 'selected' : ''; ?>>Parcial (alguns falharam)</option>
                         <option value="pendente" <?php echo $split_status === 'pendente' ? 'selected' : ''; ?>>Pendente</option>
-                        <option value="falhou" <?php echo $split_status === 'falhou' ? 'selected' : ''; ?>>Falhou</option>
+                        <option value="falhou" <?php echo $split_status === 'falhou' ? 'selected' : ''; ?>>Falhou (todos)</option>
                         <option value="sem_split" <?php echo $split_status === 'sem_split' ? 'selected' : ''; ?>>Sem split configurado</option>
                         <option value="sem_credenciais" <?php echo $split_status === 'sem_credenciais' ? 'selected' : ''; ?>>Sem credenciais de Cash-Out</option>
                     </select>
@@ -276,17 +317,7 @@ function badgeSplit(array $venda): string {
                             <td><?php echo badgeStatusVenda($t['status']); ?></td>
                             <td class="text-muted"><?php echo htmlspecialchars($t['titulo_gateway'] ?? '-'); ?></td>
                             <td class="text-muted"><?php echo htmlspecialchars($t['transacao_id'] ?? '-'); ?></td>
-                            <td>
-                                <?php echo badgeSplit($t); ?>
-                                <?php if ($t['status'] === 'pago' && $t['split_valor'] !== null): ?>
-                                    <div class="valor-esperado">R$ <?php echo number_format((float)$t['split_valor'], 2, ',', '.'); ?></div>
-                                <?php elseif ($t['status'] === 'pago' && $t['split_status'] === null): ?>
-                                    <?php $valor_esperado = calcularSplitEsperado($t['tipo_split'], $t['taxa_split'], $t['valor']); ?>
-                                    <?php if ($valor_esperado !== null): ?>
-                                        <div class="valor-esperado">≈ R$ <?php echo number_format($valor_esperado, 2, ',', '.'); ?></div>
-                                    <?php endif; ?>
-                                <?php endif; ?>
-                            </td>
+                            <td><?php echo celulaSplit($t, $splits_por_venda[$t['id']] ?? []); ?></td>
                         </tr>
                         <?php endforeach; ?>
 
