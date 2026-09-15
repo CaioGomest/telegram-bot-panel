@@ -147,19 +147,19 @@ function getIcone($nome) {
                     </a>
                 </li>
                 <li>
-                    <a href="debug_cron.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'debug_cron.php' ? 'active' : ''; ?>">
+                    <a href="debug_ultima_venda.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'debug_ultima_venda.php' ? 'active' : ''; ?>">
                         <span class="icon"><?php echo getIcone('settings'); ?></span>
                         <span class="text">Última Venda (debug)</span>
                     </a>
                 </li>
                 <li>
-                    <a href="debug_fix_db.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'debug_fix_db.php' ? 'active' : ''; ?>">
+                    <a href="debug_colunas_vendas.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'debug_colunas_vendas.php' ? 'active' : ''; ?>">
                         <span class="icon"><?php echo getIcone('settings'); ?></span>
                         <span class="text">Checar Colunas (vendas)</span>
                     </a>
                 </li>
                 <li>
-                    <a href="temp_check_db.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'temp_check_db.php' ? 'active' : ''; ?>">
+                    <a href="debug_colunas_grupos.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'debug_colunas_grupos.php' ? 'active' : ''; ?>">
                         <span class="icon"><?php echo getIcone('settings'); ?></span>
                         <span class="text">Checar Colunas (grupos)</span>
                     </a>
