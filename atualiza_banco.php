@@ -66,6 +66,7 @@ try {
     ";
     $pdo->exec($sql_bots);
     echo "Tabela 'bots' OK.<br>";
+    try { $pdo->exec("ALTER TABLE bots ADD COLUMN webhook_secret VARCHAR(64) NULL AFTER url_webhook"); } catch (PDOException $e) {}
 
 
     $sql_leads = "

@@ -107,6 +107,28 @@ function sanitizarTexto(?string $valor, int $tamanho_maximo = 0): string
     return $valor;
 }
 
+function gerarOuObterSegredoWebhook(int $id_bot): string
+{
+    global $pdo;
+
+    try {
+        $stmt = $pdo->prepare("SELECT webhook_secret FROM bots WHERE id = ?");
+        $stmt->execute([$id_bot]);
+        $segredo = $stmt->fetchColumn();
+
+        if (!$segredo) {
+            $segredo = bin2hex(random_bytes(24));
+            $pdo->prepare("UPDATE bots SET webhook_secret = ? WHERE id = ?")->execute([$segredo, $id_bot]);
+        }
+
+        return $segredo;
+    } catch (\Throwable $e) {
+        // Coluna ainda não existe (banco não atualizado) — segue sem secret_token
+        // até rodar o atualiza_banco.php. Não impede o bot de funcionar.
+        return '';
+    }
+}
+
 function obterBotComInfoLive(string $token): array
 {
     $eu = requisicaoTelegram($token, 'getMe');
@@ -451,7 +473,12 @@ try {
             $caminho_base = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/\\');
             $url_webhook = $esquema . '://' . $host . $caminho_base . '/webhook.php?token=' . urlencode($token);
 
-            $wh = requisicaoTelegram($token, 'setWebhook', ['url' => $url_webhook]);
+            $segredo_webhook = gerarOuObterSegredoWebhook((int)$id_bot);
+            $params_webhook = ['url' => $url_webhook];
+            if ($segredo_webhook !== '') {
+                $params_webhook['secret_token'] = $segredo_webhook;
+            }
+            $wh = requisicaoTelegram($token, 'setWebhook', $params_webhook);
             $webhook_definido = (bool) ($wh['ok'] ?? false);
 
             if ($webhook_definido) {
@@ -776,6 +803,12 @@ try {
                 responder(false, ['mensagem' => 'Informe o token do bot.'], 422);
             }
 
+            if ($id_bot <= 0) {
+                $stmt_id_bot = $pdo->prepare("SELECT id FROM bots WHERE token = ?");
+                $stmt_id_bot->execute([$token]);
+                $id_bot = (int) ($stmt_id_bot->fetchColumn() ?: 0);
+            }
+
             $resp_del = requisicaoTelegram($token, 'deleteWebhook', ['drop_pending_updates' => true]);
             if (!($resp_del['ok'] ?? false)) {
                 responder(false, ['mensagem' => 'Falha ao limpar webhook: ' . ($resp_del['description'] ?? 'erro desconhecido')], 400);
@@ -786,7 +819,12 @@ try {
             $caminho_base = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/\\');
             $url_webhook = $esquema . '://' . $host . $caminho_base . '/webhook.php?token=' . urlencode($token);
 
-            $resp_set = requisicaoTelegram($token, 'setWebhook', ['url' => $url_webhook]);
+            $segredo_webhook = gerarOuObterSegredoWebhook((int)$id_bot);
+            $params_webhook = ['url' => $url_webhook];
+            if ($segredo_webhook !== '') {
+                $params_webhook['secret_token'] = $segredo_webhook;
+            }
+            $resp_set = requisicaoTelegram($token, 'setWebhook', $params_webhook);
 
             if (!($resp_set['ok'] ?? false)) {
                 responder(false, ['mensagem' => 'Fila limpa, mas falha ao reativar webhook: ' . ($resp_set['description'] ?? 'erro desconhecido')], 400);

@@ -1,5 +1,6 @@
 logs/*
 !logs/.gitkeep
+!logs/.htaccess
 
 uploads/*
 !uploads/.gitkeep

@@ -39,8 +39,17 @@ Em `traqueamento.php`, os campos de token já vêm preenchidos com o valor salvo
 
 ## Próximos passos sugeridos (por prioridade)
 
-1. Validar autenticidade do webhook do InfoPago (ou reconfirmar status direto na API antes de liberar acesso).
-2. `.htaccess` em `/logs` bloqueando acesso direto.
-3. Validar `secret_token` no webhook do Telegram.
-4. Criptografar `client_secret`/`cert_password`/`chave_pix` no banco.
-5. Mascarar tokens de integração no formulário de edição (opcional, cosmético).
+1. ~~Validar autenticidade do webhook do InfoPago~~ **Feito.**
+2. ~~`.htaccess` em `/logs` bloqueando acesso direto~~ **Feito.**
+3. ~~Validar `secret_token` no webhook do Telegram~~ **Feito.**
+4. **Criptografar `client_secret`/`cert_password`/`chave_pix` no banco — ainda NÃO feito.** Envolve gerenciar uma chave de criptografia da aplicação e migrar dados que já existem em texto puro — risco de "trancar" credencial de pagamento se algo sair errado na chave. Fica pra uma rodada própria, com mais cuidado.
+5. Mascarar tokens de integração no formulário de edição (opcional, cosmético) — ainda não feito, baixa prioridade.
+
+## Correções aplicadas (varredura 03 → fix)
+
+- **`webhook_infopago.php`:** antes de marcar uma venda como paga, agora consulta a cobrança direto na API da InfoPago (`consultarCobranca`) usando as credenciais do dono do bot, e só libera se a InfoPago confirmar o status como pago de verdade. Se a consulta falhar ou não confirmar, a notificação é ignorada (fica só com o log) — o `cron_verificar_pix.php` (que já fazia essa mesma verificação) pega a venda no próximo ciclo. Ninguém mais consegue "forjar" um pagamento só mandando POST pra URL do webhook.
+- **`logs/.htaccess`:** bloqueia qualquer acesso direto à pasta de logs (igual ao que já tinha em `/uploads` e `/certificados`, mas aqui bloqueando tudo, não só `.php`).
+- **`webhook.php`:** agora valida o header `X-Telegram-Bot-Api-Secret-Token` contra um segredo salvo por bot (`bots.webhook_secret`, coluna nova). Retrocompatível: bots que ainda não têm segredo salvo continuam funcionando normalmente — o segredo é gerado sozinho na próxima vez que o webhook for (re)configurado (`api.php`, ações `salvar_bot` e `reiniciar_webhook`).
+- **`atualiza_banco.php`:** adiciona a coluna `bots.webhook_secret`.
+
+**Importante:** depois do deploy, rodar `atualiza_banco.php` (menu Debug) pra criar a coluna nova. Bots já existentes só passam a exigir o secret_token depois que alguém salvar o bot de novo ou clicar em "reiniciar conexão" — não precisa fazer nada manual, mas vale saber que a proteção vai "ligando" aos poucos, bot por bot.
