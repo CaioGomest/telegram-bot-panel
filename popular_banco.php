@@ -1,7 +1,8 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/conexao.php';
+require_once __DIR__ . '/funcoes/usuario.php';
+verificarAdminOuInstalacao();
 
 // Aumentar tempo de execução para garantir que insira tudo
 set_time_limit(300);

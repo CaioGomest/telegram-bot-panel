@@ -1,4 +1,9 @@
 <?php
+declare(strict_types=1);
+
+require_once __DIR__ . '/funcoes/usuario.php';
+verificarAdmin();
+
 require_once 'config.php';
 try {
     // Força 127.0.0.1 para teste

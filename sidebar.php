@@ -127,6 +127,43 @@ function getIcone($nome) {
                         <span class="text">Logs</span>
                     </a>
                 </li>
+                <li class="sidebar-section-label">Debug</li>
+                <li>
+                    <a href="atualizacao_seguranca.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'atualizacao_seguranca.php' ? 'active' : ''; ?>">
+                        <span class="icon"><?php echo getIcone('settings'); ?></span>
+                        <span class="text">Atualização de Segurança</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="atualiza_banco.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'atualiza_banco.php' ? 'active' : ''; ?>">
+                        <span class="icon"><?php echo getIcone('settings'); ?></span>
+                        <span class="text">Atualizar Banco</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="setup_menus.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'setup_menus.php' ? 'active' : ''; ?>">
+                        <span class="icon"><?php echo getIcone('settings'); ?></span>
+                        <span class="text">Recriar Menus</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="debug_cron.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'debug_cron.php' ? 'active' : ''; ?>">
+                        <span class="icon"><?php echo getIcone('settings'); ?></span>
+                        <span class="text">Última Venda (debug)</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="debug_fix_db.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'debug_fix_db.php' ? 'active' : ''; ?>">
+                        <span class="icon"><?php echo getIcone('settings'); ?></span>
+                        <span class="text">Checar Colunas (vendas)</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="temp_check_db.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'temp_check_db.php' ? 'active' : ''; ?>">
+                        <span class="icon"><?php echo getIcone('settings'); ?></span>
+                        <span class="text">Checar Colunas (grupos)</span>
+                    </a>
+                </li>
             <?php endif; ?>
 
             <li>

@@ -1,7 +1,8 @@
 <?php
 declare(strict_types=1);
 
-require_once 'conexao.php';
+require_once __DIR__ . '/funcoes/usuario.php';
+verificarAdminOuInstalacao();
 
 try {
     echo "<h1>Atualização Unificada do Banco de Dados</h1>";

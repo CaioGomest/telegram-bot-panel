@@ -1,5 +1,8 @@
 <?php
-require 'conexao.php';
+declare(strict_types=1);
+
+require_once __DIR__ . '/funcoes/usuario.php';
+verificarAdmin();
 
 try {
     echo "Banco conectado: " . $pdo->query('select database()')->fetchColumn() . "\n";

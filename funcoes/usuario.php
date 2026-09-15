@@ -56,6 +56,27 @@ function verificarAdmin(): void {
     }
 }
 
+function sistemaJaInstalado(): bool {
+    global $pdo;
+
+    if (!isset($pdo)) {
+        return false;
+    }
+
+    try {
+        $stmt = $pdo->query("SELECT COUNT(*) FROM usuarios WHERE perfil = 'admin'");
+        return (int)$stmt->fetchColumn() > 0;
+    } catch (\Throwable $e) {
+        return false;
+    }
+}
+
+function verificarAdminOuInstalacao(): void {
+    if (sistemaJaInstalado()) {
+        verificarAdmin();
+    }
+}
+
 function fazerLogout(): void {
     if (usuarioLogado()) {
         registrarAtividade((int)$_SESSION['usuario_id'], 'sistema', 'Logout', 'Usuário saiu do sistema.');

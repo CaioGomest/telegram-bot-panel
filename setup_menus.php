@@ -1,5 +1,8 @@
 <?php
-require_once 'conexao.php';
+declare(strict_types=1);
+
+require_once __DIR__ . '/funcoes/usuario.php';
+verificarAdminOuInstalacao();
 
 try {
     $pdo->exec("

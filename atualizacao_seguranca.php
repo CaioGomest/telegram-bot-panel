@@ -1,6 +1,9 @@
 <?php
+declare(strict_types=1);
+
 // Adiciona coluna invite_link na tabela membros_grupos para permitir revogação de links
-require_once 'conexao.php';
+require_once __DIR__ . '/funcoes/usuario.php';
+verificarAdmin();
 
 echo "<h1>Atualização de Segurança</h1>";
 
