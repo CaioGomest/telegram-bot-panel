@@ -2,6 +2,15 @@
 declare(strict_types=1);
 
 if (session_status() === PHP_SESSION_NONE) {
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path' => '/',
+        'httponly' => true,
+        'samesite' => 'Lax',
+        // 'Secure' só quando o acesso já é HTTPS — evita quebrar o cookie em
+        // ambiente de desenvolvimento local sem certificado.
+        'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+    ]);
     session_start();
 }
 
@@ -20,9 +29,58 @@ function verificarLogin(): void {
     }
 }
 
+function loginEstaBloqueado(string $identificador): bool {
+    global $pdo;
+
+    try {
+        $stmt = $pdo->prepare("SELECT bloqueado_ate FROM tentativas_login WHERE identificador = ?");
+        $stmt->execute([$identificador]);
+        $bloqueado_ate = $stmt->fetchColumn();
+        return $bloqueado_ate && strtotime((string)$bloqueado_ate) > time();
+    } catch (\Throwable $e) {
+        // Se a tabela ainda não existir (deploy antigo sem atualizar o banco),
+        // não trava o login — só deixa de limitar tentativas até rodar a atualização.
+        return false;
+    }
+}
+
+function registrarTentativaLoginFalha(string $identificador): void {
+    global $pdo;
+
+    try {
+        $stmt = $pdo->prepare("SELECT tentativas FROM tentativas_login WHERE identificador = ?");
+        $stmt->execute([$identificador]);
+        $tentativas = (int)$stmt->fetchColumn() + 1;
+
+        $bloqueado_ate = $tentativas >= 5 ? date('Y-m-d H:i:s', time() + 15 * 60) : null;
+
+        $stmt = $pdo->prepare("
+            INSERT INTO tentativas_login (identificador, tentativas, bloqueado_ate)
+            VALUES (?, ?, ?)
+            ON DUPLICATE KEY UPDATE tentativas = ?, bloqueado_ate = ?
+        ");
+        $stmt->execute([$identificador, $tentativas, $bloqueado_ate, $tentativas, $bloqueado_ate]);
+    } catch (\Throwable $e) {
+        // Idem: sem a tabela, só não limita — não derruba o login.
+    }
+}
+
+function resetarTentativasLogin(string $identificador): void {
+    global $pdo;
+
+    try {
+        $pdo->prepare("DELETE FROM tentativas_login WHERE identificador = ?")->execute([$identificador]);
+    } catch (\Throwable $e) {
+    }
+}
+
 function fazerLogin(string $email, string $senha): bool {
     global $pdo;
-    
+
+    if (loginEstaBloqueado($email)) {
+        return false;
+    }
+
     try {
         $stmt = $pdo->prepare("SELECT id, nome, email, senha, perfil FROM usuarios WHERE email = ? LIMIT 1");
         $stmt->execute([$email]);
@@ -34,9 +92,12 @@ function fazerLogin(string $email, string $senha): bool {
             $_SESSION['usuario_email'] = $usuario['email'];
             $_SESSION['usuario_perfil'] = $usuario['perfil'];
             
+            resetarTentativasLogin($email);
             registrarAtividade((int)$usuario['id'], 'sistema', 'Login', 'Usuário realizou login no sistema.');
             return true;
         }
+
+        registrarTentativaLoginFalha($email);
     } catch (PDOException $e) {
         error_log("Erro no login: " . $e->getMessage());
     }
@@ -98,8 +159,8 @@ function criarUsuario(string $nome, string $email, string $senha): array {
         return ['sucesso' => false, 'erro' => 'Email inválido.'];
     }
     
-    if (strlen($senha) < 6) {
-        return ['sucesso' => false, 'erro' => 'A senha deve ter pelo menos 6 caracteres.'];
+    if (strlen($senha) < 8) {
+        return ['sucesso' => false, 'erro' => 'A senha deve ter pelo menos 8 caracteres.'];
     }
 
     try {

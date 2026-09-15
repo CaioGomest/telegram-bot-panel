@@ -36,8 +36,8 @@ Nenhuma rota (`ajax/`, `login.php`, `cadastro.php`, `gateways.php`, `usuarios.ph
 ### 6. Sem rate limiting / bloqueio de tentativas no login
 `fazerLogin()` não tem nenhum controle de tentativas — dá pra fazer brute-force de senha sem limite.
 
-### 7. Sem exigência de senha forte no cadastro
-`cadastro.php` só checa se as duas senhas digitadas conferem — não valida tamanho mínimo nem complexidade.
+### 7. Senha mínima no cadastro era só 6 caracteres
+`cadastro.php`/`criarUsuario()` já validava tamanho mínimo (6), só não estava documentado na varredura 01. Subi pra 8.
 
 ### 8. Cookie de sessão sem flags (repetindo da varredura 01)
 Ainda sem `session_set_cookie_params` com `Secure`/`HttpOnly`/`SameSite`.
@@ -50,10 +50,26 @@ Ainda sem `session_set_cookie_params` com `Secure`/`HttpOnly`/`SameSite`.
 
 ## Próximos passos sugeridos (por prioridade)
 
-1. Whitelist de extensão em `enviar_imagem_teste` (igual aos outros uploads do mesmo arquivo).
-2. `.htaccess` em `/uploads` e `/certificados` desativando execução de PHP.
-3. Corrigir sanitização de path (usar `realpath()` + checagem de prefixo).
-4. Adicionar CSRF token nas rotas administrativas.
-5. Rate limiting básico no login (ex.: bloquear por alguns minutos após N tentativas).
-6. Exigir senha mínima (ex. 8 caracteres) no cadastro.
-7. Configurar cookie de sessão com `Secure`/`HttpOnly`/`SameSite`.
+1. ~~Whitelist de extensão em `enviar_imagem_teste`~~ **Feito.**
+2. ~~`.htaccess` em `/uploads` e `/certificados` desativando execução de PHP~~ **Feito.**
+3. ~~Corrigir sanitização de path~~ **Feito** (agora só aceita `basename()` dentro de `/uploads`, resolvido com `realpath()`).
+4. **Adicionar CSRF token nas rotas administrativas — ainda NÃO feito.** Escopo grande (toda rota POST do painel: `ajax/*`, `gateways.php`, `usuarios.php`, `bots.php`, `fluxo.php`, `configuracoes.php`, etc.) e arriscado de fazer tudo de uma vez sem conseguir testar rodando. Fica pra uma próxima etapa, feita com calma por grupo de páginas.
+5. ~~Rate limiting básico no login~~ **Feito** (bloqueia por 15min após 5 tentativas erradas, tabela `tentativas_login` — precisa rodar `atualiza_banco.php` pra criar a tabela).
+6. ~~Exigir senha mínima no cadastro~~ **Feito** (já existia com 6 caracteres, subi pra 8).
+7. ~~Configurar cookie de sessão com `Secure`/`HttpOnly`/`SameSite`~~ **Feito.**
+
+## Correções aplicadas (varredura 02 → fix)
+
+- `api.php` (`enviar_imagem_teste`): agora valida a imagem com `getimagesize()` e limita extensão a `jpg/jpeg/png`, igual aos outros uploads do arquivo. O reaproveitamento de imagem já enviada (`$caminho`) agora usa só o `basename()` do valor recebido e resolve com `realpath()` dentro de `/uploads` — path traversal não é mais possível ali.
+- `uploads/.htaccess` e `certificados/.htaccess`: bloqueiam execução de PHP nessas pastas (segunda camada de proteção, mesmo que algum arquivo `.php` consiga parar lá).
+- `.gitignore` ajustado pra não ignorar os `.htaccess` novos.
+- `funcoes/usuario.php`: cookie de sessão agora sai com `HttpOnly`, `SameSite=Lax` e `Secure` (quando HTTPS). Adicionado rate limiting no login (`loginEstaBloqueado`, `registrarTentativaLoginFalha`, `resetarTentativasLogin`) — 5 tentativas erradas bloqueiam por 15 minutos. Senha mínima no cadastro subiu de 6 pra 8 caracteres.
+- `atualiza_banco.php`: cria a tabela `tentativas_login` (precisa rodar essa página, pelo menu Debug, depois do deploy — ou vai rodar sozinho no próximo redeploy se já tiver admin logado acessando).
+- `login.php`: mostra mensagem clara quando a conta está temporariamente bloqueada por tentativas.
+
+## Pendências que continuam em aberto
+
+- CSRF (item 4 acima) — maior item pendente, precisa de uma rodada própria.
+- `sanitizarTexto()` continua só cortando texto, não sanitizando de verdade (nome enganoso) — trocar nome/criar função separada numa limpeza futura.
+- Mensagem de erro do PDO ainda exposta na tela em alguns arquivos de debug (item já sinalizado na varredura 01).
+- Host forçado `127.0.0.1` em `debug_colunas_grupos.php` (antigo `temp_check_db.php`).

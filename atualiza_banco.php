@@ -431,6 +431,19 @@ try {
     try { $pdo->exec("ALTER TABLE links_rastreamento ADD COLUMN starts INT DEFAULT 0 AFTER bot_id"); } catch (PDOException $e) {}
     echo "Tabela 'links_rastreamento' OK.<br>";
 
+    $sql_tentativas_login = "
+        CREATE TABLE IF NOT EXISTS tentativas_login (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            identificador VARCHAR(150) NOT NULL,
+            tentativas INT DEFAULT 0,
+            bloqueado_ate DATETIME NULL,
+            atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_identificador (identificador)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ";
+    $pdo->exec($sql_tentativas_login);
+    echo "Tabela 'tentativas_login' OK.<br>";
+
     $stmt = $pdo->query("SELECT COUNT(*) FROM usuarios");
     $total = $stmt->fetchColumn();
 

@@ -1,0 +1,15 @@
+# Bloqueia a execução de scripts PHP dentro desta pasta.
+# Mesmo que algum arquivo malicioso consiga ser enviado com extensão .php,
+# ele não pode ser executado a partir daqui — só servido como arquivo estático.
+
+<IfModule mod_authz_core.c>
+    <FilesMatch "\.(php|php\d|phtml|pht|phar)$">
+        Require all denied
+    </FilesMatch>
+</IfModule>
+<IfModule !mod_authz_core.c>
+    <FilesMatch "\.(php|php\d|phtml|pht|phar)$">
+        Order allow,deny
+        Deny from all
+    </FilesMatch>
+</IfModule>

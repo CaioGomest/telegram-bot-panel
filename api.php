@@ -669,16 +669,23 @@ try {
             $caminho_arquivo = '';
             if (!empty($_FILES['image']['tmp_name'])) {
                 $tmp = $_FILES['image']['tmp_name'];
+                if (!@getimagesize($tmp)) {
+                    responder(false, ['mensagem' => 'Arquivo de imagem inválido.'], 422);
+                }
                 $extensao = strtolower(pathinfo($_FILES['image']['name'] ?? 'image.jpg', PATHINFO_EXTENSION));
+                if (!in_array($extensao, ['jpg', 'jpeg', 'png'], true)) {
+                    $extensao = 'jpg';
+                }
                 $caminho_arquivo = DIRETORIO_UPLOADS . '/' . uniqid('flow_image_', true) . '.' . $extensao;
                 move_uploaded_file($tmp, $caminho_arquivo);
             } elseif ($caminho !== '') {
-                $candidato = $caminho;
-                if (strpos($candidato, 'uploads/') === 0) {
-                    $candidato = __DIR__ . '/' . str_replace(['..', '\\'], ['', '/'], $candidato);
-                }
-                if (file_exists($candidato)) {
-                    $caminho_arquivo = realpath($candidato) ?: $candidato;
+                // Só aceita reaproveitar arquivo que já está dentro de /uploads
+                // (confirma isso pelo caminho real resolvido, não pelo texto recebido).
+                $nome_arquivo = basename($caminho);
+                $candidato = DIRETORIO_UPLOADS . '/' . $nome_arquivo;
+                $real = realpath($candidato);
+                if ($real !== false && strpos($real, realpath(DIRETORIO_UPLOADS)) === 0 && is_file($real)) {
+                    $caminho_arquivo = $real;
                 }
             }
             
