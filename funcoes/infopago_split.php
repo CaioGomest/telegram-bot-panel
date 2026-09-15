@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/infopago_cashout.php';
+require_once __DIR__ . '/criptografia.php';
 
 /**
  * Dispara o(s) split(s) "manuais" da InfoPago via Cash-Out, um pra cada destino configurado
@@ -56,6 +57,7 @@ function dispararSplitInfopago(int $id_dono, float $valor_venda, string $txid, i
     ");
     $stmt->execute();
     $cred = $stmt->fetch(PDO::FETCH_ASSOC);
+    $cred = $cred ? decifrarCamposGateway($cred) : null;
 
     if (!$cred || empty($cred['cashout_client_id']) || empty($cred['cashout_certificado'])) {
         $log("Split configurado mas o admin ainda não configurou as credenciais de Cash-Out. Ignorando split (venda dono=$id_dono).");

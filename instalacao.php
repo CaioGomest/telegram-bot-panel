@@ -106,7 +106,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $config_content .= "define('BANCO_NOME', '" . addslashes($nome_banco) . "');\n";
         $config_content .= "define('BANCO_USUARIO', '" . addslashes($usuario_banco) . "');\n";
         $config_content .= "define('BANCO_SENHA', '" . addslashes($senha_banco) . "');\n";
-        
+        // Chave própria e aleatória desta instalação, usada só pra criptografar
+        // client_secret/cert_password/chave_pix dos gateways de pagamento no banco.
+        $config_content .= "define('CHAVE_CRIPTOGRAFIA_GATEWAYS', '" . bin2hex(random_bytes(32)) . "');\n";
+
         file_put_contents('config.php', $config_content);
 
         $mensagem = "Instalação concluída com sucesso! Banco de dados criado e configurado.";

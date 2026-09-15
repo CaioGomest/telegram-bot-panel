@@ -42,7 +42,7 @@ Em `traqueamento.php`, os campos de token já vêm preenchidos com o valor salvo
 1. ~~Validar autenticidade do webhook do InfoPago~~ **Feito.**
 2. ~~`.htaccess` em `/logs` bloqueando acesso direto~~ **Feito.**
 3. ~~Validar `secret_token` no webhook do Telegram~~ **Feito.**
-4. **Criptografar `client_secret`/`cert_password`/`chave_pix` no banco — ainda NÃO feito.** Envolve gerenciar uma chave de criptografia da aplicação e migrar dados que já existem em texto puro — risco de "trancar" credencial de pagamento se algo sair errado na chave. Fica pra uma rodada própria, com mais cuidado.
+4. ~~Criptografar `client_secret`/`cert_password`/`chave_pix` no banco~~ **Feito** — ver `anotacoes/criptografia-credenciais-gateway.md` (detalhes e um passo manual necessário no servidor).
 5. Mascarar tokens de integração no formulário de edição (opcional, cosmético) — ainda não feito, baixa prioridade.
 
 ## Correções aplicadas (varredura 03 → fix)

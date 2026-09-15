@@ -35,5 +35,5 @@ Não renomeados de propósito: `cron_*.php` e `webhook*.php` (nomes usados fora 
 ## Ainda pendente (grandes, precisam de rodada própria)
 
 - CSRF nas rotas administrativas (varredura 02).
-- Criptografar `client_secret`/`cert_password`/`chave_pix` no banco (varredura 03).
+- ~~Criptografar `client_secret`/`cert_password`/`chave_pix` no banco~~ **Feito** — ver `anotacoes/criptografia-credenciais-gateway.md`.
 - Mascarar token de integração no formulário (varredura 03, cosmético, baixa prioridade).

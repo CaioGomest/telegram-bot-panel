@@ -288,6 +288,44 @@ try {
         echo "Coluna 'cashout_cert_password' adicionada em 'usuarios_gateways'.<br>";
     } catch (PDOException $e) {}
 
+    // Os campos abaixo passam a guardar valor cifrado (ver funcoes/criptografia.php), que é
+    // maior que o texto original — alarga a coluna pra não correr risco de truncar.
+    foreach (['client_secret', 'cert_password', 'chave_pix', 'cashout_client_secret', 'cashout_cert_password'] as $coluna_cifrada) {
+        try {
+            $pdo->exec("ALTER TABLE usuarios_gateways MODIFY COLUMN $coluna_cifrada VARCHAR(500) NULL");
+        } catch (PDOException $e) {}
+    }
+
+    // Migra pra criptografado qualquer credencial que ainda esteja em texto puro (dado salvo
+    // antes dessa mudança). Idempotente: se já rodou antes, os valores já cifrados são
+    // ignorados (detectados pelo prefixo 'enc:v1:' dentro de criptografarSegredo/decifrar).
+    require_once __DIR__ . '/funcoes/criptografia.php';
+    if (chaveCriptografiaDisponivel()) {
+        $stmt_gw_cred = $pdo->query("SELECT id, client_secret, cert_password, chave_pix, cashout_client_secret, cashout_cert_password FROM usuarios_gateways");
+        $linhas_migradas = 0;
+        foreach ($stmt_gw_cred->fetchAll(PDO::FETCH_ASSOC) as $linha_gw) {
+            $campos_atualizar = [];
+            foreach (['client_secret', 'cert_password', 'chave_pix', 'cashout_client_secret', 'cashout_cert_password'] as $campo) {
+                $valor_atual = (string)($linha_gw[$campo] ?? '');
+                if ($valor_atual !== '' && strpos($valor_atual, 'enc:v1:') !== 0) {
+                    $campos_atualizar[$campo] = criptografarSegredo($valor_atual);
+                }
+            }
+            if ($campos_atualizar) {
+                $sets = implode(', ', array_map(fn($c) => "$c = ?", array_keys($campos_atualizar)));
+                $valores = array_values($campos_atualizar);
+                $valores[] = $linha_gw['id'];
+                $pdo->prepare("UPDATE usuarios_gateways SET $sets WHERE id = ?")->execute($valores);
+                $linhas_migradas++;
+            }
+        }
+        if ($linhas_migradas > 0) {
+            echo "Credenciais de $linhas_migradas gateway(s) migradas para o formato criptografado.<br>";
+        }
+    } else {
+        echo "Aviso: CHAVE_CRIPTOGRAFIA_GATEWAYS não configurada em config.php — credenciais de gateway continuam em texto puro até essa chave ser adicionada.<br>";
+    }
+
     echo "Tabela 'usuarios_gateways' OK.<br>";
 
     $sql_usuarios_splits = "
