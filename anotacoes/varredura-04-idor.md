@@ -35,5 +35,5 @@ Chequei os pontos mais prováveis de vazamento entre contas e todos filtram cert
 
 ## Próximos passos sugeridos
 
-1. Corrigir o `SELECT` sem filtro em `salvar_fluxo` (`api.php`).
-2. (Opcional, baixo risco) Aplicar o mesmo filtro por consistência no `SELECT` de `importar_fluxo`, mesmo que ali o `id` seja sempre de um fluxo recém-criado pelo próprio usuário (não é explorável, mas fica mais defensivo/padronizado).
+1. ~~Corrigir o `SELECT` sem filtro em `salvar_fluxo`~~ **Feito** — agora filtra `AND id_usuario = ?` tanto na edição quanto na criação, e retorna erro 404 se não achar (em vez de seguir com dado de outra pessoa).
+2. ~~Aplicar o mesmo filtro no `SELECT` de `importar_fluxo`~~ **Feito**, por consistência.

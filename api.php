@@ -274,8 +274,8 @@ try {
             $stmt = $pdo->prepare("INSERT INTO fluxos (id_usuario, nome, descricao, link_suporte, dados_fluxograma) VALUES (?, ?, ?, ?, ?)");
             $stmt->execute([$usuario_id, $nome, $descricao, $link_suporte, json_encode($dados, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]);
             $novo_id = (int)$pdo->lastInsertId();
-            $stmt = $pdo->prepare("SELECT * FROM fluxos WHERE id = ?");
-            $stmt->execute([$novo_id]);
+            $stmt = $pdo->prepare("SELECT * FROM fluxos WHERE id = ? AND id_usuario = ?");
+            $stmt->execute([$novo_id, $usuario_id]);
             $fluxo = $stmt->fetch();
             $fluxo['dados_fluxograma'] = json_decode($fluxo['dados_fluxograma'] ?? '{}', true);
             responder(true, ['mensagem' => 'Fluxo importado com sucesso.', 'fluxo' => $fluxo]);
@@ -308,9 +308,13 @@ try {
                 $stmt = $pdo->prepare("UPDATE fluxos SET nome = ?, descricao = ?, link_suporte = ?, dados_fluxograma = ? WHERE id = ? AND id_usuario = ?");
                 $stmt->execute([$nome, $descricao, $link_suporte, $json_grafico, $id_fluxo, $usuario_id]);
 
-                $stmt = $pdo->prepare("SELECT * FROM fluxos WHERE id = ?");
-                $stmt->execute([$id_fluxo]);
+                $stmt = $pdo->prepare("SELECT * FROM fluxos WHERE id = ? AND id_usuario = ?");
+                $stmt->execute([$id_fluxo, $usuario_id]);
                 $fluxo = $stmt->fetch();
+
+                if (!$fluxo) {
+                    responder(false, ['mensagem' => 'Fluxo não encontrado.'], 404);
+                }
 
                 registrarAtividade($usuario_id, 'sistema', 'Fluxo', "Atualizou o fluxo: $nome");
             } else {
@@ -318,8 +322,8 @@ try {
                 $stmt->execute([$usuario_id, $nome, $descricao, $link_suporte, $json_grafico]);
                 $novo_id = $pdo->lastInsertId();
 
-                $stmt = $pdo->prepare("SELECT * FROM fluxos WHERE id = ?");
-                $stmt->execute([$novo_id]);
+                $stmt = $pdo->prepare("SELECT * FROM fluxos WHERE id = ? AND id_usuario = ?");
+                $stmt->execute([$novo_id, $usuario_id]);
                 $fluxo = $stmt->fetch();
 
                 registrarAtividade($usuario_id, 'sistema', 'Fluxo', "Criou novo fluxo: $nome");
