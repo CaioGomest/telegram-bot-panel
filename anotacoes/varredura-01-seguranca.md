@@ -36,9 +36,9 @@ Data: análise inicial pós-clone, branch `new`.
 
 1. ~~Confirmar com o Caio quais dos arquivos de debug/teste podem ser deletados.~~ **Feito diferente:** em vez de deletar, protegidos com `verificarAdmin()`/`verificarAdminOuInstalacao()` e adicionados ao menu admin em "Debug".
 2. ~~Proteger ou remover `instalacao.php`/`atualiza_banco.php`/`setup_menus.php`/`popular_banco.php` do ambiente de produção.~~ **Feito:** protegidos (ver seção abaixo).
-3. Trocar a concatenação em `popular_banco.php:61` por prepared statement. *(ainda pendente)*
-4. Configurar cookie de sessão com `Secure`/`HttpOnly`/`SameSite`. *(ainda pendente)*
-5. Adicionar `declare(strict_types=1)` nos arquivos que faltam. *(parcialmente feito — ver abaixo)*
+3. ~~Trocar a concatenação em `popular_banco.php:61` por prepared statement.~~ **Feito.**
+4. ~~Configurar cookie de sessão com `Secure`/`HttpOnly`/`SameSite`.~~ **Feito** (na verdade já tinha sido feito no fix da varredura 02, essa lista aqui só não tinha sido atualizada até agora).
+5. ~~Adicionar `declare(strict_types=1)` nos arquivos que faltam.~~ **Feito** (últimos 5: `remarketing.php`, `leads.php`, `sidebar.php`, `login.php`, `cadastro.php`).
 
 ## Correções aplicadas (varredura 01 → fix)
 
@@ -46,4 +46,5 @@ Data: análise inicial pós-clone, branch `new`.
 - `atualiza_banco.php`, `setup_menus.php`, `popular_banco.php` — agora exigem admin **depois** que já existe um admin cadastrado no banco (função nova `verificarAdminOuInstalacao()` em `funcoes/usuario.php`, baseada em `sistemaJaInstalado()`). No primeiro deploy, antes de existir qualquer admin, ficam abertos (senão travaria o setup inicial).
 - `instalacao.php` — mesma lógica, com checagem própria (`instaladorJaTemAdmin()`) que testa a conexão com o banco configurado em `config.php` sem depender do resto da app (pra não quebrar antes do banco existir).
 - Adicionada seção **"Debug"** no menu lateral (admin), com links pros 6 arquivos acima (exceto `instalacao.php`, que não entrou no menu por ser o instalador inicial).
-- **Não resolvido ainda:** exposição de `$e->getMessage()` na tela em `debug_fix_db.php`/`atualizacao_seguranca.php`/`instalacao.php` (mensagem de erro do PDO exposta ao admin logado — risco baixo agora que exige login, mas ainda vale trocar por log + mensagem genérica numa próxima passada). Host forçado `127.0.0.1` em `temp_check_db.php` também não foi tocado (fora do escopo desse fix, é só autenticação).
+- **Resolvido:** exposição de `$e->getMessage()` na tela trocada por log + mensagem genérica em `debug_colunas_vendas.php` (antigo `debug_fix_db.php`) e `atualizacao_seguranca.php`. Host forçado `127.0.0.1` em `debug_colunas_grupos.php` (antigo `temp_check_db.php`) removido — agora usa a conexão normal da aplicação.
+- **Decisão consciente, não mudado:** `instalacao.php` continua mostrando a mensagem de erro do PDO na tela. É o instalador — quem está rodando precisa ver *por que* a conexão falhou (host/usuário/senha errado) pra conseguir corrigir e tentar de novo. Nesse ponto específico (instalação ainda não concluída) não tem dado sensível de verdade pra vazar, e sem essa mensagem o instalador fica inutilizável pra debugar problema de conexão.

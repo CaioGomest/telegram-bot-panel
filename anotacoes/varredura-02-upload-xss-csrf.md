@@ -72,4 +72,4 @@ Ainda sem `session_set_cookie_params` com `Secure`/`HttpOnly`/`SameSite`.
 - CSRF (item 4 acima) — maior item pendente, precisa de uma rodada própria.
 - `sanitizarTexto()` continua só cortando texto, não sanitizando de verdade (nome enganoso) — trocar nome/criar função separada numa limpeza futura.
 - Mensagem de erro do PDO ainda exposta na tela em alguns arquivos de debug (item já sinalizado na varredura 01).
-- Host forçado `127.0.0.1` em `debug_colunas_grupos.php` (antigo `temp_check_db.php`).
+- ~~Host forçado `127.0.0.1` em `debug_colunas_grupos.php`~~ **Resolvido** — ver `pendencias.md`.

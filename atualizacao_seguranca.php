@@ -24,5 +24,6 @@ try {
     echo "<p>Agora o sistema irá salvar os links de convite e revogá-los quando o acesso expirar.</p>";
     
 } catch (PDOException $e) {
-    echo "<p style='color: red'>Erro ao atualizar banco: " . $e->getMessage() . "</p>";
+    error_log("Erro em atualizacao_seguranca.php: " . $e->getMessage());
+    echo "<p style='color: red'>Erro ao atualizar banco. Verifique o log do servidor para detalhes.</p>";
 }

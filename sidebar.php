@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 if (!isset($pdo)) {
     require_once 'conexao.php';
 }

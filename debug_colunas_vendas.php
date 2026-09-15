@@ -32,5 +32,6 @@ try {
     }
 
 } catch (PDOException $e) {
-    echo "Erro: " . $e->getMessage();
+    error_log("Erro em debug_colunas_vendas.php: " . $e->getMessage());
+    echo "Ocorreu um erro ao consultar/atualizar a tabela. Verifique o log do servidor para detalhes.";
 }

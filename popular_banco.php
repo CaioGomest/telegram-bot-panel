@@ -59,7 +59,7 @@ try {
             $stmt_fluxo->execute([$id_usuario, "Fluxo Principal " . $nome_bot, "Fluxo de teste gerado automaticamente", $data_criacao_bot]);
             $id_fluxo = (int)$pdo->lastInsertId();
             
-            $pdo->exec("UPDATE bots SET id_fluxo_conectado = $id_fluxo WHERE id = $id_bot");
+            $pdo->prepare("UPDATE bots SET id_fluxo_conectado = ? WHERE id = ?")->execute([$id_fluxo, $id_bot]);
 
             $qtd_leads = mt_rand(10, 50);
             for ($l = 0; $l < $qtd_leads; $l++) {
