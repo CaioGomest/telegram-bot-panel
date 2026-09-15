@@ -39,6 +39,15 @@ Segurança é prioridade máxima em toda mudança:
 - Webhooks (Telegram, InfoPago) devem validar origem/assinatura da requisição quando o gateway suportar.
 - Nunca commitar credenciais reais, tokens ou chaves — `config.php` só com placeholder.
 
+## Comando: "varredura"
+
+Sempre que o Caio pedir uma **varredura**, fazer uma análise do código em busca de:
+- Brechas e problemas de segurança (SQL Injection, XSS, falta de validação/autenticação, exposição de dados sensíveis)
+- Código desnecessário (morto, duplicado, arquivos de teste/debug esquecidos)
+- Oportunidades de melhoria (responsabilidade única, nomenclatura, organização)
+
+Reportar os achados antes de aplicar qualquer mudança — varredura é análise, não é refatoração automática.
+
 ## Branch
 
 **Trabalhar sempre na branch `new`.** Nunca commitar direto na `main`.
