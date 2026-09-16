@@ -18,3 +18,6 @@ storage/*
 !storage/.htaccess
 
 .claude/
+
+# Nunca versionar -- repositório é público no GitHub.
+anotacoes/credenciais-ssh-hostinger.md
