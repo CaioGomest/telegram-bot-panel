@@ -356,6 +356,11 @@ if ($api_endpoint === 'usuario') {
             echo json_encode(['sucesso' => false, 'erro' => 'Email não informado']);
             exit;
         }
+
+        if (loginEstaBloqueado('reset:' . $email)) {
+            echo json_encode(['sucesso' => false, 'erro' => 'Muitas tentativas. Aguarde alguns minutos e tente novamente.']);
+            exit;
+        }
         
         try {
             $stmt = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
@@ -366,7 +371,7 @@ if ($api_endpoint === 'usuario') {
                 exit;
             }
             
-            $codigo = sprintf('%06d', mt_rand(0, 999999));
+            $codigo = sprintf('%06d', random_int(0, 999999));
             $_SESSION['recuperacao_email'] = $email;
             $_SESSION['recuperacao_codigo'] = $codigo;
             $_SESSION['recuperacao_expira'] = time() + (15 * 60);
@@ -392,15 +397,28 @@ if ($api_endpoint === 'usuario') {
             echo json_encode(['sucesso' => false, 'erro' => 'Dados incompletos']);
             exit;
         }
+
+        if (strlen($nova_senha) < 8) {
+            echo json_encode(['sucesso' => false, 'erro' => 'A senha deve ter pelo menos 8 caracteres.']);
+            exit;
+        }
+
+        if (loginEstaBloqueado('reset:' . $email)) {
+            echo json_encode(['sucesso' => false, 'erro' => 'Muitas tentativas. Peça um novo código e aguarde alguns minutos.']);
+            exit;
+        }
         
         $sessao_email = $_SESSION['recuperacao_email'] ?? '';
         $sessao_codigo = $_SESSION['recuperacao_codigo'] ?? '';
         $sessao_expira = $_SESSION['recuperacao_expira'] ?? 0;
         
-        if ($email !== $sessao_email || $codigo !== $sessao_codigo || time() > $sessao_expira) {
+        if ($email !== $sessao_email || !hash_equals((string)$sessao_codigo, $codigo) || time() > $sessao_expira) {
+            registrarTentativaLoginFalha('reset:' . $email);
             echo json_encode(['sucesso' => false, 'erro' => 'Código inválido ou expirado']);
             exit;
         }
+
+        resetarTentativasLogin('reset:' . $email);
         
         try {
             $senha_hash = password_hash($nova_senha, PASSWORD_DEFAULT);

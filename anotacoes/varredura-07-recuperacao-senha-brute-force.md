@@ -28,5 +28,10 @@ Ainda por cima, `mt_rand()` não é uma função criptograficamente segura — p
 
 ## Próximos passos sugeridos
 
-1. Adicionar limite de tentativas em `trocar_senha_login` (prioridade máxima — é o item que fecha a brecha de verdade).
-2. Trocar `mt_rand()` por `random_int()`.
+1. ~~Adicionar limite de tentativas em `trocar_senha_login`~~ **Feito** — reaproveitei o mesmo mecanismo de bloqueio do login (`loginEstaBloqueado`/`registrarTentativaLoginFalha`/`resetarTentativasLogin`, tabela `tentativas_login`), com uma chave separada (`reset:email`) pra não misturar contador com o de login normal. 5 tentativas erradas bloqueiam por 15 min — tanto pra pedir código quanto pra tentar trocar a senha.
+2. ~~Trocar `mt_rand()` por `random_int()`~~ **Feito.**
+
+## Extras feitos junto (mesma área, baixo risco)
+
+- Comparação do código agora usa `hash_equals()` em vez de `!==` (evita timing attack, mesma prática já usada nos webhooks).
+- Adicionada exigência de senha mínima de 8 caracteres em `trocar_senha_login` (esse fluxo não tinha nenhuma validação de força de senha antes).
