@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../conexao.php';
 require_once __DIR__ . '/log.php';
+require_once __DIR__ . '/criptografia.php';
 
 function getAdminGatewayConfig(string $nome): ?array {
     global $pdo;
@@ -49,7 +50,8 @@ function getInfopagoCredenciaisAdmin(): ?array {
         LIMIT 1
     ";
     $stmt = $pdo->query($sql);
-    return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    $linha = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $linha ? decifrarCamposGateway($linha) : null;
 }
 
 function getUserGatewayConfig(int $user_id, string $gateway_nome): ?array {
@@ -63,7 +65,8 @@ function getUserGatewayConfig(int $user_id, string $gateway_nome): ?array {
     ";
     $stmt = $pdo->prepare($sql);
     $stmt->execute([$user_id, $gateway_nome]);
-    $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    $row = $row ? decifrarCamposGateway($row) : null;
 
     if ($gateway_nome === 'infopago') {
         $credenciais_admin = getInfopagoCredenciaisAdmin();
@@ -104,6 +107,7 @@ function getUserGateways(int $user_id, bool $somente_ativos = true): array {
     $gateways = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $credenciais_admin_infopago = null;
     foreach ($gateways as &$gw) {
+        $gw = decifrarCamposGateway($gw);
         $gw['user_ativo'] = (bool)($gw['user_ativo'] ?? 0);
         $gw['prioridade'] = (int)($gw['prioridade'] ?? 100);
 
@@ -147,6 +151,11 @@ function gatewaysSuportados(): array {
 function saveUserGatewayConfig(int $user_id, int $gateway_id, string $client_id, string $client_secret, string $certificado, string $cert_password, string $chave_pix, bool $ativo, int $prioridade = 100, string $tipo_conta = 'pj'): bool {
     global $pdo;
     $tipo_conta = in_array($tipo_conta, ['pf', 'pj']) ? $tipo_conta : 'pj';
+
+    $client_secret_cifrado = criptografarSegredo($client_secret);
+    $cert_password_cifrado = criptografarSegredo($cert_password);
+    $chave_pix_cifrada = criptografarSegredo($chave_pix);
+
     try {
         $stmt = $pdo->prepare("SELECT id FROM usuarios_gateways WHERE id_usuario = ? AND id_gateway = ?");
         $stmt->execute([$user_id, $gateway_id]);
@@ -154,10 +163,10 @@ function saveUserGatewayConfig(int $user_id, int $gateway_id, string $client_id,
 
         if ($exists) {
             $sql = "UPDATE usuarios_gateways SET client_id = ?, client_secret = ?, certificado = ?, cert_password = ?, chave_pix = ?, ativo = ?, prioridade = ?, tipo_conta = ? WHERE id = ?";
-            $params = [$client_id, $client_secret, $certificado, $cert_password, $chave_pix, $ativo ? 1 : 0, $prioridade, $tipo_conta, $exists['id']];
+            $params = [$client_id, $client_secret_cifrado, $certificado, $cert_password_cifrado, $chave_pix_cifrada, $ativo ? 1 : 0, $prioridade, $tipo_conta, $exists['id']];
         } else {
             $sql = "INSERT INTO usuarios_gateways (id_usuario, id_gateway, client_id, client_secret, certificado, cert_password, chave_pix, ativo, prioridade, tipo_conta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-            $params = [$user_id, $gateway_id, $client_id, $client_secret, $certificado, $cert_password, $chave_pix, $ativo ? 1 : 0, $prioridade, $tipo_conta];
+            $params = [$user_id, $gateway_id, $client_id, $client_secret_cifrado, $certificado, $cert_password_cifrado, $chave_pix_cifrada, $ativo ? 1 : 0, $prioridade, $tipo_conta];
         }
 
         $stmt_name = $pdo->prepare("SELECT nome FROM gateways WHERE id = ?");
@@ -193,10 +202,11 @@ function saveInfopagoCashoutConfig(int $user_id, int $gateway_id, string $cashou
         }
 
         $certificado_final = $cashout_certificado ?: $exists['cashout_certificado'];
-        $cert_password_final = $cashout_cert_password !== '' ? $cashout_cert_password : $exists['cashout_cert_password'];
+        $cert_password_final = $cashout_cert_password !== '' ? criptografarSegredo($cashout_cert_password) : $exists['cashout_cert_password'];
+        $cashout_client_secret_cifrado = criptografarSegredo($cashout_client_secret);
 
         $stmt = $pdo->prepare("UPDATE usuarios_gateways SET cashout_client_id = ?, cashout_client_secret = ?, cashout_certificado = ?, cashout_cert_password = ? WHERE id = ?");
-        if ($stmt->execute([$cashout_client_id, $cashout_client_secret, $certificado_final, $cert_password_final, $exists['id']])) {
+        if ($stmt->execute([$cashout_client_id, $cashout_client_secret_cifrado, $certificado_final, $cert_password_final, $exists['id']])) {
             registrarAtividade($user_id, 'sistema', 'Gateway Usuário', "Atualizou credenciais de Cash-Out (split) do gateway ID $gateway_id");
             return true;
         }
@@ -246,6 +256,7 @@ function listarGatewaysUsuario(int $user_id, int $limite = 20, int $offset = 0):
     $credenciais_admin_infopago = null;
 
     foreach ($gateways as &$g) {
+        $g = decifrarCamposGateway($g);
         $g['user_config'] = [
             'client_id' => $g['client_id'] ?? '',
             'client_secret' => $g['client_secret'] ?? '',

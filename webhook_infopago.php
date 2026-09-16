@@ -310,11 +310,61 @@ foreach ($notificacao['pix'] as $pix) {
         continue;
     }
 
+    // ── Confirmação direta na API do InfoPago ──────────────────────────
+    // Nunca confiar só no payload recebido pelo webhook (qualquer um pode
+    // forjar um POST pra essa URL) — antes de liberar, consulta a cobrança
+    // de verdade na InfoPago e só marca como paga se a fonte confirmar.
+    $stmt_bot_pre = $pdo->prepare("SELECT token, id_usuario FROM bots WHERE id = ?");
+    $stmt_bot_pre->execute([$venda['bot_id']]);
+    $bot_data_pre = $stmt_bot_pre->fetch();
+    $id_dono_pre  = (int)($bot_data_pre['id_usuario'] ?? 0);
+
+    $pagamento_confirmado = false;
+    if ($id_dono_pre) {
+        $nome_gateway_pre = null;
+        $gateway_config_pre = null;
+
+        if (!empty($venda['id_gateway'])) {
+            $stmt_gw_pre = $pdo->prepare("SELECT nome FROM gateways WHERE id = ?");
+            $stmt_gw_pre->execute([$venda['id_gateway']]);
+            $nome_gateway_pre = $stmt_gw_pre->fetchColumn();
+            if ($nome_gateway_pre) {
+                $gateway_config_pre = getUserGatewayConfig($id_dono_pre, $nome_gateway_pre);
+            }
+        }
+        if (!$gateway_config_pre) {
+            $gateway_config_pre = getUserGatewayConfig($id_dono_pre, 'infopago');
+            $nome_gateway_pre = 'infopago';
+        }
+
+        $provedor_pre = $gateway_config_pre ? resolveGatewayProvider($nome_gateway_pre, $gateway_config_pre) : null;
+
+        if ($provedor_pre) {
+            try {
+                $resp_confirmacao = $provedor_pre->consultarCobranca($txid);
+                $status_confirmado = strtoupper(trim($resp_confirmacao['dados']['status'] ?? ''));
+                if (($resp_confirmacao['sucesso'] ?? false) && in_array($status_confirmado, ['CONCLUIDA', 'PAGO', 'LIQUIDADO', 'PAID', 'APPROVED', 'COMPLETED'])) {
+                    $pagamento_confirmado = true;
+                } else {
+                    logWebhookInfopago("Venda #{$venda['id']}: notificação recebida, mas a consulta direta na InfoPago não confirma pagamento (status='$status_confirmado'). Ignorando notificação — o cron de verificação vai pegar quando/se realmente for pago.");
+                }
+            } catch (\Throwable $e) {
+                logWebhookInfopago("Venda #{$venda['id']}: erro ao confirmar na API InfoPago (" . $e->getMessage() . "). Não vou marcar como pago só pelo webhook — aguardando confirmação pelo cron.");
+            }
+        } else {
+            logWebhookInfopago("Venda #{$venda['id']}: sem credenciais de gateway pra confirmar o pagamento. Ignorando notificação — aguardando cron.");
+        }
+    }
+
+    if (!$pagamento_confirmado) {
+        continue;
+    }
+
     try {
         $pdo->beginTransaction();
         $pdo->prepare("UPDATE vendas SET status = 'pago', pago_em = NOW() WHERE id = ?")->execute([$venda['id']]);
         $pdo->commit();
-        logWebhookInfopago("Venda #{$venda['id']} marcada como PAGO.");
+        logWebhookInfopago("Venda #{$venda['id']} marcada como PAGO (confirmado direto na API InfoPago).");
     } catch (Exception $e) {
         $pdo->rollBack();
         logWebhookInfopago("Erro ao atualizar venda #{$venda['id']}: " . $e->getMessage());

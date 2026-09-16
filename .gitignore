@@ -1,11 +1,14 @@
 logs/*
 !logs/.gitkeep
+!logs/.htaccess
 
 uploads/*
 !uploads/.gitkeep
+!uploads/.htaccess
 
 certificados/*
 !certificados/.gitkeep
+!certificados/.htaccess
 
 telegram.zip
 test_write.txt

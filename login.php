@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/funcoes/usuario.php';
 
@@ -15,7 +17,9 @@ $erro_login = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'login') {
     $email = $_POST['email'] ?? '';
     $senha = $_POST['senha'] ?? '';
-    if (fazerLogin($email, $senha)) {
+    if (loginEstaBloqueado($email)) {
+        $erro_login = 'bloqueado';
+    } elseif (fazerLogin($email, $senha)) {
         if (ehAdmin()) {
             header('Location: admin_dashboard.php');
         } else {
@@ -137,6 +141,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'login')
                     switch($erro_code) {
                         case 'credenciais':
                             echo 'Email ou senha incorretos.';
+                            break;
+                        case 'bloqueado':
+                            echo 'Muitas tentativas de login. Aguarde alguns minutos e tente novamente.';
                             break;
                         case 'acesso':
                             echo 'Você precisa fazer login para acessar esta página.';

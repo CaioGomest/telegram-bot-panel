@@ -1,0 +1,10 @@
+# Ninguém deveria baixar um arquivo de log direto pela URL — esses arquivos
+# podem conter dados sensíveis (payloads de webhook, IDs de transação, etc).
+
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>

@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 if (!isset($pdo)) {
     require_once 'conexao.php';
 }
@@ -125,6 +127,43 @@ function getIcone($nome) {
                     <a href="logs.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'logs.php' ? 'active' : ''; ?>">
                         <span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg></span>
                         <span class="text">Logs</span>
+                    </a>
+                </li>
+                <li class="sidebar-section-label">Debug</li>
+                <li>
+                    <a href="atualizacao_seguranca.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'atualizacao_seguranca.php' ? 'active' : ''; ?>">
+                        <span class="icon"><?php echo getIcone('settings'); ?></span>
+                        <span class="text">Atualização de Segurança</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="atualiza_banco.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'atualiza_banco.php' ? 'active' : ''; ?>">
+                        <span class="icon"><?php echo getIcone('settings'); ?></span>
+                        <span class="text">Atualizar Banco</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="setup_menus.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'setup_menus.php' ? 'active' : ''; ?>">
+                        <span class="icon"><?php echo getIcone('settings'); ?></span>
+                        <span class="text">Recriar Menus</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="debug_ultima_venda.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'debug_ultima_venda.php' ? 'active' : ''; ?>">
+                        <span class="icon"><?php echo getIcone('settings'); ?></span>
+                        <span class="text">Última Venda (debug)</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="debug_colunas_vendas.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'debug_colunas_vendas.php' ? 'active' : ''; ?>">
+                        <span class="icon"><?php echo getIcone('settings'); ?></span>
+                        <span class="text">Checar Colunas (vendas)</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="debug_colunas_grupos.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'debug_colunas_grupos.php' ? 'active' : ''; ?>">
+                        <span class="icon"><?php echo getIcone('settings'); ?></span>
+                        <span class="text">Checar Colunas (grupos)</span>
                     </a>
                 </li>
             <?php endif; ?>

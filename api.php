@@ -107,6 +107,28 @@ function sanitizarTexto(?string $valor, int $tamanho_maximo = 0): string
     return $valor;
 }
 
+function gerarOuObterSegredoWebhook(int $id_bot): string
+{
+    global $pdo;
+
+    try {
+        $stmt = $pdo->prepare("SELECT webhook_secret FROM bots WHERE id = ?");
+        $stmt->execute([$id_bot]);
+        $segredo = $stmt->fetchColumn();
+
+        if (!$segredo) {
+            $segredo = bin2hex(random_bytes(24));
+            $pdo->prepare("UPDATE bots SET webhook_secret = ? WHERE id = ?")->execute([$segredo, $id_bot]);
+        }
+
+        return $segredo;
+    } catch (\Throwable $e) {
+        // Coluna ainda não existe (banco não atualizado) — segue sem secret_token
+        // até rodar o atualiza_banco.php. Não impede o bot de funcionar.
+        return '';
+    }
+}
+
 function obterBotComInfoLive(string $token): array
 {
     $eu = requisicaoTelegram($token, 'getMe');
@@ -252,8 +274,8 @@ try {
             $stmt = $pdo->prepare("INSERT INTO fluxos (id_usuario, nome, descricao, link_suporte, dados_fluxograma) VALUES (?, ?, ?, ?, ?)");
             $stmt->execute([$usuario_id, $nome, $descricao, $link_suporte, json_encode($dados, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]);
             $novo_id = (int)$pdo->lastInsertId();
-            $stmt = $pdo->prepare("SELECT * FROM fluxos WHERE id = ?");
-            $stmt->execute([$novo_id]);
+            $stmt = $pdo->prepare("SELECT * FROM fluxos WHERE id = ? AND id_usuario = ?");
+            $stmt->execute([$novo_id, $usuario_id]);
             $fluxo = $stmt->fetch();
             $fluxo['dados_fluxograma'] = json_decode($fluxo['dados_fluxograma'] ?? '{}', true);
             responder(true, ['mensagem' => 'Fluxo importado com sucesso.', 'fluxo' => $fluxo]);
@@ -286,9 +308,13 @@ try {
                 $stmt = $pdo->prepare("UPDATE fluxos SET nome = ?, descricao = ?, link_suporte = ?, dados_fluxograma = ? WHERE id = ? AND id_usuario = ?");
                 $stmt->execute([$nome, $descricao, $link_suporte, $json_grafico, $id_fluxo, $usuario_id]);
 
-                $stmt = $pdo->prepare("SELECT * FROM fluxos WHERE id = ?");
-                $stmt->execute([$id_fluxo]);
+                $stmt = $pdo->prepare("SELECT * FROM fluxos WHERE id = ? AND id_usuario = ?");
+                $stmt->execute([$id_fluxo, $usuario_id]);
                 $fluxo = $stmt->fetch();
+
+                if (!$fluxo) {
+                    responder(false, ['mensagem' => 'Fluxo não encontrado.'], 404);
+                }
 
                 registrarAtividade($usuario_id, 'sistema', 'Fluxo', "Atualizou o fluxo: $nome");
             } else {
@@ -296,8 +322,8 @@ try {
                 $stmt->execute([$usuario_id, $nome, $descricao, $link_suporte, $json_grafico]);
                 $novo_id = $pdo->lastInsertId();
 
-                $stmt = $pdo->prepare("SELECT * FROM fluxos WHERE id = ?");
-                $stmt->execute([$novo_id]);
+                $stmt = $pdo->prepare("SELECT * FROM fluxos WHERE id = ? AND id_usuario = ?");
+                $stmt->execute([$novo_id, $usuario_id]);
                 $fluxo = $stmt->fetch();
 
                 registrarAtividade($usuario_id, 'sistema', 'Fluxo', "Criou novo fluxo: $nome");
@@ -451,7 +477,12 @@ try {
             $caminho_base = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/\\');
             $url_webhook = $esquema . '://' . $host . $caminho_base . '/webhook.php?token=' . urlencode($token);
 
-            $wh = requisicaoTelegram($token, 'setWebhook', ['url' => $url_webhook]);
+            $segredo_webhook = gerarOuObterSegredoWebhook((int)$id_bot);
+            $params_webhook = ['url' => $url_webhook];
+            if ($segredo_webhook !== '') {
+                $params_webhook['secret_token'] = $segredo_webhook;
+            }
+            $wh = requisicaoTelegram($token, 'setWebhook', $params_webhook);
             $webhook_definido = (bool) ($wh['ok'] ?? false);
 
             if ($webhook_definido) {
@@ -669,16 +700,23 @@ try {
             $caminho_arquivo = '';
             if (!empty($_FILES['image']['tmp_name'])) {
                 $tmp = $_FILES['image']['tmp_name'];
+                if (!@getimagesize($tmp)) {
+                    responder(false, ['mensagem' => 'Arquivo de imagem inválido.'], 422);
+                }
                 $extensao = strtolower(pathinfo($_FILES['image']['name'] ?? 'image.jpg', PATHINFO_EXTENSION));
+                if (!in_array($extensao, ['jpg', 'jpeg', 'png'], true)) {
+                    $extensao = 'jpg';
+                }
                 $caminho_arquivo = DIRETORIO_UPLOADS . '/' . uniqid('flow_image_', true) . '.' . $extensao;
                 move_uploaded_file($tmp, $caminho_arquivo);
             } elseif ($caminho !== '') {
-                $candidato = $caminho;
-                if (strpos($candidato, 'uploads/') === 0) {
-                    $candidato = __DIR__ . '/' . str_replace(['..', '\\'], ['', '/'], $candidato);
-                }
-                if (file_exists($candidato)) {
-                    $caminho_arquivo = realpath($candidato) ?: $candidato;
+                // Só aceita reaproveitar arquivo que já está dentro de /uploads
+                // (confirma isso pelo caminho real resolvido, não pelo texto recebido).
+                $nome_arquivo = basename($caminho);
+                $candidato = DIRETORIO_UPLOADS . '/' . $nome_arquivo;
+                $real = realpath($candidato);
+                if ($real !== false && strpos($real, realpath(DIRETORIO_UPLOADS)) === 0 && is_file($real)) {
+                    $caminho_arquivo = $real;
                 }
             }
             
@@ -769,6 +807,12 @@ try {
                 responder(false, ['mensagem' => 'Informe o token do bot.'], 422);
             }
 
+            if ($id_bot <= 0) {
+                $stmt_id_bot = $pdo->prepare("SELECT id FROM bots WHERE token = ?");
+                $stmt_id_bot->execute([$token]);
+                $id_bot = (int) ($stmt_id_bot->fetchColumn() ?: 0);
+            }
+
             $resp_del = requisicaoTelegram($token, 'deleteWebhook', ['drop_pending_updates' => true]);
             if (!($resp_del['ok'] ?? false)) {
                 responder(false, ['mensagem' => 'Falha ao limpar webhook: ' . ($resp_del['description'] ?? 'erro desconhecido')], 400);
@@ -779,7 +823,12 @@ try {
             $caminho_base = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/\\');
             $url_webhook = $esquema . '://' . $host . $caminho_base . '/webhook.php?token=' . urlencode($token);
 
-            $resp_set = requisicaoTelegram($token, 'setWebhook', ['url' => $url_webhook]);
+            $segredo_webhook = gerarOuObterSegredoWebhook((int)$id_bot);
+            $params_webhook = ['url' => $url_webhook];
+            if ($segredo_webhook !== '') {
+                $params_webhook['secret_token'] = $segredo_webhook;
+            }
+            $resp_set = requisicaoTelegram($token, 'setWebhook', $params_webhook);
 
             if (!($resp_set['ok'] ?? false)) {
                 responder(false, ['mensagem' => 'Fila limpa, mas falha ao reativar webhook: ' . ($resp_set['description'] ?? 'erro desconhecido')], 400);

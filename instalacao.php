@@ -1,4 +1,43 @@
 <?php
+declare(strict_types=1);
+
+/**
+ * Verifica, de forma isolada e sem depender do resto da app, se já existe
+ * um admin cadastrado no banco configurado em config.php. Se qualquer coisa
+ * falhar (banco ainda não configurado, tabela não existe, etc.), considera
+ * que o sistema ainda não foi instalado e libera o acesso — é o cenário de
+ * primeiro deploy, onde ainda não há ninguém pra fazer login.
+ */
+function instaladorJaTemAdmin(): bool {
+    $config_path = __DIR__ . '/config.php';
+    if (!file_exists($config_path)) {
+        return false;
+    }
+
+    try {
+        require_once $config_path;
+        if (!defined('BANCO_HOST') || !defined('BANCO_NOME')) {
+            return false;
+        }
+        $dsn = "mysql:host=" . BANCO_HOST . ";dbname=" . BANCO_NOME . ";charset=utf8mb4";
+        $pdo_check = new PDO($dsn, BANCO_USUARIO, BANCO_SENHA, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_TIMEOUT => 3,
+        ]);
+        $stmt = $pdo_check->query("SELECT COUNT(*) FROM usuarios WHERE perfil = 'admin'");
+        return (int)$stmt->fetchColumn() > 0;
+    } catch (\Throwable $e) {
+        return false;
+    }
+}
+
+// Se já existe admin cadastrado, o instalador só pode ser reaberto por um
+// admin já logado (evita que qualquer visitante recrie/reconfigure o banco).
+if (instaladorJaTemAdmin()) {
+    require_once __DIR__ . '/funcoes/usuario.php';
+    verificarAdmin();
+}
+
 $mensagem = '';
 $tipo_mensagem = '';
 
@@ -67,7 +106,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $config_content .= "define('BANCO_NOME', '" . addslashes($nome_banco) . "');\n";
         $config_content .= "define('BANCO_USUARIO', '" . addslashes($usuario_banco) . "');\n";
         $config_content .= "define('BANCO_SENHA', '" . addslashes($senha_banco) . "');\n";
-        
+        // Chave própria e aleatória desta instalação, usada só pra criptografar
+        // client_secret/cert_password/chave_pix dos gateways de pagamento no banco.
+        $config_content .= "define('CHAVE_CRIPTOGRAFIA_GATEWAYS', '" . bin2hex(random_bytes(32)) . "');\n";
+
         file_put_contents('config.php', $config_content);
 
         $mensagem = "Instalação concluída com sucesso! Banco de dados criado e configurado.";

@@ -1,5 +1,8 @@
 <?php
-require 'conexao.php';
+declare(strict_types=1);
+
+require_once __DIR__ . '/funcoes/usuario.php';
+verificarAdmin();
 
 try {
     echo "Banco conectado: " . $pdo->query('select database()')->fetchColumn() . "\n";
@@ -29,5 +32,6 @@ try {
     }
 
 } catch (PDOException $e) {
-    echo "Erro: " . $e->getMessage();
+    error_log("Erro em debug_colunas_vendas.php: " . $e->getMessage());
+    echo "Ocorreu um erro ao consultar/atualizar a tabela. Verifique o log do servidor para detalhes.";
 }

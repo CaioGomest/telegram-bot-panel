@@ -12,7 +12,7 @@ Estamos numa etapa de **organização e code clean**, sem mexer em layout/UI. O 
 
 Regras para esta fase:
 
-- **Código mínimo e necessário.** Remover o que não é usado (arquivos de teste/debug tipo `debug_cron.php`, `debug_fix_db.php`, `temp_check_db.php`, `teste_infopago_*.php`, código morto, comentários redundantes).
+- **Código mínimo e necessário.** Remover o que não é usado (código morto, comentários redundantes). Arquivos de debug/teste que ainda são úteis ficam protegidos por login e organizados no menu "Debug" (não deletados) — ver `/anotacoes/varredura-01-seguranca.md`.
 - **Responsabilidade única.** Cada função deve fazer uma coisa só. Quebrar funções grandes (ex. arquivos em `funcoes/` e `webhook.php` que hoje concentram várias responsabilidades) em funções menores e nomeadas com clareza.
 - **Altamente escalável.** Evitar acoplamento desnecessário, preferir funções puras quando possível, isolar acesso a banco e integrações externas (gateways, Telegram, pixels) em camadas bem definidas dentro de `funcoes/`.
 - **Não alterar comportamento visível.** Refatoração é interna — mesma funcionalidade, mesmo output, mesmas rotas/nomes de arquivo (a menos que combinado explicitamente).
@@ -23,9 +23,12 @@ Regras para esta fase:
 
 ## Convenção de nomenclatura (PHP e JS)
 
-- **Funções: camelCase.** Ex.: `verificarLogin`, `buscarUsuario`, `calcularSplit`.
-- **Variáveis: snake_case.** Ex.: `$id_usuario`, `$valor_total`, `let taxa_split`.
-- Vale tanto para PHP quanto para JS (`assets/*.js`). Sempre, sem exceção.
+- **Funções: camelCase, em português.** Ex.: `atualizaUsuario()`, `verificarLogin()`, `calcularSplit()`.
+- **Variáveis: snake_case, em português.** Ex.: `$contagem_usuarios`, `$id_usuario`, `$valor_total`, `let taxa_split`.
+- **Nomes de página (arquivos .php):** sempre em português, simples e claros — o nome tem que deixar óbvio o que a página faz. Ex.: `funcoes_usuarios.php`, `debug_ultima_venda.php`. Evitar prefixo genérico tipo `temp_`, `fix_` sem dizer o que faz.
+- Vale pra PHP e JS (`assets/*.js`), sempre, sem exceção. Nunca traduzir pra inglês.
+- **Exceção: não renomear `cron_*.php` e `webhook*.php`.** Esses nomes são referenciados fora do repositório (crontab da Hostinger e URLs de webhook cadastradas no Telegram/InfoPago) — renomear quebraria a integração em produção sem o Caio saber.
+- Antes de renomear qualquer outro arquivo, checar com `grep` se ele é referenciado em algum outro lugar do código (require, link, JS) e atualizar tudo junto.
 
 ## Segurança
 
@@ -38,6 +41,15 @@ Segurança é prioridade máxima em toda mudança:
 - Validar autenticação/autorização em toda rota admin e endpoint AJAX (`verificarLogin`/`verificarAdmin` sempre presentes onde deveriam estar).
 - Webhooks (Telegram, InfoPago) devem validar origem/assinatura da requisição quando o gateway suportar.
 - Nunca commitar credenciais reais, tokens ou chaves — `config.php` só com placeholder.
+
+## Comando: "varredura"
+
+Sempre que o Caio pedir uma **varredura**, fazer uma análise do código em busca de:
+- Brechas e problemas de segurança (SQL Injection, XSS, falta de validação/autenticação, exposição de dados sensíveis)
+- Código desnecessário (morto, duplicado, arquivos de teste/debug esquecidos)
+- Oportunidades de melhoria (responsabilidade única, nomenclatura, organização)
+
+Reportar os achados antes de aplicar qualquer mudança — varredura é análise, não é refatoração automática.
 
 ## Branch
 

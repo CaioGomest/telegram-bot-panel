@@ -619,6 +619,20 @@ if (!$bot) {
     echo 'bot não encontrado';
     exit;
 }
+
+// Confirma que a notificação realmente veio do Telegram (e não de alguém que
+// descobriu essa URL). Só passa a exigir depois que o bot tiver um segredo
+// configurado — bots antigos continuam funcionando até serem reconectados
+// (o que gera o segredo automaticamente).
+if (!empty($bot['webhook_secret'])) {
+    $segredo_recebido = $_SERVER['HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN'] ?? '';
+    if (!hash_equals((string)$bot['webhook_secret'], $segredo_recebido)) {
+        http_response_code(403);
+        echo 'assinatura inválida';
+        exit;
+    }
+}
+
 $entrada = file_get_contents('php://input');
 $atualizacao = json_decode($entrada ?: '{}', true);
 if (isset($atualizacao['my_chat_member'])) {
