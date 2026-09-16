@@ -1,0 +1,17 @@
+# Nao listar diretorio pela URL (mesmo padrao ja usado em admin/, funcoes/, ajax/, seeds/)
+# e bloquear acesso direto a pastas/arquivos de controle de versao, caso o deploy seja feito
+# clonando o git direto dentro da pasta publica.
+
+Options -Indexes
+
+<IfModule mod_authz_core.c>
+    <DirectoryMatch "\.git">
+        Require all denied
+    </DirectoryMatch>
+</IfModule>
+<IfModule !mod_authz_core.c>
+    <DirectoryMatch "\.git">
+        Order allow,deny
+        Deny from all
+    </DirectoryMatch>
+</IfModule>
