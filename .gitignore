@@ -13,4 +13,8 @@ certificados/*
 telegram.zip
 test_write.txt
 
+storage/*
+!storage/.gitkeep
+!storage/.htaccess
+
 .claude/

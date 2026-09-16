@@ -1,0 +1,10 @@
+# Estado interno (bots.json, flows.json, pix_recorrente_estado.json) nunca deveria ser
+# baixado direto pela URL — pode conter token de bot, dados de fluxo e estado de PIX.
+
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>
