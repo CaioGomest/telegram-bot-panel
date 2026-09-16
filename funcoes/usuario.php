@@ -24,7 +24,7 @@ function usuarioLogado(): bool {
 
 function verificarLogin(): void {
     if (!usuarioLogado()) {
-        header('Location: login.php?erro=acesso');
+        header('Location: /login.php?erro=acesso');
         exit;
     }
 }
@@ -112,7 +112,7 @@ function ehAdmin(): bool {
 function verificarAdmin(): void {
     verificarLogin();
     if (!ehAdmin()) {
-        header('Location: index.php?erro=sem_permissao');
+        header('Location: /index.php?erro=sem_permissao');
         exit;
     }
 }
@@ -144,7 +144,7 @@ function fazerLogout(): void {
     }
     session_unset();
     session_destroy();
-    header('Location: login.php');
+    header('Location: /login.php');
     exit;
 }
 
@@ -210,17 +210,20 @@ function listarTodosUsuarios(int $limite = 20, int $offset = 0): array {
     }
 }
 
-function atualizarPerfilUsuario(int $id, string $nome, string $email, ?string $senha = null): array {
+function atualizarPerfilUsuario(int $id, string $nome, string $email, ?string $senha = null, ?string $apelido_publico = null): array {
     global $pdo;
-    
+
     if (empty($nome) || empty($email)) {
         return ['sucesso' => false, 'erro' => 'Nome e Email são obrigatórios.'];
     }
-    
+
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         return ['sucesso' => false, 'erro' => 'Email inválido.'];
     }
-    
+
+    $apelido_publico = trim((string) $apelido_publico);
+    $apelido_publico = $apelido_publico !== '' ? mb_substr($apelido_publico, 0, 40) : null;
+
     try {
         $stmt = $pdo->prepare("SELECT id FROM usuarios WHERE email = ? AND id != ?");
         $stmt->execute([$email, $id]);
@@ -233,11 +236,11 @@ function atualizarPerfilUsuario(int $id, string $nome, string $email, ?string $s
                 return ['sucesso' => false, 'erro' => 'A senha deve ter pelo menos 6 caracteres.'];
             }
             $hash = password_hash($senha, PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare("UPDATE usuarios SET nome = ?, email = ?, senha = ?, atualizado_em = NOW() WHERE id = ?");
-            $executou = $stmt->execute([$nome, $email, $hash, $id]);
+            $stmt = $pdo->prepare("UPDATE usuarios SET nome = ?, email = ?, senha = ?, apelido_publico = ?, atualizado_em = NOW() WHERE id = ?");
+            $executou = $stmt->execute([$nome, $email, $hash, $apelido_publico, $id]);
         } else {
-            $stmt = $pdo->prepare("UPDATE usuarios SET nome = ?, email = ?, atualizado_em = NOW() WHERE id = ?");
-            $executou = $stmt->execute([$nome, $email, $id]);
+            $stmt = $pdo->prepare("UPDATE usuarios SET nome = ?, email = ?, apelido_publico = ?, atualizado_em = NOW() WHERE id = ?");
+            $executou = $stmt->execute([$nome, $email, $apelido_publico, $id]);
         }
 
         if ($executou) {
@@ -274,8 +277,8 @@ function obterDetalhesUsuario(int $id): array {
     
     try {
         $stmt = $pdo->prepare("
-            SELECT id, nome, email, perfil, criado_em 
-            FROM usuarios 
+            SELECT id, nome, email, apelido_publico, perfil, criado_em
+            FROM usuarios
             WHERE id = ?
         ");
         $stmt->execute([$id]);

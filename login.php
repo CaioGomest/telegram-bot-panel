@@ -6,7 +6,7 @@ require_once __DIR__ . '/funcoes/usuario.php';
 
 if (usuarioLogado()) {
     if (ehAdmin()) {
-        header('Location: admin_dashboard.php');
+        header('Location: admin/dashboard.php');
     } else {
         header('Location: index.php');
     }
@@ -21,7 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'login')
         $erro_login = 'bloqueado';
     } elseif (fazerLogin($email, $senha)) {
         if (ehAdmin()) {
-            header('Location: admin_dashboard.php');
+            header('Location: admin/dashboard.php');
         } else {
             header('Location: index.php');
         }

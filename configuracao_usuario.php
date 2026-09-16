@@ -11,14 +11,15 @@ $tipo_mensagem = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nome = trim($_POST['nome'] ?? '');
     $email = trim($_POST['email'] ?? '');
+    $apelido_publico = trim($_POST['apelido_publico'] ?? '');
     $senha = $_POST['senha'] ?? '';
     $confirmar_senha = $_POST['confirmar_senha'] ?? '';
-    
+
     if (!empty($senha) && $senha !== $confirmar_senha) {
         $mensagem = 'As senhas não conferem.';
         $tipo_mensagem = 'erro';
     } else {
-        $resultado = atualizarPerfilUsuario($usuario_id, $nome, $email, empty($senha) ? null : $senha);
+        $resultado = atualizarPerfilUsuario($usuario_id, $nome, $email, empty($senha) ? null : $senha, $apelido_publico);
         if ($resultado['sucesso']) {
             $mensagem = 'Perfil atualizado com sucesso!';
             $tipo_mensagem = 'sucesso';
@@ -86,6 +87,14 @@ if (empty($dados_usuario)) {
                         <label for="email">Email</label>
                         <input type="email" id="email" name="email" required
                                value="<?php echo htmlspecialchars($dados_usuario['email'] ?? ''); ?>">
+                    </div>
+
+                    <div class="campo">
+                        <label for="apelido_publico">Apelido no Ranking</label>
+                        <input type="text" id="apelido_publico" name="apelido_publico" maxlength="40"
+                               placeholder="Ex: @seuapelido"
+                               value="<?php echo htmlspecialchars($dados_usuario['apelido_publico'] ?? ''); ?>">
+                        <span class="texto-ajuda">É esse nome (não seu nome real nem e-mail) que os outros usuários veem no Ranking. Deixe em branco pra aparecer como "Usuário #<?php echo (int) $usuario_id; ?>".</span>
                     </div>
 
                     <div class="divisor-secao">

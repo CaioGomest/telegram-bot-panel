@@ -1,10 +1,11 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/funcoes/usuario.php';
-require_once __DIR__ . '/funcoes/paginador.php';
+require_once __DIR__ . '/../funcoes/usuario.php';
+require_once __DIR__ . '/../funcoes/paginador.php';
 
 verificarAdmin();
+$caminho_base = '../';
 
 $usuario_id = (int)($_GET['usuario_id'] ?? 0);
 $status = trim($_GET['status'] ?? '');
@@ -207,12 +208,12 @@ function celulaSplit(array $venda, array $linhas_split): string {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Transações - Painel Admin</title>
-    <?php include 'tema_inline.php'; ?>
-    <link rel="stylesheet" href="assets/css/coyote.css">
+    <?php include __DIR__ . '/../tema_inline.php'; ?>
+    <link rel="stylesheet" href="../assets/css/coyote.css">
 </head>
 <body>
 <div class="layout-painel">
-    <?php include 'barra_lateral.php'; ?>
+    <?php include __DIR__ . '/../barra_lateral.php'; ?>
 
     <main class="conteudo-principal">
         <div class="cabecalho-pagina">
@@ -268,7 +269,7 @@ function celulaSplit(array $venda, array $linhas_split): string {
                     <input type="date" name="data_fim" id="data_fim" value="<?php echo htmlspecialchars($data_fim); ?>" style="width:150px;">
                     <input type="text" name="busca" id="busca" placeholder="TXID ou ID do Telegram" value="<?php echo htmlspecialchars($busca); ?>" style="min-width:180px;">
                     <button type="submit" class="botao botao-primario">Filtrar</button>
-                    <a href="admin_transacoes.php" class="botao">Limpar</a>
+                    <a href="transacoes.php" class="botao">Limpar</a>
                 </form>
             </div>
 
@@ -315,6 +316,6 @@ function celulaSplit(array $venda, array $linhas_split): string {
     </main>
 </div>
 
-<script src="assets/js/tema.js"></script>
+<script src="../assets/js/tema.js"></script>
 </body>
 </html>

@@ -1,13 +1,16 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/funcoes/usuario.php';
+require_once __DIR__ . '/../funcoes/usuario.php';
+require_once __DIR__ . '/../funcoes/relatorio_debug.php';
 verificarAdminOuInstalacao();
 
 // Aumentar tempo de execução para garantir que insira tudo
 set_time_limit(300);
 
-echo "<h1>Iniciando População do Banco de Dados...</h1>";
+ob_start();
+
+echo "<h2>Iniciando População do Banco de Dados...</h2>";
 
 $qtd_usuarios = 50;
 $senha_padrao = '123456';
@@ -103,11 +106,13 @@ try {
     }
 
     $pdo->commit();
-    echo "<p style='color: green; font-weight: bold;'>Sucesso! Foram criados $usuarios_criados usuários com seus respectivos bots, fluxos e dados de vendas/leads.</p>";
+    echo "<p style='color: var(--ok); font-weight: bold;'>Sucesso! Foram criados $usuarios_criados usuários com seus respectivos bots, fluxos e dados de vendas/leads.</p>";
     echo "<p>Agora você pode testar a paginação no painel admin e na lista de usuários.</p>";
-    echo "<a href='usuarios.php'>Ir para Lista de Usuários</a>";
+    echo "<a href='../admin/usuarios.php' style='color:var(--or);'>Ir para Lista de Usuários</a>";
 
 } catch (Exception $e) {
     $pdo->rollBack();
-    echo "<p style='color: red;'>Erro ao popular banco: " . $e->getMessage() . "</p>";
+    echo "<p style='color: var(--da);'>Erro ao popular banco: " . htmlspecialchars($e->getMessage()) . "</p>";
 }
+
+exibirRelatorioDebug('Popular Banco (dados de teste)', ob_get_clean(), '../');

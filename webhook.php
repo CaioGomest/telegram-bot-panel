@@ -30,6 +30,32 @@ function requisicaoTelegram(string $token, string $metodo, array $parametros = [
     $decodificado = json_decode($resposta ?: '', true);
     return is_array($decodificado) ? $decodificado : ['ok' => false, 'description' => 'resposta inválida'];
 }
+/**
+ * Resolve um caminho de mídia salvo em dados_fluxograma (image_path/video_path/audio_path)
+ * garantindo que o resultado fica de fato dentro de uploads/. Sem essa checagem, um dono de
+ * bot podia gravar um caminho arbitrário (ex. "config.php" ou "certificados/cert_5_1.pem")
+ * direto via API e fazer o próprio bot reenviar esse arquivo pra ele — vazando credenciais
+ * da plataforma ou de outro usuário. Só o formato salvo pelos endpoints de upload
+ * ("uploads/nome_gerado.ext") é aceito; qualquer outra coisa retorna null (não envia nada).
+ */
+function resolverCaminhoUploadSeguro(string $caminho): ?string
+{
+    if ($caminho === '' || strpos($caminho, 'uploads/') !== 0) {
+        return null;
+    }
+    $base_real = realpath(DIRETORIO_UPLOADS);
+    if ($base_real === false) {
+        return null;
+    }
+    $real = realpath(__DIR__ . '/' . $caminho);
+    if ($real === false) {
+        return null;
+    }
+    if ($real !== $base_real && strpos($real, $base_real . DIRECTORY_SEPARATOR) !== 0) {
+        return null;
+    }
+    return $real;
+}
 function buscarProximoDoInicio(array $dados): ?string
 {
     $operadores = $dados['operators'] ?? [];
@@ -106,18 +132,9 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
         return;
     }
     if ($tipo === 'image') {
-        $caminho = (string) ($propriedades['image_path'] ?? '');
-        if ($caminho === '') {
+        $caminho_absoluto = resolverCaminhoUploadSeguro((string) ($propriedades['image_path'] ?? ''));
+        if ($caminho_absoluto === null) {
             return;
-        }
-        if (strpos($caminho, 'uploads/') === 0) {
-            $caminho_absoluto = __DIR__ . '/' . str_replace(['..', '\\'], ['', '/'], $caminho);
-        } else {
-            $caminho_absoluto = $caminho;
-        }
-        $real = realpath($caminho_absoluto);
-        if ($real) {
-            $caminho_absoluto = $real;
         }
         $parametros = ['chat_id' => $id_chat];
         $legenda = trim((string) ($propriedades['caption'] ?? ''));
@@ -136,18 +153,9 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
         return;
     }
     if ($tipo === 'video') {
-        $caminho = (string) ($propriedades['video_path'] ?? '');
-        if ($caminho === '') {
+        $caminho_absoluto = resolverCaminhoUploadSeguro((string) ($propriedades['video_path'] ?? ''));
+        if ($caminho_absoluto === null) {
             return;
-        }
-        if (strpos($caminho, 'uploads/') === 0) {
-            $caminho_absoluto = __DIR__ . '/' . str_replace(['..', '\\'], ['', '/'], $caminho);
-        } else {
-            $caminho_absoluto = $caminho;
-        }
-        $real = realpath($caminho_absoluto);
-        if ($real) {
-            $caminho_absoluto = $real;
         }
         $parametros = ['chat_id' => $id_chat];
         $legenda = trim((string) ($propriedades['caption'] ?? ''));
@@ -161,18 +169,9 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
         return;
     }
     if ($tipo === 'audio') {
-        $caminho = (string) ($propriedades['audio_path'] ?? '');
-        if ($caminho === '') {
+        $caminho_absoluto = resolverCaminhoUploadSeguro((string) ($propriedades['audio_path'] ?? ''));
+        if ($caminho_absoluto === null) {
             return;
-        }
-        if (strpos($caminho, 'uploads/') === 0) {
-            $caminho_absoluto = __DIR__ . '/' . str_replace(['..', '\\'], ['', '/'], $caminho);
-        } else {
-            $caminho_absoluto = $caminho;
-        }
-        $real = realpath($caminho_absoluto);
-        if ($real) {
-            $caminho_absoluto = $real;
         }
         $parametros = ['chat_id' => $id_chat];
         $legenda = trim((string) ($propriedades['caption'] ?? ''));
@@ -729,15 +728,16 @@ if (strpos($texto, 'verificar_pagamento_') === 0) {
                     $status_verif = strtoupper(trim($resp['dados']['status'] ?? $resp['dados']['statusCob'] ?? ''));
                     file_put_contents($debug_log, '[' . date('Y-m-d H:i:s') . '] resp=' . json_encode($resp) . ' | statusVerif=' . $status_verif . PHP_EOL, FILE_APPEND);
                     if ($resp['sucesso'] && in_array($status_verif, ['CONCLUIDA', 'PAGO', 'LIQUIDADO', 'PAID', 'APPROVED', 'COMPLETED'])) {
-                        // VERIFICA SE JÁ ESTAVA PAGO ANTES DE PROCESSAR
-                        $stmt_check = $pdo->prepare("SELECT status FROM vendas WHERE id = ?");
-                        $stmt_check->execute([$venda['id']]);
-                        if ($stmt_check->fetchColumn() === 'pago') {
+                        // Transição atômica: o UPDATE só afeta a linha se ela ainda não estava paga.
+                        // Se o webhook do InfoPago ou o cron de fallback confirmarem a mesma venda
+                        // ao mesmo tempo, só um dos dois ganha a corrida (rowCount() = 1) e segue
+                        // adiante — evita disparar o split duas vezes pra mesma venda.
+                        $stmt_marca = $pdo->prepare("UPDATE vendas SET status = 'pago', pago_em = NOW() WHERE id = ? AND status != 'pago'");
+                        $stmt_marca->execute([$venda['id']]);
+                        if ($stmt_marca->rowCount() === 0) {
                              // Já foi processado por outra requisição simultânea. Para aqui.
                              exit;
                         }
-
-                        $pdo->prepare("UPDATE vendas SET status = 'pago', pago_em = NOW() WHERE id = ?")->execute([$venda['id']]);
 
                         if ($nome_gw_venda === 'infopago') {
                             dispararSplitInfopago((int)$id_usuario_dono, (float)$venda['valor'], $txid, (int)$venda['id']);

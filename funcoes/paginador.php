@@ -58,7 +58,5 @@ function paginador(int $total, int $por_pagina): string {
     $html .= '</ul>';
     $html .= '</div>';
     
-    // CSS inline removido em favor de assets/app.css
-
     return $html;
 }

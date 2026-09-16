@@ -135,6 +135,11 @@ function getPrimaryUserGatewayConfig(int $user_id): ?array {
 function resolveGatewayProvider(string $gateway_nome, array $config): ?object {
     switch (strtolower($gateway_nome)) {
         case 'infopago':
+            // Sem client_id/client_secret não dá pra autenticar — retorna null em vez de deixar
+            // o construtor (tipagem estrita) estourar TypeError, que os chamadores não capturam.
+            if (empty($config['client_id']) || empty($config['client_secret'])) {
+                return null;
+            }
             require_once __DIR__ . '/infopago_banco.php';
             return new InfopagoBanco($config['client_id'], $config['client_secret'], $config['certificado'] ?? '', true, $config['cert_password'] ?? '');
         default:

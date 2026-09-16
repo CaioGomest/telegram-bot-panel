@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__ . '/conexao.php';
+require_once __DIR__ . '/../conexao.php';
 
 const BATCH_SIZE    = 1000;  // leads por campanha por rodada
 const MAX_CAMPANHAS = 20;    // campanhas simultâneas por rodada

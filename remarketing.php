@@ -75,86 +75,62 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Remarketing - Gerenciamento de Bots</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="assets/app.css">
-    <style>
-        .filtros { display: flex; gap: 10px; margin-bottom: 12px; align-items: flex-end; }
-        .form-group { margin-bottom: 0; }
-        .textarea { width: 100%; min-height: 120px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px; font-family: inherit; }
-        .resultado { margin-top: 15px; color: #111827; }
-        .table-responsive { overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
-        th { font-weight: 600; color: #374151; background-color: #f9fafb; }
-        .badge { padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; }
-        .badge-amber { background-color: #fff7ed; color: #c2410c; }
-        .badge-blue { background-color: #eff6ff; color: #1d4ed8; }
-        .badge-green { background-color: #ecfdf5; color: #047857; }
-        .badge-gray { background-color: #f1f5f9; color: #6b7280; }
-    </style>
+    <?php include 'tema_inline.php'; ?>
+    <link rel="stylesheet" href="assets/css/coyote.css">
 </head>
 <body>
-<div class="dashboard-layout">
-    <?php include 'sidebar.php'; ?>
-    <main class="main-content">
+<div class="layout-painel">
+    <?php include 'barra_lateral.php'; ?>
+    <main class="conteudo-principal">
         <div class="cabecalho-pagina">
             <div>
                 <h1>Remarketing</h1>
                 <p>Crie campanhas para recuperar quem não comprou ou engajar quem comprou.</p>
             </div>
+            <div class="acoes-cabecalho">
+                <button class="botao botao-primario" id="btn-nova-campanha">+ Nova Campanha</button>
+                <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>
+                    Tema
+                </button>
+            </div>
         </div>
         <div class="painel">
-            <div class="painel-cabecalho" style="justify-content: space-between; align-items: center;">
-                <h2 style="margin:0">Campanhas de Remarketing</h2>
-                <button class="botao botao-primario" id="btn-nova-campanha">Nova Campanha</button>
-            </div>
-            <form class="filtros" method="GET">
+            <div class="barra-filtros">
+                <form method="GET" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;flex:1;">
                 <?php
                     $f_bot = isset($_GET['bot_id']) ? (int)$_GET['bot_id'] : 0;
                     $f_aud = $_GET['audiencia'] ?? '';
                     $f_status = $_GET['status'] ?? '';
                     $limite = max(5, min(50, (int)($_GET['limite'] ?? 10)));
                 ?>
-                <div class="form-group">
-                    <label for="bot_id">Bot</label>
-                    <select name="bot_id" id="bot_id" class="input-campo">
-                        <option value="">Todos</option>
+                    <select name="bot_id" id="bot_id">
+                        <option value="">Todos os bots</option>
                         <?php foreach ($meus_bots as $b): ?>
                             <option value="<?php echo $b['id']; ?>" <?php echo $f_bot == $b['id'] ? 'selected' : ''; ?>>
                                 <?php echo htmlspecialchars($b['nome']); ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
-                </div>
-                <div class="form-group">
-                    <label for="audiencia">Audiência</label>
-                    <select name="audiencia" id="audiencia" class="input-campo">
-                        <option value="">Todas</option>
+                    <select name="audiencia" id="audiencia">
+                        <option value="">Todas as audiências</option>
                         <option value="nao_comprou" <?php echo $f_aud === 'nao_comprou' ? 'selected' : ''; ?>>Não comprou</option>
                         <option value="comprou" <?php echo $f_aud === 'comprou' ? 'selected' : ''; ?>>Comprou</option>
                     </select>
-                </div>
-                <div class="form-group">
-                    <label for="status">Status</label>
-                    <select name="status" id="status" class="input-campo">
-                        <option value="">Todos</option>
+                    <select name="status" id="status">
+                        <option value="">Todos os status</option>
                         <option value="pendente" <?php echo $f_status === 'pendente' ? 'selected' : ''; ?>>Pendente</option>
                         <option value="processando" <?php echo $f_status === 'processando' ? 'selected' : ''; ?>>Processando</option>
                         <option value="concluida" <?php echo $f_status === 'concluida' ? 'selected' : ''; ?>>Concluída</option>
                     </select>
-                </div>
-                <div class="form-group">
-                    <label for="limite">Itens por página</label>
-                    <select name="limite" id="limite" class="input-campo">
+                    <select name="limite" id="limite">
                         <?php foreach ([10,20,30,50] as $opt): ?>
-                            <option value="<?php echo $opt; ?>" <?php echo $limite === $opt ? 'selected' : ''; ?>><?php echo $opt; ?></option>
+                            <option value="<?php echo $opt; ?>" <?php echo $limite === $opt ? 'selected' : ''; ?>><?php echo $opt; ?> por página</option>
                         <?php endforeach; ?>
                     </select>
-                </div>
-                <button type="submit" class="botao botao-primario">Filtrar</button>
-            </form>
+                    <button type="submit" class="botao botao-primario">Filtrar</button>
+                </form>
+            </div>
             <?php
             $pagina = max(1, (int)($_GET['pagina'] ?? 1));
             $offset = ($pagina - 1) * $limite;
@@ -178,7 +154,7 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
             $stmt_list->execute();
             $campanhas = $stmt_list->fetchAll(PDO::FETCH_ASSOC);
             ?>
-            <div class="table-responsive">
+            <div class="tabela-dados">
                 <table>
                     <thead>
                         <tr>
@@ -199,8 +175,8 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                             <tr>
                                 <td colspan="10">
                                     <div class="estado-vazio">
-                                        <div style="margin-bottom:10px; font-weight:600; color:#111827;">Nenhuma campanha criada</div>
-                                        <div style="margin-bottom:12px;">Crie sua primeira campanha de remarketing para engajar sua audiência.</div>
+                                        <div style="margin-bottom:10px; font-weight:600;">Nenhuma campanha criada</div>
+                                        <div>Crie sua primeira campanha de remarketing para engajar sua audiência.</div>
                                     </div>
                                 </td>
                             </tr>
@@ -208,35 +184,35 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                             <tr>
                                 <td><?php echo htmlspecialchars($c['nome_bot']); ?></td>
                                 <td>
-                                    <span class="badge"><?php echo $c['audiencia'] === 'nao_comprou' ? 'Não comprou' : 'Comprou'; ?></span>
+                                    <span class="badge badge-neutro"><?php echo $c['audiencia'] === 'nao_comprou' ? 'Não comprou' : 'Comprou'; ?></span>
                                 </td>
-                                <td title="<?php echo htmlspecialchars($c['mensagem']); ?>">
+                                <td title="<?php echo htmlspecialchars($c['mensagem']); ?>" class="texto-suave">
                                     <?php echo htmlspecialchars(mb_strimwidth($c['mensagem'], 0, 60, '...')); ?>
                                 </td>
-                                <td><?php echo date('d/m/Y H:i', strtotime($c['agendado_em'])); ?></td>
+                                <td class="mono"><?php echo date('d/m/Y H:i', strtotime($c['agendado_em'])); ?></td>
                                 <td>
-                                    <?php 
+                                    <?php
                                         $status = $c['status'];
-                                        $cor = '#f1f5f9'; $texto = '#6b7280';
-                                        if ($status === 'pendente') { $cor = '#fff7ed'; $texto = '#c2410c'; }
-                                        if ($status === 'processando') { $cor = '#eff6ff'; $texto = '#1d4ed8'; }
-                                        if ($status === 'concluida') { $cor = '#ecfdf5'; $texto = '#047857'; }
+                                        $classe_status = 'badge-neutro';
+                                        if ($status === 'pendente') { $classe_status = 'badge-alerta'; }
+                                        if ($status === 'processando') { $classe_status = 'badge-neutro'; }
+                                        if ($status === 'concluida') { $classe_status = 'badge-sucesso'; }
                                     ?>
-                                    <span class="badge" style="background: <?php echo $cor; ?>; color: <?php echo $texto; ?>;"><?php echo htmlspecialchars($status); ?></span>
+                                    <span class="badge <?php echo $classe_status; ?>"><?php echo htmlspecialchars($status); ?></span>
                                 </td>
                                 <td><?php echo (int)$c['total_destinatarios']; ?></td>
                                 <td><?php echo (int)$c['entregues']; ?></td>
                                 <td><?php echo (int)$c['falhas']; ?></td>
-                                <td><?php echo $c['processado_em'] ? date('d/m/Y H:i', strtotime($c['processado_em'])) : '-'; ?></td>
+                                <td class="texto-suave"><?php echo $c['processado_em'] ? date('d/m/Y H:i', strtotime($c['processado_em'])) : '-'; ?></td>
                                 <td>
-                                    <a class="botao botao-claro" href="?detalhes=<?php echo (int)$c['id']; ?>">Ver</a>
+                                    <a class="botao" href="?detalhes=<?php echo (int)$c['id']; ?>">Ver</a>
                                 </td>
                             </tr>
                         <?php endforeach; endif; ?>
                     </tbody>
                 </table>
             </div>
-            <div class="paginacao" style="margin-top:12px; display:flex;justify-content: center; gap:8px; align-items:center;">
+            <div style="margin-top:14px; display:flex;justify-content: center; gap:8px; align-items:center;">
                 <?php
                 $qs = [
                     'bot_id' => $f_bot ?: null,
@@ -249,82 +225,84 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                 $prev = max(1, $pagina - 1);
                 $next = min($total_paginas, $pagina + 1);
                 ?>
-                <a class="paginacao-botao" href="<?php echo $base . $prev; ?>">&laquo;</a>
-                <span class="paginacao-info">Página <?php echo $pagina; ?> de <?php echo $total_paginas; ?> (<?php echo $total_reg; ?> campanhas)</span>
-                <a class="paginacao-botao" href="<?php echo $base . $next; ?>">&raquo;</a>
+                <a class="botao" href="<?php echo $base . $prev; ?>">&laquo;</a>
+                <span class="texto-suave">Página <?php echo $pagina; ?> de <?php echo $total_paginas; ?> (<?php echo $total_reg; ?> campanhas)</span>
+                <a class="botao" href="<?php echo $base . $next; ?>">&raquo;</a>
             </div>
-            
+
             <?php
             if (isset($_GET['detalhes'])) {
                 $det_id = (int)$_GET['detalhes'];
                 $stmt_det = $pdo->prepare("SELECT e.* FROM remarketing_envios e WHERE e.campanha_id = ? ORDER BY e.enviado_em DESC");
                 $stmt_det->execute([$det_id]);
                 $envios = $stmt_det->fetchAll(PDO::FETCH_ASSOC);
-                echo '<h3 style="margin-top:20px;">Detalhes da Campanha #' . $det_id . '</h3>';
-                echo '<div class="table-responsive"><table><thead><tr><th>ID Telegram</th><th>Resultado</th><th>Enviado Em</th></tr></thead><tbody>';
+                echo '<h2 style="margin:20px 0 0;font-size:18px;">Detalhes da Campanha #' . $det_id . '</h2>';
+                echo '<div class="tabela-dados" style="margin-top:12px;"><table><thead><tr><th>ID Telegram</th><th>Resultado</th><th>Enviado Em</th></tr></thead><tbody>';
                 if (empty($envios)) {
-                    echo '<tr><td colspan="3" style="text-align:center; padding: 10px; color:#6b7280;">Sem envios registrados.</td></tr>';
+                    echo '<tr><td colspan="3" style="text-align:center; padding: 10px;" class="texto-suave">Sem envios registrados.</td></tr>';
                 } else {
                     foreach ($envios as $e) {
-                        echo '<tr><td>' . htmlspecialchars($e['id_telegram']) . '</td><td>' . htmlspecialchars($e['resultado']) . '</td><td>' . date('d/m/Y H:i', strtotime($e['enviado_em'])) . '</td></tr>';
+                        echo '<tr><td>' . htmlspecialchars($e['id_telegram']) . '</td><td>' . htmlspecialchars($e['resultado']) . '</td><td class="mono">' . date('d/m/Y H:i', strtotime($e['enviado_em'])) . '</td></tr>';
                     }
                 }
                 echo '</tbody></table></div>';
             }
             ?>
         </div>
-        <div id="modal-nova-campanha" style="display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); align-items: center; justify-content: center; z-index: 9999;">
-            <div class="painel" style="max-width: 720px; width: 95%;">
-                <div class="painel-cabecalho" style="justify-content: space-between;">
-                    <h2 style="margin:0">Nova Campanha</h2>
-                    <button type="button" class="botao botao-claro" id="btn-fechar-modal">Fechar</button>
+        <div id="modal-nova-campanha" class="sobreposicao-modal">
+            <div class="modal-gateway" style="max-width: 720px;">
+                <div class="cabecalho-modal">
+                    <div class="titulo-modal">Nova Campanha</div>
+                    <button type="button" class="fechar-modal" id="btn-fechar-modal">✕</button>
                 </div>
-                <form id="form-campanha">
-                    <div class="grade grade-4 grade-compacta">
-                        <div class="campo">
-                            <label for="modal-bot_id">Bot</label>
-                            <select id="modal-bot_id" name="bot_id" class="input-campo" required>
-                                <option value="">Selecione um Bot</option>
-                                <?php foreach ($meus_bots as $b): ?>
-                                    <option value="<?php echo $b['id']; ?>"><?php echo htmlspecialchars($b['nome']); ?></option>
-                                <?php endforeach; ?>
-                            </select>
+                <div class="corpo-modal">
+                    <form id="form-campanha">
+                        <div class="grade grade-2 grade-compacta">
+                            <div class="campo">
+                                <label for="modal-bot_id">Bot</label>
+                                <select id="modal-bot_id" name="bot_id" required>
+                                    <option value="">Selecione um Bot</option>
+                                    <?php foreach ($meus_bots as $b): ?>
+                                        <option value="<?php echo $b['id']; ?>"><?php echo htmlspecialchars($b['nome']); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="campo">
+                                <label for="modal-audiencia">Audiência</label>
+                                <select id="modal-audiencia" name="audiencia" required>
+                                    <option value="nao_comprou">Acessou e não comprou</option>
+                                    <option value="comprou">Acessou e comprou</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="campo">
-                            <label for="modal-audiencia">Audiência</label>
-                            <select id="modal-audiencia" name="audiencia" class="input-campo" required>
-                                <option value="nao_comprou">Acessou e não comprou</option>
-                                <option value="comprou">Acessou e comprou</option>
-                            </select>
-                        </div>
-                        <div class="campo">
+                        <div class="campo" style="margin-top:12px;">
                             <label>Agendar envio</label>
-                            <div class="input-grupo">
-                                <input type="date" id="modal-data" class="input-campo" placeholder="dd/mm/aaaa">
-                                <input type="time" id="modal-hora" class="input-campo" placeholder="--:--">
+                            <div style="display:flex;gap:8px;">
+                                <input type="date" id="modal-data" placeholder="dd/mm/aaaa">
+                                <input type="time" id="modal-hora" placeholder="--:--">
                             </div>
                             <input type="hidden" id="modal-agendado_em" name="agendado_em">
-                            <div class="texto-ajuda">Se vazio, envia imediatamente.</div>
-                        <br>
+                            <small>Se vazio, envia imediatamente.</small>
                         </div>
-                    </div>
-                    <div class="campo">
-                        <div class="texto-ajuda" id="contador-destinatarios" style="margin-bottom:8px; display:none;"></div>
-                    </div>
-                    <div class="campo">
-                        <label for="modal-mensagem">Mensagem</label>
-                        <textarea id="modal-mensagem" name="mensagem" class="textarea" placeholder="Digite a mensagem da campanha..." required></textarea>
-                        <div class="texto-ajuda"><span id="contador-mensagem">0</span>/4096 caracteres</div>
-                    </div>
-                    <div class="linha-acoes">
-                        <button type="submit" class="botao botao-primario">Salvar/Enviar</button>
-                        <button type="button" class="botao botao-claro" id="btn-cancelar-campanha">Cancelar</button>
-                    </div>
-                </form>
-                <div id="modal-feedback" class="resultado" style="display:none;"></div>
+                        <div class="campo" style="margin-top:12px;">
+                            <small id="contador-destinatarios" style="display:none;"></small>
+                        </div>
+                        <div class="campo" style="margin-top:12px;">
+                            <label for="modal-mensagem">Mensagem</label>
+                            <textarea id="modal-mensagem" name="mensagem" rows="5" placeholder="Digite a mensagem da campanha..." required></textarea>
+                            <small><span id="contador-mensagem">0</span>/4096 caracteres</small>
+                        </div>
+                        <div class="linha-acoes" style="margin-top:16px;">
+                            <button type="submit" class="botao botao-primario">Salvar/Enviar</button>
+                            <button type="button" class="botao" id="btn-cancelar-campanha">Cancelar</button>
+                        </div>
+                    </form>
+                    <div id="modal-feedback" class="texto-suave" style="display:none;margin-top:12px;"></div>
+                </div>
             </div>
         </div>
         <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+        <script src="assets/js/tema.js"></script>
         <script src="assets/remarketing.js"></script>
     </main>
 </div>

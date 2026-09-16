@@ -41,6 +41,30 @@ function obterProximoNoInfopago(array $links, string $id_atual, string $conector
     return null;
 }
 
+/**
+ * Resolve um caminho de mídia salvo em dados_fluxograma garantindo que o resultado fica
+ * dentro de uploads/ — mesma proteção de webhook.php::resolverCaminhoUploadSeguro(). Sem
+ * isso, um image_path gravado fora do padrão de upload (ex. "config.php") seria aceito
+ * sem checagem nenhuma.
+ */
+function resolverCaminhoUploadSeguroInfopago(string $caminho): ?string {
+    if ($caminho === '' || strpos($caminho, 'uploads/') !== 0) {
+        return null;
+    }
+    $base_real = realpath(__DIR__ . '/uploads');
+    if ($base_real === false) {
+        return null;
+    }
+    $real = realpath(__DIR__ . '/' . $caminho);
+    if ($real === false) {
+        return null;
+    }
+    if ($real !== $base_real && strpos($real, $base_real . DIRECTORY_SEPARATOR) !== 0) {
+        return null;
+    }
+    return $real;
+}
+
 function processarBlocoInfopago(string $token, $id_chat, array $operador, int $id_usuario_dono): void {
     $propriedades = $operador['properties'] ?? [];
     $tipo = $propriedades['type'] ?? '';
@@ -51,15 +75,9 @@ function processarBlocoInfopago(string $token, $id_chat, array $operador, int $i
             requisicaoTelegramInfopago($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => $texto]);
         }
     } elseif ($tipo === 'image') {
-        $caminho = $propriedades['image_path'] ?? '';
-        if ($caminho) {
-            if (strpos($caminho, 'uploads/') === 0) {
-                $caminho = __DIR__ . '/' . $caminho;
-            }
-            $real = realpath($caminho);
-            if ($real) {
-                requisicaoTelegramInfopago($token, 'sendPhoto', ['chat_id' => $id_chat, 'photo' => $real]);
-            }
+        $real = resolverCaminhoUploadSeguroInfopago((string)($propriedades['image_path'] ?? ''));
+        if ($real) {
+            requisicaoTelegramInfopago($token, 'sendPhoto', ['chat_id' => $id_chat, 'photo' => $real]);
         }
     } elseif ($tipo === 'botoes') {
         $texto = trim((string)($propriedades['texto'] ?? ''));
@@ -229,14 +247,20 @@ if (isset($notificacao['cobsr'])) {
         if ($status === 'ATIVA') {
             $txid_renovacao = (string)($cobsr['txid'] ?? $id_rec);
 
-            if (!empty($venda['ultimo_txid_renovacao']) && $venda['ultimo_txid_renovacao'] === $txid_renovacao) {
+            // Transição atômica: o UPDATE só afeta a linha se esse txid de renovação
+            // ainda não tinha sido gravado. Protege contra reenvio de webhook do
+            // provedor (retry) chegando em paralelo e renovando/splitando duas vezes.
+            $stmt_marca_renov = $pdo->prepare("
+                UPDATE vendas SET ultimo_txid_renovacao = ? WHERE id = ?
+                AND (ultimo_txid_renovacao IS NULL OR ultimo_txid_renovacao != ?)
+            ");
+            $stmt_marca_renov->execute([$txid_renovacao, $venda['id'], $txid_renovacao]);
+            if ($stmt_marca_renov->rowCount() === 0) {
                 logWebhookInfopago("Renovação idRec=$id_rec txid=$txid_renovacao já processada. Ignorando duplicata (reenvio de webhook).");
                 continue;
             }
 
             logWebhookInfopago("Cobrança recorrente PAGA para idRec=$id_rec. Renovando acesso do usuário $id_telegram.");
-
-            $pdo->prepare("UPDATE vendas SET ultimo_txid_renovacao = ? WHERE id = ?")->execute([$txid_renovacao, $venda['id']]);
 
             $link = liberarAcessoGrupoInfopago($venda, $token_bot);
             dispararSplitInfopago($id_dono, (float)$venda['valor'], $txid_renovacao, (int)$venda['id']);
@@ -360,16 +384,22 @@ foreach ($notificacao['pix'] as $pix) {
         continue;
     }
 
+    // Transição atômica: o UPDATE só afeta a linha se ela ainda não estava paga.
+    // Se o botão manual "Já fiz o pagamento" ou o cron de fallback confirmarem a
+    // mesma venda ao mesmo tempo, só um dos dois ganha a corrida (rowCount() = 1)
+    // e segue adiante — evita disparar o split duas vezes pra mesma venda.
     try {
-        $pdo->beginTransaction();
-        $pdo->prepare("UPDATE vendas SET status = 'pago', pago_em = NOW() WHERE id = ?")->execute([$venda['id']]);
-        $pdo->commit();
-        logWebhookInfopago("Venda #{$venda['id']} marcada como PAGO (confirmado direto na API InfoPago).");
+        $stmt_marca = $pdo->prepare("UPDATE vendas SET status = 'pago', pago_em = NOW() WHERE id = ? AND status != 'pago'");
+        $stmt_marca->execute([$venda['id']]);
     } catch (Exception $e) {
-        $pdo->rollBack();
         logWebhookInfopago("Erro ao atualizar venda #{$venda['id']}: " . $e->getMessage());
         continue;
     }
+    if ($stmt_marca->rowCount() === 0) {
+        logWebhookInfopago("Venda #{$venda['id']} já foi marcada como paga por outra requisição simultânea (botão/cron). Ignorando duplicata.");
+        continue;
+    }
+    logWebhookInfopago("Venda #{$venda['id']} marcada como PAGO (confirmado direto na API InfoPago).");
 
     $stmt_bot = $pdo->prepare("SELECT token, id_usuario FROM bots WHERE id = ?");
     $stmt_bot->execute([$venda['bot_id']]);

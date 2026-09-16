@@ -1,0 +1,2 @@
+# Impede listar os arquivos desta pasta pela URL.
+Options -Indexes

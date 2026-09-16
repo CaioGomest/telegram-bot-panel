@@ -2,60 +2,99 @@
 declare(strict_types=1);
 
 /**
- * STUB — dados de exemplo isolados, sem consulta ao banco.
- * A campanha de ranking ainda não tem tabela/fonte de dados própria.
- * Quando existir, trocar o corpo desta função por uma consulta real
- * (campanha ativa, top competidores por faturamento, posição do usuário logado)
- * mantendo o mesmo formato de retorno usado por ranking.php.
+ * Campanha ativa de um tipo (`oficial` ou `mensal`). O ranking em si vem de
+ * `ranking_cache`, recalculado periodicamente por cron/cron_ranking.php — esta
+ * função nunca agrega `vendas` diretamente.
  */
-function buscarDadosRankingStub(): array
+function buscarCampanhaAtiva(string $tipo = 'oficial'): ?array
 {
-    $fim_campanha = new DateTime('2026-12-01 23:59:59');
-    $agora = new DateTime();
-    $restante = $agora < $fim_campanha ? $agora->diff($fim_campanha) : null;
+    global $pdo;
+    $stmt = $pdo->prepare("
+        SELECT * FROM campanhas_ranking
+        WHERE tipo = ? AND ativa = 1 AND NOW() BETWEEN data_inicio AND data_fim
+        ORDER BY data_inicio DESC
+        LIMIT 1
+    ");
+    $stmt->execute([$tipo]);
+    $campanha = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $campanha ?: null;
+}
+
+function buscarPremiosCampanha(int $campanha_id): array
+{
+    global $pdo;
+    $stmt = $pdo->prepare("SELECT * FROM campanhas_ranking_premios WHERE campanha_id = ? ORDER BY posicao ASC");
+    $stmt->execute([$campanha_id]);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+function nomeExibicaoRanking(?string $apelido, int $id_usuario): string
+{
+    $apelido = trim((string) $apelido);
+    return $apelido !== '' ? $apelido : "Usuário #$id_usuario";
+}
+
+function iniciaisRanking(string $nome_exibicao): string
+{
+    $limpo = ltrim($nome_exibicao, '@');
+    return mb_strtoupper(mb_substr($limpo, 0, 2), 'UTF-8') ?: '?';
+}
+
+/**
+ * Pódio (top 3), linhas 4–10 e a posição do usuário logado, todas lidas de
+ * `ranking_cache` (join com `usuarios` só pro apelido público — nunca nome
+ * real/e-mail aparecem nessa tela pros outros usuários verem).
+ */
+function buscarRankingCampanha(int $campanha_id, int $usuario_atual_id): array
+{
+    global $pdo;
+
+    $stmt = $pdo->prepare("
+        SELECT rc.posicao, rc.id_usuario, rc.faturamento, u.apelido_publico
+        FROM ranking_cache rc
+        JOIN usuarios u ON u.id = rc.id_usuario
+        WHERE rc.campanha_id = ?
+        ORDER BY rc.posicao ASC
+        LIMIT 10
+    ");
+    $stmt->execute([$campanha_id]);
+    $linhas_brutas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $top3 = array_slice($linhas_brutas, 0, 3);
+    $linhas = array_slice($linhas_brutas, 3, 7);
+    $faturamento_lider = $top3[0]['faturamento'] ?? null;
+    $faturamento_top5 = $linhas_brutas[4]['faturamento'] ?? ($linhas_brutas[count($linhas_brutas) - 1]['faturamento'] ?? null);
+
+    $stmt_total = $pdo->prepare("SELECT COUNT(*) FROM ranking_cache WHERE campanha_id = ?");
+    $stmt_total->execute([$campanha_id]);
+    $total_participantes = (int) $stmt_total->fetchColumn();
+
+    $stmt_eu = $pdo->prepare("
+        SELECT rc.posicao, rc.id_usuario, rc.faturamento, u.apelido_publico
+        FROM ranking_cache rc
+        JOIN usuarios u ON u.id = rc.id_usuario
+        WHERE rc.campanha_id = ? AND rc.id_usuario = ?
+    ");
+    $stmt_eu->execute([$campanha_id, $usuario_atual_id]);
+    $sua_posicao = $stmt_eu->fetch(PDO::FETCH_ASSOC) ?: null;
 
     return [
-        'campanha' => [
-            'nome' => 'Dubai 2026',
-            'periodo' => '01 ago — 01 dez',
-            'participantes' => 6901,
-        ],
-        'podium' => [
-            ['pos' => '02', 'tag' => 'Pódio', 'nome' => '@alesonmartins', 'iniciais' => 'AM', 'valor' => 'R$ 541,2 mil', 'tamanho' => '52px', 'altura' => '74px', 'cor' => 'var(--m)', 'fundo' => 'var(--p2)'],
-            ['pos' => '01', 'tag' => 'Líder', 'nome' => '@coyotehot1', 'iniciais' => 'CH', 'valor' => 'R$ 1,8 mi', 'tamanho' => '68px', 'altura' => '104px', 'cor' => 'var(--or)', 'fundo' => 'var(--orsoft)'],
-            ['pos' => '03', 'tag' => 'Pódio', 'nome' => '@kativip', 'iniciais' => 'KV', 'valor' => 'R$ 301,2 mil', 'tamanho' => '52px', 'altura' => '58px', 'cor' => 'var(--m)', 'fundo' => 'var(--p2)'],
-        ],
-        'linhas' => [
-            ['pos' => '04', 'iniciais' => 'RM', 'nome' => '@renatamk', 'zona' => 'Zona de embarque', 'zona_cor' => 'var(--ok)', 'valor' => 'R$ 260,1 mil', 'gap' => 'R$ 2,3 mil'],
-            ['pos' => '05', 'iniciais' => 'JP', 'nome' => '@joaopvendas', 'zona' => 'Zona de embarque', 'zona_cor' => 'var(--ok)', 'valor' => 'R$ 257,8 mil', 'gap' => 'R$ 4,6 mil'],
-            ['pos' => '06', 'iniciais' => 'LS', 'nome' => '@leandroshop', 'zona' => 'Em disputa', 'zona_cor' => 'var(--m)', 'valor' => 'R$ 198,4 mil', 'gap' => 'R$ 64 mil'],
-            ['pos' => '07', 'iniciais' => 'BC', 'nome' => '@brunacoins', 'zona' => 'Em disputa', 'zona_cor' => 'var(--m)', 'valor' => 'R$ 176,9 mil', 'gap' => 'R$ 85,5 mil'],
-            ['pos' => '08', 'iniciais' => 'DV', 'nome' => '@diegov', 'zona' => 'Em disputa', 'zona_cor' => 'var(--m)', 'valor' => 'R$ 151,2 mil', 'gap' => 'R$ 111,2 mil'],
-            ['pos' => '09', 'iniciais' => 'MF', 'nome' => '@marfontes', 'zona' => 'Em disputa', 'zona_cor' => 'var(--m)', 'valor' => 'R$ 130,7 mil', 'gap' => 'R$ 131,7 mil'],
-            ['pos' => '10', 'iniciais' => 'PT', 'nome' => '@pedrotop', 'zona' => 'Em disputa', 'zona_cor' => 'var(--m)', 'valor' => 'R$ 112,3 mil', 'gap' => 'R$ 150,1 mil'],
-        ],
-        'sua_posicao' => [
-            'pos' => 6902,
-            'iniciais' => 'VC',
-            'nome' => 'Sua conta',
-            'valor' => 'R$ 4.280',
-            'gap_top5' => 'R$ 262,4 mil',
-        ],
-        'contagem' => $restante ? [
-            ['v' => str_pad((string) $restante->days, 2, '0', STR_PAD_LEFT), 'l' => 'dias'],
-            ['v' => str_pad((string) $restante->h, 2, '0', STR_PAD_LEFT), 'l' => 'horas'],
-            ['v' => str_pad((string) $restante->i, 2, '0', STR_PAD_LEFT), 'l' => 'min'],
-            ['v' => str_pad((string) $restante->s, 2, '0', STR_PAD_LEFT), 'l' => 'seg'],
-        ] : [
-            ['v' => '00', 'l' => 'dias'], ['v' => '00', 'l' => 'horas'], ['v' => '00', 'l' => 'min'], ['v' => '00', 'l' => 'seg'],
-        ],
-        'progresso_top5_pct' => 2,
-        'premios' => [
-            ['tag' => 'P1', 'cor' => 'var(--or)', 'fundo' => 'var(--orsoft)', 'label' => '1º lugar', 'desc' => 'Pacote completo para Dubai + acompanhante'],
-            ['tag' => 'P2', 'cor' => 'var(--m)', 'fundo' => 'var(--p3)', 'label' => '2º lugar', 'desc' => 'Pacote completo para Dubai'],
-            ['tag' => 'P3', 'cor' => 'var(--m)', 'fundo' => 'var(--p3)', 'label' => '3º lugar', 'desc' => 'Pacote completo para Dubai'],
-            ['tag' => 'P4', 'cor' => 'var(--m)', 'fundo' => 'var(--p3)', 'label' => '4º lugar', 'desc' => 'Passagem + hospedagem'],
-            ['tag' => 'P5', 'cor' => 'var(--m)', 'fundo' => 'var(--p3)', 'label' => '5º lugar', 'desc' => 'Passagem + hospedagem'],
-        ],
+        'top3' => $top3,
+        'linhas' => $linhas,
+        'sua_posicao' => $sua_posicao,
+        'total_participantes' => $total_participantes,
+        'faturamento_lider' => $faturamento_lider !== null ? (float) $faturamento_lider : null,
+        'faturamento_top5' => $faturamento_top5 !== null ? (float) $faturamento_top5 : null,
     ];
+}
+
+function formatarReaisResumido(float $valor): string
+{
+    if ($valor >= 1000000) {
+        return 'R$ ' . number_format($valor / 1000000, 1, ',', '.') . ' mi';
+    }
+    if ($valor >= 1000) {
+        return 'R$ ' . number_format($valor / 1000, 1, ',', '.') . ' mil';
+    }
+    return 'R$ ' . number_format($valor, 2, ',', '.');
 }

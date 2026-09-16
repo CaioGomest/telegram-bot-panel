@@ -1,11 +1,14 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/funcoes/usuario.php';
+require_once __DIR__ . '/../funcoes/usuario.php';
+require_once __DIR__ . '/../funcoes/relatorio_debug.php';
 verificarAdminOuInstalacao();
 
+ob_start();
+
 try {
-    echo "<h1>Atualização Unificada do Banco de Dados</h1>";
+    echo "<h2>Atualização Unificada do Banco de Dados</h2>";
     echo "Iniciando verificação e atualização das tabelas...<br>";
 
     $sql_usuarios = "
@@ -131,6 +134,13 @@ try {
             echo "Vendas atualizada: $alter<br>";
         } catch (PDOException $e) {}
     }
+
+    // Índices de busca por identificador de pagamento — sem eles, toda notificação
+    // de webhook (InfoPago) faz full table scan em 'vendas', que piora conforme o
+    // histórico de vendas cresce. UNIQUE em transacao_id também barra duplicidade
+    // de txid a nível de banco (NULLs continuam permitidos em múltiplas linhas).
+    try { $pdo->exec("ALTER TABLE vendas ADD UNIQUE INDEX idx_transacao_id (transacao_id)"); } catch (PDOException $e) {}
+    try { $pdo->exec("ALTER TABLE vendas ADD INDEX idx_id_assinatura (id_assinatura)"); } catch (PDOException $e) {}
 
     // Migração de dados antigos (dias -> minutos)
     try {
@@ -299,7 +309,7 @@ try {
     // Migra pra criptografado qualquer credencial que ainda esteja em texto puro (dado salvo
     // antes dessa mudança). Idempotente: se já rodou antes, os valores já cifrados são
     // ignorados (detectados pelo prefixo 'enc:v1:' dentro de criptografarSegredo/decifrar).
-    require_once __DIR__ . '/funcoes/criptografia.php';
+    require_once __DIR__ . '/../funcoes/criptografia.php';
     if (chaveCriptografiaDisponivel()) {
         $stmt_gw_cred = $pdo->query("SELECT id, client_secret, cert_password, chave_pix, cashout_client_secret, cashout_cert_password FROM usuarios_gateways");
         $linhas_migradas = 0;
@@ -483,6 +493,95 @@ try {
     $pdo->exec($sql_tentativas_login);
     echo "Tabela 'tentativas_login' OK.<br>";
 
+    // Ranking de faturamento por campanha — ver cron_ranking.php (calcula ranking_cache)
+    // e admin/ranking.php (CRUD de campanhas/prêmios).
+    $sql_campanhas_ranking = "
+        CREATE TABLE IF NOT EXISTS campanhas_ranking (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            slug VARCHAR(60) NOT NULL UNIQUE,
+            titulo VARCHAR(100) NOT NULL,
+            subtitulo VARCHAR(255) DEFAULT NULL,
+            tipo ENUM('oficial','mensal') DEFAULT 'oficial',
+            data_inicio DATETIME NOT NULL,
+            data_fim DATETIME NOT NULL,
+            ativa TINYINT(1) DEFAULT 1,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ";
+    $pdo->exec($sql_campanhas_ranking);
+    echo "Tabela 'campanhas_ranking' OK.<br>";
+
+    $sql_campanhas_ranking_premios = "
+        CREATE TABLE IF NOT EXISTS campanhas_ranking_premios (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            campanha_id INT NOT NULL,
+            posicao INT NOT NULL,
+            titulo VARCHAR(100) NOT NULL,
+            descricao VARCHAR(255) DEFAULT NULL,
+            FOREIGN KEY (campanha_id) REFERENCES campanhas_ranking(id) ON DELETE CASCADE,
+            UNIQUE KEY unico_campanha_posicao (campanha_id, posicao)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ";
+    $pdo->exec($sql_campanhas_ranking_premios);
+    echo "Tabela 'campanhas_ranking_premios' OK.<br>";
+
+    $sql_ranking_cache = "
+        CREATE TABLE IF NOT EXISTS ranking_cache (
+            campanha_id INT NOT NULL,
+            id_usuario INT NOT NULL,
+            faturamento DECIMAL(12,2) NOT NULL DEFAULT 0,
+            posicao INT NOT NULL,
+            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (campanha_id, id_usuario),
+            KEY idx_ranking_posicao (campanha_id, posicao),
+            FOREIGN KEY (campanha_id) REFERENCES campanhas_ranking(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ";
+    $pdo->exec($sql_ranking_cache);
+    echo "Tabela 'ranking_cache' OK.<br>";
+
+    try {
+        $pdo->exec("ALTER TABLE usuarios ADD COLUMN apelido_publico VARCHAR(40) DEFAULT NULL AFTER nome");
+        echo "Coluna 'apelido_publico' adicionada em 'usuarios'.<br>";
+    } catch (PDOException $e) {}
+
+    try { $pdo->exec("ALTER TABLE vendas ADD INDEX idx_vendas_ranking (status, criado_em, bot_id)"); } catch (PDOException $e) {}
+
+    // Cache pré-calculado do dashboard de admin (métricas por hora) — ver cron/cron_metricas_admin.php
+    // (mantém as últimas 48h em dia) e admin/dashboard.php (só lê daqui pra "todos os bots").
+    // Mesmo raciocínio de ranking_cache: nunca agregar 'vendas' inteira ao vivo numa página.
+    $sql_metricas_horarias = "
+        CREATE TABLE IF NOT EXISTS metricas_horarias_admin (
+            data DATE NOT NULL,
+            hora TINYINT UNSIGNED NOT NULL,
+            faturamento DECIMAL(14,2) NOT NULL DEFAULT 0,
+            comissao DECIMAL(14,2) NOT NULL DEFAULT 0,
+            quantidade INT NOT NULL DEFAULT 0,
+            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (data, hora)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ";
+    $pdo->exec($sql_metricas_horarias);
+    echo "Tabela 'metricas_horarias_admin' OK.<br>";
+
+    // Preenchimento único do histórico existente — daqui em diante o cron cuida só das
+    // últimas 48h a cada execução (vendas pagas nunca mudam de valor depois de confirmadas,
+    // não existe fluxo de estorno neste projeto — ver como-funciona-pagamento-gateway.md).
+    $pdo->exec("
+        INSERT INTO metricas_horarias_admin (data, hora, faturamento, comissao, quantidade, atualizado_em)
+        SELECT DATE(v.criado_em), HOUR(v.criado_em), SUM(v.valor), SUM(v.comissao_admin), COUNT(*), NOW()
+        FROM vendas v
+        WHERE v.status = 'pago'
+        GROUP BY DATE(v.criado_em), HOUR(v.criado_em)
+        ON DUPLICATE KEY UPDATE
+            faturamento = VALUES(faturamento),
+            comissao = VALUES(comissao),
+            quantidade = VALUES(quantidade),
+            atualizado_em = VALUES(atualizado_em)
+    ");
+    echo "Histórico de 'metricas_horarias_admin' preenchido a partir de 'vendas'.<br>";
+
     $stmt = $pdo->query("SELECT COUNT(*) FROM usuarios");
     $total = $stmt->fetchColumn();
 
@@ -502,6 +601,7 @@ try {
     echo "<br><strong>Banco de dados atualizado com sucesso! Todas as tabelas e colunas estão sincronizadas.</strong>";
 
 } catch (PDOException $e) {
-    echo "<h2>Erro fatal ao atualizar banco: " . $e->getMessage() . "</h2>";
+    echo "<h2 style='color:var(--da)'>Erro fatal ao atualizar banco: " . htmlspecialchars($e->getMessage()) . "</h2>";
 }
-?>
+
+exibirRelatorioDebug('Atualizar Banco', ob_get_clean(), '../');

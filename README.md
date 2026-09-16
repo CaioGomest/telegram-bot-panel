@@ -30,7 +30,7 @@ Painel administrativo em PHP para gerenciar bots de venda no Telegram: fluxos de
 ├── admin_transacoes.php     # Relatório de transações (admin)
 ├── webhook.php               # Webhook principal do Telegram
 ├── webhook_infopago.php      # Webhook do gateway InfoPago
-├── cron_*.php                 # Rotinas agendadas (verificação de PIX, renovação, avisos, remarketing, acessos)
+├── cron/                       # Rotinas agendadas (verificação de PIX, renovação, avisos, remarketing, acessos)
 ├── api.php                    # Endpoints de API interna
 ├── instalacao.php             # Instalador inicial do sistema
 ├── atualiza_banco.php         # Script de migração/atualização de schema
@@ -54,7 +54,7 @@ Painel administrativo em PHP para gerenciar bots de venda no Telegram: fluxos de
 ## Instalação (dev local)
 
 1. Configure `config.php` com as credenciais do banco local.
-2. Rode `instalacao.php` para criar o schema inicial, ou `popular_banco.php` / `atualiza_banco.php` conforme o caso.
+2. Rode `instalacao.php` para criar o schema inicial, ou `seeds/popular_banco.php` / `admin/atualiza_banco.php` conforme o caso.
 3. Sirva a pasta com PHP embutido ou Apache/Nginx apontando para a raiz do projeto.
 
 ## Hospedagem

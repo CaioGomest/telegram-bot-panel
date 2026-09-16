@@ -6,14 +6,40 @@ Painel PHP para gestão de bots de venda no Telegram (fluxos, gateways de pagame
 
 Vai ser hospedado na **Hostinger**. Sem framework, sem build step — PHP procedural com PDO.
 
-## Fase atual: redesign de layout
+## Fase atual: redesign de layout (concluído)
 
-Estamos aplicando o novo layout descrito em `Telegram bot management redesign/design_handoff_coyote_bot_panel/README.md` (protótipo `Coyote Bot Panel.dc.html`) nas páginas do painel, em fases com checkpoint. Só layout — lógica, nomes de campo, queries, rotas e IDs usados pelo JS não mudam.
+O layout novo descrito em `Telegram bot management redesign/design_handoff_coyote_bot_panel/README.md` (protótipo `Coyote Bot Panel.dc.html`) foi aplicado em **todas** as páginas do painel, incluindo as que originalmente estavam fora do escopo do handoff (não havia spec própria pra elas — foi seguido o mesmo padrão visual já estabelecido). Só layout — lógica, nomes de campo, queries, rotas e IDs usados pelo JS não mudaram.
 
 - **Toda classe CSS nova ou alterada usa nomenclatura em português, kebab-case** (mesmo padrão de `painel`, `botao`, `cabecalho-pagina`, `cartao-bot-item`) — nunca inglês, nunca camelCase.
-- `barra_lateral.php` é a sidebar nova (páginas redesenhadas); `sidebar.php` é a sidebar antiga e continua servindo as páginas fora do escopo do redesign — as duas coexistem de propósito, não é duplicação esquecida.
-- `assets/css/coyote.css` é o CSS novo (tokens, tema dark/light, sidebar/header/cards novos). `assets/app.css` não é tocado — segue servindo as páginas fora de escopo.
-- Páginas fora do escopo do handoff (`remarketing.php`, `traqueamento.php`, `links_rastreamento.php`, `usuarios.php`, `atualizacao_seguranca.php`, `atualiza_banco.php`, `setup_menus.php`, `debug_*.php`, `cadastro.php`, `instalacao.php`, `configuracoes.php`) ficam como estão nesta etapa.
+- `barra_lateral.php` é a sidebar (substituiu `sidebar.php`, removido por não ter mais nenhuma página usando). `assets/css/coyote.css` é o único CSS do painel (tokens, tema dark/light, sidebar/header/cards) — `assets/app.css` e `assets/login.css` foram removidos por ficarem 100% sem uso.
+- `funcoes/relatorio_debug.php` (`exibirRelatorioDebug()`) envolve a saída em texto das rotinas de manutenção no layout novo, sem mudar o que cada rotina calcula ou grava no banco.
+- Pendências que dependem de backend novo (fora do escopo de layout): badge "Online"/mini-painel "Leads 7d" nos cards de bot, "N blocos"/status Publicado-Rascunho nos cards de fluxo, paginação real de `leads.php`, painel "Top usuários" no admin.
+
+## Ranking
+
+`ranking.php` já é dado real (não é mais mock). Arquitetura pensada pra plataforma grande (700+ usuários): nada de agregar `vendas` ao vivo a cada carregamento de página.
+
+- `campanhas_ranking` / `campanhas_ranking_premios` — cadastro de campanha (nome, período, tipo `oficial`/`mensal`) e prêmios (até 5 posições), gerenciados em `admin/ranking.php`.
+- `ranking_cache` (`campanha_id`, `id_usuario`, `faturamento`, `posicao`) — tabela pré-calculada. `ranking.php` só lê daqui, nunca faz `SUM(valor)` na hora.
+- `cron/cron_ranking.php` (precisa estar no crontab a cada 1 min) recalcula `ranking_cache` de toda campanha ativa via `RANK() OVER (...)` direto no MySQL (confirmado 8.3, tem window function). Se esquecer de colocar no crontab, o ranking fica com o cache antigo — não quebra, só para de atualizar.
+- `usuarios.apelido_publico` — nome que aparece pros outros usuários no ranking (nunca nome real/e-mail). Editável em Minha Conta. Sem apelido, cai em "Usuário #ID".
+- `funcoes/ranking.php` tem as funções de leitura (`buscarCampanhaAtiva`, `buscarRankingCampanha`, etc.) — reaproveitar essas em vez de escrever query nova se for mexer na tela.
+
+## Pasta `/admin`
+
+As páginas que exigem `verificarAdmin()`/`verificarAdminOuInstalacao()` moraram sempre na raiz (ex.: `admin_dashboard.php`) e agora ficam em `admin/`, com o prefixo `admin_` removido por ficar redundante (`admin_dashboard.php` → `admin/dashboard.php`, `usuarios.php` → `admin/usuarios.php`, etc. — inclui também `configuracoes.php`, `atualiza_banco.php`, `debug_ultima_venda.php`). Objetivo é organização (não é uma medida de segurança por si só — quem barra acesso continua sendo `verificarAdmin()` dentro de cada arquivo). Tem um `admin/index.php` (redireciona pra `dashboard.php`) e `.htaccess` com `Options -Indexes` em `admin/`, `funcoes/` e `ajax/` pra não listar arquivo pela URL.
+
+`atualizacao_seguranca.php`, `debug_colunas_vendas.php` e `setup_menus.php` foram removidos (não renomeados) por ficarem redundantes/inúteis: as duas primeiras faziam exatamente o que `atualiza_banco.php` já faz (mesmas colunas), e a terceira recriava a tabela `menus`, que não é mais lida por nenhum código (a sidebar usa array fixo em PHP). `debug_colunas_grupos.php` também saiu por baixo uso. Ficaram no menu Debug só `atualiza_banco.php` (migração real, idempotente) e `debug_ultima_venda.php` (inspeciona a última venda, útil pra conferir status de gateway/split).
+
+## Pasta `/seeds`
+
+Scripts que só populam o banco com **dado fake/de teste** (nunca dado de produção, nunca chamado por webhook/cron/fluxo real) ficam em `seeds/`, separado de `admin/` (que é rotina de manutenção real, tipo migração de schema). Hoje só tem `seeds/popular_banco.php` (cria usuários/bots/leads/vendas fictícios pra testar paginação e dashboards). Mesma proteção do `admin/`: `.htaccess` com `Options -Indexes` e a própria página exige `verificarAdminOuInstalacao()`. Como `seeds/` fica na mesma profundidade de `admin/` (um nível abaixo da raiz), os `require_once __DIR__ . '/../funcoes/...'` continuam funcionando sem ajuste — só os links relativos *dentro* da página (ex.: link de volta pra uma página de `admin/`) precisam do prefixo `../admin/`.
+
+Pontos que **têm que** ser respeitados em qualquer página nova dentro de `admin/`:
+- `require_once __DIR__ . '/../funcoes/...'` (não `/funcoes/...`) pra tudo que a página precisa de `funcoes/`.
+- Antes de incluir a sidebar, definir `$caminho_base = '../';` e incluir com `include __DIR__ . '/../barra_lateral.php';` (e o mesmo pra `tema_inline.php`). Sem isso os links do menu e o logo saem quebrados.
+- Links pra `assets/...` na própria página (CSS, JS) precisam do prefixo `../`.
+- Os 3 redirects de `funcoes/usuario.php` (`verificarLogin`, `verificarAdmin`, `fazerLogout`) usam caminho absoluto (`/login.php`, `/index.php`) exatamente por causa disso — **não trocar de volta pra relativo**, senão quebra o redirect vindo de dentro de `admin/`.
 
 ## Fase anterior: limpeza de código
 
@@ -26,7 +52,7 @@ Regras para esta fase:
 - **Altamente escalável.** Evitar acoplamento desnecessário, preferir funções puras quando possível, isolar acesso a banco e integrações externas (gateways, Telegram, pixels) em camadas bem definidas dentro de `funcoes/`.
 - **Não alterar comportamento visível.** Refatoração é interna — mesma funcionalidade, mesmo output, mesmas rotas/nomes de arquivo (a menos que combinado explicitamente).
 - **Não mexer em layout/CSS/HTML visual** fora do trabalho de redesign descrito acima — mudanças de limpeza de código continuam sendo só estrutura/organização do PHP.
-- **`declare(strict_types=1)`** deve estar presente em todos os arquivos PHP (hoje falta em alguns, ex. `remarketing.php`, `leads.php`, `sidebar.php`, `setup_menus.php`, `instalacao.php`, `login.php`, `cadastro.php`, `logs.php`, `configuracao_usuario.php`).
+- **`declare(strict_types=1)`** deve estar presente em todos os arquivos PHP.
 - Nomenclatura em português deve ser mantida (é o padrão já usado no projeto: `verificarLogin`, `id_usuario`, etc.) — não traduzir para inglês.
 - **Limpeza contínua.** Sempre que for mexer em um arquivo, analisar se dá pra deixar mais limpo/organizado — mas só aplicar a mudança se não quebrar nada existente. Na dúvida, não arriscar.
 
@@ -36,7 +62,8 @@ Regras para esta fase:
 - **Variáveis: snake_case, em português.** Ex.: `$contagem_usuarios`, `$id_usuario`, `$valor_total`, `let taxa_split`.
 - **Nomes de página (arquivos .php):** sempre em português, simples e claros — o nome tem que deixar óbvio o que a página faz. Ex.: `funcoes_usuarios.php`, `debug_ultima_venda.php`. Evitar prefixo genérico tipo `temp_`, `fix_` sem dizer o que faz.
 - Vale pra PHP e JS (`assets/*.js`), sempre, sem exceção. Nunca traduzir pra inglês.
-- **Exceção: não renomear `cron_*.php` e `webhook*.php`.** Esses nomes são referenciados fora do repositório (crontab da Hostinger e URLs de webhook cadastradas no Telegram/InfoPago) — renomear quebraria a integração em produção sem o Caio saber.
+- **Exceção: não renomear `webhook*.php`** (fica na raiz). URL cadastrada no Telegram/InfoPago — renomear quebra a integração em produção sem o Caio saber.
+- **`cron_*.php` moraram na raiz e agora ficam em `cron/`** (mesma ideia do `admin/`: `require_once __DIR__ . '/../...'`). Isso muda o caminho que o **crontab da Hostinger** chama — ⚠️ conferir se as entradas de crontab lá já apontam pra `cron/cron_verificar_pix.php` etc. (e não mais pra `cron_verificar_pix.php` na raiz) antes de considerar isso resolvido, senão os crons de produção param de rodar silenciosamente.
 - Antes de renomear qualquer outro arquivo, checar com `grep` se ele é referenciado em algum outro lugar do código (require, link, JS) e atualizar tudo junto.
 
 ## Segurança

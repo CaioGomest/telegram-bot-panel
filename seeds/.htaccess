@@ -1,0 +1,2 @@
+# Impede listar os arquivos desta pasta pela URL (ex.: acessar /seeds/ direto).
+Options -Indexes

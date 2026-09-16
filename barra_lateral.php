@@ -1,8 +1,12 @@
 <?php
 declare(strict_types=1);
 
+// Páginas dentro de admin/ definem $caminho_base = '../' antes de incluir este
+// arquivo, pra todo link/asset abaixo continuar apontando pro lugar certo.
+$caminho_base = $caminho_base ?? '';
+
 if (!isset($pdo)) {
-    require_once 'conexao.php';
+    require_once __DIR__ . '/conexao.php';
 }
 
 $is_admin = function_exists('ehAdmin') ? ehAdmin() : false;
@@ -66,27 +70,24 @@ $grupo_operacao[] = ['href' => 'configuracao_usuario.php', 'label' => 'Minha Con
 
 $grupo_admin = [];
 if ($is_admin) {
-    $grupo_admin[] = ['href' => 'admin_dashboard.php', 'label' => 'Visão Geral', 'icone' => 'visao_geral'];
-    $grupo_admin[] = ['href' => 'admin_transacoes.php', 'label' => 'Transações', 'icone' => 'transacoes'];
-    $grupo_admin[] = ['href' => 'logs.php', 'label' => 'Logs', 'icone' => 'logs'];
-    $grupo_admin[] = ['href' => 'usuarios.php', 'label' => 'Usuários', 'icone' => 'usuarios'];
+    $grupo_admin[] = ['href' => 'admin/dashboard.php', 'label' => 'Visão Geral', 'icone' => 'visao_geral'];
+    $grupo_admin[] = ['href' => 'admin/transacoes.php', 'label' => 'Transações', 'icone' => 'transacoes'];
+    $grupo_admin[] = ['href' => 'admin/logs.php', 'label' => 'Logs', 'icone' => 'logs'];
+    $grupo_admin[] = ['href' => 'admin/usuarios.php', 'label' => 'Usuários', 'icone' => 'usuarios'];
+    $grupo_admin[] = ['href' => 'admin/ranking.php', 'label' => 'Campanhas de Ranking', 'icone' => 'ranking'];
 }
 
 $grupo_debug = [];
 if ($is_admin) {
-    $grupo_debug[] = ['href' => 'atualizacao_seguranca.php', 'label' => 'Atualização de Segurança'];
-    $grupo_debug[] = ['href' => 'atualiza_banco.php', 'label' => 'Atualizar Banco'];
-    $grupo_debug[] = ['href' => 'setup_menus.php', 'label' => 'Recriar Menus'];
-    $grupo_debug[] = ['href' => 'debug_ultima_venda.php', 'label' => 'Última Venda (debug)'];
-    $grupo_debug[] = ['href' => 'debug_colunas_vendas.php', 'label' => 'Checar Colunas (vendas)'];
-    $grupo_debug[] = ['href' => 'debug_colunas_grupos.php', 'label' => 'Checar Colunas (grupos)'];
+    $grupo_debug[] = ['href' => 'admin/atualiza_banco.php', 'label' => 'Atualizar Banco'];
+    $grupo_debug[] = ['href' => 'admin/consultar_venda.php', 'label' => 'Consultar Venda'];
 }
 
-function renderizarItemNav(array $item, string $pagina_atual, array $icones): void
+function renderizarItemNav(array $item, string $pagina_atual, array $icones, string $caminho_base): void
 {
     $ativo = basename($item['href']) === $pagina_atual;
     $icone_svg = isset($item['icone']) ? iconeNav($icones[$item['icone']]) : iconeNav($icones['debug']);
-    echo '<a href="' . htmlspecialchars($item['href']) . '" class="nav-item' . ($ativo ? ' ativo' : '') . '">';
+    echo '<a href="' . $caminho_base . htmlspecialchars($item['href']) . '" class="nav-item' . ($ativo ? ' ativo' : '') . '">';
     echo '<span class="nav-icone">' . $icone_svg . '</span>';
     echo '<span class="nav-texto">' . htmlspecialchars($item['label']) . '</span>';
     if (!empty($item['badge_texto'])) {
@@ -103,7 +104,7 @@ $iniciais = mb_strtoupper(mb_substr($nome_usuario, 0, 1), 'UTF-8');
 ?>
 <aside class="barra-lateral">
     <div class="barra-lateral-topo">
-        <img src="assets/img/coyote-logo.jpg" alt="" class="logo-marca" onerror="this.style.display='none'">
+        <img src="<?php echo $caminho_base; ?>assets/img/coyote-logo.jpg" alt="" class="logo-marca" onerror="this.style.display='none'">
         <div class="logo-textos">
             <span class="logo-titulo">Coyote Bot</span>
             <span class="logo-subtitulo">Painel de automação</span>
@@ -114,7 +115,7 @@ $iniciais = mb_strtoupper(mb_substr($nome_usuario, 0, 1), 'UTF-8');
         <div class="nav-grupo">
             <span class="nav-grupo-titulo">Operação</span>
             <?php foreach ($grupo_operacao as $item) {
-                renderizarItemNav($item, $pagina_atual, $icones);
+                renderizarItemNav($item, $pagina_atual, $icones, $caminho_base);
             } ?>
         </div>
 
@@ -122,7 +123,7 @@ $iniciais = mb_strtoupper(mb_substr($nome_usuario, 0, 1), 'UTF-8');
         <div class="nav-grupo">
             <span class="nav-grupo-titulo">Administração</span>
             <?php foreach ($grupo_admin as $item) {
-                renderizarItemNav($item, $pagina_atual, $icones);
+                renderizarItemNav($item, $pagina_atual, $icones, $caminho_base);
             } ?>
         </div>
         <?php endif; ?>
@@ -131,7 +132,7 @@ $iniciais = mb_strtoupper(mb_substr($nome_usuario, 0, 1), 'UTF-8');
         <div class="nav-grupo">
             <span class="nav-grupo-titulo">Debug</span>
             <?php foreach ($grupo_debug as $item) {
-                renderizarItemNav($item, $pagina_atual, $icones);
+                renderizarItemNav($item, $pagina_atual, $icones, $caminho_base);
             } ?>
         </div>
         <?php endif; ?>
@@ -145,7 +146,7 @@ $iniciais = mb_strtoupper(mb_substr($nome_usuario, 0, 1), 'UTF-8');
                 <span class="usuario-email"><?php echo htmlspecialchars($email_usuario); ?></span>
             </div>
         </div>
-        <a href="logout.php" class="botao-sair" title="Sair" aria-label="Sair">
+        <a href="<?php echo $caminho_base; ?>logout.php" class="botao-sair" title="Sair" aria-label="Sair">
             <?php echo iconeNav($icones['sair']); ?>
         </a>
     </div>
@@ -154,7 +155,7 @@ $iniciais = mb_strtoupper(mb_substr($nome_usuario, 0, 1), 'UTF-8');
 <nav class="barra-mobile">
     <?php
     $itens_mobile = [
-        ['href' => $is_admin ? 'admin_dashboard.php' : 'index.php', 'label' => 'Início', 'icone' => 'dashboard'],
+        ['href' => $is_admin ? 'admin/dashboard.php' : 'index.php', 'label' => 'Início', 'icone' => 'dashboard'],
         ['href' => 'bots.php', 'label' => 'Bots', 'icone' => 'bots'],
         ['href' => 'fluxos.php', 'label' => 'Fluxos', 'icone' => 'fluxos'],
         ['href' => 'leads.php', 'label' => 'Leads', 'icone' => 'leads'],
@@ -164,7 +165,7 @@ $iniciais = mb_strtoupper(mb_substr($nome_usuario, 0, 1), 'UTF-8');
     foreach ($itens_mobile as $item):
         $ativo = basename($item['href']) === $pagina_atual;
     ?>
-        <a href="<?php echo htmlspecialchars($item['href']); ?>" class="mobile-item<?php echo $ativo ? ' ativo' : ''; ?>">
+        <a href="<?php echo $caminho_base . htmlspecialchars($item['href']); ?>" class="mobile-item<?php echo $ativo ? ' ativo' : ''; ?>">
             <span class="mobile-icone"><?php echo iconeNav($icones[$item['icone']]); ?></span>
             <span class="mobile-texto"><?php echo htmlspecialchars($item['label']); ?></span>
         </a>

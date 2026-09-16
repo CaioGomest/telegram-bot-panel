@@ -107,6 +107,44 @@ function sanitizarTexto(?string $valor, int $tamanho_maximo = 0): string
     return $valor;
 }
 
+/**
+ * Garante que todo image_path/video_path/audio_path dentro de dados_fluxograma segue
+ * exatamente o padrão gerado pelos endpoints de upload ("uploads/nome_gerado.ext", sem
+ * subpasta nem "..") antes de gravar no banco. Sem essa checagem, dava pra gravar um
+ * caminho arbitrário (ex. "config.php" ou "certificados/cert_5_1.pem") direto via API,
+ * pulando a tela do editor, e o bot reenviaria esse arquivo quando o bloco fosse executado
+ * — ver anotacoes/varredura-08-lfi-fluxograma-sessao.md. Caminho fora do padrão é zerado
+ * em vez de rejeitar o fluxo inteiro, pra não travar o resto da edição.
+ */
+function sanitizarCaminhosMidiaFluxo(array $dados_grafico): array
+{
+    if (!isset($dados_grafico['operators']) || !is_array($dados_grafico['operators'])) {
+        return $dados_grafico;
+    }
+    foreach ($dados_grafico['operators'] as &$operador) {
+        if (!is_array($operador) || !isset($operador['properties']) || !is_array($operador['properties'])) {
+            continue;
+        }
+        foreach (['image_path', 'video_path', 'audio_path'] as $campo) {
+            if (!isset($operador['properties'][$campo])) {
+                continue;
+            }
+            $valor = (string) $operador['properties'][$campo];
+            $prefixo = 'uploads/';
+            $valido = $valor === '' || (
+                strpos($valor, $prefixo) === 0
+                && strpos($valor, '..') === false
+                && basename($valor) === substr($valor, strlen($prefixo))
+            );
+            if (!$valido) {
+                $operador['properties'][$campo] = '';
+            }
+        }
+    }
+    unset($operador);
+    return $dados_grafico;
+}
+
 function gerarOuObterSegredoWebhook(int $id_bot): string
 {
     global $pdo;
@@ -124,7 +162,7 @@ function gerarOuObterSegredoWebhook(int $id_bot): string
         return $segredo;
     } catch (\Throwable $e) {
         // Coluna ainda não existe (banco não atualizado) — segue sem secret_token
-        // até rodar o atualiza_banco.php. Não impede o bot de funcionar.
+        // até rodar o admin/atualiza_banco.php. Não impede o bot de funcionar.
         return '';
     }
 }
@@ -271,6 +309,7 @@ try {
             if (!is_array($dados) || !isset($dados['operators']) || !isset($dados['links'])) {
                 responder(false, ['mensagem' => 'Estrutura do fluxo inválida.'], 422);
             }
+            $dados = sanitizarCaminhosMidiaFluxo($dados);
             $stmt = $pdo->prepare("INSERT INTO fluxos (id_usuario, nome, descricao, link_suporte, dados_fluxograma) VALUES (?, ?, ?, ?, ?)");
             $stmt->execute([$usuario_id, $nome, $descricao, $link_suporte, json_encode($dados, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]);
             $novo_id = (int)$pdo->lastInsertId();
@@ -302,6 +341,7 @@ try {
             if (!is_array($dados_grafico)) {
                 responder(false, ['mensagem' => 'dados_fluxograma inválido.'], 422);
             }
+            $dados_grafico = sanitizarCaminhosMidiaFluxo($dados_grafico);
             $json_grafico = json_encode($dados_grafico, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
             if ($id_fluxo > 0) {

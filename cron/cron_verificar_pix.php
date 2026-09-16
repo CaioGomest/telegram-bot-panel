@@ -1,11 +1,11 @@
 <?php
 declare(strict_types=1);
 
-require_once 'conexao.php';
-require_once 'funcoes/log.php';
+require_once __DIR__ . '/../conexao.php';
+require_once __DIR__ . '/../funcoes/log.php';
 
 date_default_timezone_set('America/Sao_Paulo');
-$log_dir = __DIR__ . '/logs';
+$log_dir = __DIR__ . '/../logs';
 if (!is_dir($log_dir)) mkdir($log_dir, 0755, true);
 $log_file = $log_dir . '/cron_pix.log';
 
@@ -13,6 +13,17 @@ function logCron(string $msg) {
     global $log_file;
     $date = date('Y-m-d H:i:s');
     file_put_contents($log_file, "[$date] $msg" . PHP_EOL, FILE_APPEND);
+}
+
+// Trava contra execução concorrente: se a rodada anterior ainda estiver processando
+// (ex. lote grande de vendas pendentes deixou o cron mais lento que o intervalo do
+// agendador), essa nova chamada desiste em vez de reprocessar as mesmas vendas em
+// paralelo — mesmo padrão já usado em cron_remarketing.php.
+$lock_file = sys_get_temp_dir() . '/cron_verificar_pix.lock';
+$lock = fopen($lock_file, 'c');
+if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) {
+    logCron("Execução anterior ainda em andamento. Encerrando essa chamada.");
+    exit;
 }
 
 // Replicando funções mínimas para continuidade
@@ -39,6 +50,30 @@ function obterProximoNoLocal(array $links, string $id_atual, string $conector_sa
     return null;
 }
 
+/**
+ * Resolve um caminho de mídia salvo em dados_fluxograma garantindo que o resultado fica
+ * dentro de uploads/ — mesma proteção de webhook.php::resolverCaminhoUploadSeguro(). Sem
+ * isso, um image_path gravado fora do padrão de upload (ex. "config.php") seria aceito
+ * sem checagem nenhuma.
+ */
+function resolverCaminhoUploadSeguroLocal(string $caminho): ?string {
+    if ($caminho === '' || strpos($caminho, 'uploads/') !== 0) {
+        return null;
+    }
+    $base_real = realpath(__DIR__ . '/../uploads');
+    if ($base_real === false) {
+        return null;
+    }
+    $real = realpath(__DIR__ . '/../' . $caminho);
+    if ($real === false) {
+        return null;
+    }
+    if ($real !== $base_real && strpos($real, $base_real . DIRECTORY_SEPARATOR) !== 0) {
+        return null;
+    }
+    return $real;
+}
+
 function processarBlocoLocal(string $token, $id_chat, array $operador, int $id_usuario_dono): void {
     $propriedades = $operador['properties'] ?? [];
     $tipo = $propriedades['type'] ?? '';
@@ -49,15 +84,9 @@ function processarBlocoLocal(string $token, $id_chat, array $operador, int $id_u
             requisicaoTelegramLocal($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => $texto]);
         }
     } elseif ($tipo === 'image') {
-        $caminho = $propriedades['image_path'] ?? '';
-        if ($caminho) {
-            if (strpos($caminho, 'uploads/') === 0) {
-                 $caminho = __DIR__ . '/' . $caminho;
-            }
-            $real = realpath($caminho);
-            if ($real) {
-                requisicaoTelegramLocal($token, 'sendPhoto', ['chat_id' => $id_chat, 'photo' => $real]);
-            }
+        $real = resolverCaminhoUploadSeguroLocal((string) ($propriedades['image_path'] ?? ''));
+        if ($real) {
+            requisicaoTelegramLocal($token, 'sendPhoto', ['chat_id' => $id_chat, 'photo' => $real]);
         }
     } elseif ($tipo === 'botoes') {
         $texto = trim((string) ($propriedades['texto'] ?? ''));
@@ -113,15 +142,19 @@ function executarFluxoContinuacao(string $token, string $id_chat, int $bot_id, s
     }
 }
 
-require_once __DIR__ . '/funcoes/gateways.php';
-require_once __DIR__ . '/funcoes/infopago_split.php';
+require_once __DIR__ . '/../funcoes/gateways.php';
+require_once __DIR__ . '/../funcoes/infopago_split.php';
 
+// LIMIT mantém cada rodada rápida e previsível mesmo com muitas vendas pendentes
+// de uma vez — o que sobrar fica pra próxima execução (roda de novo em instantes).
 $sql_pendentes = "
-    SELECT v.*, b.token, b.id_usuario as id_dono 
-    FROM vendas v 
+    SELECT v.*, b.token, b.id_usuario as id_dono
+    FROM vendas v
     JOIN bots b ON v.bot_id = b.id
-    WHERE v.status = 'gerado' 
+    WHERE v.status = 'gerado'
     AND v.transacao_id IS NOT NULL
+    ORDER BY v.criado_em ASC
+    LIMIT 200
 ";
 $stmt = $pdo->query($sql_pendentes);
 $vendas_pendentes = $stmt->fetchAll();
@@ -165,10 +198,18 @@ foreach ($vendas_pendentes as $venda) {
         $status_pagamento = strtoupper(trim($resp['dados']['status'] ?? $resp['dados']['statusCob'] ?? ''));
 
         if ($resp['sucesso'] && in_array($status_pagamento, ['CONCLUIDA', 'PAGO', 'LIQUIDADO', 'PAID', 'APPROVED', 'COMPLETED'])) {
-            logCron("Venda #{$venda['id']} encontrada como PAGA no gateway $nome_gateway.");
-
+            // Transição atômica: só segue quem realmente ganha a corrida contra o
+            // webhook do InfoPago ou o botão manual "Já fiz o pagamento" confirmando
+            // a mesma venda ao mesmo tempo — evita disparar o split duas vezes.
             $pago_em = date('Y-m-d H:i:s');
-            $pdo->prepare("UPDATE vendas SET status = 'pago', pago_em = ? WHERE id = ?")->execute([$pago_em, $venda['id']]);
+            $stmt_marca = $pdo->prepare("UPDATE vendas SET status = 'pago', pago_em = ? WHERE id = ? AND status != 'pago'");
+            $stmt_marca->execute([$pago_em, $venda['id']]);
+            if ($stmt_marca->rowCount() === 0) {
+                logCron("Venda #{$venda['id']} já foi marcada como paga por outra requisição simultânea (webhook/botão). Ignorando duplicata.");
+                continue;
+            }
+
+            logCron("Venda #{$venda['id']} encontrada como PAGA no gateway $nome_gateway.");
             $pagos_count++;
 
             if ($nome_gateway === 'infopago') {
@@ -266,12 +307,22 @@ $stmt->execute([$agora_php]);
 $vendas_expiradas = $stmt->fetchAll();
 
 foreach ($vendas_expiradas as $venda) {
+    // AND status = 'gerado' evita expirar por engano uma venda que acabou de ser
+    // confirmada como paga por outro caminho (webhook/botão) bem nesse instante.
+    $stmt_expira = $pdo->prepare("UPDATE vendas SET status = 'expirado' WHERE id = ? AND status = 'gerado'");
+    $stmt_expira->execute([$venda['id']]);
+    if ($stmt_expira->rowCount() === 0) {
+        logCron("Venda #{$venda['id']} foi paga bem antes de expirar. Ignorando expiração.");
+        continue;
+    }
+
     logCron("Processando expiração venda #{$venda['id']}");
-    $pdo->prepare("UPDATE vendas SET status = 'expirado' WHERE id = ?")->execute([$venda['id']]);
-    
     if ($venda['token']) {
         executarFluxoContinuacao($venda['token'], $venda['id_telegram'], $venda['bot_id'], $venda['id_operador_fluxo'], (int)$venda['id_dono'], 'output_nao_pago');
     }
 }
+
+flock($lock, LOCK_UN);
+fclose($lock);
 
 echo "Cron Pix executado. Pagos encontrados: $pagos_count. Expirados processados: " . count($vendas_expiradas);

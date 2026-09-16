@@ -1,15 +1,15 @@
 <?php
 declare(strict_types=1);
 
-require_once 'conexao.php';
-require_once 'funcoes/log.php';
-require_once 'funcoes/gateways.php';
+require_once __DIR__ . '/../conexao.php';
+require_once __DIR__ . '/../funcoes/log.php';
+require_once __DIR__ . '/../funcoes/gateways.php';
 
 date_default_timezone_set('America/Sao_Paulo');
 
 // Grava toda a saída desta execução em arquivo, para permitir auditoria
 // posterior de quando/se este cron rodou e o que decidiu para cada venda.
-$log_file_renovacao = __DIR__ . '/logs/cron_renovacao.log';
+$log_file_renovacao = __DIR__ . '/../logs/cron_renovacao.log';
 ob_start();
 register_shutdown_function(function () use ($log_file_renovacao) {
     $conteudo = ob_get_contents();

@@ -18,12 +18,13 @@ function dispararSplitInfopago(int $id_dono, float $valor_venda, string $txid, i
         file_put_contents($log_file, '[' . date('Y-m-d H:i:s') . '] [SplitInfoPago] ' . $msg . PHP_EOL, FILE_APPEND | LOCK_EX);
     };
 
-    $marcar_resumo = function (string $status) use ($pdo, $venda_id): void {
+    $marcar_resumo = function (string $status, float $valor_repassado) use ($pdo, $venda_id, $valor_venda): void {
         if ($venda_id <= 0) {
             return;
         }
-        $pdo->prepare("UPDATE vendas SET split_status = ?, split_em = NOW() WHERE id = ?")
-            ->execute([$status, $venda_id]);
+        $comissao_admin = round($valor_venda - $valor_repassado, 2);
+        $pdo->prepare("UPDATE vendas SET split_status = ?, split_valor = ?, comissao_admin = ?, split_em = NOW() WHERE id = ?")
+            ->execute([$status, $valor_repassado, $comissao_admin, $venda_id]);
     };
 
     $registrar_split = function (?int $usuario_split_id, string $chave_pix, ?string $descricao, float $valor, string $status, ?string $erro = null) use ($pdo, $venda_id): void {
@@ -40,7 +41,7 @@ function dispararSplitInfopago(int $id_dono, float $valor_venda, string $txid, i
     $splits = array_filter($stmt->fetchAll(PDO::FETCH_ASSOC), fn($s) => !empty($s['chave_pix_split']));
 
     if (empty($splits)) {
-        $marcar_resumo('sem_split');
+        $marcar_resumo('sem_split', 0.00);
         return;
     }
 
@@ -61,7 +62,7 @@ function dispararSplitInfopago(int $id_dono, float $valor_venda, string $txid, i
 
     if (!$cred || empty($cred['cashout_client_id']) || empty($cred['cashout_certificado'])) {
         $log("Split configurado mas o admin ainda não configurou as credenciais de Cash-Out. Ignorando split (venda dono=$id_dono).");
-        $marcar_resumo('sem_credenciais');
+        $marcar_resumo('sem_credenciais', 0.00);
         return;
     }
 
@@ -69,6 +70,7 @@ function dispararSplitInfopago(int $id_dono, float $valor_venda, string $txid, i
 
     $algum_pago = false;
     $algum_falhou = false;
+    $total_repassado = 0.00;
 
     foreach ($splits as $split) {
         $valor_split = round($valor_venda * ((float)$split['taxa_split'] / 100), 2);
@@ -82,6 +84,7 @@ function dispararSplitInfopago(int $id_dono, float $valor_venda, string $txid, i
             $log("Split transferido | txid=$txid | valor=$valor_split | destino={$split['chave_pix_split']}");
             $registrar_split((int)$split['id'], $split['chave_pix_split'], $split['descricao'], $valor_split, 'pago');
             $algum_pago = true;
+            $total_repassado += $valor_split;
         } else {
             $erro = json_encode($resp['erro'] ?? '');
             $log("Split FALHOU | txid=$txid | valor=$valor_split | erro=$erro");
@@ -91,12 +94,12 @@ function dispararSplitInfopago(int $id_dono, float $valor_venda, string $txid, i
     }
 
     if ($algum_pago && $algum_falhou) {
-        $marcar_resumo('parcial');
+        $marcar_resumo('parcial', $total_repassado);
     } elseif ($algum_falhou) {
-        $marcar_resumo('falhou');
+        $marcar_resumo('falhou', 0.00);
     } elseif ($algum_pago) {
-        $marcar_resumo('pago');
+        $marcar_resumo('pago', $total_repassado);
     } else {
-        $marcar_resumo('sem_split');
+        $marcar_resumo('sem_split', 0.00);
     }
 }

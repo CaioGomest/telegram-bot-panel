@@ -1,11 +1,12 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/funcoes/usuario.php';
-require_once __DIR__ . '/funcoes/log.php';
-require_once __DIR__ . '/funcoes/paginador.php';
+require_once __DIR__ . '/../funcoes/usuario.php';
+require_once __DIR__ . '/../funcoes/log.php';
+require_once __DIR__ . '/../funcoes/paginador.php';
 
 verificarAdmin();
+$caminho_base = '../';
 
 $filtros = ['excluir_tipos' => ['venda', 'lead']];
 
@@ -22,12 +23,12 @@ $logs = listarAtividades($filtros, $por_pagina, $offset);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Logs do Sistema</title>
-    <?php include 'tema_inline.php'; ?>
-    <link rel="stylesheet" href="assets/css/coyote.css">
+    <?php include __DIR__ . '/../tema_inline.php'; ?>
+    <link rel="stylesheet" href="../assets/css/coyote.css">
 </head>
 <body>
 <div class="layout-painel">
-    <?php include 'barra_lateral.php'; ?>
+    <?php include __DIR__ . '/../barra_lateral.php'; ?>
 
     <main class="conteudo-principal">
         <div class="cabecalho-pagina">
@@ -98,6 +99,6 @@ $logs = listarAtividades($filtros, $por_pagina, $offset);
     </main>
 </div>
 
-<script src="assets/js/tema.js"></script>
+<script src="../assets/js/tema.js"></script>
 </body>
 </html>

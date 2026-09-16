@@ -1,0 +1,5 @@
+# Impede listar os arquivos desta pasta pela URL. Esses arquivos só definem
+# funções pra serem incluídas por outras páginas — não são pensados pra
+# receber requisição direta, mas a listagem sozinha já expõe nomes de arquivo
+# desnecessariamente.
+Options -Indexes

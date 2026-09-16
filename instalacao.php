@@ -126,50 +126,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Instalação do Sistema</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root { --primary: #2563eb; --primary-hover: #1d4ed8; --bg: #f8fafc; --card: #ffffff; --text: #1e293b; --border: #e2e8f0; }
-        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-        .container { background: var(--card); padding: 2rem; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); width: 100%; max-width: 400px; }
-        h1 { margin-top: 0; font-size: 1.5rem; text-align: center; color: var(--primary); }
-        .campo { margin-bottom: 1rem; }
-        label { display: block; margin-bottom: 0.5rem; font-weight: 500; font-size: 0.875rem; }
-        input { width: 100%; padding: 0.625rem; border: 1px solid var(--border); border-radius: 0.375rem; box-sizing: border-box; font-family: inherit; }
-        button { width: 100%; background: var(--primary); color: white; padding: 0.75rem; border: none; border-radius: 0.375rem; font-weight: 600; cursor: pointer; transition: background 0.2s; }
-        button:hover { background: var(--primary-hover); }
-        .mensagem { padding: 0.75rem; border-radius: 0.375rem; margin-bottom: 1rem; font-size: 0.875rem; }
-        .mensagem.sucesso { background-color: #dcfce7; color: #166534; }
-        .mensagem.erro { background-color: #fee2e2; color: #991b1b; }
-    </style>
+    <title>Instalação - Coyote Bot</title>
+    <?php include __DIR__ . '/tema_inline.php'; ?>
+    <link rel="stylesheet" href="assets/css/coyote.css">
+    <style>body { display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }</style>
 </head>
 <body>
-    <div class="container">
-        <h1>Instalação</h1>
+    <div class="painel" style="width: 100%; max-width: 400px;">
+        <div class="painel-cabecalho">
+            <h2>Instalação</h2>
+        </div>
         <?php if ($mensagem): ?>
-            <div class="mensagem <?= $tipo_mensagem ?>"><?= $mensagem ?></div>
+            <div class="aviso aviso-<?= $tipo_mensagem ?>"><?= $mensagem ?></div>
         <?php endif; ?>
-        
+
         <form method="POST">
             <div class="campo">
                 <label for="banco_host">Servidor do Banco de Dados (Host)</label>
                 <input type="text" id="banco_host" name="banco_host" value="localhost" required placeholder="Ex: localhost">
             </div>
-            <div class="campo">
+            <div class="campo" style="margin-top:14px;">
                 <label for="nome_banco">Nome do Banco de Dados</label>
                 <input type="text" id="nome_banco" name="nome_banco" value="telegram_bot_saas" required placeholder="Ex: telegram_saas">
             </div>
-            <div class="campo">
+            <div class="campo" style="margin-top:14px;">
                 <label for="usuario_banco">Usuário do Banco</label>
                 <input type="text" id="usuario_banco" name="usuario_banco" value="root" required placeholder="Ex: root">
             </div>
-            <div class="campo">
+            <div class="campo" style="margin-top:14px;">
                 <label for="senha_banco">Senha do Banco</label>
                 <input type="password" id="senha_banco" name="senha_banco" placeholder="Deixe em branco se não houver senha">
             </div>
-            <button type="submit">Instalar e Criar Banco</button>
+            <button type="submit" class="botao botao-primario botao-bloco" style="margin-top:20px;">Instalar e Criar Banco</button>
         </form>
     </div>
 </body>

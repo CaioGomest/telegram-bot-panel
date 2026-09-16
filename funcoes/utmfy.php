@@ -1,5 +1,56 @@
 <?php
 
+/**
+ * Bloqueia SSRF no campo "Token ou URL de Postback": recusa qualquer URL que resolva pra
+ * um host interno/privado (loopback, rede local, link-local) antes de disparar a requisição.
+ * Quem configura esse campo é o próprio dono do bot (não confiável do ponto de vista do
+ * servidor) e a requisição é feita pelo próprio servidor da plataforma — sem essa checagem,
+ * dava pra usar o servidor como ponte pra alcançar rede interna. Ver
+ * anotacoes/varredura-09-xss-admin-ssrf-utmfy.md.
+ */
+function urlPostbackEhSegura(string $url): bool
+{
+    $partes = parse_url($url);
+    if (!$partes || empty($partes['host']) || empty($partes['scheme'])) {
+        return false;
+    }
+    if (!in_array(strtolower($partes['scheme']), ['http', 'https'], true)) {
+        return false;
+    }
+
+    $host = trim($partes['host'], '[]');
+
+    // Host já é um literal de IP (ex. "127.0.0.1", "::1")
+    if (filter_var($host, FILTER_VALIDATE_IP)) {
+        return filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false;
+    }
+
+    // Resolve o hostname e recusa se QUALQUER IP resolvido cair em faixa privada/reservada
+    $ips = [];
+    foreach ((@dns_get_record($host, DNS_A) ?: []) as $registro) {
+        if (!empty($registro['ip'])) $ips[] = $registro['ip'];
+    }
+    foreach ((@dns_get_record($host, DNS_AAAA) ?: []) as $registro) {
+        if (!empty($registro['ipv6'])) $ips[] = $registro['ipv6'];
+    }
+    if (empty($ips)) {
+        $ipv4 = @gethostbyname($host);
+        if ($ipv4 && $ipv4 !== $host) {
+            $ips[] = $ipv4;
+        }
+    }
+
+    if (empty($ips)) {
+        return false; // não conseguiu resolver o host — não arrisca deixar passar
+    }
+    foreach ($ips as $ip) {
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+            return false;
+        }
+    }
+    return true;
+}
+
 function enviarEventoUtmfy($token, $evento, $dados, $user_data = []) {
     if (empty($token)) {
         return ['sucesso' => false, 'erro' => 'Token UTMfy não configurado'];
@@ -9,6 +60,9 @@ function enviarEventoUtmfy($token, $evento, $dados, $user_data = []) {
 
     if ($is_url) {
         $url = $token;
+        if (!urlPostbackEhSegura($url)) {
+            return ['sucesso' => false, 'erro' => 'URL de postback recusada (aponta para host interno/privado).'];
+        }
         // Payload genérico de webhook para quem configurou URL completa
         $payload = [
             'event' => $evento,

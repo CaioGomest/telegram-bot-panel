@@ -1,9 +1,10 @@
 <?php declare(strict_types=1);
-require_once __DIR__ . '/funcoes/usuario.php';
-require_once __DIR__ . '/funcoes/log.php';
-require_once __DIR__ . '/funcoes/paginador.php';
-require_once __DIR__ . '/conexao.php';
+require_once __DIR__ . '/../funcoes/usuario.php';
+require_once __DIR__ . '/../funcoes/log.php';
+require_once __DIR__ . '/../funcoes/paginador.php';
+require_once __DIR__ . '/../conexao.php';
 verificarAdmin();
+$caminho_base = '../';
 
 $periodo = $_GET['periodo'] ?? '7dias';
 $where_data_vendas = '';
@@ -41,6 +42,11 @@ $datas_validas = $data_inicio_obj !== false
     && $data_inicio_obj->format('Y-m-d') === $data_inicio
     && $data_fim_obj->format('Y-m-d') === $data_fim;
 
+// $where_data_metricas é o mesmo filtro de data que $where_data_vendas, só que contra a
+// coluna 'data' de metricas_horarias_admin (cache) em vez de 'v.criado_em' (vendas ao vivo) —
+// ver o bloco "todos os bots" mais abaixo.
+$where_data_metricas = '';
+
 if ($periodo === 'personalizado' && $datas_validas) {
     if ($data_inicio > $data_fim) {
         $tmp = $data_inicio;
@@ -48,23 +54,29 @@ if ($periodo === 'personalizado' && $datas_validas) {
         $data_fim = $tmp;
     }
     $where_data_vendas = "AND DATE(v.criado_em) BETWEEN '$data_inicio' AND '$data_fim'";
+    $where_data_metricas = "AND data BETWEEN '$data_inicio' AND '$data_fim'";
 }
 
 switch ($periodo) {
     case 'hoje':
         $where_data_vendas = "AND DATE(v.criado_em) = CURDATE()";
+        $where_data_metricas = "AND data = CURDATE()";
         break;
     case 'ontem':
         $where_data_vendas = "AND DATE(v.criado_em) = CURDATE() - INTERVAL 1 DAY";
+        $where_data_metricas = "AND data = CURDATE() - INTERVAL 1 DAY";
         break;
     case '7dias':
         $where_data_vendas = "AND v.criado_em >= CURDATE() - INTERVAL 7 DAY";
+        $where_data_metricas = "AND data >= CURDATE() - INTERVAL 7 DAY";
         break;
     case '30dias':
         $where_data_vendas = "AND v.criado_em >= CURDATE() - INTERVAL 30 DAY";
+        $where_data_metricas = "AND data >= CURDATE() - INTERVAL 30 DAY";
         break;
     case 'total':
         $where_data_vendas = "";
+        $where_data_metricas = "";
         break;
     case 'personalizado':
         // Manter como personalizado mesmo se as datas não forem válidas
@@ -72,10 +84,12 @@ switch ($periodo) {
         if ($datas_validas) {
         } else {
             $where_data_vendas = "";
+            $where_data_metricas = "";
         }
         break;
     default:
         $where_data_vendas = "AND v.criado_em >= CURDATE() - INTERVAL 7 DAY";
+        $where_data_metricas = "AND data >= CURDATE() - INTERVAL 7 DAY";
         $periodo = '7dias';
         break;
 }
@@ -98,17 +112,35 @@ function montarUrlFiltroAdminDashboard(array $overrides = []): string
     return '?' . http_build_query($params);
 }
 
-$stmt = $pdo->prepare("SELECT SUM(v.valor) FROM vendas v WHERE v.status = 'pago' $where_data_vendas $where_bot_vendas");
-$stmt->execute();
-$total_transacionado = (float) $stmt->fetchColumn();
+/**
+ * "Todos os bots" lê de metricas_horarias_admin (cache pré-calculado por
+ * cron/cron_metricas_admin.php) em vez de agregar 'vendas' ao vivo — a plataforma
+ * inteira pode ter dezenas de milhões de linhas em 'vendas', mas essa tabela de
+ * cache fica sempre pequena (~24 linhas/dia). Com um bot específico selecionado,
+ * o volume já é naturalmente pequeno (só as vendas daquele bot), então continua
+ * direto em 'vendas' sem precisar de cache. Ver anotacoes/analise-potencia-e-escala.md.
+ */
+$usa_cache_metricas = ($bot_id_selecionado === 'todos');
 
-$stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' $where_data_vendas $where_bot_vendas");
-$stmt->execute();
-$receita_admin = (float) $stmt->fetchColumn();
+if ($usa_cache_metricas) {
+    $stmt = $pdo->query("SELECT SUM(faturamento), SUM(comissao), SUM(quantidade) FROM metricas_horarias_admin WHERE 1=1 $where_data_metricas");
+    [$total_transacionado, $receita_admin, $total_vendas] = $stmt->fetch(PDO::FETCH_NUM);
+    $total_transacionado = (float) $total_transacionado;
+    $receita_admin = (float) $receita_admin;
+    $total_vendas = (int) $total_vendas;
+} else {
+    $stmt = $pdo->prepare("SELECT SUM(v.valor) FROM vendas v WHERE v.status = 'pago' $where_data_vendas $where_bot_vendas");
+    $stmt->execute();
+    $total_transacionado = (float) $stmt->fetchColumn();
 
-$stmt = $pdo->prepare("SELECT COUNT(*) FROM vendas v WHERE v.status = 'pago' $where_data_vendas $where_bot_vendas");
-$stmt->execute();
-$total_vendas = (int) $stmt->fetchColumn();
+    $stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' $where_data_vendas $where_bot_vendas");
+    $stmt->execute();
+    $receita_admin = (float) $stmt->fetchColumn();
+
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM vendas v WHERE v.status = 'pago' $where_data_vendas $where_bot_vendas");
+    $stmt->execute();
+    $total_vendas = (int) $stmt->fetchColumn();
+}
 
 $stmt = $pdo->query("SELECT COUNT(*) FROM usuarios WHERE perfil != 'admin'");
 $total_usuarios = (int) $stmt->fetchColumn();
@@ -122,33 +154,55 @@ $texto_grafico = "";
 
 if ($periodo == 'hoje') {
     $texto_grafico = "HOJE (POR HORA)";
+    if ($usa_cache_metricas) {
+        $stmt = $pdo->prepare("SELECT hora, comissao FROM metricas_horarias_admin WHERE data = CURDATE()");
+        $stmt->execute();
+        $por_hora = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'comissao', 'hora');
+    }
     for ($i = 0; $i <= date('H'); $i++) {
-        $hora = sprintf('%02d:00', $i);
-        $grafico_labels[] = $hora;
-        
-        $stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = CURDATE() AND HOUR(v.criado_em) = ? $where_bot_vendas");
-        $stmt->execute([$i]);
-        $grafico_dados[] = (float) $stmt->fetchColumn();
+        $grafico_labels[] = sprintf('%02d:00', $i);
+        if ($usa_cache_metricas) {
+            $grafico_dados[] = (float) ($por_hora[$i] ?? 0);
+        } else {
+            $stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = CURDATE() AND HOUR(v.criado_em) = ? $where_bot_vendas");
+            $stmt->execute([$i]);
+            $grafico_dados[] = (float) $stmt->fetchColumn();
+        }
     }
 } elseif ($periodo == 'ontem') {
     $texto_grafico = "ONTEM (POR HORA)";
+    if ($usa_cache_metricas) {
+        $stmt = $pdo->prepare("SELECT hora, comissao FROM metricas_horarias_admin WHERE data = CURDATE() - INTERVAL 1 DAY");
+        $stmt->execute();
+        $por_hora = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'comissao', 'hora');
+    }
     for ($i = 0; $i <= 23; $i++) {
-        $hora = sprintf('%02d:00', $i);
-        $grafico_labels[] = $hora;
-        
-        $stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = CURDATE() - INTERVAL 1 DAY AND HOUR(v.criado_em) = ? $where_bot_vendas");
-        $stmt->execute([$i]);
-        $grafico_dados[] = (float) $stmt->fetchColumn();
+        $grafico_labels[] = sprintf('%02d:00', $i);
+        if ($usa_cache_metricas) {
+            $grafico_dados[] = (float) ($por_hora[$i] ?? 0);
+        } else {
+            $stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = CURDATE() - INTERVAL 1 DAY AND HOUR(v.criado_em) = ? $where_bot_vendas");
+            $stmt->execute([$i]);
+            $grafico_dados[] = (float) $stmt->fetchColumn();
+        }
     }
 } elseif ($periodo == '30dias') {
     $texto_grafico = "ÚLTIMOS 30 DIAS";
+    if ($usa_cache_metricas) {
+        $stmt = $pdo->prepare("SELECT data, SUM(comissao) AS total FROM metricas_horarias_admin WHERE data >= CURDATE() - INTERVAL 29 DAY GROUP BY data");
+        $stmt->execute();
+        $por_dia = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'total', 'data');
+    }
     for ($i = 29; $i >= 0; $i--) {
         $data = date('Y-m-d', strtotime("-$i days"));
         $grafico_labels[] = date('d/m', strtotime("-$i days"));
-
-        $stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = ? $where_bot_vendas");
-        $stmt->execute([$data]);
-        $grafico_dados[] = (float) $stmt->fetchColumn();
+        if ($usa_cache_metricas) {
+            $grafico_dados[] = (float) ($por_dia[$data] ?? 0);
+        } else {
+            $stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = ? $where_bot_vendas");
+            $stmt->execute([$data]);
+            $grafico_dados[] = (float) $stmt->fetchColumn();
+        }
     }
 } elseif ($periodo == 'total') {
     $texto_grafico = "HISTÓRICO TOTAL (ÚLTIMOS 12 MESES)";
@@ -159,14 +213,25 @@ if ($periodo == 'hoje') {
         $meses_data[$mes_ano] = 0;
     }
 
-    $stmt = $pdo->prepare("
-        SELECT DATE_FORMAT(v.criado_em, '%Y-%m') as mes, SUM(v.comissao_admin) as total 
-        FROM vendas v 
-        WHERE v.status = 'pago' AND v.criado_em >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH) $where_bot_vendas
-        GROUP BY mes 
-        ORDER BY mes ASC
-    ");
-    $stmt->execute();
+    if ($usa_cache_metricas) {
+        $stmt = $pdo->prepare("
+            SELECT DATE_FORMAT(data, '%Y-%m') as mes, SUM(comissao) as total
+            FROM metricas_horarias_admin
+            WHERE data >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+            GROUP BY mes
+            ORDER BY mes ASC
+        ");
+        $stmt->execute();
+    } else {
+        $stmt = $pdo->prepare("
+            SELECT DATE_FORMAT(v.criado_em, '%Y-%m') as mes, SUM(v.comissao_admin) as total
+            FROM vendas v
+            WHERE v.status = 'pago' AND v.criado_em >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH) $where_bot_vendas
+            GROUP BY mes
+            ORDER BY mes ASC
+        ");
+        $stmt->execute();
+    }
     $resultados = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     foreach ($resultados as $row) {
@@ -181,21 +246,30 @@ if ($periodo == 'hoje') {
         $meses_pt = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
         $mes_index = (int)$date_obj->format('n') - 1;
         $label_formatada = $meses_pt[$mes_index] . '/' . $date_obj->format('y');
-        
+
         $grafico_labels[] = $label_formatada;
         $grafico_dados[] = $total;
     }
 } else {
     $texto_grafico = "ÚLTIMOS 7 DIAS";
+    if ($usa_cache_metricas) {
+        $stmt = $pdo->prepare("SELECT data, SUM(comissao) AS total FROM metricas_horarias_admin WHERE data >= CURDATE() - INTERVAL 6 DAY GROUP BY data");
+        $stmt->execute();
+        $por_dia = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'total', 'data');
+    }
     for ($i = 6; $i >= 0; $i--) {
         $data = date('Y-m-d', strtotime("-$i days"));
         $dia_semana = date('D', strtotime("-$i days"));
         $dias_map = ['Sun'=>'Dom', 'Mon'=>'Seg', 'Tue'=>'Ter', 'Wed'=>'Qua', 'Thu'=>'Qui', 'Fri'=>'Sex', 'Sat'=>'Sáb'];
         $grafico_labels[] = $dias_map[$dia_semana] ?? $dia_semana;
 
-        $stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = ? $where_bot_vendas");
-        $stmt->execute([$data]);
-        $grafico_dados[] = (float) $stmt->fetchColumn();
+        if ($usa_cache_metricas) {
+            $grafico_dados[] = (float) ($por_dia[$data] ?? 0);
+        } else {
+            $stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = ? $where_bot_vendas");
+            $stmt->execute([$data]);
+            $grafico_dados[] = (float) $stmt->fetchColumn();
+        }
     }
 }
 
@@ -204,14 +278,23 @@ if ($periodo === 'personalizado') {
     $grafico_dados = [];
     $grafico_labels = [];
     if ($datas_validas) {
+        if ($usa_cache_metricas) {
+            $stmt = $pdo->prepare("SELECT data, SUM(comissao) AS total FROM metricas_horarias_admin WHERE data BETWEEN ? AND ? GROUP BY data");
+            $stmt->execute([$data_inicio, $data_fim]);
+            $por_dia = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'total', 'data');
+        }
         $data_atual = new DateTime($data_inicio);
         $data_final = new DateTime($data_fim);
         while ($data_atual <= $data_final) {
             $data_iso = $data_atual->format('Y-m-d');
             $grafico_labels[] = $data_atual->format('d/m');
-            $stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = ? $where_bot_vendas");
-            $stmt->execute([$data_iso]);
-            $grafico_dados[] = (float) $stmt->fetchColumn();
+            if ($usa_cache_metricas) {
+                $grafico_dados[] = (float) ($por_dia[$data_iso] ?? 0);
+            } else {
+                $stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = ? $where_bot_vendas");
+                $stmt->execute([$data_iso]);
+                $grafico_dados[] = (float) $stmt->fetchColumn();
+            }
             $data_atual->modify('+1 day');
         }
     }
@@ -233,13 +316,13 @@ $atividades = listarAtividades($filtros_logs, $por_pagina, $offset);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Painel Admin</title>
-    <?php include 'tema_inline.php'; ?>
-    <link rel="stylesheet" href="assets/css/coyote.css">
+    <?php include __DIR__ . '/../tema_inline.php'; ?>
+    <link rel="stylesheet" href="../assets/css/coyote.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 <div class="layout-painel">
-    <?php include 'barra_lateral.php'; ?>
+    <?php include __DIR__ . '/../barra_lateral.php'; ?>
 
     <main class="conteudo-principal">
         <div class="cabecalho-pagina">
@@ -393,7 +476,7 @@ $atividades = listarAtividades($filtros_logs, $por_pagina, $offset);
     </main>
 </div>
 
-<script src="assets/js/tema.js"></script>
+<script src="../assets/js/tema.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const periodo_btns = document.querySelectorAll('.seletor-periodo a');

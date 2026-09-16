@@ -6,12 +6,12 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/conexao.php';
-require_once __DIR__ . '/funcoes/log.php';
+require_once __DIR__ . '/../conexao.php';
+require_once __DIR__ . '/../funcoes/log.php';
 
 date_default_timezone_set('America/Sao_Paulo');
 
-$log_file_aviso = __DIR__ . '/logs/cron_aviso.log';
+$log_file_aviso = __DIR__ . '/../logs/cron_aviso.log';
 function logAviso(string $msg): void {
     global $log_file_aviso;
     $date = date('Y-m-d H:i:s');

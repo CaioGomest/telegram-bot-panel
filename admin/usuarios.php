@@ -1,7 +1,8 @@
 <?php declare(strict_types=1);
-require_once __DIR__ . '/funcoes/usuario.php';
-require_once __DIR__ . '/funcoes/paginador.php';
+require_once __DIR__ . '/../funcoes/usuario.php';
+require_once __DIR__ . '/../funcoes/paginador.php';
 verificarAdmin();
+$caminho_base = '../';
 
 $pagina_atual = isset($_GET['pagina']) ? (int)$_GET['pagina'] : 1;
 $por_pagina = 15;
@@ -16,29 +17,31 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Usuários da Plataforma</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="assets/app.css">
+    <?php include __DIR__ . '/../tema_inline.php'; ?>
+    <link rel="stylesheet" href="../assets/css/coyote.css">
 </head>
 <body>
-<div class="dashboard-layout">
-    <?php include 'sidebar.php'; ?>
-    
-    <main class="main-content">
+<div class="layout-painel">
+    <?php include __DIR__ . '/../barra_lateral.php'; ?>
+
+    <main class="conteudo-principal">
         <div class="cabecalho-pagina">
             <div>
                 <h1>Usuários</h1>
                 <p>Gerencie os usuários da plataforma.</p>
             </div>
-            <div class="acoes">
-                <button class="botao botao-primario" onclick="abrirModalAdicionar()">Adicionar Usuário</button>
+            <div class="acoes-cabecalho">
+                <button class="botao botao-primario" onclick="abrirModalAdicionar()">+ Adicionar Usuário</button>
+                <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>
+                    Tema
+                </button>
             </div>
         </div>
 
         <div class="painel">
-            <div class="table-responsive">
-                <table class="table">
+            <div class="tabela-dados">
+                <table>
                     <thead>
                         <tr>
                             <th>ID</th>
@@ -52,81 +55,81 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
                         </tr>
                     </thead>
                     <tbody>
-                        <?php 
-                        foreach ($usuarios as $u): 
+                        <?php
+                        foreach ($usuarios as $u):
                         ?>
                         <tr>
-                            <td>#<?php echo $u['id']; ?></td>
+                            <td class="mono texto-suave">#<?php echo $u['id']; ?></td>
                             <td>
-                                <div class="user-info">
-                                    <div class="user-avatar"><?php echo strtoupper(substr($u['nome'], 0, 1)); ?></div>
+                                <div class="celula-principal">
+                                    <span class="avatar-item"><?php echo strtoupper(substr($u['nome'], 0, 1)); ?></span>
                                     <span><?php echo htmlspecialchars($u['nome']); ?></span>
                                 </div>
                             </td>
-                            <td><?php echo htmlspecialchars($u['email']); ?></td>
+                            <td class="texto-suave"><?php echo htmlspecialchars($u['email']); ?></td>
                             <td>
-                                <span class="badge <?php echo $u['perfil'] === 'admin' ? 'badge-admin' : 'badge-user'; ?>">
+                                <span class="badge <?php echo $u['perfil'] === 'admin' ? 'badge-sucesso' : 'badge-neutro'; ?>">
                                     <?php echo ucfirst($u['perfil']); ?>
                                 </span>
                             </td>
                             <td><?php echo $u['total_bots']; ?></td>
-                            <td>R$ <?php echo number_format((float)$u['total_vendas'], 2, ',', '.'); ?></td>
-                            <td><?php echo date('d/m/Y H:i', strtotime($u['criado_em'])); ?></td>
+                            <td class="mono">R$ <?php echo number_format((float)$u['total_vendas'], 2, ',', '.'); ?></td>
+                            <td class="mono texto-suave"><?php echo date('d/m/Y H:i', strtotime($u['criado_em'])); ?></td>
                             <td>
-                                <div class="actions">
-                                    <button class="btn-icon ver-detalhes" onclick="abrirDetalhes(<?php echo $u['id']; ?>)" title="Ver Detalhes">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                <div style="display:flex;gap:6px;">
+                                    <button class="btn-icon" onclick="abrirDetalhes(<?php echo $u['id']; ?>)" title="Ver Detalhes">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                                     </button>
-                                    <button class="btn-icon editar" onclick="abrirModalEditar(<?php echo $u['id']; ?>, '<?php echo addslashes(htmlspecialchars($u['nome'])); ?>', '<?php echo addslashes(htmlspecialchars($u['email'])); ?>', '<?php echo $u['perfil']; ?>')" title="Editar"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
-                                    <button class="btn-icon excluir" onclick="confirmarExcluir(<?php echo $u['id']; ?>, '<?php echo addslashes(htmlspecialchars($u['nome'])); ?>')" title="Excluir"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>
+                                    <button class="btn-icon editar" onclick="abrirModalEditar(<?php echo $u['id']; ?>, '<?php echo addslashes(htmlspecialchars($u['nome'])); ?>', '<?php echo addslashes(htmlspecialchars($u['email'])); ?>', '<?php echo $u['perfil']; ?>')" title="Editar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                    <button class="btn-icon excluir" onclick="confirmarExcluir(<?php echo $u['id']; ?>, '<?php echo addslashes(htmlspecialchars($u['nome'])); ?>')" title="Excluir"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>
                                 </div>
                             </td>
                         </tr>
                         <?php endforeach; ?>
                         <?php if (empty($usuarios)): ?>
                         <tr>
-                            <td colspan="6" class="text-center">Nenhum usuário encontrado.</td>
+                            <td colspan="8" style="text-align:center;padding:32px;" class="texto-suave">Nenhum usuário encontrado.</td>
                         </tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
             </div>
-            
+
             <?php echo paginador($total_usuarios, $por_pagina); ?>
         </div>
     </main>
 </div>
 
-<div id="modalAdicionar" class="modal-overlay" style="display: none;">
-    <div class="modal-content" style="max-width: 460px;">
-        <div class="modal-header">
-            <h2>Adicionar Usuário</h2>
-            <button class="modal-close" onclick="fecharModalAdicionar()">&times;</button>
+<div id="modalAdicionar" class="sobreposicao-modal" style="display: none;">
+    <div class="modal-gateway" style="max-width: 460px;">
+        <div class="cabecalho-modal">
+            <div class="titulo-modal">Adicionar Usuário</div>
+            <button class="fechar-modal" onclick="fecharModalAdicionar()">✕</button>
         </div>
-        <div class="modal-body">
+        <div class="corpo-modal">
             <div id="msgAdicionar" class="msg-box" style="display:none;"></div>
             <form id="formAdicionar" onsubmit="salvarNovoUsuario(event)">
-                <div class="form-group">
+                <div class="campo">
                     <label>Nome</label>
-                    <input type="text" name="nome" class="form-input" required placeholder="Nome completo">
+                    <input type="text" name="nome" required placeholder="Nome completo">
                 </div>
-                <div class="form-group">
+                <div class="campo" style="margin-top:14px;">
                     <label>Email</label>
-                    <input type="email" name="email" class="form-input" required placeholder="email@exemplo.com">
+                    <input type="email" name="email" required placeholder="email@exemplo.com">
                 </div>
-                <div class="form-group">
+                <div class="campo" style="margin-top:14px;">
                     <label>Senha</label>
-                    <input type="password" name="senha" class="form-input" required minlength="6" placeholder="Mínimo 6 caracteres">
+                    <input type="password" name="senha" required minlength="6" placeholder="Mínimo 6 caracteres">
                 </div>
-                <div class="form-group">
+                <div class="campo" style="margin-top:14px;">
                     <label>Perfil</label>
-                    <select name="perfil" class="form-input">
+                    <select name="perfil">
                         <option value="usuario">Usuário</option>
                         <option value="admin">Admin</option>
                     </select>
                 </div>
-                <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:20px;">
-                    <button type="button" class="botao botao-secundario" onclick="fecharModalAdicionar()">Cancelar</button>
+                <div class="linha-acoes" style="justify-content:flex-end; margin-top:20px;">
+                    <button type="button" class="botao" onclick="fecharModalAdicionar()">Cancelar</button>
                     <button type="submit" class="botao botao-primario">Criar Usuário</button>
                 </div>
             </form>
@@ -134,52 +137,51 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
     </div>
 </div>
 
-<div id="modalEditar" class="modal-overlay" style="display: none;">
-    <div class="modal-content" style="max-width: 620px;">
-        <div class="modal-header">
-            <h2>Editar Usuário</h2>
-            <button class="modal-close" onclick="fecharModalEditar()">&times;</button>
+<div id="modalEditar" class="sobreposicao-modal" style="display: none;">
+    <div class="modal-gateway" style="max-width: 620px;">
+        <div class="cabecalho-modal">
+            <div class="titulo-modal">Editar Usuário</div>
+            <button class="fechar-modal" onclick="fecharModalEditar()">✕</button>
         </div>
-        <div class="modal-body">
+        <div class="corpo-modal">
             <div id="msgEditar" class="msg-box" style="display:none;"></div>
             <form id="formEditar" onsubmit="salvarEdicaoUsuario(event)">
                 <input type="hidden" name="id" id="editarId">
-                <div class="form-group">
+                <div class="campo">
                     <label>Nome</label>
-                    <input type="text" name="nome" id="editarNome" class="form-input" required>
+                    <input type="text" name="nome" id="editarNome" required>
                 </div>
-                <div class="form-group">
+                <div class="campo" style="margin-top:14px;">
                     <label>Email</label>
-                    <input type="email" name="email" id="editarEmail" class="form-input" required>
+                    <input type="email" name="email" id="editarEmail" required>
                 </div>
-                <div class="form-group">
-                    <label>Nova Senha <small style="color:#94a3b8;">(deixe em branco para manter)</small></label>
-                    <input type="password" name="senha" class="form-input" minlength="6" placeholder="Nova senha">
+                <div class="campo" style="margin-top:14px;">
+                    <label>Nova Senha <span class="texto-suave">(deixe em branco para manter)</span></label>
+                    <input type="password" name="senha" minlength="6" placeholder="Nova senha">
                 </div>
-                <div class="form-group">
+                <div class="campo" style="margin-top:14px;">
                     <label>Perfil</label>
-                    <select name="perfil" id="editarPerfil" class="form-input">
+                    <select name="perfil" id="editarPerfil">
                         <option value="usuario">Usuário</option>
                         <option value="admin">Admin</option>
                     </select>
                 </div>
 
-                <!-- Seção de Splits -->
-                <div style="margin-top:24px; padding-top:20px; border-top:1px solid #e2e8f0;">
+                <div class="divisor-secao">
                     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
                         <div>
-                            <div style="font-size:13px; font-weight:700; color:#374151; text-transform:uppercase; letter-spacing:.5px;">Splits de Pagamento</div>
-                            <div style="font-size:12px; color:#94a3b8; margin-top:2px;">Percentual/valor repassado automaticamente a cada venda</div>
+                            <div class="rotulo-kpi">Splits de Pagamento</div>
+                            <div class="texto-suave" style="margin-top:2px;">Percentual/valor repassado automaticamente a cada venda</div>
                         </div>
-                        <button type="button" class="botao botao-secundario" style="font-size:12px; padding:6px 12px;" onclick="adicionarLinhasSplit()">+ Adicionar Split</button>
+                        <button type="button" class="botao" style="font-size:12px; padding:6px 12px;" onclick="adicionarLinhasSplit()">+ Adicionar Split</button>
                     </div>
-                    <div id="splitCarregando" style="color:#94a3b8; font-size:13px; font-style:italic; display:none;">Carregando splits...</div>
+                    <div id="splitCarregando" class="texto-suave" style="font-style:italic; display:none;">Carregando splits...</div>
                     <div id="splitLista"></div>
-                    <div id="splitVazio" style="color:#94a3b8; font-size:13px; font-style:italic; display:none;">Nenhum split configurado.</div>
+                    <div id="splitVazio" class="texto-suave" style="font-style:italic; display:none;">Nenhum split configurado.</div>
                 </div>
 
-                <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:24px;">
-                    <button type="button" class="botao botao-secundario" onclick="fecharModalEditar()">Cancelar</button>
+                <div class="linha-acoes" style="justify-content:flex-end; margin-top:24px;">
+                    <button type="button" class="botao" onclick="fecharModalEditar()">Cancelar</button>
                     <button type="submit" class="botao botao-primario">Salvar</button>
                 </div>
             </form>
@@ -187,44 +189,44 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
     </div>
 </div>
 
-<div id="modalDetalhes" class="modal-overlay" style="display: none;">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h2 id="modalNome">Carregando...</h2>
-            <button class="modal-close" onclick="fecharModal()">&times;</button>
+<div id="modalDetalhes" class="sobreposicao-modal" style="display: none;">
+    <div class="modal-gateway">
+        <div class="cabecalho-modal">
+            <div class="titulo-modal" id="modalNome">Carregando...</div>
+            <button class="fechar-modal" onclick="fecharModal()">✕</button>
         </div>
-        <div class="modal-body">
-            <div id="modalLoading" class="text-center p-4">
+        <div class="corpo-modal">
+            <div id="modalLoading" style="text-align:center;padding:24px;">
                 <div class="spinner"></div>
-                <p>Buscando informações...</p>
+                <p class="texto-suave">Buscando informações...</p>
             </div>
-            
+
             <div id="modalDados" style="display: none;">
-                <div class="info-grid">
-                    <div class="info-card">
-                        <small>Email</small>
-                        <p id="modalEmail">-</p>
+                <div class="grade grade-2 grade-compacta" style="margin-bottom:24px;">
+                    <div class="cartao-kpi">
+                        <span class="rotulo-kpi">Email</span>
+                        <p id="modalEmail" style="margin:8px 0 0;font-weight:700;word-break:break-all;">-</p>
                     </div>
-                    <div class="info-card">
-                        <small>Cadastrado em</small>
-                        <p id="modalData">-</p>
+                    <div class="cartao-kpi">
+                        <span class="rotulo-kpi">Cadastrado em</span>
+                        <p id="modalData" class="mono" style="margin:8px 0 0;font-weight:700;">-</p>
                     </div>
-                    <div class="info-card highlight">
-                        <small>Total Transacionado</small>
-                        <p id="modalVendas">R$ 0,00</p>
+                    <div class="cartao-kpi">
+                        <span class="rotulo-kpi">Total Transacionado</span>
+                        <p id="modalVendas" class="mono" style="margin:8px 0 0;font-weight:700;color:var(--or);font-size:18px;">R$ 0,00</p>
                     </div>
-                    <div class="info-card">
-                        <small>Qtd. Vendas</small>
-                        <p id="modalQtdVendas">0</p>
+                    <div class="cartao-kpi">
+                        <span class="rotulo-kpi">Qtd. Vendas</span>
+                        <p id="modalQtdVendas" style="margin:8px 0 0;font-weight:700;">0</p>
                     </div>
                 </div>
 
-                <div class="section-title">Meus Bots</div>
-                <div id="listaBots" class="lista-simples">
+                <p class="rotulo-kpi" style="margin-bottom:10px;">Meus Bots</p>
+                <div id="listaBots" style="margin-bottom:24px;">
                     <!-- JS preenche -->
                 </div>
 
-                <div class="section-title">Últimas Atividades</div>
+                <p class="rotulo-kpi" style="margin-bottom:10px;">Últimas Atividades</p>
                 <ul id="listaLogs" class="timeline-logs">
                     <!-- JS preenche -->
                 </ul>
@@ -234,6 +236,14 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
 </div>
 
 <script>
+    function escaparHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
     function abrirModalAdicionar() {
         document.getElementById('formAdicionar').reset();
         document.getElementById('msgAdicionar').style.display = 'none';
@@ -248,7 +258,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
         const msg = document.getElementById('msgAdicionar');
         const data = new FormData(form);
 
-        fetch('ajax/adicionar_usuario.php', { method: 'POST', body: data })
+        fetch('../ajax/adicionar_usuario.php', { method: 'POST', body: data })
             .then(r => r.json())
             .then(res => {
                 if (res.sucesso) {
@@ -294,7 +304,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
 
         const data = new FormData(form);
 
-        fetch('ajax/editar_usuario.php', { method: 'POST', body: data })
+        fetch('../ajax/editar_usuario.php', { method: 'POST', body: data })
             .then(r => r.json())
             .then(res => {
                 if (!res.sucesso) {
@@ -308,7 +318,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
                 const fd = new FormData();
                 fd.append('id_usuario', user_id);
                 fd.append('splits', JSON.stringify(splits));
-                return fetch('ajax/salvar_splits_usuario.php', { method: 'POST', body: fd })
+                return fetch('../ajax/salvar_splits_usuario.php', { method: 'POST', body: fd })
                     .then(r => r.json())
                     .then(rs => {
                         if (rs.sucesso) {
@@ -335,7 +345,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
         vazio.style.display    = 'none';
         loading.style.display  = 'block';
 
-        fetch('ajax/listar_splits_usuario.php?id=' + user_id)
+        fetch('../ajax/listar_splits_usuario.php?id=' + user_id)
             .then(r => r.json())
             .then(splits => {
                 loading.style.display = 'none';
@@ -409,7 +419,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
         if (!confirm('Tem certeza que deseja excluir o usuário "' + nome + '"? Esta ação não pode ser desfeita.')) return;
         const data = new FormData();
         data.append('id', id);
-        fetch('ajax/deletar_usuario.php', { method: 'POST', body: data })
+        fetch('../ajax/deletar_usuario.php', { method: 'POST', body: data })
             .then(r => r.json())
             .then(res => {
                 if (res.sucesso) {
@@ -443,7 +453,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
 
         document.getElementById('modalNome').innerText = 'Carregando...';
         
-        fetch(`ajax/detalhes_usuario.php?id=${id}`)
+        fetch(`../ajax/detalhes_usuario.php?id=${id}`)
             .then(response => response.json())
             .then(data => {
                 if (data.erro) {
@@ -471,7 +481,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
                         div.innerHTML = `
                             <div class="bot-icon">🤖</div>
                             <div class="bot-info">
-                                <strong>${bot.nome}</strong>
+                                <strong>${escaparHtml(bot.nome)}</strong>
                                 <span>Criado em: ${new Date(bot.criado_em).toLocaleDateString('pt-BR')}</span>
                             </div>
                         `;
@@ -488,8 +498,8 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
                         const li = document.createElement('li');
                         li.innerHTML = `
                             <span class="log-date">${new Date(log.data_hora).toLocaleString('pt-BR')}</span>
-                            <span class="log-action">${log.titulo || log.tipo}</span>
-                            <span class="log-desc">${log.descricao || ''}</span>
+                            <span class="log-action">${escaparHtml(log.titulo || log.tipo)}</span>
+                            <span class="log-desc">${escaparHtml(log.descricao || '')}</span>
                         `;
                         lista_logs.appendChild(li);
                     });
@@ -520,163 +530,57 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
  </script>
  
  <style>
-     .table-responsive { overflow-x: auto; }
-     .table { width: 100%; border-collapse: collapse; }
-     .table th, .table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); }
-     .table th { font-weight: 600; color: var(--muted); font-size: 13px; background: #f8fafc; }
-     .table td { font-size: 14px; color: var(--text); }
-     .user-info { display: flex; align-items: center; gap: 10px; }
-     .user-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px; }
-     .badge-admin { background: #ede9fe; color: #7c3aed; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; }
-     .badge-user { background: #e0f2fe; color: #0284c7; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; }
-     .text-center { text-align: center; }
+    /* O grosso do visual reaproveita assets/css/coyote.css; aqui só o que é específico desta página */
+    /* .form-input e .text-muted são usados nos templates HTML montados pelo <script> abaixo */
+    .form-input { width: 100%; padding: 9px 11px; border: 1px solid var(--bd); border-radius: 8px; background: var(--p2); color: var(--t); font: 600 12.5px 'Manrope', sans-serif; }
+    .form-input:focus { outline: none; border-color: var(--or); }
+    .text-muted { color: var(--m); font-style: italic; font-size: 12.5px; text-align: center; display: block; padding: 16px 0; }
+    .msg-box { padding: 10px 14px; border-radius: 10px; font-size: 12.5px; margin-bottom: 12px; border: 1px solid transparent; }
+    .msg-erro { background: var(--dasoft); color: var(--da); border-color: var(--da); }
+    .msg-sucesso { background: var(--oksoft); color: var(--ok); border-color: var(--ok); }
 
-     .modal-overlay {
-         position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-         background: rgba(15, 23, 42, 0.6);
-         display: flex; align-items: center; justify-content: center;
-         z-index: 9999;
-         backdrop-filter: blur(4px);
-         padding: 20px;
-         opacity: 0; animation: fadeIn 0.2s forwards;
-     }
-     @keyframes fadeIn { to { opacity: 1; } }
+    .spinner {
+        border: 3px solid var(--bd); border-left-color: var(--or);
+        border-radius: 50%; width: 36px; height: 36px;
+        animation: girar 1s linear infinite; margin: 0 auto 16px;
+    }
+    @keyframes girar { 100% { transform: rotate(360deg); } }
 
-     .modal-content {
-         background: #ffffff;
-         width: 100%; max-width: 600px;
-         border-radius: 16px;
-         box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-         max-height: 90vh;
-         overflow-y: auto;
-         animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-         position: relative;
-         border: 1px solid var(--border);
-         display: flex; flex-direction: column;
-     }
-     @keyframes slideUp {
-         from { transform: translateY(30px) scale(0.95); opacity: 0; }
-         to { transform: translateY(0) scale(1); opacity: 1; }
-     }
+    .bot-item {
+        display: flex; align-items: center; gap: 14px; padding: 11px;
+        background: var(--p2); border-radius: 10px; margin-bottom: 10px;
+        border: 1px solid var(--bd);
+    }
+    .bot-icon {
+        font-size: 18px; background: var(--orsoft); color: var(--or); width: 38px; height: 38px;
+        display: flex; align-items: center; justify-content: center; border-radius: 9px; flex-shrink: 0;
+    }
+    .bot-info strong { display: block; font-size: 13px; margin-bottom: 2px; }
+    .bot-info span { font-size: 11.5px; color: var(--m); }
 
-     .modal-header {
-         padding: 20px 24px;
-         border-bottom: 1px solid var(--border);
-         display: flex; justify-content: space-between; align-items: center;
-         background: #f8fafc;
-         border-radius: 16px 16px 0 0;
-         flex-shrink: 0;
-     }
-     .modal-header h2 { 
-         margin: 0; font-size: 18px; font-weight: 600; color: #1e293b; 
-     }
-     .modal-close {
-         background: transparent; border: none; font-size: 24px; cursor: pointer; color: #94a3b8;
-         width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
-         border-radius: 50%; transition: 0.2s;
-     }
-     .modal-close:hover { background: #fee2e2; color: #ef4444; }
-     
-     .modal-body { padding: 24px; overflow-y: auto; }
-     
-     .info-grid {
-         display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 32px;
-     }
-     .info-card {
-         background: #ffffff; 
-         padding: 16px; 
-         border-radius: 12px; 
-         border: 1px solid #e2e8f0;
-         transition: 0.2s;
-         box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-     }
-     .info-card:hover { border-color: var(--primary); transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-     
-     .info-card small { 
-         display: block; color: #64748b; 
-         font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
-         margin-bottom: 6px; 
-     }
-     .info-card p { 
-         margin: 0; font-weight: 600; font-size: 15px; color: #0f172a; 
-         word-break: break-all;
-     }
+    .timeline-logs { list-style: none; padding: 0; margin: 0; position: relative; }
+    .timeline-logs::before { content: ''; position: absolute; left: 7px; top: 10px; bottom: 10px; width: 2px; background: var(--bd); z-index: 0; }
+    .timeline-logs li { padding: 0 0 20px 26px; position: relative; }
+    .timeline-logs li::before {
+        content: ''; position: absolute; left: 0; top: 4px;
+        width: 14px; height: 14px; border-radius: 50%;
+        background: var(--p); border: 3px solid var(--or);
+        z-index: 1;
+    }
+    .timeline-logs li:last-child { padding-bottom: 0; }
+    .log-date { display: block; color: var(--m); font-size: 11px; margin-bottom: 3px; }
+    .log-action { display: block; font-weight: 700; font-size: 13px; margin-bottom: 2px; }
+    .log-desc { color: var(--m); font-size: 12.5px; line-height: 1.4; }
 
-     .info-card.highlight {
-         background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-         border-color: #bfdbfe;
-     }
-     .info-card.highlight small { color: #1d4ed8; }
-     .info-card.highlight p { color: #1e3a8a; font-size: 20px; font-weight: 700; }
-     
-     .section-title {
-         font-size: 12px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;
-         margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid #f1f5f9;
-     }
-     
-     .bot-item {
-         display: flex; align-items: center; gap: 16px; padding: 12px;
-         background: #f8fafc; border-radius: 10px; margin-bottom: 12px;
-         border: 1px solid transparent; transition: 0.2s;
-     }
-     .bot-item:hover { background: #fff; border-color: #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-     
-     .bot-icon { 
-        font-size: 20px; background: #e0f2fe; color: #0284c7; width: 40px; height: 40px; 
-        display: flex; align-items: center; justify-content: center; border-radius: 8px; flex-shrink: 0;
-     }
-     .bot-info strong { display: block; font-size: 14px; color: #0f172a; margin-bottom: 2px; }
-     .bot-info span { font-size: 12px; color: #64748b; }
-     
-     .timeline-logs {
-         list-style: none; padding: 0; margin: 0; position: relative;
-     }
-     .timeline-logs::before {
-         content: ''; position: absolute; left: 7px; top: 10px; bottom: 10px;
-         width: 2px; background: #e2e8f0; z-index: 0;
-     }
-     .timeline-logs li {
-         padding: 0 0 24px 28px; position: relative;
-     }
-     .timeline-logs li::before {
-         content: ''; position: absolute; left: 0; top: 4px;
-         width: 16px; height: 16px; border-radius: 50%;
-         background: #fff; border: 4px solid var(--primary);
-         z-index: 1; box-shadow: 0 0 0 2px #fff;
-     }
-     .timeline-logs li:last-child { padding-bottom: 0; }
-     
-     .log-date { display: block; color: #94a3b8; font-size: 11px; margin-bottom: 4px; font-weight: 500; }
-     .log-action { display: block; font-weight: 600; color: #334155; font-size: 14px; margin-bottom: 2px; }
-     .log-desc { color: #64748b; font-size: 13px; line-height: 1.4; }
-     
-     .form-group { margin-bottom: 16px; }
-     .form-group label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px; }
-     .form-input { width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; color: #111827; box-sizing: border-box; transition: border-color 0.2s; }
-     .form-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
-     .botao-secundario { background: #f1f5f9; color: #374151; border: 1px solid #e2e8f0; }
-     .botao-secundario:hover { background: #e2e8f0; }
-     .msg-box { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 12px; }
-     .msg-erro { background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; }
-     .msg-sucesso { background: #dcfce7; color: #16a34a; border: 1px solid #86efac; }
-
-     .spinner {
-         border: 3px solid rgba(0,0,0,0.1); border-left-color: var(--primary);
-         border-radius: 50%; width: 40px; height: 40px;
-         animation: spin 1s linear infinite; margin: 0 auto 16px;
-     }
-     @keyframes spin { 100% { transform: rotate(360deg); } }
-     .text-muted { color: #94a3b8; font-style: italic; font-size: 13px; text-align: center; display: block; padding: 20px 0; }
-
-    .split-row { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 10px; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; }
+    .split-row { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 10px; padding: 12px; background: var(--p2); border: 1px solid var(--bd); border-radius: 10px; }
     .split-row-fields { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; }
     .split-field { display: flex; flex-direction: column; min-width: 90px; }
     .split-field-sm { max-width: 88px; }
-    .split-campo-cpf { min-width: 110px; max-width: 140px; }
     .split-field-lg { flex: 1; min-width: 120px; }
     .split-field-desc { flex: 1; min-width: 100px; }
-    .split-label { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 4px; }
-    .split-chave-hint { font-weight: 400; color: #94a3b8; text-transform: none; letter-spacing: 0; }
-    .split-remove { flex-shrink: 0; background: #fee2e2; border: none; color: #dc2626; width: 30px; height: 30px; border-radius: 7px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .15s; }
-    .split-remove:hover { background: #fecaca; }
+    .split-label { font: 700 10.5px 'Manrope', sans-serif; color: var(--m); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+    .split-remove { flex-shrink: 0; background: var(--dasoft); border: none; color: var(--da); width: 30px; height: 30px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .split-remove:hover { background: var(--da); color: #fff; }
  </style>
+
+<script src="../assets/js/tema.js"></script>
