@@ -92,43 +92,44 @@ $meus_bots = $stmt_bots->fetchAll(PDO::FETCH_ASSOC);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Leads - Gerenciamento de Bots</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="assets/app.css">
-    <style>
-        .filtros { display: flex; gap: 10px; margin-bottom: 20px; align-items: flex-end; }
-        .form-group { margin-bottom: 0; }
-        .badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
-        .badge-success { background-color: #d1fae5; color: #065f46; }
-        .badge-warning { background-color: #fef3c7; color: #92400e; }
-        .badge-gray { background-color: #f3f4f6; color: #374151; }
-        .table-responsive { overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
-        th { font-weight: 600; color: #374151; background-color: #f9fafb; }
-    </style>
+    <?php include 'tema_inline.php'; ?>
+    <link rel="stylesheet" href="assets/css/coyote.css">
 </head>
 <body>
-<div class="dashboard-layout">
-    <?php include 'sidebar.php'; ?>
-    <main class="main-content">
+<div class="layout-painel">
+    <?php include 'barra_lateral.php'; ?>
+    <main class="conteudo-principal">
         <div class="cabecalho-pagina">
             <div>
                 <h1>Leads</h1>
                 <p>Visualize os usuários que interagiram com seus bots.</p>
             </div>
-            <a href="?<?php echo http_build_query(array_merge($_GET, ['export' => 'csv'])); ?>" class="botao botao-secundario">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                Exportar CSV
-            </a>
+            <div class="acoes-cabecalho">
+                <a href="?<?php echo http_build_query(array_merge($_GET, ['export' => 'csv'])); ?>" class="botao">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    Exportar CSV
+                </a>
+                <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>
+                    Tema
+                </button>
+            </div>
         </div>
 
         <div class="painel">
-            <form class="filtros" method="GET">
-                <div class="form-group">
-                    <label for="bot_id">Filtrar por Bot</label>
-                    <select name="bot_id" id="bot_id" class="input-campo">
+            <div class="barra-filtros">
+                <div class="campo-busca">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+                    <input type="text" id="busca-lead" placeholder="Buscar por nome ou ID do Telegram">
+                </div>
+                <div class="abas-status">
+                    <a href="?<?php echo http_build_query(array_merge($_GET, ['status' => ''])); ?>" class="aba-status<?php echo $status === '' ? ' ativa' : ''; ?>">Todos</a>
+                    <a href="?<?php echo http_build_query(array_merge($_GET, ['status' => 'pago'])); ?>" class="aba-status<?php echo $status === 'pago' ? ' ativa' : ''; ?>">Já pagou</a>
+                    <a href="?<?php echo http_build_query(array_merge($_GET, ['status' => 'nao_pago'])); ?>" class="aba-status<?php echo $status === 'nao_pago' ? ' ativa' : ''; ?>">Não pagou</a>
+                </div>
+                <form method="GET">
+                    <?php if ($status !== ''): ?><input type="hidden" name="status" value="<?php echo htmlspecialchars($status); ?>"><?php endif; ?>
+                    <select name="bot_id" onchange="this.form.submit()">
                         <option value="">Todos os Bots</option>
                         <?php foreach ($meus_bots as $b): ?>
                             <option value="<?php echo $b['id']; ?>" <?php echo $bot_id == $b['id'] ? 'selected' : ''; ?>>
@@ -136,61 +137,59 @@ $meus_bots = $stmt_bots->fetchAll(PDO::FETCH_ASSOC);
                             </option>
                         <?php endforeach; ?>
                     </select>
-                </div>
-                <div class="form-group">
-                    <label for="status">Status</label>
-                    <select name="status" id="status" class="input-campo">
-                        <option value="">Todos</option>
-                        <option value="pago" <?php echo $status === 'pago' ? 'selected' : ''; ?>>Já Pagou</option>
-                        <option value="nao_pago" <?php echo $status === 'nao_pago' ? 'selected' : ''; ?>>Não Pagou</option>
-                    </select>
-                </div>
-                <button type="submit" class="botao botao-primario">Filtrar</button>
-            </form>
+                </form>
+            </div>
 
-            <div class="table-responsive">
-                <table>
+            <div class="tabela-dados">
+                <table id="tabela-leads">
                     <thead>
                         <tr>
-                            <th>Nome</th>
+                            <th>Lead</th>
                             <th>Número</th>
                             <th>Bot</th>
-                            <th>Data Início</th>
+                            <th>Início</th>
                             <th>Status</th>
                             <th>Plano</th>
                             <th>Compras</th>
-                            <th>Total Gasto</th>
+                            <th class="col-numerica">Total gasto</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($leads)): ?>
                             <tr>
-                                <td colspan="8" style="text-align: center; padding: 20px; color: #6b7280;">Nenhum lead encontrado.</td>
+                                <td colspan="8" style="text-align: center; padding: 20px; color: var(--m);">Nenhum lead encontrado.</td>
                             </tr>
                         <?php else: ?>
                             <?php foreach ($leads as $lead): ?>
                                 <?php
-                                    $status_badge = '<span class="badge badge-gray">Iniciou</span>';
+                                    $status_badge = '<span class="badge badge-neutro">Iniciou</span>';
                                     if ($lead['total_compras'] > 0) {
-                                        $status_badge = '<span class="badge badge-success">Cliente</span>';
+                                        $status_badge = '<span class="badge badge-sucesso">Cliente</span>';
                                     } elseif ($lead['ultimo_status_pagamento'] === 'gerado') {
-                                        $status_badge = '<span class="badge badge-warning">Gerou Pix</span>';
+                                        $status_badge = '<span class="badge badge-alerta">Gerou Pix</span>';
                                     }
+                                    $inicial_lead = mb_strtoupper(mb_substr($lead['nome'] ?: '?', 0, 1), 'UTF-8');
+                                    $busca_lead = mb_strtolower($lead['nome'] . ' ' . $lead['id_telegram'], 'UTF-8');
                                 ?>
-                                <tr>
+                                <tr data-busca="<?php echo htmlspecialchars($busca_lead); ?>">
                                     <td>
-                                        <div style="font-weight: 500;"><?php echo htmlspecialchars($lead['nome']); ?></div>
-                                        <div style="font-size: 12px; color: #6b7280;">ID: <?php echo $lead['id_telegram']; ?></div>
+                                        <div class="celula-principal">
+                                            <span class="avatar-item"><?php echo htmlspecialchars($inicial_lead); ?></span>
+                                            <div>
+                                                <div><?php echo htmlspecialchars($lead['nome']); ?></div>
+                                                <div class="celula-sub mono">ID: <?php echo htmlspecialchars((string) $lead['id_telegram']); ?></div>
+                                            </div>
+                                        </div>
                                     </td>
-                            <td><?php echo $lead['telefone'] ? htmlspecialchars($lead['telefone']) : '<span style="color:#9ca3af">—</span>'; ?></td>
+                                    <td><?php echo $lead['telefone'] ? htmlspecialchars($lead['telefone']) : '<span class="texto-suave">—</span>'; ?></td>
                                     <td><?php echo htmlspecialchars($lead['nome_bot']); ?></td>
-                                    <td><?php echo date('d/m/Y H:i', strtotime($lead['data_inicio'])); ?></td>
+                                    <td class="mono"><?php echo date('d/m/Y H:i', strtotime($lead['data_inicio'])); ?></td>
                                     <td><?php echo $status_badge; ?></td>
-                            <td>
-                                <?php echo $lead['plano_ativo'] ? '<span class="badge badge-success">Ativo</span>' : '<span class="badge badge-gray">Inativo</span>'; ?>
-                            </td>
+                                    <td>
+                                        <?php echo $lead['plano_ativo'] ? '<span class="badge badge-sucesso">Ativo</span>' : '<span class="badge badge-neutro">Inativo</span>'; ?>
+                                    </td>
                                     <td><?php echo $lead['total_compras']; ?></td>
-                                    <td>R$ <?php echo number_format((float)$lead['total_gasto'], 2, ',', '.'); ?></td>
+                                    <td class="col-numerica mono">R$ <?php echo number_format((float)$lead['total_gasto'], 2, ',', '.'); ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php endif; ?>
@@ -200,5 +199,15 @@ $meus_bots = $stmt_bots->fetchAll(PDO::FETCH_ASSOC);
         </div>
     </main>
 </div>
+
+<script src="assets/js/tema.js"></script>
+<script>
+document.getElementById('busca-lead').addEventListener('input', function () {
+    const termo = this.value.trim().toLowerCase();
+    document.querySelectorAll('#tabela-leads tbody tr[data-busca]').forEach(function (linha) {
+        linha.style.display = linha.dataset.busca.includes(termo) ? '' : 'none';
+    });
+});
+</script>
 </body>
 </html>

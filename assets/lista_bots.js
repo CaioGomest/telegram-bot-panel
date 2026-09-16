@@ -43,17 +43,24 @@
                 }
 
                 bots.forEach(function (bot) {
+                    const nome = bot.primeiro_nome || 'Sem nome';
+                    const iniciais = nome.trim().charAt(0).toUpperCase() || '?';
                     const flow_text = bot.id_fluxo_conectado ? `Fluxo: ${escaparHtml(bot.id_fluxo_conectado)}` : 'Sem fluxo ligado';
+                    const status_badge = bot.id_fluxo_conectado
+                        ? '<span class="badge badge-sucesso">Com fluxo</span>'
+                        : '<span class="badge badge-alerta">Sem fluxo</span>';
 
                     $list.append(`
                         <div class="cartao-bot-item">
                             <div class="cartao-cabecalho">
-                                <h3>${escaparHtml(bot.primeiro_nome || 'Sem nome')}</h3>
-                                <span class="badge">@${escaparHtml(bot.nome_usuario || 'sem_username')}</span>
+                                <span class="avatar-item">${escaparHtml(iniciais)}</span>
+                                <h3>${escaparHtml(nome)}</h3>
                             </div>
                             <div class="cartao-corpo">
+                                <p class="texto-suave">@${escaparHtml(bot.nome_usuario || 'sem_username')}</p>
                                 <p>${flow_text}</p>
                                 <p class="texto-suave">${escaparHtml(bot.descricao_curta || 'Sem descrição')}</p>
+                                ${status_badge}
                             </div>
                             <div class="cartao-acoes">
                                 <a href="bot.php?id=${encodeURIComponent(bot.id)}" class="btn-icon editar" title="Editar">${icons.edit}</a>

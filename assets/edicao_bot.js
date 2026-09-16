@@ -22,18 +22,18 @@
 
     function atualizarCardStatus(bot_info, is_online) {
         if (!bot_info) {
-            $('#status-avatar-container').html('<div class="bot-avatar-placeholder">?</div>');
+            $('#status-avatar-container').html('<div class="avatar-preview-bot-placeholder">?</div>');
             $('#status-nome').text('Novo Bot');
             $('#status-username').text('@...');
-            $('#status-badge').removeClass('online offline').html('<span class="status-dot"></span> <span class="status-text">Desconhecido</span>');
+            $('#status-badge').removeClass('ligado desligado').html('<span class="ponto-status"></span> <span class="texto-status">Desconhecido</span>');
             return;
         }
 
         if (bot_info.caminho_foto) {
-             $('#status-avatar-container').html(`<img src="${escaparHtml(bot_info.caminho_foto)}?t=${Date.now()}" class="bot-avatar" alt="Bot Avatar">`);
+             $('#status-avatar-container').html(`<img src="${escaparHtml(bot_info.caminho_foto)}?t=${Date.now()}" class="avatar-preview-bot" alt="Bot Avatar">`);
         } else {
              const inicial = (bot_info.first_name || 'B').charAt(0).toUpperCase();
-             $('#status-avatar-container').html(`<div class="bot-avatar-placeholder">${inicial}</div>`);
+             $('#status-avatar-container').html(`<div class="avatar-preview-bot-placeholder">${inicial}</div>`);
         }
 
         $('#status-nome').text(bot_info.first_name || 'Sem nome');
@@ -41,9 +41,9 @@
 
         const $badge = $('#status-badge');
         if (is_online) {
-            $badge.removeClass('offline').addClass('online').html('<span class="status-dot"></span> <span class="status-text">Online</span>');
+            $badge.removeClass('desligado').addClass('ligado').html('<span class="ponto-status"></span> <span class="texto-status">Online</span>');
         } else {
-            $badge.removeClass('online').addClass('offline').html('<span class="status-dot"></span> <span class="status-text">Offline</span>');
+            $badge.removeClass('ligado').addClass('desligado').html('<span class="ponto-status"></span> <span class="texto-status">Offline</span>');
         }
     }
 

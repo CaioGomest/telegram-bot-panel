@@ -6,9 +6,18 @@ Painel PHP para gestão de bots de venda no Telegram (fluxos, gateways de pagame
 
 Vai ser hospedado na **Hostinger**. Sem framework, sem build step — PHP procedural com PDO.
 
-## Fase atual: limpeza de código
+## Fase atual: redesign de layout
 
-Estamos numa etapa de **organização e code clean**, sem mexer em layout/UI. O layout será refeito depois, em outra etapa, com o Claude Code.
+Estamos aplicando o novo layout descrito em `Telegram bot management redesign/design_handoff_coyote_bot_panel/README.md` (protótipo `Coyote Bot Panel.dc.html`) nas páginas do painel, em fases com checkpoint. Só layout — lógica, nomes de campo, queries, rotas e IDs usados pelo JS não mudam.
+
+- **Toda classe CSS nova ou alterada usa nomenclatura em português, kebab-case** (mesmo padrão de `painel`, `botao`, `cabecalho-pagina`, `cartao-bot-item`) — nunca inglês, nunca camelCase.
+- `barra_lateral.php` é a sidebar nova (páginas redesenhadas); `sidebar.php` é a sidebar antiga e continua servindo as páginas fora do escopo do redesign — as duas coexistem de propósito, não é duplicação esquecida.
+- `assets/css/coyote.css` é o CSS novo (tokens, tema dark/light, sidebar/header/cards novos). `assets/app.css` não é tocado — segue servindo as páginas fora de escopo.
+- Páginas fora do escopo do handoff (`remarketing.php`, `traqueamento.php`, `links_rastreamento.php`, `usuarios.php`, `atualizacao_seguranca.php`, `atualiza_banco.php`, `setup_menus.php`, `debug_*.php`, `cadastro.php`, `instalacao.php`, `configuracoes.php`) ficam como estão nesta etapa.
+
+## Fase anterior: limpeza de código
+
+Etapa de **organização e code clean** (regras abaixo continuam valendo para mudanças em PHP/lógica, mesmo durante o redesign de layout).
 
 Regras para esta fase:
 
@@ -16,7 +25,7 @@ Regras para esta fase:
 - **Responsabilidade única.** Cada função deve fazer uma coisa só. Quebrar funções grandes (ex. arquivos em `funcoes/` e `webhook.php` que hoje concentram várias responsabilidades) em funções menores e nomeadas com clareza.
 - **Altamente escalável.** Evitar acoplamento desnecessário, preferir funções puras quando possível, isolar acesso a banco e integrações externas (gateways, Telegram, pixels) em camadas bem definidas dentro de `funcoes/`.
 - **Não alterar comportamento visível.** Refatoração é interna — mesma funcionalidade, mesmo output, mesmas rotas/nomes de arquivo (a menos que combinado explicitamente).
-- **Não mexer em layout/CSS/HTML visual** nesta fase — só estrutura/organização do PHP.
+- **Não mexer em layout/CSS/HTML visual** fora do trabalho de redesign descrito acima — mudanças de limpeza de código continuam sendo só estrutura/organização do PHP.
 - **`declare(strict_types=1)`** deve estar presente em todos os arquivos PHP (hoje falta em alguns, ex. `remarketing.php`, `leads.php`, `sidebar.php`, `setup_menus.php`, `instalacao.php`, `login.php`, `cadastro.php`, `logs.php`, `configuracao_usuario.php`).
 - Nomenclatura em português deve ser mantida (é o padrão já usado no projeto: `verificarLogin`, `id_usuario`, etc.) — não traduzir para inglês.
 - **Limpeza contínua.** Sempre que for mexer em um arquivo, analisar se dá pra deixar mais limpo/organizado — mas só aplicar a mudança se não quebrar nada existente. Na dúvida, não arriscar.

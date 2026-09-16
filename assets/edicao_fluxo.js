@@ -807,6 +807,7 @@
     $(document).off('click', '#btn-zoom-in').on('click', '#btn-zoom-in', function() { setZoom(zoom_level + 0.1); });
     $(document).off('click', '#btn-zoom-out').on('click', '#btn-zoom-out', function() { setZoom(zoom_level - 0.1); });
     $(document).off('click', '#btn-zoom-reset').on('click', '#btn-zoom-reset', function() { setZoom(1); });
+    $(document).off('click', '#btn-zoom-fit').on('click', '#btn-zoom-fit', function() { setZoom(1); centralizarVisao(); });
 
     $('#btn-salvar-fluxo').on('click', function () { atualizaFluxo(false); });
     $('#btn-excluir-fluxo').on('click', deleteFlow);
@@ -1263,10 +1264,12 @@
             });
 
         const $zoom_controls = $(`
-            <div class="controles-zoom" style="position: absolute; bottom: 20px; z-index: 1000; background: white; padding: 5px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.15); display: flex; gap: 5px; width: auto; max-width: 150px; border: 1px solid #ddd;">
-                <button type="button" class="botao botao-claro" id="btn-zoom-out" title="Diminuir Zoom" style="width: 30px; height: 30px; padding: 0; display: flex; align-items: center; justify-content: center;">－</button>
-                <button type="button" class="botao botao-claro" id="btn-zoom-reset" title="Resetar Zoom" style="height: 30px; padding: 0 10px; font-size: 12px; min-width: 50px;">100%</button>
-                <button type="button" class="botao botao-claro" id="btn-zoom-in" title="Aumentar Zoom" style="width: 30px; height: 30px; padding: 0; display: flex; align-items: center; justify-content: center;">＋</button>
+            <div class="controles-zoom">
+                <button type="button" id="btn-zoom-out" title="Diminuir Zoom">－</button>
+                <button type="button" id="btn-zoom-reset" title="Resetar Zoom">100%</button>
+                <button type="button" id="btn-zoom-in" title="Aumentar Zoom">＋</button>
+                <div class="divisor-zoom"></div>
+                <button type="button" id="btn-zoom-fit" title="Ajustar à tela">Ajustar</button>
             </div>
         `);
         // Remove controles anteriores se existirem para não duplicar

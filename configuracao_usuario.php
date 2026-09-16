@@ -46,136 +46,74 @@ if (empty($dados_usuario)) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Minha Conta - Configurações</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="assets/app.css">
-    <style>
-        .form-container {
-            max-width: 600px;
-            background: #fff;
-            padding: 24px;
-            border-radius: 12px;
-            border: 1px solid var(--border);
-        }
-        .form-group {
-            margin-bottom: 20px;
-        }
-        .form-label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 500;
-            color: var(--text);
-        }
-        .form-control {
-            width: 100%;
-            padding: 10px 12px;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            font-family: inherit;
-            font-size: 14px;
-            color: var(--text);
-            transition: border-color 0.2s;
-            box-sizing: border-box; /* Importante para width 100% */
-        }
-        .form-control:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px var(--primary-light);
-        }
-        .btn-salvar {
-            background-color: var(--primary);
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background-color 0.2s;
-            font-size: 14px;
-        }
-        .btn-salvar:hover {
-            background-color: var(--primary-dark);
-        }
-        .alert {
-            padding: 12px 16px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-size: 14px;
-        }
-        .alert-sucesso {
-            background-color: #ecfdf5;
-            color: #047857;
-            border: 1px solid #a7f3d0;
-        }
-        .alert-erro {
-            background-color: #fef2f2;
-            color: #b91c1c;
-            border: 1px solid #fecaca;
-        }
-        .form-hint {
-            display: block;
-            margin-top: 6px;
-            font-size: 12px;
-            color: var(--muted);
-        }
-    </style>
+    <?php include 'tema_inline.php'; ?>
+    <link rel="stylesheet" href="assets/css/coyote.css">
 </head>
 <body>
-<div class="dashboard-layout">
-    <?php include 'sidebar.php'; ?>
-    
-    <main class="main-content">
+<div class="layout-painel">
+    <?php include 'barra_lateral.php'; ?>
+
+    <main class="conteudo-principal">
         <div class="cabecalho-pagina">
             <div>
                 <h1>Minha Conta</h1>
                 <p>Gerencie seus dados pessoais e senha.</p>
             </div>
+            <div class="acoes-cabecalho">
+                <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>
+                    Tema
+                </button>
+            </div>
         </div>
 
-        <div class="painel">
-            <div class="form-container">
-                <?php if ($mensagem): ?>
-                    <div class="alert alert-<?php echo $tipo_mensagem; ?>">
-                        <?php echo htmlspecialchars($mensagem); ?>
-                    </div>
-                <?php endif; ?>
+        <div class="painel" style="max-width: 600px;">
+            <?php if ($mensagem): ?>
+                <div class="aviso aviso-<?php echo $tipo_mensagem; ?>">
+                    <?php echo htmlspecialchars($mensagem); ?>
+                </div>
+            <?php endif; ?>
 
-                <form method="POST" action="">
-                    <div class="form-group">
-                        <label for="nome" class="form-label">Nome Completo</label>
-                        <input type="text" id="nome" name="nome" class="form-control" required 
+            <form method="POST" action="">
+                <div class="grade grade-compacta">
+                    <div class="campo">
+                        <label for="nome">Nome Completo</label>
+                        <input type="text" id="nome" name="nome" required
                                value="<?php echo htmlspecialchars($dados_usuario['nome'] ?? ''); ?>">
                     </div>
 
-                    <div class="form-group">
-                        <label for="email" class="form-label">Email</label>
-                        <input type="email" id="email" name="email" class="form-control" required 
+                    <div class="campo">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" name="email" required
                                value="<?php echo htmlspecialchars($dados_usuario['email'] ?? ''); ?>">
                     </div>
 
-                    <div style="margin-top: 32px; margin-bottom: 20px; border-top: 1px solid var(--border); padding-top: 20px;">
-                        <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 16px; color: var(--text);">Alterar Senha</h3>
-                        
-                        <div class="form-group">
-                            <label for="senha" class="form-label">Nova Senha</label>
-                            <input type="password" id="senha" name="senha" class="form-control" placeholder="Deixe em branco para manter a atual">
-                            <span class="form-hint">Mínimo de 6 caracteres.</span>
-                        </div>
+                    <div class="divisor-secao">
+                        <h2 style="font-size: 16px; margin-bottom: 14px;">Alterar Senha</h2>
 
-                        <div class="form-group">
-                            <label for="confirmar_senha" class="form-label">Confirmar Nova Senha</label>
-                            <input type="password" id="confirmar_senha" name="confirmar_senha" class="form-control" placeholder="Repita a nova senha">
+                        <div class="grade grade-compacta">
+                            <div class="campo">
+                                <label for="senha">Nova Senha</label>
+                                <input type="password" id="senha" name="senha" placeholder="Deixe em branco para manter a atual">
+                                <span class="texto-ajuda">Mínimo de 6 caracteres.</span>
+                            </div>
+
+                            <div class="campo">
+                                <label for="confirmar_senha">Confirmar Nova Senha</label>
+                                <input type="password" id="confirmar_senha" name="confirmar_senha" placeholder="Repita a nova senha">
+                            </div>
                         </div>
                     </div>
 
-                    <div class="form-actions">
-                        <button type="submit" class="btn-salvar">Salvar Alterações</button>
+                    <div class="linha-acoes" style="margin-top: 6px;">
+                        <button type="submit" class="botao botao-primario">Salvar Alterações</button>
                     </div>
-                </form>
-            </div>
+                </div>
+            </form>
         </div>
     </main>
 </div>
+
+<script src="assets/js/tema.js"></script>
 </body>
 </html>

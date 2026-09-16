@@ -8,30 +8,29 @@ verificarLogin();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Meus Fluxos</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="assets/app.css">
+    <?php include 'tema_inline.php'; ?>
+    <link rel="stylesheet" href="assets/css/coyote.css">
 </head>
 <body>
-<div class="dashboard-layout">
-    <?php include 'sidebar.php'; ?>
-    <main class="main-content">
+<div class="layout-painel">
+    <?php include 'barra_lateral.php'; ?>
+    <main class="conteudo-principal">
         <div class="cabecalho-pagina">
             <div>
                 <h1>Meus Fluxos</h1>
                 <p>Crie e edite os fluxos de conversa dos seus bots.</p>
             </div>
+            <div class="acoes-cabecalho">
+                <a class="botao botao-primario" href="fluxo.php">+ Novo Fluxo</a>
+                <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>
+                    Tema
+                </button>
+            </div>
         </div>
 
-        <div class="painel">
-            <div class="painel-cabecalho">
-                <h2>Listagem</h2>
-                <a class="botao botao-primario" href="fluxo.php">Novo Fluxo</a>
-            </div>
-            <div id="lista-fluxos" class="grade-cards">
-                <div class="estado-vazio">Carregando fluxos...</div>
-            </div>
+        <div id="lista-fluxos" class="grade-cards">
+            <div class="estado-vazio">Carregando fluxos...</div>
         </div>
     </main>
 </div>
@@ -39,6 +38,7 @@ verificarLogin();
 <div id="toast"></div>
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="assets/js/tema.js"></script>
 <script src="assets/lista_fluxos.js"></script>
 </body>
 </html>
