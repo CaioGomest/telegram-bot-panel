@@ -6,6 +6,18 @@ Painel PHP para gestão de bots de venda no Telegram (fluxos, gateways de pagame
 
 Vai ser hospedado na **Hostinger**. Sem framework, sem build step — PHP procedural com PDO.
 
+## Ambiente de teste em produção (Hostinger) — regras de acesso SSH
+
+Instalado em `https://telegram.stackcode.com.br` (subdomínio `telegram` do site `stackcode.com.br`), pasta real no servidor: `domains/stackcode.com.br/public_html/telegram/`. É um **ambiente de teste** (dado fake, senha simples de propósito — ver abaixo), mas continua sendo mantido com disciplina, porque a conta Hostinger é compartilhada com **outros projetos e domínios do Caio** que não têm nada a ver com este.
+
+Regras que valem sempre que alguém (eu ou outra sessão) tiver acesso SSH a essa conta:
+
+- **Nunca mexer em nada fora da pasta `telegram/`.** A conta tem vários outros domínios/subdomínios (`boloebalao.com.br`, `anotando.com.br`, `lojaodosoftware.com.br` e subdomínios, `paperjobs.com.br`, `postsmy.com`, `psicologiaconexaovida.com.br`, `teobaloes.com.br`, backups, projeto Node.js, etc.) e arquivos soltos na pasta home (`config.php.bak`, `conexao.php.bak` de outro projeto, por exemplo) — nada disso é deste projeto, nunca ler/mexer/usar essas credenciais mesmo que apareçam visíveis num `ls`.
+- **Nunca apagar ou alterar as credenciais reais de `config.php` no servidor sem pedir explicitamente** — e, ao pedir, sempre explicar o motivo da mudança e **fazer backup do `config.php` atual antes** (ex. copiar pra `config.php.bak-<data>`) antes de sobrescrever.
+- Senha de todos os usuários/admins nesse ambiente de teste foi propositalmente definida como `123456` (pedido explícito do Caio, "esse é o ambiente de teste") — não trocar por senha forte sozinho achando que é mais seguro; se for necessário mudar, perguntar antes.
+- Deploy é via `git clone`/`git pull` direto na pasta (branch `new`), não upload manual de arquivo — mantém consistência com o repositório.
+- Os 7 crons (`cron/cron_verificar_pix.php`, `cron_ranking.php`, `cron_metricas_admin.php`, `cron_remarketing.php`, `cron_aviso_vencimento.php`, `cron_verificar_acessos.php`, `cron_renovacao.php`) já estão cadastrados no painel Hostinger (Avançado → Cron Jobs) — não são visíveis/editáveis via `crontab` por SSH nessa conta (comando não existe), só pelo hPanel.
+
 ## Fase atual: redesign de layout (concluído)
 
 O layout novo descrito em `Telegram bot management redesign/design_handoff_coyote_bot_panel/README.md` (protótipo `Coyote Bot Panel.dc.html`) foi aplicado em **todas** as páginas do painel, incluindo as que originalmente estavam fora do escopo do handoff (não havia spec própria pra elas — foi seguido o mesmo padrão visual já estabelecido). Só layout — lógica, nomes de campo, queries, rotas e IDs usados pelo JS não mudaram.
