@@ -237,32 +237,36 @@ foreach ($vendas_pendentes as $venda) {
                     'expire_date' => time() + (15 * 60),
                     'name' => 'Venda #' . $venda['id']
                 ]);
+                $link = (($invite['ok'] ?? false) && isset($invite['result']['invite_link'])) ? $invite['result']['invite_link'] : null;
 
-                if (($invite['ok'] ?? false) && isset($invite['result']['invite_link'])) {
-                    $link = $invite['result']['invite_link'];
-                    $data_expiracao = date('Y-m-d H:i:s', strtotime("+$tempo_minutos minutes"));
+                $data_expiracao = date('Y-m-d H:i:s', strtotime("+$tempo_minutos minutes"));
 
-                    // Busca expiração atual para extensão correta em renovações
-                    $stmt_membro_atual = $pdo->prepare("SELECT data_expiracao FROM membros_grupos WHERE id_telegram = ? AND id_grupo_telegram = ? AND bot_id = ?");
-                    $stmt_membro_atual->execute([$venda['id_telegram'], $id_grupo, $venda['bot_id']]);
-                    $expiracao_atual = $stmt_membro_atual->fetchColumn();
-                    if ($expiracao_atual && strtotime($expiracao_atual) > time()) {
-                        $data_expiracao = date('Y-m-d H:i:s', strtotime($expiracao_atual) + ($tempo_minutos * 60));
-                    }
+                // Busca expiração atual para extensão correta em renovações
+                $stmt_membro_atual = $pdo->prepare("SELECT data_expiracao FROM membros_grupos WHERE id_telegram = ? AND id_grupo_telegram = ? AND bot_id = ?");
+                $stmt_membro_atual->execute([$venda['id_telegram'], $id_grupo, $venda['bot_id']]);
+                $expiracao_atual = $stmt_membro_atual->fetchColumn();
+                if ($expiracao_atual && strtotime($expiracao_atual) > time()) {
+                    $data_expiracao = date('Y-m-d H:i:s', strtotime($expiracao_atual) + ($tempo_minutos * 60));
+                }
 
-                    $pdo->prepare("
-                        INSERT INTO membros_grupos
-                            (id_telegram, id_grupo_telegram, bot_id, venda_id, data_expiracao, invite_link, status, criado_em)
-                        VALUES (?, ?, ?, ?, ?, ?, 'ativo', NOW())
-                        ON DUPLICATE KEY UPDATE
-                            status         = 'ativo',
-                            data_expiracao = VALUES(data_expiracao),
-                            venda_id       = VALUES(venda_id),
-                            invite_link    = COALESCE(VALUES(invite_link), invite_link),
-                            aviso_enviado  = 0,
-                            em_renovacao   = 0
-                    ")->execute([$venda['id_telegram'], $id_grupo, $venda['bot_id'], $venda['id'], $data_expiracao, $link]);
+                // Roda incondicionalmente -- mesmo se a criação do link falhar, a venda já foi
+                // marcada 'pago' e não será reprocessada por nenhum outro caminho, então o
+                // acesso/expiração precisa ser gravado de qualquer forma (mesmo padrão de
+                // webhook.php e webhook_infopago.php::liberarAcessoGrupoInfopago()).
+                $pdo->prepare("
+                    INSERT INTO membros_grupos
+                        (id_telegram, id_grupo_telegram, bot_id, venda_id, data_expiracao, invite_link, status, criado_em)
+                    VALUES (?, ?, ?, ?, ?, ?, 'ativo', NOW())
+                    ON DUPLICATE KEY UPDATE
+                        status         = 'ativo',
+                        data_expiracao = VALUES(data_expiracao),
+                        venda_id       = VALUES(venda_id),
+                        invite_link    = COALESCE(VALUES(invite_link), invite_link),
+                        aviso_enviado  = 0,
+                        em_renovacao   = 0
+                ")->execute([$venda['id_telegram'], $id_grupo, $venda['bot_id'], $venda['id'], $data_expiracao, $link]);
 
+                if ($link) {
                     $msg .= "\n\n🚀 *Acesso Liberado!*\nClique no link abaixo para entrar no grupo exclusivo:\n\n$link\n\n⚠️ Este link é válido apenas para você.";
                     if ($tempo_minutos < 60) {
                         $msg .= "\n⏳ *Seu acesso expira em {$tempo_minutos} minutos.*";
@@ -275,9 +279,9 @@ foreach ($vendas_pendentes as $venda) {
                     }
                     $msg .= "\n*(Data exata: " . date('d/m/Y \\à\\s H:i', strtotime($data_expiracao)) . ")*";
                 } else {
-                    $msg .= "\n\n⚠️ Não foi possível gerar o link do grupo automaticamente.";
+                    $msg .= "\n\n⚠️ Não foi possível gerar o link do grupo automaticamente. O administrador entrará em contato.";
                     $erro_link = $invite['description'] ?? 'Erro desconhecido';
-                    logCron("Falha ao gerar link para venda #{$venda['id']}: $erro_link");
+                    logCron("Falha ao gerar link para venda #{$venda['id']}: $erro_link (acesso/expiração gravados mesmo assim)");
                 }
 
                 requisicaoTelegramLocal($venda['token'], 'sendMessage', ['chat_id' => $venda['id_telegram'], 'text' => $msg, 'parse_mode' => 'Markdown']);

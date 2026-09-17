@@ -766,7 +766,27 @@ if (strpos($texto, 'verificar_pagamento_') === 0) {
                          $msg = "✅ *Pagamento Confirmado!*\n\nObrigado pela sua compra.";
                         if (!empty($venda['id_grupo_telegram'])) {
                             $id_grupo = $venda['id_grupo_telegram'];
-                            $tempo_minutos = (int)($venda['tempo_acesso_minutos'] ?? ($venda['dias_acesso'] * 1440));
+                            // Usa a mesma lógica de cálculo de minutos que foi usada na criação da venda
+                            $minutos_acesso = $venda['tempo_acesso_minutos'] ?? 0;
+                            if ($minutos_acesso <= 0) {
+                                // Fallback para dias se tempo_acesso_minutos estiver zerado (legado)
+                                $minutos_acesso = ($venda['dias_acesso'] ?? 0) * 1440;
+                            }
+
+                            // Estende a partir da expiração atual se o acesso ainda estiver ativo (ex.
+                            // renovação confirmada antes de vencer) -- em vez de sempre "agora + plano",
+                            // que descartaria os dias que o cliente ainda tinha pagos. Mesma lógica já
+                            // usada em webhook_infopago.php::liberarAcessoGrupoInfopago() e
+                            // cron/cron_verificar_pix.php.
+                            $stmt_membro_atual = $pdo->prepare("SELECT data_expiracao FROM membros_grupos WHERE id_telegram = ? AND id_grupo_telegram = ? AND bot_id = ?");
+                            $stmt_membro_atual->execute([$venda['id_telegram'], $id_grupo, $venda['bot_id']]);
+                            $expiracao_atual_manual = $stmt_membro_atual->fetchColumn();
+                            if ($expiracao_atual_manual && strtotime($expiracao_atual_manual) > time()) {
+                                $data_expiracao = date('Y-m-d H:i:s', strtotime($expiracao_atual_manual) + ($minutos_acesso * 60));
+                            } else {
+                                $data_expiracao = date('Y-m-d H:i:s', time() + ($minutos_acesso * 60));
+                            }
+
                             // Revoga link antigo do mesmo usuário para impedir reuso/compartilhamento.
                             $stmt_link_anterior = $pdo->prepare("SELECT invite_link FROM membros_grupos WHERE id_telegram = ? AND id_grupo_telegram = ? AND bot_id = ? LIMIT 1");
                             $stmt_link_anterior->execute([$venda['id_telegram'], $id_grupo, $venda['bot_id']]);
@@ -783,32 +803,40 @@ if (strpos($texto, 'verificar_pagamento_') === 0) {
                                 'expire_date' => time() + (15 * 60),
                                 'name' => 'Venda #' . $venda['id']
                             ]);
-                            if (($invite['ok'] ?? false) && isset($invite['result']['invite_link'])) {
-                            $link = $invite['result']['invite_link'];
-                            // Usa a mesma lógica de cálculo de minutos que foi usada na criação da venda
-                            $minutos_acesso = $venda['tempo_acesso_minutos'] ?? 0;
-                            if ($minutos_acesso <= 0) {
-                                // Fallback para dias se tempo_acesso_minutos estiver zerado (legado)
-                                $minutos_acesso = ($venda['dias_acesso'] ?? 0) * 1440;
-                            }
-                            $data_expiracao = date('Y-m-d H:i:s', strtotime("+$minutos_acesso minutes"));
+                            $link = (($invite['ok'] ?? false) && isset($invite['result']['invite_link'])) ? $invite['result']['invite_link'] : null;
+
+                            // Roda incondicionalmente -- mesmo se a criação do link falhar (Telegram
+                            // fora do ar, bot sem permissão, etc.), a venda já foi marcada 'pago' e não
+                            // será reprocessada por nenhum outro caminho, então o acesso/expiração
+                            // precisa ser gravado de qualquer forma (COALESCE mantém o link antigo no
+                            // banco só como registro; ele já foi revogado acima, não funciona mais).
                             $pdo->prepare("
                                 INSERT INTO membros_grupos (id_telegram, id_grupo_telegram, bot_id, venda_id, data_expiracao, invite_link, status)
                                 VALUES (?, ?, ?, ?, ?, ?, 'ativo')
-                                ON DUPLICATE KEY UPDATE status = 'ativo', data_expiracao = VALUES(data_expiracao), venda_id = VALUES(venda_id), invite_link = VALUES(invite_link), aviso_enviado = 0
+                                ON DUPLICATE KEY UPDATE
+                                    status = 'ativo',
+                                    data_expiracao = VALUES(data_expiracao),
+                                    venda_id = VALUES(venda_id),
+                                    invite_link = COALESCE(VALUES(invite_link), invite_link),
+                                    aviso_enviado = 0,
+                                    em_renovacao = 0
                             ")->execute([$venda['id_telegram'], $id_grupo, $venda['bot_id'], $venda['id'], $data_expiracao, $link]);
-                            $msg .= "\n\n🚀 *Acesso Liberado!*\nClique no link abaixo para entrar no grupo exclusivo:\n\n$link\n\n⚠️ Este link é válido apenas para você.";
-                            if ($minutos_acesso < 60) {
-                                 $msg .= "\n⏳ *Seu acesso expira em {$minutos_acesso} minutos.*";
-                            } elseif ($minutos_acesso < 1440) {
-                                 $horas = floor($minutos_acesso / 60);
-                                 $msg .= "\n⏳ *Seu acesso expira em {$horas} horas.*";
+
+                            if ($link) {
+                                $msg .= "\n\n🚀 *Acesso Liberado!*\nClique no link abaixo para entrar no grupo exclusivo:\n\n$link\n\n⚠️ Este link é válido apenas para você.";
+                                if ($minutos_acesso < 60) {
+                                     $msg .= "\n⏳ *Seu acesso expira em {$minutos_acesso} minutos.*";
+                                } elseif ($minutos_acesso < 1440) {
+                                     $horas = floor($minutos_acesso / 60);
+                                     $msg .= "\n⏳ *Seu acesso expira em {$horas} horas.*";
+                                } else {
+                                     $dias = floor($minutos_acesso / 1440);
+                                     $msg .= "\n⏳ *Seu acesso expira em {$dias} dias.*";
+                                }
+                                $msg .= "\n*(Data exata: " . date('d/m/Y \à\s H:i', strtotime($data_expiracao)) . ")*";
                             } else {
-                                 $dias = floor($minutos_acesso / 1440);
-                                 $msg .= "\n⏳ *Seu acesso expira em {$dias} dias.*";
+                                $msg .= "\n\n⚠️ Não foi possível gerar o link do grupo automaticamente. O administrador entrará em contato.";
                             }
-                            $msg .= "\n*(Data exata: " . date('d/m/Y \à\s H:i', strtotime($data_expiracao)) . ")*";
-                        }
                         }
                         requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => $msg, 'parse_mode' => 'Markdown']);
                         
