@@ -92,7 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Traqueamento - Configurações</title>
     <?php include 'tema_inline.php'; ?>
-    <link rel="stylesheet" href="assets/css/coyote.css">
+    <link rel="stylesheet" href="assets/css/coyote.css?v=<?php echo @filemtime(__DIR__.'/assets/css/coyote.css'); ?>">
     <style>
         .secao-plataforma { margin-bottom: 28px; padding-bottom: 24px; border-bottom: 1px solid var(--bd); }
         .secao-plataforma:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }

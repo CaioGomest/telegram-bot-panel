@@ -59,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
     <title>Teste InfoPago (temporário)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <?php include 'tema_inline.php'; ?>
-    <link rel="stylesheet" href="assets/css/coyote.css">
+    <link rel="stylesheet" href="assets/css/coyote.css?v=<?php echo @filemtime(__DIR__.'/assets/css/coyote.css'); ?>">
     <style>
         .copia-cola { font-size: 11px; word-break: break-all; background: var(--p2); padding: 10px; border-radius: 8px; margin-top: 10px; }
         img.qr { display: block; margin: 14px auto; border-radius: 8px; }

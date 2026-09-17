@@ -10,7 +10,7 @@ $caminho_base = '../';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Configurações</title>
     <?php include __DIR__ . '/../tema_inline.php'; ?>
-    <link rel="stylesheet" href="../assets/css/coyote.css">
+    <link rel="stylesheet" href="../assets/css/coyote.css?v=<?php echo @filemtime(__DIR__.'/../assets/css/coyote.css'); ?>">
 </head>
 <body>
 <div class="layout-painel">

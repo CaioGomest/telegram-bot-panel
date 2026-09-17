@@ -11,7 +11,7 @@ verificarLogin();
     <?php include 'tema_inline.php'; ?>
     <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.3/themes/base/jquery-ui.css">
     <link rel="stylesheet" href="assets/vendor/jquery.flowchart.css">
-    <link rel="stylesheet" href="assets/css/coyote.css">
+    <link rel="stylesheet" href="assets/css/coyote.css?v=<?php echo @filemtime(__DIR__.'/assets/css/coyote.css'); ?>">
     <link rel="stylesheet" href="assets/fluxograma_tema.css?v=<?= (int) filemtime(__DIR__ . '/assets/fluxograma_tema.css') ?>">
 </head>
 <body>
