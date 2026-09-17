@@ -11,27 +11,42 @@ $is_admin = ehAdmin();
 $bot_id = isset($_GET['bot_id']) ? (int)$_GET['bot_id'] : 0;
 $status = isset($_GET['status']) ? $_GET['status'] : '';
 
-// WHERE base (sem os campos calculados por lead) -- reaproveitado no COUNT e na
-// listagem paginada. Nunca faz SELECT sem LIMIT aqui: com muitos leads acumulados
-// (anos de bot rodando), buscar tudo de uma vez trava a página inteira (ver
-// anotacoes/analise-potencia-e-escala.md) -- os 4 campos calculados por lead
-// (compras/gasto/status/plano) só custam caro se rodarem pra linha demais, então
-// a correção é sempre limitar quantas linhas passam por eles, não eliminá-los.
-$where = ['b.id_usuario = :id_usuario'];
-$params = ['id_usuario' => $id_usuario];
+// Resolve os bots do usuário primeiro (sempre poucas linhas) e filtra leads direto
+// por "l.bot_id IN (...)", em vez de "JOIN bots b WHERE b.id_usuario = ?". Testado:
+// com o filtro no JOIN, o MySQL não usava o índice (bot_id, criado_em) de leads e
+// fazia table scan completo + filesort mesmo só pra pegar 25 linhas (ver
+// anotacoes/analise-potencia-e-escala.md) -- filtrando direto em l.bot_id, o índice
+// passa a ser usado de verdade.
+$stmt_ids_bots = $pdo->prepare('SELECT id FROM bots WHERE id_usuario = ?');
+$stmt_ids_bots->execute([$id_usuario]);
+$ids_bots_usuario = $stmt_ids_bots->fetchAll(PDO::FETCH_COLUMN);
 
 if ($bot_id > 0) {
-    $where[] = 'l.bot_id = :bot_id';
-    $params['bot_id'] = $bot_id;
+    $ids_bots_usuario = in_array($bot_id, $ids_bots_usuario, true) ? [$bot_id] : [];
 }
 
-if ($status === 'pago') {
-    $where[] = "EXISTS (SELECT 1 FROM vendas v WHERE v.id_telegram = l.id_telegram AND v.bot_id = l.bot_id AND v.status = 'pago')";
-} elseif ($status === 'nao_pago') {
-    $where[] = "NOT EXISTS (SELECT 1 FROM vendas v WHERE v.id_telegram = l.id_telegram AND v.bot_id = l.bot_id AND v.status = 'pago')";
-}
+// WHERE base (sem os campos calculados por lead) -- reaproveitado no COUNT e na
+// listagem paginada. Nunca faz SELECT sem LIMIT aqui: com muitos leads acumulados
+// (anos de bot rodando), buscar tudo de uma vez trava a página inteira -- os 4
+// campos calculados por lead (compras/gasto/status/plano) só custam caro se
+// rodarem pra linha demais, então a correção é sempre limitar quantas linhas
+// passam por eles, não eliminá-los.
+if (empty($ids_bots_usuario)) {
+    $where_sql = '1=0';
+    $params = [];
+} else {
+    $placeholders_bots = implode(',', array_fill(0, count($ids_bots_usuario), '?'));
+    $where = ["l.bot_id IN ($placeholders_bots)"];
+    $params = $ids_bots_usuario;
 
-$where_sql = implode(' AND ', $where);
+    if ($status === 'pago') {
+        $where[] = "EXISTS (SELECT 1 FROM vendas v WHERE v.id_telegram = l.id_telegram AND v.bot_id = l.bot_id AND v.status = 'pago')";
+    } elseif ($status === 'nao_pago') {
+        $where[] = "NOT EXISTS (SELECT 1 FROM vendas v WHERE v.id_telegram = l.id_telegram AND v.bot_id = l.bot_id AND v.status = 'pago')";
+    }
+
+    $where_sql = implode(' AND ', $where);
+}
 $sql_base = "FROM leads l JOIN bots b ON l.bot_id = b.id WHERE $where_sql";
 
 $exportando_csv = isset($_GET['export']) && $_GET['export'] === 'csv';
