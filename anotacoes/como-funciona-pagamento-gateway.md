@@ -64,7 +64,7 @@ Ambos sempre respondem 200 (mesmo em erro/ignorado) pra não gerar retentativa a
 
 - Não existe tabela de "planos". Valor, tipo de cobrança, periodicidade e grupo vinculado são propriedades do **bloco pix no editor de fluxo visual** — o valor cobrado nunca vem de input do cliente final (checado, é seguro).
 - Não há cupons/desconto implementado.
-- Split simulado via Cash-Out (`infopago_split.php`) depois que o Pix cai — **falha no split nunca bloqueia a liberação do produto**, só registra em `vendas.split_status`/`vendas_splits`.
+- Split simulado via Cash-Out (`infopago_split.php`) depois que o Pix cai — **falha no split nunca bloqueia a liberação do produto**, só registra em `vendas.split_status`/`vendas_splits`. Split que falha (`split_status` em `falhou`/`parcial`/`sem_credenciais`) é reprocessado automaticamente por `cron/cron_retry_split.php` (novo, 2026-09-17), que roda periodicamente pegando vendas pagas nos últimos 7 dias com split pendente — depois de 7 dias sem sucesso, para de tentar sozinho (assume problema permanente, ex. chave Pix de split configurada errada, fica visível pro admin no filtro de `admin/transacoes.php` pra investigação manual). `dispararSplitInfopago()` é idempotente por venda (nunca reenvia um destino que já tem uma linha `'pago'` em `vendas_splits` daquela venda), então é seguro chamar de novo em cima de uma venda `'parcial'`.
 - Idempotência do split via header `x-idempotency-key` (UUID por chamada).
 - Sem reembolso/estorno implementado.
 - Expiração de cobrança: `vendas.tempo_expiracao_minutos` (padrão 15min), checada no cron de fallback.
@@ -90,7 +90,8 @@ Ambos sempre respondem 200 (mesmo em erro/ignorado) pra não gerar retentativa a
 |---|---|
 | Cash-In (cobrança Pix) | `funcoes/infopago_banco.php` |
 | Cash-Out (split/transferência) | `funcoes/infopago_cashout.php` |
-| Disparo do split pós-pagamento | `funcoes/infopago_split.php` |
+| Disparo do split pós-pagamento (idempotente por venda) | `funcoes/infopago_split.php` |
+| Retentativa automática de split que falhou | `cron/cron_retry_split.php` |
 | CRUD credenciais / resolve provider | `funcoes/gateways.php` |
 | Criptografia de segredos | `funcoes/criptografia.php` |
 | UI configuração de gateway | `gateways.php` |
