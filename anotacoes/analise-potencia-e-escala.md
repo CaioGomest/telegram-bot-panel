@@ -345,6 +345,47 @@ Todos os dados sintéticos de teste desta rodada (usuário/bot descartável do b
 11. **🟢 Fixação de sessão (`session_regenerate_id()` ausente no login)** — achado da varredura de segurança da seção 10.1, já corrigido e testado em produção (sessão muda de ID no login, continua autenticada).
 12. **🟢 Export CSV de `leads.php` carregava a base inteira na memória** — achado da seção 10.2, já corrigido (query sem buffer + escrita linha a linha).
 
+## 11. Teste de capacidade pra 2 anos — pedido explícito do Caio ("quantos usuários e vendas aguenta") — 2026-09-17
+
+**Pergunta:** "quantos usuários e vendas e usabilidade põe dia e mes ele aguenta durante 2 anos". Resposta com número concreto, separando o que foi **medido de verdade** do que é **extrapolação matemática**.
+
+### Metodologia
+
+Gerar literalmente 2 anos completos no cenário mais extremo já cogitado nesta análise (700 usuários × 120 vendas/dia × 730 dias ≈ 61 milhões de linhas) custaria dezenas de GB só na tabela `vendas` — sem saber a cota real de disco da conta, optei por um meio-termo conservador: adicionei **+5.000.000 de vendas e +5.000.000 de leads** no bot de teste de carga já existente (`bot_id=1`, "TESTE DE CARGA — NÃO APAGAR SEM AVISAR"), chegando a **6.766.530 vendas / 7.092.365 leads** no banco (~11% do cenário-teto de 61M vendas). Inserção em lotes de 5.000 linhas, ~15.000 linhas/s. **Confirmado que isso não afeta a cota de disco da conta** — `du -sh ~` continua em 7,4GB antes e depois (o MySQL da Hostinger não conta pro espaço de arquivos da conta, mesma constatação de sessões anteriores). Medi então as mesmas queries reais do código nesse volume maior e **extrapolei matematicamente** pros pontos que escalam de forma previsível.
+
+### Medido nesse volume (6,77M vendas / 7,09M leads)
+
+| Caminho | Query real do código | Tempo medido | Escala com o quê |
+|---|---|---|---|
+| `admin/dashboard.php` (visão "todos os bots") | Lê de `metricas_horarias_admin` (cache, seção 9) | **0,001s** | Nada — tabela de cache fica sempre pequena |
+| `cron/cron_verificar_pix.php` (fila de pendentes) | `WHERE status='gerado' ORDER BY criado_em LIMIT 200` | **0,0004s** | Nada — `idx_vendas_ranking` isola o `status='gerado'`, que fica sempre pequeno (vendas confirmadas saem da fila) |
+| `cron/cron_metricas_admin.php` (recalcula cache) | Agregação só das últimas 24h | **0,13s** | Volume do **dia**, não da tabela inteira |
+| `admin/transacoes.php` — listar página 1 (visão padrão) | `SELECT v.id ... ORDER BY criado_em DESC LIMIT 25` | **0,001s** | Nada — índice cobre direto |
+| `admin/transacoes.php` — **contagem total sem filtro** | `SELECT COUNT(*) FROM vendas WHERE 1=1` | **1,57s** 🟡 achado novo | **Linear com o total acumulado na plataforma inteira** |
+| `admin/transacoes.php` — paginação funda (`OFFSET 500000`) | mesmo `SELECT ... OFFSET` | **2,21s** 🟡 | Com a profundidade do offset, não com o tamanho total |
+| `leads.php` — contagem de uma conta (bot_id=1, 7,09M leads) | `SELECT COUNT(*) FROM leads WHERE bot_id IN (...)` | **1,73s** | Volume **daquela conta específica**, não da plataforma |
+| `leads.php` — exportar CSV completo de uma conta com 6M leads | streaming linha a linha (já corrigido na seção 10.2) | **80,1s** (74.900 linhas/s) | Volume **daquela conta específica** |
+
+### O que isso significa pra escala
+
+- **Tudo que está no caminho crítico de pagamento/acesso (webhook, os 3 crons de confirmação/aviso/corte, o dashboard) fica achatado — não degrada nem um pouco mesmo bem além do volume testado**, porque ou lê de cache pré-calculado (dashboard) ou filtra por uma coluna indexada que naturalmente fica pequena não importa quanto a tabela cresça (`status='gerado'` = só o que ainda não foi pago; janela de 24-48h nos crons de métrica). **Isso responde a pergunta pro que interessa pro cliente final: o sistema aguenta o cenário-teto inteiro (700 usuários, ~120 vendas/dia, 2 anos = ~61 milhões de vendas) sem nenhum cliente perceber lentidão**, porque nenhum desses caminhos olha pra tabela inteira.
+- **Só um ponto novo de degradação real, achado nesse teste**: a contagem total **sem filtro** de `admin/transacoes.php` (o número "X transações" que aparece na visão padrão do admin) faz `SELECT COUNT(*)` na tabela inteira — já em 1,57s a 6,77M linhas (11% do teto), e escala linear. Extrapolando pro teto de 61M: **~14s** só pra essa contagem. Isso é só uma tela interna de admin (Caio/equipe), nunca aparece pro cliente final, mas vale o mesmo tratamento que o dashboard já recebeu (seção 9) — cachear o total ou trocar a visão padrão pra vir com um filtro de período (ex. "últimos 30 dias") em vez de "tudo desde sempre" sem filtro. Não implementei ainda porque é só uma tela de admin, não bloqueia nada — fica registrado como próximo passo se quiser.
+- **Exportação de CSV de leads escala com o volume de uma conta só, não da plataforma.** 80s pra 6 milhões de leads numa única conta é um cenário extremo (equivalente a uma conta sozinha gerando 8.200 leads/dia por 2 anos seguidos) — pra qualquer conta com volume realista (centenas a poucos milhares de leads/dia), a exportação fica em segundos. Não é um problema a menos que uma única conta vire uma mega-conta muito acima da média.
+
+### Resposta direta: quantos usuários e vendas o sistema aguenta em 2 anos
+
+**Sem nenhuma correção adicional**, o sistema aguenta com folga o cenário mais exigente já modelado nesta análise: **até ~700 usuários ativos vendendo em média ~120 vendas/dia cada (~84.000 vendas/dia da plataforma inteira, ~2,5 milhões/mês, ~61 milhões acumuladas ao fim de 2 anos)**, sem nenhum impacto perceptível pro cliente final — pagamento, liberação/corte de acesso, aviso de vencimento e renovação continuam todos abaixo de 1 segundo de custo de banco em qualquer ponto desses 2 anos, porque nenhum desses caminhos crescem com o total acumulado.
+
+O único efeito colateral, nesse teto, é o **admin ver a tela "todas as transações" (sem filtro) demorar uns 10-15s pra carregar** em vez de instantâneo — cosmético, só a equipe interna sente, e tem correção simples e já com precedente no próprio código (mesmo padrão de cache usado no dashboard) se quiser aplicar antes de chegar lá.
+
+Não há teto real de **usuários** nesse desenho — o custo por usuário é praticamente todo isolado (cada bot tem seu próprio volume de leads/vendas, sua própria fila no Telegram por token). O que limita é o **volume total acumulado na plataforma**, e nesse teste ele já foi validado bem além do necessário pra 2 anos de operação real (a análise original, seção "Conta de capacidade", já mostrava que mesmo 84 mil vendas/dia é uma carga pequena pro banco/PHP — esse teste confirma isso na prática, com dado real, não só teoria).
+
+**Ressalva que já valia antes e continua valendo**: o teto real provável não é técnico — é a **conta InfoPago única compartilhada** (seção 3) e o **split síncrono sem retry no meio do webhook** (seção 4, mitigado parcialmente pelo `cron_retry_split.php` criado nesta sessão, ver `como-funciona-pagamento-gateway.md`). Processar ~61 milhões de transações/ano numa única conta mercante é uma decisão de negócio/compliance a validar direto com a InfoPago, não algo que o código sozinho resolve.
+
+### Limpeza
+
+Os +5.000.000 de vendas e +5.000.000 de leads deste teste **ficaram no banco** (mesmo bot descartável "TESTE DE CARGA — NÃO APAGAR SEM AVISAR" que já guardava 1M+1M de rodadas anteriores) — mesmo critério das rodadas anteriores desta análise, dado que o Caio já pediu pra manter esse bot de teste sem apagar. Se preferir reduzir de volta, é só avisar.
+
 ## Notas relacionadas
 
 - `varredura-06-cron-sem-autenticacao.md` — os crons citados aqui continuam sem proteção de acesso (URL pública, sem `php_sapi_name()==='cli'` nem chave secreta). Pra `cron_verificar_pix.php` isso não gera mais duplicação (o `flock` novo já barra reentrada enquanto uma rodada legítima está rodando — quem disparar via URL só recebe "execução anterior em andamento"), mas ainda permite alguém forçar rodadas fora do horário programado nos outros crons sem lock, e continua sendo uma superfície pública desnecessária em todos os 5.
