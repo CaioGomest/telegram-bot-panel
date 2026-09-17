@@ -49,14 +49,11 @@ Ou seja: cliente pagou de verdade, sistema sabe que pagou, mas o acesso ficava p
 
 Os caminhos 1/2/4 resetam `membros_grupos.em_renovacao = 0` ao confirmar um pagamento; o caminho 3 (botão manual) não tocava nessa coluna. **Conferido via grep: `em_renovacao` nunca é lido em lugar nenhum do código hoje** — só é escrito (`cron_renovacao.php` marca `1` ao gerar o PIX de renovação; os outros 3 caminhos resetam pra `0` ao confirmar). Corrigido por consistência, mas não corrigia nenhum bug funcional ativo — é só dado de auditoria/inspeção manual do banco, hoje sem consequência prática se ficar "preso" em 1.
 
-## ⚠️ Ponto de atenção — não é bug, é decisão de produto que vale confirmar
+## Tolerância (grace period) depois do vencimento — confirmado com o Caio
 
-**Tolerância (grace period) depois do vencimento**, em `cron_verificar_acessos.php`:
-- Assinatura manual (PIX gerado por `cron_renovacao.php`, sem `id_assinatura` nativo): **5 dias de tolerância** depois de `data_expiracao` antes de cortar o acesso — o cliente continua no grupo mesmo tendo "vencido", só recebe um aviso.
-- PIX Automático nativo (`id_assinatura` preenchido pelo gateway): **2 dias de tolerância** (menor, porque a cobrança é automática — só espera o gateway tentar de novo).
+Em `cron_verificar_acessos.php`, `$DIAS_CARENCIA`:
+- Assinatura manual (PIX gerado por `cron_renovacao.php`, sem `id_assinatura` nativo) **e** PIX Automático nativo (`id_assinatura` preenchido pelo gateway): **2 dias de tolerância** pros dois, depois de `data_expiracao`, antes de cortar o acesso — o cliente continua no grupo mesmo tendo "vencido", só recebe um aviso. Unificado em 2026-09-17 (a pedido do Caio — antes era 5 dias só pra assinatura manual, 2 pra recorrência nativa); o motivo é dar tempo do cliente conseguir pagar a renovação sem perder o acesso no meio do processo.
 - Compra única (`tipo_cobranca = 'unica'`): **zero tolerância** — corta na hora que vence.
-
-Isso está **funcionando exatamente como o código descreve** — não é um bug, é uma escolha consciente de dar um "colchão" pro cliente de assinatura conseguir pagar antes de perder acesso. Só deixando registrado porque é um comportamento que afeta diretamente quando um cliente perde acesso de verdade, e vale o Caio confirmar que é isso mesmo que quer (5 dias é bastante tempo de acesso "de graça" depois do vencimento, se não for a intenção).
 
 ## Timeline consolidada por tipo de cobrança
 
@@ -64,7 +61,7 @@ Isso está **funcionando exatamente como o código descreve** — não é um bug
 1. Compra confirmada → acesso liberado até `data_expiracao`.
 2. `data_expiracao - 3 dias` → `cron_renovacao.php` gera novo PIX automaticamente, manda mensagem.
 3. Se pago a tempo → um dos 4 caminhos estende o acesso, ciclo reinicia do passo 1.
-4. Se não pago → `data_expiracao` chega → `cron_verificar_acessos.php` entra em modo tolerância (5 dias), manda 1 aviso quando faltam ≤2 dias de tolerância.
+4. Se não pago → `data_expiracao` chega → `cron_verificar_acessos.php` entra em modo tolerância (2 dias), manda 1 aviso quando faltam ≤2 dias de tolerância (ou seja, logo no início da janela).
 5. Tolerância esgota sem pagamento → acesso cortado (ban+unban no grupo, link revogado, `status='expirado'`), mensagem final ao cliente.
 
 **PIX Automático nativo** (`id_assinatura` do gateway):

@@ -54,7 +54,11 @@ try {
 
     echo "Encontrados " . count($expirados) . " acessos expirados.\n";
 
-    $DIAS_CARENCIA = 5;
+    // Tolerância máxima depois do vencimento, pros dois tipos de assinatura (manual e
+    // recorrência automática nativa) -- tempo que o cliente ainda precisa ter acesso
+    // pra conseguir pagar a renovação. Ajustado a pedido do Caio em 2026-09-17 (era 5
+    // dias só pra assinatura manual; unificado em 2 pra ambos).
+    $DIAS_CARENCIA = 2;
 
     foreach ($expirados as $membro) {
         $token = $membro['token'];
@@ -79,11 +83,10 @@ try {
         $teclado_suporte = ['reply_markup' => json_encode(['inline_keyboard' => $botoes_aviso])];
 
         // Tolerância:
-        // - Recorrente nativo: 2 dias (gateway tenta cobrar automaticamente; webhook pode demorar)
-        // - Assinatura manual sem id_assinatura: 5 dias (usuário precisa pagar manualmente)
+        // - Recorrente nativo ou assinatura manual: $DIAS_CARENCIA (mesmo teto pros dois)
         // - Único: sem tolerância
         if ($tipo_cobranca === 'assinatura' || $eh_recorrente_nativo) {
-            $dias_carencia = $eh_recorrente_nativo ? 2 : $DIAS_CARENCIA;
+            $dias_carencia = $DIAS_CARENCIA;
             $data_expiracao = strtotime($membro['data_expiracao']);
             $data_limite = strtotime("+{$dias_carencia} days", $data_expiracao);
             $agora = time();
