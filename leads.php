@@ -19,10 +19,10 @@ $status = isset($_GET['status']) ? $_GET['status'] : '';
 // passa a ser usado de verdade.
 $stmt_ids_bots = $pdo->prepare('SELECT id FROM bots WHERE id_usuario = ?');
 $stmt_ids_bots->execute([$id_usuario]);
-$ids_bots_usuario = $stmt_ids_bots->fetchAll(PDO::FETCH_COLUMN);
+$ids_bots_usuario = array_map('intval', $stmt_ids_bots->fetchAll(PDO::FETCH_COLUMN));
 
 if ($bot_id > 0) {
-    $ids_bots_usuario = in_array($bot_id, $ids_bots_usuario, true) ? [$bot_id] : [];
+    $ids_bots_usuario = in_array($bot_id, $ids_bots_usuario) ? [$bot_id] : [];
 }
 
 // WHERE base (sem os campos calculados por lead) -- reaproveitado no COUNT e na
@@ -31,13 +31,20 @@ if ($bot_id > 0) {
 // campos calculados por lead (compras/gasto/status/plano) só custam caro se
 // rodarem pra linha demais, então a correção é sempre limitar quantas linhas
 // passam por eles, não eliminá-los.
+//
+// Os IDs de bot são colados direto na query (não como parâmetro do PDO) de propósito:
+// testado em produção que "l.bot_id IN (?)" com bind faz o MySQL escolher um plano
+// muito pior (table scan + filesort mesmo pegando só 25 linhas, 25s+) do que
+// "l.bot_id IN (2)" com o valor literal (0,003s) -- é seguro aqui porque os valores
+// vêm de uma query nossa (bots do próprio usuário logado), nunca de input externo,
+// e passam por array_map('intval', ...) antes de qualquer coisa.
 if (empty($ids_bots_usuario)) {
     $where_sql = '1=0';
     $params = [];
 } else {
-    $placeholders_bots = implode(',', array_fill(0, count($ids_bots_usuario), '?'));
-    $where = ["l.bot_id IN ($placeholders_bots)"];
-    $params = $ids_bots_usuario;
+    $ids_bots_sql = implode(',', $ids_bots_usuario);
+    $where = ["l.bot_id IN ($ids_bots_sql)"];
+    $params = [];
 
     if ($status === 'pago') {
         $where[] = "EXISTS (SELECT 1 FROM vendas v WHERE v.id_telegram = l.id_telegram AND v.bot_id = l.bot_id AND v.status = 'pago')";
