@@ -50,9 +50,49 @@ try {
             atualizado_em = VALUES(atualizado_em)
     ");
     $stmt->execute();
-    logCronMetricas("Métricas horárias recalculadas (últimas 48h). Linhas afetadas: {$stmt->rowCount()}.");
+    logCronMetricas("Métricas horárias (admin) recalculadas (últimas 48h). Linhas afetadas: {$stmt->rowCount()}.");
 } catch (Throwable $e) {
-    logCronMetricas('Erro: ' . $e->getMessage());
+    logCronMetricas('Erro (admin): ' . $e->getMessage());
+}
+
+try {
+    // Mesma ideia acima, mas por usuário -- alimenta o dashboard do cliente (index.php).
+    // Feito num try/catch separado pra um erro aqui não impedir a atualização acima.
+    $stmt = $pdo->prepare("
+        INSERT INTO metricas_horarias_usuario (id_usuario, data, hora, valor_pago, qtd_paga, qtd_gerada, atualizado_em)
+        SELECT b.id_usuario, DATE(v.criado_em), HOUR(v.criado_em),
+               SUM(CASE WHEN v.status = 'pago' THEN v.valor ELSE 0 END),
+               SUM(CASE WHEN v.status = 'pago' THEN 1 ELSE 0 END),
+               COUNT(*),
+               NOW()
+        FROM vendas v
+        JOIN bots b ON v.bot_id = b.id
+        WHERE v.criado_em >= (CURDATE() - INTERVAL 1 DAY)
+        GROUP BY b.id_usuario, DATE(v.criado_em), HOUR(v.criado_em)
+        ON DUPLICATE KEY UPDATE
+            valor_pago = VALUES(valor_pago),
+            qtd_paga = VALUES(qtd_paga),
+            qtd_gerada = VALUES(qtd_gerada),
+            atualizado_em = VALUES(atualizado_em)
+    ");
+    $stmt->execute();
+
+    $stmt2 = $pdo->prepare("
+        INSERT INTO metricas_horarias_usuario (id_usuario, data, hora, qtd_leads, atualizado_em)
+        SELECT b.id_usuario, DATE(l.criado_em), HOUR(l.criado_em), COUNT(*), NOW()
+        FROM leads l
+        JOIN bots b ON l.bot_id = b.id
+        WHERE l.criado_em >= (CURDATE() - INTERVAL 1 DAY)
+        GROUP BY b.id_usuario, DATE(l.criado_em), HOUR(l.criado_em)
+        ON DUPLICATE KEY UPDATE
+            qtd_leads = VALUES(qtd_leads),
+            atualizado_em = VALUES(atualizado_em)
+    ");
+    $stmt2->execute();
+
+    logCronMetricas("Métricas horárias (usuário) recalculadas (últimas 48h). Linhas afetadas: {$stmt->rowCount()} + {$stmt2->rowCount()}.");
+} catch (Throwable $e) {
+    logCronMetricas('Erro (usuário): ' . $e->getMessage());
 }
 
 flock($lock, LOCK_UN);

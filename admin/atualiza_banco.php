@@ -582,6 +582,64 @@ try {
     ");
     echo "Histórico de 'metricas_horarias_admin' preenchido a partir de 'vendas'.<br>";
 
+    // Suporta ORDER BY criado_em DESC em listagens paginadas (admin/transacoes.php,
+    // leads.php) sem filesort mesmo com milhões de linhas -- ver
+    // anotacoes/analise-potencia-e-escala.md.
+    try { $pdo->exec("ALTER TABLE vendas ADD INDEX idx_vendas_criado_em (criado_em DESC)"); } catch (PDOException $e) {}
+    try { $pdo->exec("ALTER TABLE leads ADD INDEX idx_leads_bot_criado_em (bot_id, criado_em DESC)"); } catch (PDOException $e) {}
+
+    // Cache pré-calculado do dashboard do cliente (index.php) -- mesmo raciocínio de
+    // metricas_horarias_admin, só que por usuário (cada usuário só vê o próprio
+    // faturamento, então não faz sentido guardar por bot também). Ver
+    // cron/cron_metricas_admin.php (mantém em dia) e anotacoes/analise-potencia-e-escala.md.
+    $sql_metricas_usuario = "
+        CREATE TABLE IF NOT EXISTS metricas_horarias_usuario (
+            id_usuario INT NOT NULL,
+            data DATE NOT NULL,
+            hora TINYINT UNSIGNED NOT NULL,
+            valor_pago DECIMAL(14,2) NOT NULL DEFAULT 0,
+            qtd_paga INT NOT NULL DEFAULT 0,
+            qtd_gerada INT NOT NULL DEFAULT 0,
+            qtd_leads INT NOT NULL DEFAULT 0,
+            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id_usuario, data, hora)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ";
+    $pdo->exec($sql_metricas_usuario);
+    echo "Tabela 'metricas_horarias_usuario' OK.<br>";
+
+    // Preenchimento único do histórico (vendas pagas + geradas por hora/usuário).
+    $pdo->exec("
+        INSERT INTO metricas_horarias_usuario (id_usuario, data, hora, valor_pago, qtd_paga, qtd_gerada, atualizado_em)
+        SELECT b.id_usuario, DATE(v.criado_em), HOUR(v.criado_em),
+               SUM(CASE WHEN v.status = 'pago' THEN v.valor ELSE 0 END),
+               SUM(CASE WHEN v.status = 'pago' THEN 1 ELSE 0 END),
+               COUNT(*),
+               NOW()
+        FROM vendas v
+        JOIN bots b ON v.bot_id = b.id
+        GROUP BY b.id_usuario, DATE(v.criado_em), HOUR(v.criado_em)
+        ON DUPLICATE KEY UPDATE
+            valor_pago = VALUES(valor_pago),
+            qtd_paga = VALUES(qtd_paga),
+            qtd_gerada = VALUES(qtd_gerada),
+            atualizado_em = VALUES(atualizado_em)
+    ");
+    // Contagem de leads por hora/usuário -- soma em cima do que já foi inserido acima
+    // (linhas de hora sem nenhuma venda ainda não existem, então usa INSERT...SELECT
+    // com ON DUPLICATE pra somar só o campo de leads sem mexer nos outros).
+    $pdo->exec("
+        INSERT INTO metricas_horarias_usuario (id_usuario, data, hora, qtd_leads, atualizado_em)
+        SELECT b.id_usuario, DATE(l.criado_em), HOUR(l.criado_em), COUNT(*), NOW()
+        FROM leads l
+        JOIN bots b ON l.bot_id = b.id
+        GROUP BY b.id_usuario, DATE(l.criado_em), HOUR(l.criado_em)
+        ON DUPLICATE KEY UPDATE
+            qtd_leads = VALUES(qtd_leads),
+            atualizado_em = VALUES(atualizado_em)
+    ");
+    echo "Histórico de 'metricas_horarias_usuario' preenchido a partir de 'vendas'/'leads'.<br>";
+
     $stmt = $pdo->query("SELECT COUNT(*) FROM usuarios");
     $total = $stmt->fetchColumn();
 

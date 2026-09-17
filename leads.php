@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/funcoes/usuario.php';
+require_once __DIR__ . '/funcoes/paginador.php';
 verificarLogin();
 
 $id_usuario = $_SESSION['usuario_id'];
@@ -10,49 +11,74 @@ $is_admin = ehAdmin();
 $bot_id = isset($_GET['bot_id']) ? (int)$_GET['bot_id'] : 0;
 $status = isset($_GET['status']) ? $_GET['status'] : '';
 
-$sql = "
-    SELECT 
+// WHERE base (sem os campos calculados por lead) -- reaproveitado no COUNT e na
+// listagem paginada. Nunca faz SELECT sem LIMIT aqui: com muitos leads acumulados
+// (anos de bot rodando), buscar tudo de uma vez trava a página inteira (ver
+// anotacoes/analise-potencia-e-escala.md) -- os 4 campos calculados por lead
+// (compras/gasto/status/plano) só custam caro se rodarem pra linha demais, então
+// a correção é sempre limitar quantas linhas passam por eles, não eliminá-los.
+$where = ['b.id_usuario = :id_usuario'];
+$params = ['id_usuario' => $id_usuario];
+
+if ($bot_id > 0) {
+    $where[] = 'l.bot_id = :bot_id';
+    $params['bot_id'] = $bot_id;
+}
+
+if ($status === 'pago') {
+    $where[] = "EXISTS (SELECT 1 FROM vendas v WHERE v.id_telegram = l.id_telegram AND v.bot_id = l.bot_id AND v.status = 'pago')";
+} elseif ($status === 'nao_pago') {
+    $where[] = "NOT EXISTS (SELECT 1 FROM vendas v WHERE v.id_telegram = l.id_telegram AND v.bot_id = l.bot_id AND v.status = 'pago')";
+}
+
+$where_sql = implode(' AND ', $where);
+$sql_base = "FROM leads l JOIN bots b ON l.bot_id = b.id WHERE $where_sql";
+
+$exportando_csv = isset($_GET['export']) && $_GET['export'] === 'csv';
+
+$sql_campos = "
+    SELECT
         l.id,
         l.nome,
         l.id_telegram,
         l.telefone,
-        l.criado_em as data_inicio, 
+        l.criado_em as data_inicio,
         COALESCE(b.primeiro_nome, b.nome_usuario) as nome_bot,
         (SELECT COUNT(*) FROM vendas v WHERE v.id_telegram = l.id_telegram AND v.bot_id = l.bot_id AND v.status = 'pago') as total_compras,
         (SELECT SUM(v.valor) FROM vendas v WHERE v.id_telegram = l.id_telegram AND v.bot_id = l.bot_id AND v.status = 'pago') as total_gasto,
         (SELECT v.status FROM vendas v WHERE v.id_telegram = l.id_telegram AND v.bot_id = l.bot_id ORDER BY v.criado_em DESC LIMIT 1) as ultimo_status_pagamento,
         EXISTS (
-            SELECT 1 FROM membros_grupos mg 
+            SELECT 1 FROM membros_grupos mg
             WHERE mg.id_telegram = l.id_telegram
               AND mg.bot_id = l.bot_id
               AND mg.status = 'ativo'
               AND (mg.data_expiracao IS NULL OR mg.data_expiracao > NOW())
         ) as plano_ativo
-    FROM leads l
-    JOIN bots b ON l.bot_id = b.id
-    WHERE b.id_usuario = :id_usuario
+    $sql_base
+    ORDER BY l.criado_em DESC
 ";
 
-$params = ['id_usuario' => $id_usuario];
+if ($exportando_csv) {
+    // Exportação é uma ação pontual e explícita -- aqui sim faz sentido buscar tudo
+    // que casa com o filtro, sem paginação (é o objetivo da exportação).
+    $stmt = $pdo->prepare($sql_campos);
+    $stmt->execute($params);
+    $leads = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} else {
+    $stmt_total = $pdo->prepare("SELECT COUNT(*) $sql_base");
+    $stmt_total->execute($params);
+    $total_leads = (int) $stmt_total->fetchColumn();
 
-if ($bot_id > 0) {
-    $sql .= " AND l.bot_id = :bot_id";
-    $params['bot_id'] = $bot_id;
+    $por_pagina = 25;
+    $pagina_atual = isset($_GET['pagina']) ? max(1, (int)$_GET['pagina']) : 1;
+    $offset = ($pagina_atual - 1) * $por_pagina;
+
+    $stmt = $pdo->prepare($sql_campos . " LIMIT $por_pagina OFFSET $offset");
+    $stmt->execute($params);
+    $leads = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-if ($status === 'pago') {
-    $sql .= " AND EXISTS (SELECT 1 FROM vendas v WHERE v.id_telegram = l.id_telegram AND v.bot_id = l.bot_id AND v.status = 'pago')";
-} elseif ($status === 'nao_pago') {
-    $sql .= " AND NOT EXISTS (SELECT 1 FROM vendas v WHERE v.id_telegram = l.id_telegram AND v.bot_id = l.bot_id AND v.status = 'pago')";
-}
-
-$sql .= " ORDER BY l.criado_em DESC";
-
-$stmt = $pdo->prepare($sql);
-$stmt->execute($params);
-$leads = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-if (isset($_GET['export']) && $_GET['export'] === 'csv') {
+if ($exportando_csv) {
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename=leads.csv');
     $output = fopen('php://output', 'w');
@@ -196,6 +222,7 @@ $meus_bots = $stmt_bots->fetchAll(PDO::FETCH_ASSOC);
                     </tbody>
                 </table>
             </div>
+            <?php echo paginador($total_leads, $por_pagina); ?>
         </div>
     </main>
 </div>

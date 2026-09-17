@@ -69,21 +69,53 @@ $pagina_atual = isset($_GET['pagina']) ? max(1, (int)$_GET['pagina']) : 1;
 $por_pagina = 25;
 $offset = ($pagina_atual - 1) * $por_pagina;
 
-$sql = "
-    SELECT
-        v.id, v.valor, v.status, v.transacao_id, v.id_telegram, v.criado_em, v.pago_em,
-        v.tipo_cobranca, v.comissao_admin, v.split_status, v.split_em,
-        b.id AS id_bot, COALESCE(b.primeiro_nome, b.nome_usuario) AS nome_bot,
-        u.id AS id_usuario, u.nome AS nome_usuario,
-        g.titulo AS titulo_gateway,
-        us.soma_pct
-    $sql_base
+// Busca só os IDs da página atual primeiro (sem os LEFT JOINs caros de gateway/split),
+// usando o índice em criado_em -- e só faz o JOIN pesado pras poucas linhas que
+// sobraram, não pra tabela inteira. Sem isso, com muitas vendas acumuladas o MySQL
+// materializa a junção inteira antes de ordenar (testado: 5,75s -> 0,002s com 1M de
+// vendas). Ver anotacoes/analise-potencia-e-escala.md.
+$sql_ids = "
+    SELECT v.id
+    FROM vendas v
+    JOIN bots b ON v.bot_id = b.id
+    JOIN usuarios u ON b.id_usuario = u.id
+    WHERE $where_sql
     ORDER BY v.criado_em DESC
     LIMIT $por_pagina OFFSET $offset
 ";
-$stmt = $pdo->prepare($sql);
-$stmt->execute($params);
-$transacoes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$stmt_ids = $pdo->prepare($sql_ids);
+$stmt_ids->execute($params);
+$ids_pagina = $stmt_ids->fetchAll(PDO::FETCH_COLUMN);
+
+if ($ids_pagina) {
+    $placeholders_ids = implode(',', array_fill(0, count($ids_pagina), '?'));
+    $sql = "
+        SELECT
+            v.id, v.valor, v.status, v.transacao_id, v.id_telegram, v.criado_em, v.pago_em,
+            v.tipo_cobranca, v.comissao_admin, v.split_status, v.split_em,
+            b.id AS id_bot, COALESCE(b.primeiro_nome, b.nome_usuario) AS nome_bot,
+            u.id AS id_usuario, u.nome AS nome_usuario,
+            g.titulo AS titulo_gateway,
+            us.soma_pct
+        FROM vendas v
+        JOIN bots b ON v.bot_id = b.id
+        JOIN usuarios u ON b.id_usuario = u.id
+        LEFT JOIN gateways g ON v.id_gateway = g.id
+        LEFT JOIN (
+            SELECT id_usuario, SUM(taxa_split) AS soma_pct
+            FROM usuarios_splits
+            WHERE gateway_nome = 'infopago'
+            GROUP BY id_usuario
+        ) us ON us.id_usuario = u.id
+        WHERE v.id IN ($placeholders_ids)
+        ORDER BY v.criado_em DESC
+    ";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($ids_pagina);
+    $transacoes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} else {
+    $transacoes = [];
+}
 
 $splits_por_venda = [];
 $venda_ids = array_column($transacoes, 'id');
