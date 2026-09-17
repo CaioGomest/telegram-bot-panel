@@ -476,6 +476,10 @@ html[data-theme] small { display: block; margin-top: 5px; font-size: 11px; color
     border-radius: 16px;
     padding: 18px;
     box-shadow: var(--shadow);
+    /* Item de grid tem "min-width: auto" implícito, que usa o texto sem quebra
+       (rótulo/valor com white-space: nowrap) como largura mínima -- sem isso, o
+       card da 2ª coluna não encolhe pra caber e passa da borda da tela no mobile. */
+    min-width: 0;
 }
 .cartao-kpi-larga { grid-column: span 2; }
 .cartao-kpi-cabecalho { display: flex; align-items: center; gap: 9px; }
