@@ -61,7 +61,17 @@ $sql_base = "
     WHERE $where_sql
 ";
 
-$stmt_total = $pdo->prepare("SELECT COUNT(*) $sql_base");
+// O COUNT não precisa dos LEFT JOINs (gateway/split nunca reduzem linha) nem do JOIN
+// com bots/usuarios quando não há filtro por usuário -- só existem ali pra dar suporte
+// a filtros que podem nem estar ativos. Sem filtro nenhum (visão padrão), juntar tudo
+// pra só contar forçava o MySQL a escanear vendas inteira (testado: full table scan
+// mesmo sem WHERE nenhum). Ver anotacoes/analise-potencia-e-escala.md.
+if ($usuario_id > 0) {
+    $sql_count_base = "FROM vendas v JOIN bots b ON v.bot_id = b.id JOIN usuarios u ON b.id_usuario = u.id WHERE $where_sql";
+} else {
+    $sql_count_base = "FROM vendas v WHERE $where_sql";
+}
+$stmt_total = $pdo->prepare("SELECT COUNT(*) $sql_count_base");
 $stmt_total->execute($params);
 $total_transacoes = (int)$stmt_total->fetchColumn();
 
