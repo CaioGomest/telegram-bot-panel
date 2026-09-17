@@ -74,7 +74,7 @@ function resetarTentativasLogin(string $identificador): void {
     }
 }
 
-function fazerLogin(string $email, string $senha): bool {
+function fazerLogin(string $email, string $senha, bool $lembrar = false): bool {
     global $pdo;
 
     if (loginEstaBloqueado($email)) {
@@ -85,13 +85,34 @@ function fazerLogin(string $email, string $senha): bool {
         $stmt = $pdo->prepare("SELECT id, nome, email, senha, perfil FROM usuarios WHERE email = ? LIMIT 1");
         $stmt->execute([$email]);
         $usuario = $stmt->fetch();
-        
+
         if ($usuario && password_verify($senha, $usuario['senha'])) {
             $_SESSION['usuario_id'] = (int)$usuario['id'];
             $_SESSION['usuario_nome'] = $usuario['nome'];
             $_SESSION['usuario_email'] = $usuario['email'];
             $_SESSION['usuario_perfil'] = $usuario['perfil'];
-            
+
+            if ($lembrar) {
+                // O cookie da sessão já foi enviado como "cookie de sessão" (lifetime=0,
+                // morre ao fechar o navegador) lá em cima, antes da gente saber se o
+                // usuário marcou "lembrar de mim" -- por isso reenviamos o mesmo cookie
+                // aqui com validade de 30 dias, sobrescrevendo o que o navegador já tem.
+                // gc_maxlifetime também precisa subir, senão o PHP apaga os dados da
+                // sessão no servidor depois de só ~24min de inatividade (padrão),
+                // mesmo com o cookie do navegador ainda válido.
+                $trinta_dias = 30 * 24 * 60 * 60;
+                ini_set('session.gc_maxlifetime', (string) $trinta_dias);
+                $params = session_get_cookie_params();
+                setcookie(session_name(), session_id(), [
+                    'expires' => time() + $trinta_dias,
+                    'path' => $params['path'],
+                    'domain' => $params['domain'],
+                    'secure' => $params['secure'],
+                    'httponly' => $params['httponly'],
+                    'samesite' => $params['samesite'],
+                ]);
+            }
+
             resetarTentativasLogin($email);
             registrarAtividade((int)$usuario['id'], 'sistema', 'Login', 'Usuário realizou login no sistema.');
             return true;

@@ -17,9 +17,10 @@ $erro_login = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'login') {
     $email = $_POST['email'] ?? '';
     $senha = $_POST['senha'] ?? '';
+    $lembrar = !empty($_POST['lembrar']);
     if (loginEstaBloqueado($email)) {
         $erro_login = 'bloqueado';
-    } elseif (fazerLogin($email, $senha)) {
+    } elseif (fazerLogin($email, $senha, $lembrar)) {
         if (ehAdmin()) {
             header('Location: admin/dashboard.php');
         } else {
@@ -109,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'login')
 
                 <div class="login-opcoes">
                     <label class="chave-gateway laranja" title="Lembrar de mim">
-                        <input type="checkbox" id="lembrar">
+                        <input type="checkbox" id="lembrar" name="lembrar" value="1">
                         <span class="chave-gateway-trilho"></span>
                     </label>
                     <span class="texto-suave" style="margin-right:auto;margin-left:8px;">Lembrar de mim</span>
