@@ -7,8 +7,13 @@ require_once __DIR__ . '/criptografia.php';
 /**
  * Dispara o(s) split(s) "manuais" da InfoPago via Cash-Out, um pra cada destino configurado
  * pelo dono do bot. Chamado tanto pelo webhook (webhook_infopago.php) quanto pelo cron de
- * fallback (cron_verificar_pix.php).
+ * fallback (cron_verificar_pix.php) e pelo cron de retentativa (cron_retry_split.php).
  * Falha aqui não deve impedir a liberação de acesso do comprador — só loga o erro.
+ *
+ * Idempotente por venda: se já existe uma linha 'pago' em vendas_splits pra um destino
+ * específico daquela venda, esse destino é pulado (não paga de novo) -- é o que permite
+ * chamar essa função de novo com segurança numa venda 'parcial' (alguns destinos pagos,
+ * outros não) sem duplicar o repasse dos que já deram certo.
  */
 function dispararSplitInfopago(int $id_dono, float $valor_venda, string $txid, int $venda_id = 0): void {
     global $pdo;
@@ -45,6 +50,17 @@ function dispararSplitInfopago(int $id_dono, float $valor_venda, string $txid, i
         return;
     }
 
+    // Destinos que já foram pagos com sucesso numa tentativa anterior pra essa mesma venda
+    // (retentativa depois de 'parcial' ou 'falhou') -- nunca reenvia pra esses.
+    $ja_pagos = [];
+    if ($venda_id > 0) {
+        $stmt_ja_pagos = $pdo->prepare("SELECT usuario_split_id, valor FROM vendas_splits WHERE venda_id = ? AND status = 'pago'");
+        $stmt_ja_pagos->execute([$venda_id]);
+        foreach ($stmt_ja_pagos->fetchAll(PDO::FETCH_ASSOC) as $linha) {
+            $ja_pagos[(int) $linha['usuario_split_id']] = (float) $linha['valor'];
+        }
+    }
+
     // Cash-Out usa as credenciais compartilhadas do admin — é a conta dele que recebe via
     // InfoPago e repassa a parte de cada usuário, não uma conta por usuário.
     $stmt = $pdo->prepare("
@@ -75,6 +91,13 @@ function dispararSplitInfopago(int $id_dono, float $valor_venda, string $txid, i
     foreach ($splits as $split) {
         $valor_split = round($valor_venda * ((float)$split['taxa_split'] / 100), 2);
         if ($valor_split <= 0) {
+            continue;
+        }
+
+        if (array_key_exists((int) $split['id'], $ja_pagos)) {
+            $log("Split já tinha sido pago numa tentativa anterior, pulando | txid=$txid | destino={$split['chave_pix_split']}");
+            $algum_pago = true;
+            $total_repassado += $ja_pagos[(int) $split['id']];
             continue;
         }
 
