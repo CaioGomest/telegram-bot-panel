@@ -190,6 +190,62 @@ try {
 
     $ticket_medio = $pix_pagos > 0 ? $vendas_aprovadas / $pix_pagos : 0;
 
+    // Variação vs período anterior equivalente (ex. "+18,4% vs semana anterior"), pro
+    // card de destaque no topo do mobile. "Total" não tem "período anterior" que faça
+    // sentido, então não mostra selo nesse caso.
+    $mostra_variacao = true;
+    switch ($periodo) {
+        case 'hoje':
+            $data_ini_ant = date('Y-m-d', strtotime('-1 day'));
+            $data_fim_ant = $data_ini_ant;
+            break;
+        case 'ontem':
+            $data_ini_ant = date('Y-m-d', strtotime('-2 days'));
+            $data_fim_ant = $data_ini_ant;
+            break;
+        case '30dias':
+            $data_ini_ant = date('Y-m-d', strtotime('-60 days'));
+            $data_fim_ant = date('Y-m-d', strtotime('-31 days'));
+            break;
+        case 'personalizado':
+            if ($datas_validas) {
+                $dias_periodo = (int) ((strtotime($data_fim) - strtotime($data_inicio)) / 86400) + 1;
+                $data_fim_ant = date('Y-m-d', strtotime($data_inicio . ' -1 day'));
+                $data_ini_ant = date('Y-m-d', strtotime($data_fim_ant . ' -' . ($dias_periodo - 1) . ' days'));
+            } else {
+                $mostra_variacao = false;
+            }
+            break;
+        case 'total':
+            $mostra_variacao = false;
+            break;
+        default: // 7dias
+            $data_ini_ant = date('Y-m-d', strtotime('-14 days'));
+            $data_fim_ant = date('Y-m-d', strtotime('-8 days'));
+            break;
+    }
+
+    $variacao_percentual = null;
+    if ($mostra_variacao) {
+        if ($usa_cache_metricas) {
+            $stmt = $pdo->prepare("SELECT SUM(valor_pago) FROM metricas_horarias_usuario WHERE data BETWEEN ? AND ? $where_usuario_metricas");
+            $stmt->execute([$data_ini_ant, $data_fim_ant]);
+            $vendas_periodo_anterior = (float) $stmt->fetchColumn();
+        } else {
+            $stmt = $pdo->prepare("SELECT SUM(v.valor) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) BETWEEN ? AND ? $where_user_vendas $where_bot_vendas");
+            $stmt->execute([$data_ini_ant, $data_fim_ant]);
+            $vendas_periodo_anterior = (float) $stmt->fetchColumn();
+        }
+
+        if ($vendas_periodo_anterior > 0) {
+            $variacao_percentual = (($vendas_aprovadas - $vendas_periodo_anterior) / $vendas_periodo_anterior) * 100;
+        } elseif ($vendas_aprovadas > 0) {
+            $variacao_percentual = 100.0;
+        } else {
+            $variacao_percentual = 0.0;
+        }
+    }
+
     $grafico_dados = [];
     $grafico_labels = [];
     $texto_grafico = "";
@@ -431,8 +487,25 @@ try {
             </div>
         </div>
 
+        <?php
+        $rotulos_periodo_destaque = [
+            'hoje' => 'HOJE', 'ontem' => 'ONTEM', '7dias' => '7 DIAS', '30dias' => '30 DIAS',
+            'total' => 'TOTAL', 'personalizado' => 'PERÍODO',
+        ];
+        $rotulo_periodo_destaque = $rotulos_periodo_destaque[$periodo] ?? '7 DIAS';
+        ?>
+        <div class="cartao-destaque oculto-desktop">
+            <span class="rotulo-destaque">APROVADO · <?php echo $rotulo_periodo_destaque; ?></span>
+            <div class="valor-destaque">R$ <?php echo number_format($vendas_aprovadas, 2, ',', '.'); ?></div>
+            <?php if ($variacao_percentual !== null): ?>
+                <span class="selo-variacao <?php echo $variacao_percentual >= 0 ? 'selo-variacao-positivo' : 'selo-variacao-negativo'; ?>">
+                    <?php echo $variacao_percentual >= 0 ? '+' : ''; ?><?php echo number_format($variacao_percentual, 1, ',', '.'); ?>% <span class="texto-suave">vs período anterior</span>
+                </span>
+            <?php endif; ?>
+        </div>
+
         <div class="grade-kpi">
-            <div class="cartao-kpi">
+            <div class="cartao-kpi oculto-mobile">
                 <div class="cartao-kpi-cabecalho">
                     <div class="icone-kpi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></div>
                     <span class="rotulo-kpi">Vendas aprovadas</span>
