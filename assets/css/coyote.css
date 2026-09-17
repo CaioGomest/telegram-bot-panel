@@ -519,6 +519,7 @@ html[data-theme] small { display: block; margin-top: 5px; font-size: 11px; color
 }
 .selo-variacao-negativo { background: var(--dasoft); color: var(--da); }
 .selo-variacao .texto-suave { font-weight: 500; color: inherit; opacity: .75; }
+.mini-grafico-destaque { position: relative; height: 70px; width: 100%; margin-top: 14px; }
 .cartao-kpi-cabecalho { display: flex; align-items: center; gap: 9px; }
 .icone-kpi {
     width: 28px;

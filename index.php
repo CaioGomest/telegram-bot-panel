@@ -246,6 +246,18 @@ try {
         }
     }
 
+    // "Leads na base" -- total histórico (nunca filtrado por período, só por
+    // usuário/bot), pro 4º card da grade compacta no mobile.
+    if ($usa_cache_metricas) {
+        $stmt = $pdo->prepare("SELECT SUM(qtd_leads) FROM metricas_horarias_usuario WHERE 1=1 $where_usuario_metricas");
+        $stmt->execute();
+        $leads_na_base = (int) $stmt->fetchColumn();
+    } else {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM leads l WHERE 1=1 $where_user_leads $where_bot_leads");
+        $stmt->execute();
+        $leads_na_base = (int) $stmt->fetchColumn();
+    }
+
     $grafico_dados = [];
     $grafico_labels = [];
     $texto_grafico = "";
@@ -502,6 +514,9 @@ try {
                     <?php echo $variacao_percentual >= 0 ? '+' : ''; ?><?php echo number_format($variacao_percentual, 1, ',', '.'); ?>% <span class="texto-suave">vs período anterior</span>
                 </span>
             <?php endif; ?>
+            <div class="mini-grafico-destaque">
+                <canvas id="miniChart"></canvas>
+            </div>
         </div>
 
         <div class="grade-kpi">
@@ -539,6 +554,15 @@ try {
                 </div>
                 <div class="valor-kpi">R$ <?php echo number_format($ticket_medio, 2, ',', '.'); ?></div>
                 <div class="rodape-kpi"><span><?php echo $pix_gerados; ?> PIX gerados</span></div>
+            </div>
+
+            <div class="cartao-kpi">
+                <div class="cartao-kpi-cabecalho">
+                    <div class="icone-kpi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg></div>
+                    <span class="rotulo-kpi">Leads</span>
+                </div>
+                <div class="valor-kpi"><?php echo $leads_na_base; ?></div>
+                <div class="rodape-kpi"><span>na base</span></div>
             </div>
         </div>
 
@@ -691,6 +715,43 @@ document.addEventListener('DOMContentLoaded', function() {
                         ticks: { display: false },
                         beginAtZero: true // Isso evita o bug do gráfico descer infinitamente
                     }
+                }
+            }
+        });
+    }
+
+    // Mini-gráfico dentro do card de destaque (só mobile) -- reaproveita os mesmos
+    // dados do gráfico completo acima, só que sem eixos/legenda, minimalista.
+    const ctxMini = document.getElementById('miniChart');
+    if (ctxMini) {
+        const estilo_raiz = getComputedStyle(document.documentElement);
+        const cor_acento = estilo_raiz.getPropertyValue('--or').trim() || '#ff6a1a';
+        const chart_ctx_mini = ctxMini.getContext('2d');
+        let gradient_mini = chart_ctx_mini.createLinearGradient(0, 0, 0, 80);
+        gradient_mini.addColorStop(0, cor_acento + '33');
+        gradient_mini.addColorStop(1, cor_acento + '00');
+
+        new Chart(chart_ctx_mini, {
+            type: 'line',
+            data: {
+                labels: <?php echo json_encode($grafico_labels); ?>,
+                datasets: [{
+                    data: <?php echo json_encode($grafico_dados); ?>,
+                    borderColor: cor_acento,
+                    backgroundColor: gradient_mini,
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                scales: {
+                    x: { display: false },
+                    y: { display: false, beginAtZero: true }
                 }
             }
         });
