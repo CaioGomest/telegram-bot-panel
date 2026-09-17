@@ -283,6 +283,36 @@ A página inteira agora carrega mais rápido do que uma **única** query pesada 
 
 **Limpeza:** apaguei o 1 milhão de linhas de teste, bot e usuário descartáveis depois de medir — o `DELETE` de 1M linhas levou ~294s dessa vez (consistente com a primeira medição da seção 8.4). Conferido depois: banco de volta a 741 vendas / 4 bots / 4 usuários, idêntico ao original.
 
+## 10. Rodada de varredura + testes em produção (ambiente de teste real) — 2026-09-17
+
+Depois da instalação no ambiente de teste (`telegram.stackcode.com.br`), essa rodada juntou uma varredura de segurança focada no código novo dessa sessão inteira + testes de carga direto em produção (não mais só local), usando um usuário sintético com 3 anos de histórico e ~700 vendas/dia (766 mil vendas, 1 milhão de leads) e o bot de teste de carga da plataforma inteira (1 milhão de vendas).
+
+### 10.1 Achados de segurança (varredura dedicada) — 2 corrigidos, resto limpo
+
+**🔴 Fixação de sessão em `funcoes/usuario.php::fazerLogin()` — corrigido.** A função nunca chamava `session_regenerate_id()` depois de autenticar — um ID de sessão que um atacante já conhecesse antes do login (ex. plantado via link) continuava válido e autenticado depois do usuário logar de verdade. Isso já estava mapeado em `varredura-08-lfi-fluxograma-sessao.md`, nunca corrigido. A funcionalidade de "lembrar de mim" (adicionada nesta sessão, cookie de 30 dias) tornava o problema mais grave: um ID fixado sobreviveria 30 dias em vez de só a sessão do navegador. Corrigido com uma linha (`session_regenerate_id(true)` logo após `password_verify()` confirmar, antes de gravar `$_SESSION`). Testado em produção: `PHPSESSID` antes e depois do login realmente mudam, sessão continua autenticada normalmente depois.
+
+**🟡 Escape defensivo faltando em `admin/transacoes.php` — corrigido.** `badgeStatusVenda()`/`celulaSplit()` ecoavam `vendas.status`/`vendas.split_status` sem `htmlspecialchars()` no caminho de fallback (valor não mapeado no array de tradução). Não era explorável hoje (esses campos só são escritos por webhook/cron interno, nunca por input direto de usuário), mas ficou sem a defesa em profundidade. Corrigido.
+
+**Tudo mais revisado ficou limpo:** a concatenação literal de IDs de bot em `leads.php` (o fix do problema do parâmetro do PDO, seção 8.4 anterior) foi confirmada segura — os valores passam por `array_map('intval', ...)` logo após vir de uma query preparada, sem nenhum caminho de código que reintroduza dado não confiável antes da concatenação. `admin/transacoes.php` (filtros `busca`/`data_inicio`/`data_fim`/`usuario_id`/`status`/`split_status`), `index.php` (card de destaque, variação percentual, mini-gráfico com `json_encode` direto no `<script>`) e os guards de acesso dos crons/migração revisados sem achados.
+
+### 10.2 Export CSV de `leads.php` — achado de memória, corrigido
+
+Testado com a conta do usuário de 3 anos (1.092.366 leads): o export levava ~31,5s e fazia `fetchAll()` — carregava **a tabela inteira num array PHP** antes de escrever a primeira linha do CSV. Com `memory_limit=128M` (confirmado no `php.ini` do ambiente dev nesta mesma análise, seção anterior), isso é um risco real de esgotar memória conforme a base cresce, além de segurar a resposta inteira até processar tudo.
+
+**Corrigido:** troca de `fetchAll()` + loop por query sem buffer (`PDO::MYSQL_ATTR_USE_BUFFERED_QUERY => false`) + `fetch()` em loop, escrevendo cada linha no CSV assim que chega do banco, com `flush()` a cada 2.000 linhas. Reduz o pico de memória (nunca segura mais que uma linha de cada vez do lado do PHP) e começa a mandar dado pro navegador progressivamente em vez de só no final. Testado depois da correção: 27,4s (leve queda no tempo total, mas o ganho real é memória e resposta progressiva, não velocidade bruta — o gargalo continua sendo o volume de linhas processadas, não como elas são buferizadas).
+
+### 10.3 `cron_verificar_pix.php` — `LIMIT 200` confirmado sob backlog real de 2.000 pendências
+
+Testado criando 2.000 vendas `status='gerado'` de uma vez (10x o `LIMIT`) pro bot de teste descartável, depois rodando o cron uma vez de verdade. Resultado: **exatamente 200 linhas processadas nessa rodada** (confirmado contando as linhas de log com o timestamp exato dessa execução), rodada completa em ~237ms (caminho rápido de "sem gateway configurado", não bate em API externa). Confirma que a correção da seção 2 (aplicada pelo Caio) se comporta corretamente sob pressão real, não só no teste original de 200 linhas exatas — o backlog restante (1.800 vendas) simplesmente fica pra próxima rodada, sem processar tudo de uma vez nem travar.
+
+### 10.4 Páginas restantes testadas em produção — todas OK
+
+Com a conta de 3 anos/700-vendas-dia: `remarketing.php` (0,89s — usa `bot_id = ?` com placeholder numa consulta simples, não sofreu o mesmo problema de plano ruim do MySQL que `leads.php` teve, provavelmente porque não envolve JOIN com tabela pequena como driver), `bots.php` (0,40s), `fluxos.php` (0,39s), `ranking.php` (0,42s — usa `ranking_cache`, como esperado), `links_rastreamento.php` (0,42s). Nenhuma precisou de correção.
+
+### 10.5 Limpeza
+
+Todos os dados sintéticos de teste desta rodada (usuário/bot descartável do backlog de 2.000 vendas) foram apagados depois dos testes. Os dados de teste de carga maiores (bot da plataforma inteira com 1M vendas, e o usuário "Carlos" com 3 anos de histórico) continuam no ambiente de teste de propósito, a pedido do Caio, pra inspeção visual.
+
 ## Mapa de arquivos-chave
 
 | Responsabilidade | Arquivo |
@@ -308,10 +338,12 @@ A página inteira agora carrega mais rápido do que uma **única** query pesada 
 4. **🟢 Dashboard de admin agregava `vendas` ao vivo a cada carregamento** — achado novo (seção 8.4), **já corrigido nesta sessão** com o mesmo padrão cache+cron do ranking. Ver seção 9 pro desenho completo e os números de antes/depois (4,6s → ~0,03s, independente do tamanho de `vendas`).
 5. **🟢 Um bot com credencial de gateway incompleta crashava a rodada inteira do `cron_verificar_pix.php`** — achado novo, descoberto rodando o teste de estresse da seção 8.3 (não fazia parte da pesquisa original), **já corrigido e reverificado** nesta sessão. `resolveGatewayProvider()` (`funcoes/gateways.php`) agora retorna `null` em vez de deixar o construtor do `InfopagoBanco` estourar `TypeError` com `client_id=NULL` — como os 6 pontos de chamada já checavam `if (!$provedor)`, a correção na origem protegeu todos de uma vez. Reproduzi o mesmo cenário de teste depois da correção: rodada completa sem erro em 810ms/200 linhas.
 6. **🟢 Índice em `vendas.transacao_id`** — já corrigido nesta sessão (`idx_transacao_id`, UNIQUE, confirmado ao vivo no banco). O benchmark que rodei (~1.900x mais lento sem índice a 300 mil linhas, seção 5) documenta por que isso importava, não um problema em aberto.
-7. **🟡 Índice faltando em `atividades.tipo`**, **3 crons sem `flock`**, **sem timeout no cURL pro Telegram**, **JSON compartilhado sem lock de leitura**, **logs sem rotação**, **sem pool de conexão ao MySQL**, **paginação de `transacoes.php` com `OFFSET` degrada em tabela grande (seção 8.4)** — ver tabela da seção 6, nenhum sozinho é fatal, mas todos se agravam juntos sob a mesma rajada de tráfego.
+7. **🟡 Índice faltando em `atividades.tipo`** (confirmado sem impacto real hoje — `admin/logs.php` não expõe filtro por `tipo` na UI, seção 10.4 — deixar registrado mas sem urgência), **3 crons sem `flock`**, **sem timeout no cURL pro Telegram**, **JSON compartilhado sem lock de leitura**, **logs sem rotação**, **sem pool de conexão ao MySQL** — ver tabela da seção 6, nenhum sozinho é fatal, mas todos se agravam juntos sob a mesma rajada de tráfego.
 8. **Limites reais da hospedagem Hostinger (workers PHP-FPM/Apache simultâneos, `max_connections` do MySQL, cota de CPU) não são testáveis localmente** — precisa confirmar com o plano contratado antes de considerar a análise "fechada" pro ambiente de produção real.
-9. **Testes de carga já rodados** (concorrência HTTP em `webhook.php`, simulação de backlog do cron, 1 milhão de linhas sintéticas em `vendas` — ver seção 8) **confirmaram a degradação por falta de pool de conexão, acharam e já corrigiram o bug do item 5, e acharam e já corrigiram o achado do item 4** (ver seção 9); ainda falta o teste de concorrência com um bot/fluxo válido de verdade e o mesmo teste de volume em `leads`/`atividades` (seção 8.5).
+9. **🟢 Paginação de `admin/transacoes.php` com `OFFSET`** — corrigida (padrão "IDs primeiro, hidrata depois", seção 8.4/9). **🟢 `leads.php`** — mesma classe de problema, corrigida (paginação real + achado extra do parâmetro do PDO). Testes de carga (seção 8) já cobriram concorrência HTTP em `webhook.php`, backlog do cron (inclusive com 2.000 pendências, seção 10.3), 1M+ de linhas em `vendas`/`leads` em produção de verdade (seção 10). Ainda falta o teste de concorrência com um bot/fluxo válido de verdade (seção 8.5, item 1) — não fiz ainda.
 10. **🟡 `cron/cron_metricas_admin.php` (novo, seção 9) precisa entrar no crontab da Hostinger** — mesma pendência que `cron_ranking.php` já tinha: sem ele rodando periodicamente (recomendo a cada poucos minutos), o dashboard fica com o cache congelado no último cálculo em vez de quebrar — mas precisa ser cadastrado pra funcionar de verdade em produção.
+11. **🟢 Fixação de sessão (`session_regenerate_id()` ausente no login)** — achado da varredura de segurança da seção 10.1, já corrigido e testado em produção (sessão muda de ID no login, continua autenticada).
+12. **🟢 Export CSV de `leads.php` carregava a base inteira na memória** — achado da seção 10.2, já corrigido (query sem buffer + escrita linha a linha).
 
 ## Notas relacionadas
 
