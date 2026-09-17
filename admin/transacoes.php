@@ -204,7 +204,7 @@ function badgeStatusVenda(string $status): string {
         'cancelado' => ['Cancelado', 'badge-neutro'],
         'expirado' => ['Expirado', 'badge-neutro'],
     ];
-    [$texto, $classe] = $mapa[$status] ?? [ucfirst($status), 'badge-neutro'];
+    [$texto, $classe] = $mapa[$status] ?? [htmlspecialchars(ucfirst($status)), 'badge-neutro'];
     return "<span class=\"badge $classe\">$texto</span>";
 }
 
@@ -229,7 +229,7 @@ function celulaSplit(array $venda, array $linhas_split): string {
         'sem_split' => ['Sem split configurado', 'badge-neutro'],
         'sem_credenciais' => ['Sem credenciais de Cash-Out', 'badge-alerta'],
     ];
-    [$texto_resumo, $classe_resumo] = $mapa_resumo[$venda['split_status']] ?? [$venda['split_status'], 'badge-neutro'];
+    [$texto_resumo, $classe_resumo] = $mapa_resumo[$venda['split_status']] ?? [htmlspecialchars((string) $venda['split_status']), 'badge-neutro'];
     $html = "<span class=\"badge $classe_resumo\">$texto_resumo</span>";
 
     foreach ($linhas_split as $linha) {

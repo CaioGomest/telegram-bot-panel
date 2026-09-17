@@ -87,6 +87,12 @@ function fazerLogin(string $email, string $senha, bool $lembrar = false): bool {
         $usuario = $stmt->fetch();
 
         if ($usuario && password_verify($senha, $usuario['senha'])) {
+            // Troca o ID de sessão no momento do login (mantendo os dados da sessão
+            // atual) -- evita fixação de sessão: sem isso, um ID de sessão que o
+            // atacante já conhecia antes do login (ex. plantado via link) continuaria
+            // válido e autenticado depois do usuário logar.
+            session_regenerate_id(true);
+
             $_SESSION['usuario_id'] = (int)$usuario['id'];
             $_SESSION['usuario_nome'] = $usuario['nome'];
             $_SESSION['usuario_email'] = $usuario['email'];

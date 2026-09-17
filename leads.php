@@ -82,38 +82,27 @@ $sql_campos = "
 
 if ($exportando_csv) {
     // Exportação é uma ação pontual e explícita -- aqui sim faz sentido buscar tudo
-    // que casa com o filtro, sem paginação (é o objetivo da exportação).
-    $stmt = $pdo->prepare($sql_campos);
-    $stmt->execute($params);
-    $leads = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} else {
-    $stmt_total = $pdo->prepare("SELECT COUNT(*) $sql_base");
-    $stmt_total->execute($params);
-    $total_leads = (int) $stmt_total->fetchColumn();
-
-    $por_pagina = 25;
-    $pagina_atual = isset($_GET['pagina']) ? max(1, (int)$_GET['pagina']) : 1;
-    $offset = ($pagina_atual - 1) * $por_pagina;
-
-    $stmt = $pdo->prepare($sql_campos . " LIMIT $por_pagina OFFSET $offset");
-    $stmt->execute($params);
-    $leads = $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
-
-if ($exportando_csv) {
+    // que casa com o filtro, sem paginação (é o objetivo da exportação). Mas com
+    // contas grandes (1M+ leads) dá pra exportar sem empilhar tudo na memória de
+    // uma vez: usa query sem buffer (MYSQL_ATTR_USE_BUFFERED_QUERY=false) e escreve
+    // cada linha no CSV assim que chega do banco, em vez de fetchAll() primeiro.
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename=leads.csv');
     $output = fopen('php://output', 'w');
     fputcsv($output, ['Nome', 'ID Telegram', 'Bot', 'Data Inicio', 'Status', 'Plano Ativo', 'Total Compras', 'Total Gasto']);
-    
-    foreach ($leads as $lead) {
+
+    $stmt = $pdo->prepare($sql_campos, [PDO::MYSQL_ATTR_USE_BUFFERED_QUERY => false]);
+    $stmt->execute($params);
+
+    $linha_num = 0;
+    while ($lead = $stmt->fetch(PDO::FETCH_ASSOC)) {
         $status_texto = 'Iniciou Conversa';
         if ($lead['total_compras'] > 0) {
             $status_texto = 'Cliente (Pagou)';
         } elseif ($lead['ultimo_status_pagamento'] === 'gerado') {
             $status_texto = 'Gerou Pix (Não Pago)';
         }
-        
+
         fputcsv($output, [
             $lead['nome'],
             $lead['id_telegram'],
@@ -124,10 +113,28 @@ if ($exportando_csv) {
             $lead['total_compras'],
             number_format((float)$lead['total_gasto'], 2, ',', '.')
         ]);
+
+        // Manda pro navegador aos poucos em vez de só no final -- em exportações
+        // grandes, evita segurar tudo em buffer até completar.
+        if (++$linha_num % 2000 === 0) {
+            flush();
+        }
     }
     fclose($output);
     exit;
 }
+
+$stmt_total = $pdo->prepare("SELECT COUNT(*) $sql_base");
+$stmt_total->execute($params);
+$total_leads = (int) $stmt_total->fetchColumn();
+
+$por_pagina = 25;
+$pagina_atual = isset($_GET['pagina']) ? max(1, (int)$_GET['pagina']) : 1;
+$offset = ($pagina_atual - 1) * $por_pagina;
+
+$stmt = $pdo->prepare($sql_campos . " LIMIT $por_pagina OFFSET $offset");
+$stmt->execute($params);
+$leads = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $stmt_bots = $pdo->prepare("SELECT id, COALESCE(primeiro_nome, nome_usuario) as nome FROM bots WHERE id_usuario = ?");
 $stmt_bots->execute([$id_usuario]);
