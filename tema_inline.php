@@ -8,6 +8,6 @@
 $marca_base = $caminho_base ?? '';
 if (function_exists('faviconSistema')):
 ?>
-<link rel="icon" href="<?php echo htmlspecialchars(faviconSistema($marca_base)); ?>">
-<style>:root { --logo-url: url("<?php echo htmlspecialchars(logoSistema($marca_base)); ?>"); }</style>
+<link rel="icon" href="<?php echo htmlspecialchars(urlMarca(faviconSistema($marca_base))); ?>">
+<style>:root { --logo-url: url("<?php echo htmlspecialchars(urlMarca(logoSistema($marca_base))); ?>"); }</style>
 <?php endif; ?>

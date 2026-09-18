@@ -114,3 +114,37 @@ function salvarArquivoMarca(array $arquivo, string $nome_base): string
     }
     return 'uploads/' . $nome_base . '.' . $ext;
 }
+
+/**
+ * Converte um caminho de marca relativo à página (ex: "../uploads/marca_logo.png") num
+ * caminho absoluto a partir da raiz do site (ex: "/uploads/marca_logo.png").
+ *
+ * Existe por causa do `url()` dentro de custom property: o navegador resolve esse url()
+ * contra a folha de estilo que CONSOME a variável, não contra a página que a declarou.
+ * Como --logo-url é declarada num <style> inline mas usada no coyote.css, o Chrome pedia
+ * /assets/css/assets/img/coyote-logo.jpg e dava 404. Com caminho absoluto isso não importa.
+ *
+ * Funciona em subdiretório (o projeto roda em /telegram-bot-panel/ no XAMPP local e na
+ * raiz em produção), porque parte do diretório do próprio script.
+ */
+function urlMarca(string $relativo): string
+{
+    if ($relativo === '' || preg_match('#^(https?:)?//#', $relativo)) {
+        return $relativo; // já é absoluto
+    }
+    // No Windows, dirname("/bots.php") devolve a barra invertida em vez de "/" -- some em
+    // producao (Linux), mas quebraria o caminho no XAMPP local. Normaliza os dois casos.
+    $dir = str_replace(chr(92), '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/'));
+    $partes = [];
+    foreach (explode('/', rtrim($dir, '/') . '/' . ltrim($relativo, '/')) as $parte) {
+        if ($parte === '' || $parte === '.') {
+            continue;
+        }
+        if ($parte === '..') {
+            array_pop($partes);
+            continue;
+        }
+        $partes[] = $parte;
+    }
+    return '/' . implode('/', $partes);
+}
