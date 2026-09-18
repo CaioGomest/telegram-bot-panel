@@ -61,6 +61,22 @@ inline — mas a classe **nunca teve regra CSS**. Sem `display:flex`, o
 `justify-content` não fazia nada e os botões dos modais ficavam à esquerda. Regra
 adicionada em `coyote.css`.
 
+## Bug que isso causou (já corrigido)
+
+A logo do cabeçalho mobile é aplicada por `var(--logo-url)`, declarada num `<style>` inline
+da página. Só que o navegador resolve o `url()` de uma custom property **contra a folha de
+estilo que consome a variável**, não contra o documento que a declarou. Como quem usa é o
+`coyote.css`, o Chrome pedia `/assets/css/assets/img/coyote-logo.jpg` → 404, e a logo não
+aparecia.
+
+A verificação por HTML não pegava: o `--logo-url` estava com o caminho certo no fonte, e o
+arquivo respondia 200 quando pedido direto. Só apareceu rodando a página num navegador de
+verdade e olhando as requisições com erro.
+
+`urlMarca()` resolve pra caminho absoluto a partir da raiz do site, que não depende de qual
+folha resolve. Continua funcionando em subdiretório (o XAMPP local roda em
+`/telegram-bot-panel/`). Testado nos 6 casos: raiz, `admin/`, e ambos em subdiretório.
+
 ## O que falta
 
 O laranja de destaque continua fixo no CSS. Ficou de fora de propósito nessa rodada;
