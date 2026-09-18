@@ -15,3 +15,32 @@ Options -Indexes
         Deny from all
     </DirectoryMatch>
 </IfModule>
+
+# ===== URL sem .php (/bots em vez de /bots.php) =====
+# Duas regras: (a) manda o .php antigo pra URL limpa, (b) serve a URL limpa a partir do
+# arquivo .php de verdade. As condições existem por causa de três armadilhas deste projeto:
+#
+# 1. Só redireciona GET. Os formulários do painel dão POST direto no .php (login, gateways,
+#    traqueamento, remarketing) e um 301 em POST faz o navegador descartar o corpo da
+#    requisição -- o login simplesmente pararia de funcionar.
+# 2. webhook.php e webhook_infopago.php ficam de fora: essas URLs com .php estão registradas
+#    no Telegram e na InfoPago, e não dá pra contar que robô de terceiro siga redirect.
+# 3. api.php e ajax/ ficam de fora: são chamados pelo JS com o .php literal, inclusive em GET
+#    (o $.getJSON de exportar_fluxo), e redirect ali só adiciona ida-e-volta à toa.
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # (a) /bots.php -> /bots
+    RewriteCond %{REQUEST_METHOD} =GET
+    RewriteCond %{THE_REQUEST} \s/+([^?\s]+)\.php[\s?] [NC]
+    RewriteCond %1 !^(webhook|webhook_infopago|api)$ [NC]
+    RewriteCond %1 !^ajax/ [NC]
+    RewriteRule ^ /%1 [R=301,L]
+
+    # (b) /bots -> bots.php (internamente, sem mudar o que aparece na barra de endereço)
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{DOCUMENT_ROOT}/$1.php -f
+    RewriteRule ^(.+?)/?$ /$1.php [L]
+</IfModule>
