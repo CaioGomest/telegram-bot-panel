@@ -929,7 +929,7 @@ html[data-theme] small { display: block; margin-top: 5px; font-size: 11px; color
        de .conteudo-principal (antes o cabeçalho tinha 16px a mais e o filtro ficava
        visivelmente mais estreito que os cards). */
     .cabecalho-pagina {
-        padding: 16px 0;
+        padding: 16px 0 12px;
         align-items: center;
         gap: 12px;
     }
@@ -982,13 +982,16 @@ html[data-theme] small { display: block; margin-top: 5px; font-size: 11px; color
     .seletor-periodo::-webkit-scrollbar { display: none; }
     .periodo-item { white-space: nowrap; }
 
-    /* O botão "Aplicar" só serve pra confirmar data personalizada ou o filtro de
-       bot -- nesses dois casos ele continua visível; fora deles, escondido (o
-       formulário em si continua no DOM porque o JS chama filter_form.submit()
-       programaticamente ao clicar num período fixo, ver script no fim da página). */
-    .form-periodo > .botao { display: none; }
-    .form-periodo:has(select) > .botao,
-    .form-periodo:has(.grupo-data-personalizada.ativo) > .botao { display: inline-flex; }
+    /* Com "Personalizado" fora da barra, o form de datas não tem mais função no
+       mobile -- e, mesmo invisível, os inputs de data seguiam ocupando uma linha
+       inteira (~60px de faixa vazia entre o filtro e o primeiro card). Some de vez;
+       só sobra quando a conta tem mais de um bot (aí o seletor de bot é útil).
+       O form continua no DOM (display:none não impede submit()), que é como o JS
+       troca de período -- ver script no fim da página. */
+    .grupo-data-personalizada { display: none; }
+    .form-periodo:not(:has(select)) { display: none; }
+    .form-periodo { width: 100%; }
+    .form-periodo > select { flex: 1; min-width: 0; }
 
     .barra-mobile {
         position: fixed;

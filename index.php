@@ -475,7 +475,12 @@ try {
                     <a href="<?php echo htmlspecialchars(montarUrlFiltroDashboard(['periodo' => '7dias'])); ?>" class="periodo-item<?php echo ($periodo == '7dias' ? ' ativo' : ''); ?>">8 dias</a>
                     <a href="<?php echo htmlspecialchars(montarUrlFiltroDashboard(['periodo' => '30dias'])); ?>" class="periodo-item<?php echo ($periodo == '30dias' ? ' ativo' : ''); ?>">30 dias</a>
                     <a href="<?php echo htmlspecialchars(montarUrlFiltroDashboard(['periodo' => 'total'])); ?>" class="periodo-item<?php echo ($periodo == 'total' ? ' ativo' : ''); ?>">Total</a>
+                    <?php // "Personalizado" fora da barra por enquanto (2026-09-17) -- o protótipo só tem os 5
+                          // períodos fixos. Pra trazer de volta é só reativar o if abaixo; o período em si
+                          // continua funcionando por URL (?periodo=personalizado&data_inicio=...&data_fim=...). ?>
+                    <?php if (false): ?>
                     <a href="<?php echo htmlspecialchars(montarUrlFiltroDashboard(['periodo' => 'personalizado'])); ?>" class="periodo-item<?php echo ($periodo == 'personalizado' ? ' ativo' : ''); ?>">Personalizado</a>
+                    <?php endif; ?>
                 </div>
                 <form method="GET" class="form-periodo">
                     <input type="hidden" name="periodo" value="<?php echo htmlspecialchars($periodo); ?>">

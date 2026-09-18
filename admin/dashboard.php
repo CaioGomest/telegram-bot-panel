@@ -340,7 +340,11 @@ $atividades = listarAtividades($filtros_logs, $por_pagina, $offset);
                     <a href="<?php echo htmlspecialchars(montarUrlFiltroAdminDashboard(['periodo' => '7dias'])); ?>" class="periodo-item<?php echo ($periodo == '7dias' ? ' ativo' : ''); ?>">8 dias</a>
                     <a href="<?php echo htmlspecialchars(montarUrlFiltroAdminDashboard(['periodo' => '30dias'])); ?>" class="periodo-item<?php echo ($periodo == '30dias' ? ' ativo' : ''); ?>">30 dias</a>
                     <a href="<?php echo htmlspecialchars(montarUrlFiltroAdminDashboard(['periodo' => 'total'])); ?>" class="periodo-item<?php echo ($periodo == 'total' ? ' ativo' : ''); ?>">Total</a>
+                    <?php // "Personalizado" fora da barra por enquanto (2026-09-17) -- mesma decisão de index.php:
+                          // o protótipo só tem os 5 períodos fixos. Continua acessível por URL. ?>
+                    <?php if (false): ?>
                     <a href="<?php echo htmlspecialchars(montarUrlFiltroAdminDashboard(['periodo' => 'personalizado'])); ?>" class="periodo-item<?php echo ($periodo == 'personalizado' ? ' ativo' : ''); ?>">Personalizado</a>
+                    <?php endif; ?>
                 </div>
                 <form method="GET" class="form-periodo">
                     <input type="hidden" name="periodo" value="<?php echo htmlspecialchars($periodo); ?>">
