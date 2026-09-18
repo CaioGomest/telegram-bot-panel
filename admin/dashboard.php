@@ -67,6 +67,9 @@ switch ($periodo) {
         $where_data_metricas = "AND data = CURDATE() - INTERVAL 1 DAY";
         break;
     case '7dias':
+        // Chave interna ficou "7dias", mas o pedido original do Caio foi "8d" -- INTERVAL
+        // 7 DAY já cobre 8 dias corridos (hoje + 7 pra trás). Ver
+        // anotacoes/pedido-filtro-periodo-dashboard.md.
         $where_data_vendas = "AND v.criado_em >= CURDATE() - INTERVAL 7 DAY";
         $where_data_metricas = "AND data >= CURDATE() - INTERVAL 7 DAY";
         break;
@@ -251,13 +254,13 @@ if ($periodo == 'hoje') {
         $grafico_dados[] = $total;
     }
 } else {
-    $texto_grafico = "ÚLTIMOS 7 DIAS";
+    $texto_grafico = "ÚLTIMOS 8 DIAS";
     if ($usa_cache_metricas) {
-        $stmt = $pdo->prepare("SELECT data, SUM(comissao) AS total FROM metricas_horarias_admin WHERE data >= CURDATE() - INTERVAL 6 DAY GROUP BY data");
+        $stmt = $pdo->prepare("SELECT data, SUM(comissao) AS total FROM metricas_horarias_admin WHERE data >= CURDATE() - INTERVAL 7 DAY GROUP BY data");
         $stmt->execute();
         $por_dia = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'total', 'data');
     }
-    for ($i = 6; $i >= 0; $i--) {
+    for ($i = 7; $i >= 0; $i--) {
         $data = date('Y-m-d', strtotime("-$i days"));
         $dia_semana = date('D', strtotime("-$i days"));
         $dias_map = ['Sun'=>'Dom', 'Mon'=>'Seg', 'Tue'=>'Ter', 'Wed'=>'Qua', 'Thu'=>'Qui', 'Fri'=>'Sex', 'Sat'=>'Sáb'];
@@ -334,7 +337,7 @@ $atividades = listarAtividades($filtros_logs, $por_pagina, $offset);
                 <div class="seletor-periodo">
                     <a href="<?php echo htmlspecialchars(montarUrlFiltroAdminDashboard(['periodo' => 'hoje'])); ?>" class="periodo-item<?php echo ($periodo == 'hoje' ? ' ativo' : ''); ?>">Hoje</a>
                     <a href="<?php echo htmlspecialchars(montarUrlFiltroAdminDashboard(['periodo' => 'ontem'])); ?>" class="periodo-item<?php echo ($periodo == 'ontem' ? ' ativo' : ''); ?>">Ontem</a>
-                    <a href="<?php echo htmlspecialchars(montarUrlFiltroAdminDashboard(['periodo' => '7dias'])); ?>" class="periodo-item<?php echo ($periodo == '7dias' ? ' ativo' : ''); ?>">7 dias</a>
+                    <a href="<?php echo htmlspecialchars(montarUrlFiltroAdminDashboard(['periodo' => '7dias'])); ?>" class="periodo-item<?php echo ($periodo == '7dias' ? ' ativo' : ''); ?>">8 dias</a>
                     <a href="<?php echo htmlspecialchars(montarUrlFiltroAdminDashboard(['periodo' => '30dias'])); ?>" class="periodo-item<?php echo ($periodo == '30dias' ? ' ativo' : ''); ?>">30 dias</a>
                     <a href="<?php echo htmlspecialchars(montarUrlFiltroAdminDashboard(['periodo' => 'total'])); ?>" class="periodo-item<?php echo ($periodo == 'total' ? ' ativo' : ''); ?>">Total</a>
                     <a href="<?php echo htmlspecialchars(montarUrlFiltroAdminDashboard(['periodo' => 'personalizado'])); ?>" class="periodo-item<?php echo ($periodo == 'personalizado' ? ' ativo' : ''); ?>">Personalizado</a>

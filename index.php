@@ -101,6 +101,9 @@ switch ($periodo) {
         $where_data_metricas = "AND data = CURDATE() - INTERVAL 1 DAY";
         break;
     case '7dias':
+        // Chave interna ficou "7dias" (não vale a pena renomear só por isso), mas o
+        // pedido original do Caio foi "8d" -- INTERVAL 7 DAY já cobre 8 dias corridos
+        // (hoje + 7 pra trás). Ver anotacoes/pedido-filtro-periodo-dashboard.md.
         $where_data_vendas = "AND v.criado_em >= CURDATE() - INTERVAL 7 DAY";
         $where_data_leads = "AND l.criado_em >= CURDATE() - INTERVAL 7 DAY";
         $where_data_metricas = "AND data >= CURDATE() - INTERVAL 7 DAY";
@@ -219,8 +222,8 @@ try {
         case 'total':
             $mostra_variacao = false;
             break;
-        default: // 7dias
-            $data_ini_ant = date('Y-m-d', strtotime('-14 days'));
+        default: // 7dias (na verdade 8 dias -- ver INTERVAL 7 DAY acima)
+            $data_ini_ant = date('Y-m-d', strtotime('-15 days'));
             $data_fim_ant = date('Y-m-d', strtotime('-8 days'));
             break;
     }
@@ -361,13 +364,13 @@ try {
             $grafico_dados[] = $total;
         }
     } else {
-        $texto_grafico = "ÚLTIMOS 7 DIAS";
+        $texto_grafico = "ÚLTIMOS 8 DIAS";
         if ($usa_cache_metricas) {
-            $stmt = $pdo->prepare("SELECT data, SUM(valor_pago) AS total FROM metricas_horarias_usuario WHERE data >= CURDATE() - INTERVAL 6 DAY $where_usuario_metricas GROUP BY data");
+            $stmt = $pdo->prepare("SELECT data, SUM(valor_pago) AS total FROM metricas_horarias_usuario WHERE data >= CURDATE() - INTERVAL 7 DAY $where_usuario_metricas GROUP BY data");
             $stmt->execute();
             $por_dia = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'total', 'data');
         }
-        for ($i = 6; $i >= 0; $i--) {
+        for ($i = 7; $i >= 0; $i--) {
             $data = date('Y-m-d', strtotime("-$i days"));
             $dia_semana = date('D', strtotime("-$i days"));
             $dias_map = ['Sun'=>'Dom', 'Mon'=>'Seg', 'Tue'=>'Ter', 'Wed'=>'Qua', 'Thu'=>'Qui', 'Fri'=>'Sex', 'Sat'=>'Sáb'];
@@ -469,7 +472,7 @@ try {
                 <div class="seletor-periodo">
                     <a href="<?php echo htmlspecialchars(montarUrlFiltroDashboard(['periodo' => 'hoje'])); ?>" class="periodo-item<?php echo ($periodo == 'hoje' ? ' ativo' : ''); ?>">Hoje</a>
                     <a href="<?php echo htmlspecialchars(montarUrlFiltroDashboard(['periodo' => 'ontem'])); ?>" class="periodo-item<?php echo ($periodo == 'ontem' ? ' ativo' : ''); ?>">Ontem</a>
-                    <a href="<?php echo htmlspecialchars(montarUrlFiltroDashboard(['periodo' => '7dias'])); ?>" class="periodo-item<?php echo ($periodo == '7dias' ? ' ativo' : ''); ?>">7 dias</a>
+                    <a href="<?php echo htmlspecialchars(montarUrlFiltroDashboard(['periodo' => '7dias'])); ?>" class="periodo-item<?php echo ($periodo == '7dias' ? ' ativo' : ''); ?>">8 dias</a>
                     <a href="<?php echo htmlspecialchars(montarUrlFiltroDashboard(['periodo' => '30dias'])); ?>" class="periodo-item<?php echo ($periodo == '30dias' ? ' ativo' : ''); ?>">30 dias</a>
                     <a href="<?php echo htmlspecialchars(montarUrlFiltroDashboard(['periodo' => 'total'])); ?>" class="periodo-item<?php echo ($periodo == 'total' ? ' ativo' : ''); ?>">Total</a>
                     <a href="<?php echo htmlspecialchars(montarUrlFiltroDashboard(['periodo' => 'personalizado'])); ?>" class="periodo-item<?php echo ($periodo == 'personalizado' ? ' ativo' : ''); ?>">Personalizado</a>
@@ -501,10 +504,10 @@ try {
 
         <?php
         $rotulos_periodo_destaque = [
-            'hoje' => 'HOJE', 'ontem' => 'ONTEM', '7dias' => '7 DIAS', '30dias' => '30 DIAS',
+            'hoje' => 'HOJE', 'ontem' => 'ONTEM', '7dias' => '8 DIAS', '30dias' => '30 DIAS',
             'total' => 'TOTAL', 'personalizado' => 'PERÍODO',
         ];
-        $rotulo_periodo_destaque = $rotulos_periodo_destaque[$periodo] ?? '7 DIAS';
+        $rotulo_periodo_destaque = $rotulos_periodo_destaque[$periodo] ?? '8 DIAS';
         ?>
         <div class="cartao-destaque oculto-desktop">
             <span class="rotulo-destaque">APROVADO · <?php echo $rotulo_periodo_destaque; ?></span>
