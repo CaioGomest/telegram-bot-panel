@@ -1,4 +1,4 @@
-# 🔴 URGENTE — checklist antes de entrar cliente real
+# Checklist antes de entrar cliente real
 
 Aberto em 2026-09-18 numa revisão pré-lançamento. Marcar conforme for resolvendo.
 
