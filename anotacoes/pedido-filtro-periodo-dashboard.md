@@ -71,3 +71,37 @@ pagamento) — corrigido com `UPDATE ... SET criado_em = criado_em - INTERVAL 1 
 > NOW()` nas duas tabelas, e o cache (`metricas_horarias_admin`/`_usuario`) recalculado pras datas
 afetadas. Verificado depois: soma do gráfico bate exatamente com o total do card (R$ 2.057.890,52
 nos dois).
+
+## Alinhamento fino com o protótipo (mobile) — 2026-09-17, 2ª rodada
+
+O Caio mandou dois prints do protótipo (Dashboard e Meus Bots) pedindo pra deixar o layout fiel.
+Duas diferenças apontadas por ele + o que caiu junto:
+
+1. **Barra de filtro mais estreita que os cards.** Causa: `.cabecalho-pagina` tinha `padding: 16px`
+   somando por cima dos 16px de `.conteudo-principal`, então tudo dentro do cabeçalho ficava 16px
+   mais estreito de cada lado. Corrigido pra `padding: 16px 0 12px` no mobile + `width: 100%` no
+   seletor. Medido depois com Playwright: filtro e card agora em `x=16, w=361` — idênticos.
+2. **Header com logo.** Na 1ª rodada eu tinha entendido errado e criado uma barra fixa separada no
+   topo com "COYOTEBOT" — **removida**. O protótipo põe a logo dentro do cabeçalho da própria
+   página, à esquerda do título/subtítulo, com o botão de tema virando ícone circular à direita.
+   A logo entra por `.cabecalho-pagina::before` com `url('../img/coyote-logo.jpg')` — caminho
+   relativo ao próprio CSS, então funciona igual em qualquer página (inclusive `admin/`) sem
+   precisar tocar nos ~15 arquivos que têm cabeçalho. `.acoes-cabecalho` vira `display: contents`
+   no mobile pra dar pra separar o botão de tema (linha do título) do resto (linha de baixo).
+3. **"Personalizado" fora da barra** (pedido dele, pra ficar nos 5 períodos do protótipo) —
+   desativado com `if (false)` em `index.php`/`admin/dashboard.php`, reversível numa linha; o
+   período continua acessível por URL.
+4. **Faixa vazia entre filtro e gráfico** (~65px): era o form de datas, que mesmo invisível
+   (`max-width:0`/`opacity:0`) mantinha os inputs ocupando uma linha inteira. Some no mobile,
+   ficando só quando a conta tem mais de um bot (aí o seletor de bot é útil). Medido: 65px → 12px.
+5. Dois defeitos que apareceram ao conferir o resultado: números dos KPIs saíam sem separador de
+   milhar ("1092365" em vez de "1.092.365") e o rodapé do card era cortado no meio da palavra sem
+   reticências (o `text-overflow` do pai não pega no `<span>`, que é item flex). Corrigidos.
+
+**Verificação:** screenshots reais em viewport de celular (Playwright + Chromium) logado como
+usuário comum e como admin, mais medição por `getBoundingClientRect()` — não foi só leitura de
+código.
+
+**Ainda diferente do protótipo, de propósito (não mexi sem pedir):** o sino de notificação (o Caio
+pediu pra deixar de lado por ora) e o texto de alguns rodapés de card ("Leads iniciaram conversa"
+vs "novas conversas", "X PIX gerados" vs "por venda") — é conteúdo, não layout.
