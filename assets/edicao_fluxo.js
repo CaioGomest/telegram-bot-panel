@@ -1258,8 +1258,7 @@
                 const ALCA = '.flowchart-operator-title, .flowchart-operator-body';
                 let arrastando_toque = false;
 
-                function repassarComoMouse(ev_toque, tipo) {
-                    const t = ev_toque.originalEvent.changedTouches[0];
+                function repassarComoMouse(t, tipo) {
                     if (!t) return;
                     t.target.dispatchEvent(new MouseEvent(tipo, {
                         bubbles: true, cancelable: true, view: window,
@@ -1269,23 +1268,35 @@
                     }));
                 }
 
-                $(document).on('touchstart', ALCA, function (e) {
-                    if (e.originalEvent.touches.length !== 1) return;
+                // Listener nativo em fase de CAPTURA, não delegação do jQuery: a lib do canvas
+                // escuta touchstart no .flowchart-operator e interrompe a propagação, então um
+                // handler delegado no document nunca chega a rodar (medido: direto no elemento
+                // dispara, delegado não). Captura roda de cima pra baixo, antes disso.
+                document.addEventListener('touchstart', function (ev) {
+                    if (ev.touches.length !== 1) return;
+                    if (!ev.target.closest || !ev.target.closest(ALCA)) return;
                     arrastando_toque = true;
-                    repassarComoMouse(e, 'mousedown');
-                });
-                $(document).on('touchmove', function (e) {
+                    repassarComoMouse(ev.changedTouches[0], 'mousedown');
+                }, true);
+
+                document.addEventListener('touchmove', function (ev) {
                     if (!arrastando_toque) return;
-                    e.preventDefault(); // segura o scroll da página enquanto arrasta o bloco
-                    repassarComoMouse(e, 'mousemove');
-                });
-                $(document).on('touchend touchcancel', function (e) {
+                    if (ev.cancelable) ev.preventDefault();
+                    repassarComoMouse(ev.changedTouches[0], 'mousemove');
+                }, { capture: true, passive: false });
+
+                document.addEventListener('touchend', function (ev) {
                     if (!arrastando_toque) return;
                     arrastando_toque = false;
-                    repassarComoMouse(e, 'mouseup');
-                });
-            }
+                    repassarComoMouse(ev.changedTouches[0], 'mouseup');
+                }, true);
 
+                document.addEventListener('touchcancel', function (ev) {
+                    if (!arrastando_toque) return;
+                    arrastando_toque = false;
+                    repassarComoMouse(ev.changedTouches[0], 'mouseup');
+                }, true);
+            }
             $('.conteiner-fluxo').on('dragover', function(e) {
                 e.preventDefault(); // Permite drop
                 e.originalEvent.dataTransfer.dropEffect = 'copy';
