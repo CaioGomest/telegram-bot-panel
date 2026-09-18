@@ -174,6 +174,11 @@ try {
     $pdo->exec($sql_atividades);
     echo "Tabela 'atividades' OK.<br>";
 
+    // 'atividades' cresce mais rápido que qualquer outra tabela (toda venda/split/login
+    // gera pelo menos uma linha) e funcoes/log.php filtra por 'tipo' (tipo=?, tipo IN (...),
+    // tipo NOT IN (...)) -- sem índice, isso é full table scan. Ver anotacoes/analise-potencia-e-escala.md.
+    try { $pdo->exec("ALTER TABLE atividades ADD INDEX idx_atividades_tipo (tipo)"); } catch (PDOException $e) {}
+
 
     $sql_grupos = "
         CREATE TABLE IF NOT EXISTS bot_grupos (
