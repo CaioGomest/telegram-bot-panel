@@ -25,7 +25,7 @@ verificarLogin();
                 <p>Monte a conversa do bot arrastando blocos para o canvas.</p>
             </div>
             <div class="acoes-cabecalho">
-                <a class="botao" href="fluxos.php">Voltar</a>
+                <a class="botao" href="fluxos">Voltar</a>
                 <button class="botao" id="btn-excluir-fluxo">Excluir</button>
                 <button class="botao" id="btn-exportar-fluxo">Exportar</button>
                 <button class="botao" id="btn-importar-fluxo">Importar</button>

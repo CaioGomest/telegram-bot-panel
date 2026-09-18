@@ -25,7 +25,7 @@ function usuarioLogado(): bool {
 
 function verificarLogin(): void {
     if (!usuarioLogado()) {
-        header('Location: /login.php?erro=acesso');
+        header('Location: /login?erro=acesso');
         exit;
     }
 }
@@ -140,7 +140,7 @@ function ehAdmin(): bool {
 function verificarAdmin(): void {
     verificarLogin();
     if (!ehAdmin()) {
-        header('Location: /index.php?erro=sem_permissao');
+        header('Location: /index?erro=sem_permissao');
         exit;
     }
 }
@@ -172,7 +172,7 @@ function fazerLogout(): void {
     }
     session_unset();
     session_destroy();
-    header('Location: /login.php');
+    header('Location: /login');
     exit;
 }
 

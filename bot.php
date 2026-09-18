@@ -21,7 +21,7 @@ verificarLogin();
                 <p>Gerencie a conexão e o perfil do seu bot.</p>
             </div>
             <div class="acoes-cabecalho">
-                <a class="botao" href="bots.php">Voltar</a>
+                <a class="botao" href="bots">Voltar</a>
                 <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>
                     Tema
@@ -54,7 +54,7 @@ verificarLogin();
                                     <select id="id-fluxo-conectado" name="connected_flow_id">
                                         <option value="">Selecione um fluxo...</option>
                                     </select>
-                                    <a class="botao botao-claro" href="fluxo.php">Novo Fluxo</a>
+                                    <a class="botao botao-claro" href="fluxo">Novo Fluxo</a>
                                 </div>
                                 <p class="texto-ajuda">Este fluxo será iniciado quando alguém mandar mensagem para o bot.</p>
                             </div>

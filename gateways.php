@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare("UPDATE usuarios_gateways SET ativo = 0 WHERE id_usuario = ? AND id_gateway = ?");
         if ($stmt->execute([$user_id, $gateway_id])) {
             $_SESSION['gw_mensagem'] = 'Gateway desativado.';
-            header('Location: ' . $_SERVER['PHP_SELF']);
+            header('Location: ' . preg_replace('/\.php$/', '', $_SERVER['PHP_SELF']));
             exit;
         } else {
             $erro = 'Erro ao desativar o gateway.';
@@ -78,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare("UPDATE usuarios_gateways SET ativo = 1 WHERE id_usuario = ? AND id_gateway = ?");
         if ($stmt->execute([$user_id, $gateway_id])) {
             $_SESSION['gw_mensagem'] = 'Gateway ativado!';
-            header('Location: ' . $_SERVER['PHP_SELF']);
+            header('Location: ' . preg_replace('/\.php$/', '', $_SERVER['PHP_SELF']));
             exit;
         } else {
             $erro = 'Erro ao ativar o gateway.';
@@ -187,7 +187,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     // PRG: redireciona para evitar reenvio do POST ao recarregar
     if (!$erro) {
-        header('Location: ' . $_SERVER['PHP_SELF']);
+        header('Location: ' . preg_replace('/\.php$/', '', $_SERVER['PHP_SELF']));
         exit;
     }
 }

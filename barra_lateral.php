@@ -10,7 +10,10 @@ if (!isset($pdo)) {
 }
 
 $is_admin = function_exists('ehAdmin') ? ehAdmin() : false;
-$pagina_atual = basename($_SERVER['PHP_SELF']);
+// Sem o .php: os href dos menus agora são limpos (/bots), mas PHP_SELF continua
+// apontando pro arquivo real (bots.php) -- sem normalizar, o item ativo do menu
+// nunca casaria. Ver anotacoes/url-sem-php.md.
+$pagina_atual = preg_replace('/\.php$/', '', basename($_SERVER['PHP_SELF']));
 $user_id = $_SESSION['usuario_id'] ?? 0;
 
 $badge_bots = null;
@@ -56,31 +59,31 @@ $icones = [
 
 $grupo_operacao = [];
 if (!$is_admin) {
-    $grupo_operacao[] = ['href' => 'index.php', 'label' => 'Dashboard', 'icone' => 'dashboard'];
-    $grupo_operacao[] = ['href' => 'bots.php', 'label' => 'Meus Bots', 'icone' => 'bots', 'badge' => $badge_bots];
-    $grupo_operacao[] = ['href' => 'fluxos.php', 'label' => 'Fluxos', 'icone' => 'fluxos'];
-    $grupo_operacao[] = ['href' => 'leads.php', 'label' => 'Leads', 'icone' => 'leads', 'badge' => $badge_leads];
-    $grupo_operacao[] = ['href' => 'ranking.php', 'label' => 'Ranking', 'icone' => 'ranking', 'badge_texto' => 'NOVO'];
-    $grupo_operacao[] = ['href' => 'remarketing.php', 'label' => 'Remarketing', 'icone' => 'remarketing'];
-    $grupo_operacao[] = ['href' => 'traqueamento.php', 'label' => 'Traqueamento', 'icone' => 'traqueamento'];
-    $grupo_operacao[] = ['href' => 'links_rastreamento.php', 'label' => 'Links de Rastreamento', 'icone' => 'links'];
+    $grupo_operacao[] = ['href' => 'index', 'label' => 'Dashboard', 'icone' => 'dashboard'];
+    $grupo_operacao[] = ['href' => 'bots', 'label' => 'Meus Bots', 'icone' => 'bots', 'badge' => $badge_bots];
+    $grupo_operacao[] = ['href' => 'fluxos', 'label' => 'Fluxos', 'icone' => 'fluxos'];
+    $grupo_operacao[] = ['href' => 'leads', 'label' => 'Leads', 'icone' => 'leads', 'badge' => $badge_leads];
+    $grupo_operacao[] = ['href' => 'ranking', 'label' => 'Ranking', 'icone' => 'ranking', 'badge_texto' => 'NOVO'];
+    $grupo_operacao[] = ['href' => 'remarketing', 'label' => 'Remarketing', 'icone' => 'remarketing'];
+    $grupo_operacao[] = ['href' => 'traqueamento', 'label' => 'Traqueamento', 'icone' => 'traqueamento'];
+    $grupo_operacao[] = ['href' => 'links_rastreamento', 'label' => 'Links de Rastreamento', 'icone' => 'links'];
 }
-$grupo_operacao[] = ['href' => 'gateways.php', 'label' => 'Gateways', 'icone' => 'gateways'];
-$grupo_operacao[] = ['href' => 'configuracao_usuario.php', 'label' => 'Minha Conta', 'icone' => 'conta'];
+$grupo_operacao[] = ['href' => 'gateways', 'label' => 'Gateways', 'icone' => 'gateways'];
+$grupo_operacao[] = ['href' => 'configuracao_usuario', 'label' => 'Minha Conta', 'icone' => 'conta'];
 
 $grupo_admin = [];
 if ($is_admin) {
-    $grupo_admin[] = ['href' => 'admin/dashboard.php', 'label' => 'Visão Geral', 'icone' => 'visao_geral'];
-    $grupo_admin[] = ['href' => 'admin/transacoes.php', 'label' => 'Transações', 'icone' => 'transacoes'];
-    $grupo_admin[] = ['href' => 'admin/logs.php', 'label' => 'Logs', 'icone' => 'logs'];
-    $grupo_admin[] = ['href' => 'admin/usuarios.php', 'label' => 'Usuários', 'icone' => 'usuarios'];
-    $grupo_admin[] = ['href' => 'admin/ranking.php', 'label' => 'Campanhas de Ranking', 'icone' => 'ranking'];
+    $grupo_admin[] = ['href' => 'admin/dashboard', 'label' => 'Visão Geral', 'icone' => 'visao_geral'];
+    $grupo_admin[] = ['href' => 'admin/transacoes', 'label' => 'Transações', 'icone' => 'transacoes'];
+    $grupo_admin[] = ['href' => 'admin/logs', 'label' => 'Logs', 'icone' => 'logs'];
+    $grupo_admin[] = ['href' => 'admin/usuarios', 'label' => 'Usuários', 'icone' => 'usuarios'];
+    $grupo_admin[] = ['href' => 'admin/ranking', 'label' => 'Campanhas de Ranking', 'icone' => 'ranking'];
 }
 
 $grupo_debug = [];
 if ($is_admin) {
-    $grupo_debug[] = ['href' => 'admin/atualiza_banco.php', 'label' => 'Atualizar Banco'];
-    $grupo_debug[] = ['href' => 'admin/consultar_venda.php', 'label' => 'Consultar Venda'];
+    $grupo_debug[] = ['href' => 'admin/atualiza_banco', 'label' => 'Atualizar Banco'];
+    $grupo_debug[] = ['href' => 'admin/consultar_venda', 'label' => 'Consultar Venda'];
 }
 
 function renderizarItemNav(array $item, string $pagina_atual, array $icones, string $caminho_base): void
@@ -146,7 +149,7 @@ $iniciais = mb_strtoupper(mb_substr($nome_usuario, 0, 1), 'UTF-8');
                 <span class="usuario-email"><?php echo htmlspecialchars($email_usuario); ?></span>
             </div>
         </div>
-        <a href="<?php echo $caminho_base; ?>logout.php" class="botao-sair" title="Sair" aria-label="Sair">
+        <a href="<?php echo $caminho_base; ?>logout" class="botao-sair" title="Sair" aria-label="Sair">
             <?php echo iconeNav($icones['sair']); ?>
         </a>
     </div>
@@ -155,12 +158,12 @@ $iniciais = mb_strtoupper(mb_substr($nome_usuario, 0, 1), 'UTF-8');
 <nav class="barra-mobile">
     <?php
     $itens_mobile = [
-        ['href' => $is_admin ? 'admin/dashboard.php' : 'index.php', 'label' => 'Início', 'icone' => 'dashboard'],
-        ['href' => 'bots.php', 'label' => 'Bots', 'icone' => 'bots'],
-        ['href' => 'fluxos.php', 'label' => 'Fluxos', 'icone' => 'fluxos'],
-        ['href' => 'leads.php', 'label' => 'Leads', 'icone' => 'leads'],
-        ['href' => 'ranking.php', 'label' => 'Ranking', 'icone' => 'ranking'],
-        ['href' => 'configuracao_usuario.php', 'label' => 'Conta', 'icone' => 'conta'],
+        ['href' => $is_admin ? 'admin/dashboard' : 'index', 'label' => 'Início', 'icone' => 'dashboard'],
+        ['href' => 'bots', 'label' => 'Bots', 'icone' => 'bots'],
+        ['href' => 'fluxos', 'label' => 'Fluxos', 'icone' => 'fluxos'],
+        ['href' => 'leads', 'label' => 'Leads', 'icone' => 'leads'],
+        ['href' => 'ranking', 'label' => 'Ranking', 'icone' => 'ranking'],
+        ['href' => 'configuracao_usuario', 'label' => 'Conta', 'icone' => 'conta'],
     ];
     foreach ($itens_mobile as $item):
         $ativo = basename($item['href']) === $pagina_atual;
@@ -219,7 +222,7 @@ $iniciais = mb_strtoupper(mb_substr($nome_usuario, 0, 1), 'UTF-8');
             <?php endif; ?>
 
             <div class="nav-grupo">
-                <a href="<?php echo $caminho_base; ?>logout.php" class="nav-item">
+                <a href="<?php echo $caminho_base; ?>logout" class="nav-item">
                     <span class="nav-icone"><?php echo iconeNav($icones['sair']); ?></span>
                     <span class="nav-texto">Sair</span>
                 </a>

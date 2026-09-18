@@ -6,9 +6,9 @@ require_once __DIR__ . '/funcoes/usuario.php';
 
 if (usuarioLogado()) {
     if (ehAdmin()) {
-        header('Location: admin/dashboard.php');
+        header('Location: admin/dashboard');
     } else {
-        header('Location: index.php');
+        header('Location: index');
     }
     exit;
 }
@@ -23,9 +23,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'login')
         $erro_login = 'bloqueado';
     } elseif (fazerLogin($email, $senha, $lembrar)) {
         if (ehAdmin()) {
-            header('Location: admin/dashboard.php');
+            header('Location: admin/dashboard');
         } else {
-            header('Location: index.php');
+            header('Location: index');
         }
         exit;
     } else {
@@ -90,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'login')
                 <div class="aviso aviso-sucesso">Cadastro realizado com sucesso! Faça login.</div>
             <?php endif; ?>
 
-            <form method="POST" action="login.php">
+            <form method="POST" action="login">
                 <?php echo campoCsrf(); ?>
                 <input type="hidden" name="acao" value="login">
 
@@ -123,7 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'login')
             </form>
 
             <p style="margin:18px 0 0;text-align:center;font-size:12.5px;" class="texto-suave">
-                Não tem conta? <a href="cadastro.php" class="login-link-esqueci">Cadastre-se</a>
+                Não tem conta? <a href="cadastro" class="login-link-esqueci">Cadastre-se</a>
             </p>
         </div>
     </div>

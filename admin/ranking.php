@@ -62,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 salvarPremiosCampanha($pdo, $campanha_id, $_POST['premio_titulo'] ?? [], $_POST['premio_descricao'] ?? []);
 
-                header('Location: ranking.php?salvo=1');
+                header('Location: ranking?salvo=1');
                 exit;
             } catch (PDOException $e) {
                 $erro = str_contains($e->getMessage(), 'Duplicate')
@@ -73,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($acao === 'alternar_ativa') {
         $id = (int) ($_POST['id'] ?? 0);
         $pdo->prepare("UPDATE campanhas_ranking SET ativa = NOT ativa WHERE id = ?")->execute([$id]);
-        header('Location: ranking.php');
+        header('Location: ranking');
         exit;
     }
 }

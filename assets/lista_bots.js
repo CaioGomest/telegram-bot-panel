@@ -78,7 +78,7 @@
                                 </div>
                             </div>
                             <div class="cartao-acoes">
-                                <a href="bot.php?id=${encodeURIComponent(bot.id)}" class="botao-configurar">Configurar</a>
+                                <a href="bot?id=${encodeURIComponent(bot.id)}" class="botao-configurar">Configurar</a>
                                 <button type="button" class="btn-icon excluir btn-excluir-bot" data-id="${escaparHtml(bot.id)}" title="Excluir">${icons.trash}</button>
                             </div>
                         </div>

@@ -182,7 +182,7 @@
                 '      <option value="unica"' + opt(!eh_recorrente) + '>Pagamento Único</option>' +
                 (gateway_suporta_recorrente ? '      <option value="recorrente"' + opt(eh_recorrente) + '>Assinatura (Recorrente)</option>' : '') +
                 '    </select>' +
-                (!gateway_suporta_recorrente ? '    <p style="font-size:10px;color:#f59e0b;margin-top:4px;">⚠️ PIX Recorrente disponível apenas para contas PJ. Configure o tipo de conta em <a href="gateways.php" target="_blank">Gateways de Pagamento</a>.</p>' : '') +
+                (!gateway_suporta_recorrente ? '    <p style="font-size:10px;color:#f59e0b;margin-top:4px;">⚠️ PIX Recorrente disponível apenas para contas PJ. Configure o tipo de conta em <a href="gateways" target="_blank">Gateways de Pagamento</a>.</p>' : '') +
                 '  </div>' +
                 '  <div class="campo"><label>Nome do Produto/Plano</label><input type="text" class="campo-pix-nome" value="' + escaparHtml(props.nome || '') + '"></div>' +
                 '  <div class="campo"><label>Valor (R$)</label><input type="number" step="0.01" min="0" class="campo-pix-valor" value="' + (props.valor || 0) + '"></div>' +
@@ -770,7 +770,7 @@
                 showToast(response.mensagem || 'Erro ao excluir fluxo.', 'erro');
                 return;
             }
-            window.location.href = 'fluxos.php';
+            window.location.href = 'fluxos';
         }).fail(function (xhr) {
             showToast((xhr.responseJSON && xhr.responseJSON.mensagem) || 'Erro ao excluir fluxo.', 'erro');
         });

@@ -5,7 +5,7 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/funcoes/usuario.php';
 
 if (usuarioLogado()) {
-    header('Location: index.php');
+    header('Location: index');
     exit;
 }
 
@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $resultado = criarUsuario($nome, $email, $senha);
         if ($resultado['sucesso']) {
-            header('Location: login.php?sucesso=cadastro');
+            header('Location: login?sucesso=cadastro');
             exit;
         } else {
             $erro = $resultado['erro'];
@@ -66,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php if ($sucesso): ?>
                 <div class="aviso aviso-sucesso">
                     <?php echo htmlspecialchars($sucesso); ?>
-                    <br><a href="login.php" class="login-link-esqueci">Ir para login</a>
+                    <br><a href="login" class="login-link-esqueci">Ir para login</a>
                 </div>
             <?php endif; ?>
 
@@ -100,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php endif; ?>
 
             <p style="margin:18px 0 0;text-align:center;font-size:12.5px;" class="texto-suave">
-                Já tem uma conta? <a href="login.php" class="login-link-esqueci">Fazer login</a>
+                Já tem uma conta? <a href="login" class="login-link-esqueci">Fazer login</a>
             </p>
         </div>
     </div>

@@ -56,7 +56,7 @@
                                 <p class="texto-suave mono">Atualizado: ${escaparHtml(flow.atualizado_em || '-')}</p>
                             </div>
                             <div class="cartao-acoes">
-                                <a href="fluxo.php?id=${encodeURIComponent(flow.id)}" class="botao botao-editar-fluxo">Editar fluxo</a>
+                                <a href="fluxo?id=${encodeURIComponent(flow.id)}" class="botao botao-editar-fluxo">Editar fluxo</a>
                                 <button type="button" class="btn-icon excluir btn-excluir-fluxo" data-id="${escaparHtml(flow.id)}" title="Excluir">${icons.trash}</button>
                             </div>
                         </div>
