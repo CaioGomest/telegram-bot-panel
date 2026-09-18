@@ -563,6 +563,9 @@ html[data-theme] small { display: block; margin-top: 5px; font-size: 11px; color
     overflow: hidden;
     text-overflow: ellipsis;
 }
+/* O text-overflow do pai não pega no texto do <span> (que é um item flex) -- sem
+   isso a frase é cortada no meio da palavra, sem reticências, em card estreito. */
+.rodape-kpi > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 .grade-dashboard-baixo { display: grid; grid-template-columns: 1.55fr 1fr; gap: 14px; }
 

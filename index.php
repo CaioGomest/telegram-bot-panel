@@ -534,7 +534,7 @@ try {
                     <span class="rotulo-kpi">Vendas aprovadas</span>
                 </div>
                 <div class="valor-kpi">R$ <?php echo number_format($vendas_aprovadas, 2, ',', '.'); ?></div>
-                <div class="rodape-kpi"><span><?php echo $pix_pagos; ?> aprovações</span></div>
+                <div class="rodape-kpi"><span><?php echo number_format($pix_pagos, 0, ",", "."); ?> aprovações</span></div>
             </div>
 
             <div class="cartao-kpi">
@@ -543,7 +543,7 @@ try {
                     <span class="rotulo-kpi">Conversão</span>
                 </div>
                 <div class="valor-kpi"><?php echo round($taxa_conversao); ?>%</div>
-                <div class="rodape-kpi"><span><?php echo $pix_pagos; ?> de <?php echo $pix_gerados; ?> PIX</span></div>
+                <div class="rodape-kpi"><span><?php echo number_format($pix_pagos, 0, ",", "."); ?> de <?php echo number_format($pix_gerados, 0, ",", "."); ?> PIX</span></div>
             </div>
 
             <div class="cartao-kpi">
@@ -551,7 +551,7 @@ try {
                     <div class="icone-kpi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg></div>
                     <span class="rotulo-kpi">Total starts</span>
                 </div>
-                <div class="valor-kpi"><?php echo $total_starts; ?></div>
+                <div class="valor-kpi"><?php echo number_format($total_starts, 0, ",", "."); ?></div>
                 <div class="rodape-kpi"><span>Leads iniciaram conversa</span></div>
             </div>
 
@@ -561,7 +561,7 @@ try {
                     <span class="rotulo-kpi">Ticket médio</span>
                 </div>
                 <div class="valor-kpi">R$ <?php echo number_format($ticket_medio, 2, ',', '.'); ?></div>
-                <div class="rodape-kpi"><span><?php echo $pix_gerados; ?> PIX gerados</span></div>
+                <div class="rodape-kpi"><span><?php echo number_format($pix_gerados, 0, ",", "."); ?> PIX gerados</span></div>
             </div>
 
             <div class="cartao-kpi">
@@ -569,7 +569,7 @@ try {
                     <div class="icone-kpi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg></div>
                     <span class="rotulo-kpi">Leads</span>
                 </div>
-                <div class="valor-kpi"><?php echo $leads_na_base; ?></div>
+                <div class="valor-kpi"><?php echo number_format($leads_na_base, 0, ",", "."); ?></div>
                 <div class="rodape-kpi"><span>na base</span></div>
             </div>
         </div>
