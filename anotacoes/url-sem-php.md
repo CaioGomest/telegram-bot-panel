@@ -35,15 +35,17 @@ Não são preciosismo — sem elas o sistema quebra:
 | Login por POST + navegação logada em 8 telas | funcionando |
 | CSS e imagens | 200 |
 
-## Ponta solta (não quebra nada, mas vale fazer)
+## Links internos limpos também (mesmo dia)
 
-Os links internos ainda apontam pro `.php`: **12 `href`** em 9 arquivos e **12 `header('Location: ...php')`**.
-Como a regra (a) redireciona, tudo funciona — só que **cada clique no menu vira duas requisições**
-em vez de uma (a original + o 301).
+Na primeira versão os links internos continuavam apontando pro `.php`, então **cada clique no menu
+virava duas requisições** (a original + o 301). Corrigido em 29 pontos: `href`, `action`,
+`header(Location:)`, os menus de `barra_lateral.php` e os links dos JS de tela. Medido depois:
+navegação agora responde **200 com 0 redirects**.
 
-Pra limpar isso é preciso, junto:
-- trocar os `href`/`action`/`Location` pra sem `.php`;
-- **ajustar o `renderizarItemNav()`** em `barra_lateral.php`, que marca o item ativo comparando
-  `basename($item['href']) === $pagina_atual`, sendo que `$pagina_atual` vem de
-  `basename($_SERVER['PHP_SELF'])` e continua valendo `bots.php`. Se mudar só os `href`, o
-  **destaque do menu para de funcionar** — é a pegadinha dessa limpeza.
+**A pegadinha dessa limpeza:** `renderizarItemNav()` marca o item ativo comparando
+`basename(href)` com `basename($_SERVER["PHP_SELF"])` — e PHP_SELF continua valendo `bots.php`
+mesmo servindo `/bots`. Mexer só nos `href` **quebraria o destaque do menu**; os dois lados
+precisaram ser normalizados juntos. Conferido ao vivo depois: o item ativo funciona nas cinco telas
+testadas, tanto na barra lateral quanto na folha "Mais" do mobile.
+
+`api.php`, `ajax/` e `webhook*.php` seguem com `.php` de propósito.
