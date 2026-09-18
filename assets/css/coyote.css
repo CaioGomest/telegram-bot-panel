@@ -1131,6 +1131,9 @@ html[data-theme] a.botao-configurar { color: var(--or); }
     .paleta-blocos .botao { flex: 0 0 auto; }
     .paleta-blocos-titulo { display: none; }
     .conteiner-fluxo { height: 60vh; touch-action: pan-x pan-y; }
+    /* A alça de arraste do bloco precisa tirar o gesto do navegador: com pan-*, o Chrome
+       assume que é rolagem, manda touchcancel e o arraste morre no meio. */
+    .flowchart-operator-title, .flowchart-operator-body { touch-action: none; }
 
     .oculto-mobile { display: none; }
     .oculto-desktop { display: block; }
