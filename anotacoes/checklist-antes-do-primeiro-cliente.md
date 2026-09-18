@@ -17,6 +17,10 @@ Aberto em 2026-09-18 numa revisão pré-lançamento. Marcar conforme for resolve
 
 ## Pendente — precisa de ação sua
 
+- [ ] **Definir a marca do painel** em Administração → Identidade Visual (nome, logo, favicon).
+      Hoje está no padrão genérico "Painel de Bots" — a marca fixa "Coyote" saiu do código.
+      Ver `white-label-marca.md`.
+
 - [ ] **Teste ponta a ponta com bot e pagamento reais.** O mais importante da lista. Tudo que foi
       validado até aqui é código, banco e HTTP. Ninguém nunca rodou o caminho completo: `/start` →
       escolher plano → pagar PIX de verdade → receber o link → entrar no grupo → acesso vencer →
