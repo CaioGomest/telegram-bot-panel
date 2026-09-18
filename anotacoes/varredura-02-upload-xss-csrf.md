@@ -30,8 +30,8 @@ function sanitizarTexto(?string $valor, int $tamanho_maximo = 0): string {
 ```
 Apesar do nome, essa função só faz `trim` + corta tamanho — não remove tags nem escapa nada. Se algum valor passado por ela for depois exibido em HTML sem `htmlspecialchars`, é XSS. Vale renomear pra `limitarTexto()` (nome mais correto) e criar uma função separada de sanitização de verdade pra quando o valor for pra HTML.
 
-### 5. Sem proteção CSRF em nenhuma rota
-Nenhuma rota (`ajax/`, `login.php`, `cadastro.php`, `gateways.php`, `usuarios.php`) usa token CSRF. Ações administrativas (deletar usuário, editar gateway, etc.) feitas via POST são vulneráveis a CSRF — um admin logado que clique num link malicioso em outro site pode disparar uma ação sem querer.
+### 5. ~~Sem proteção CSRF em nenhuma rota~~ **Resolvido em 2026-09-17.**
+`funcoes/csrf.php` (novo) — token por sessão, validado em toda rota POST autenticada do painel: forms HTML tradicionais (`login.php`, `cadastro.php`, `configuracao_usuario.php`, `gateways.php`, `traqueamento.php`, `remarketing.php`, `admin/ranking.php`, `instalacao.php`, `admin/usuarios.php`) via campo oculto `csrf_token`, e chamadas AJAX (`api.php` — editor de bot/fluxo, links de rastreamento —, `ajax/*.php` — CRUD de usuário/split) via header `X-CSRF-Token`, setado globalmente por página com `$.ajaxSetup()` logo após o jQuery carregar (token exposto como `window.CSRF_TOKEN` por `barra_lateral.php`). Testado de ponta a ponta em produção via curl: POST sem token em `login.php`, `api.php` e `gateways.php` retorna 403; com o token correto, passa normalmente (login autentica, `api.php` responde 200, `gateways.php` reordena e devolve `{"sucesso":true}`). Ver `anotacoes/analise-potencia-e-escala.md` pro restante da rodada de correções desse mesmo dia (flock/timeout/COUNT).
 
 ### 6. Sem rate limiting / bloqueio de tentativas no login
 `fazerLogin()` não tem nenhum controle de tentativas — dá pra fazer brute-force de senha sem limite.
@@ -53,7 +53,7 @@ Ainda sem `session_set_cookie_params` com `Secure`/`HttpOnly`/`SameSite`.
 1. ~~Whitelist de extensão em `enviar_imagem_teste`~~ **Feito.**
 2. ~~`.htaccess` em `/uploads` e `/certificados` desativando execução de PHP~~ **Feito.**
 3. ~~Corrigir sanitização de path~~ **Feito** (agora só aceita `basename()` dentro de `/uploads`, resolvido com `realpath()`).
-4. **Adicionar CSRF token nas rotas administrativas — ainda NÃO feito.** Escopo grande (toda rota POST do painel: `ajax/*`, `gateways.php`, `usuarios.php`, `bots.php`, `fluxo.php`, `configuracoes.php`, etc.) e arriscado de fazer tudo de uma vez sem conseguir testar rodando. Fica pra uma próxima etapa, feita com calma por grupo de páginas.
+4. ~~Adicionar CSRF token nas rotas administrativas~~ **Feito** (ver item 5 acima).
 5. ~~Rate limiting básico no login~~ **Feito** (bloqueia por 15min após 5 tentativas erradas, tabela `tentativas_login` — precisa rodar `atualiza_banco.php` pra criar a tabela).
 6. ~~Exigir senha mínima no cadastro~~ **Feito** (já existia com 6 caracteres, subi pra 8).
 7. ~~Configurar cookie de sessão com `Secure`/`HttpOnly`/`SameSite`~~ **Feito.**
@@ -69,7 +69,6 @@ Ainda sem `session_set_cookie_params` com `Secure`/`HttpOnly`/`SameSite`.
 
 ## Pendências que continuam em aberto
 
-- CSRF (item 4 acima) — maior item pendente, precisa de uma rodada própria.
 - `sanitizarTexto()` continua só cortando texto, não sanitizando de verdade (nome enganoso) — trocar nome/criar função separada numa limpeza futura.
 - Mensagem de erro do PDO ainda exposta na tela em alguns arquivos de debug (item já sinalizado na varredura 01).
 - ~~Host forçado `127.0.0.1` em `debug_colunas_grupos.php`~~ **Resolvido** — ver `pendencias.md`.
