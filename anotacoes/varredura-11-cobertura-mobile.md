@@ -69,3 +69,42 @@ registra erro de console. `admin/configuracoes.php` também abre (mas é uma tel
 
 - `pedido-filtro-periodo-dashboard.md` — rodadas de alinhamento do mobile com o protótipo.
 - `anotacoes/urgente/notificacoes-sino-header.md` — o sino do protótipo, ainda a fazer.
+
+---
+
+## ✅ Resolvido — 2026-09-17 (mesma data da varredura)
+
+O Caio pediu pra adaptar tudo. Estado final: **as 18 telas abrem no celular**, nenhuma bloqueada,
+estouro horizontal 0 e erro de console 0 (revalidado com a mesma varredura).
+
+**Navegação.** Nova 7ª aba "Mais" na tab bar abre uma folha inferior com todos os grupos da barra
+lateral (Operação / Administração / Debug) + sair, reaproveitando `renderizarItemNav()`. Resolve as
+5 telas órfãs e o beco sem saída do admin de uma vez. As 6 abas do protótipo continuam como estavam.
+
+**Bloqueios removidos.** `bot.php`, `gateways.php`, `admin/dashboard.php`, `admin/transacoes.php` e
+`admin/logs.php` perderam o "Melhor no desktop" — as tabelas já rolavam na horizontal sozinhas
+(`.tabela-dados { overflow-x: auto }`).
+
+**Editor de fluxo (`fluxo.php`)** — era o caso difícil, três coisas faltavam no toque:
+- *Adicionar bloco* só existia por drag-and-drop HTML5 (não dispara em toque) e o clique tinha sido
+  desativado de propósito → no touch, toque simples adiciona o bloco no canto visível, em cascata.
+- *Mover bloco* usa jQuery UI draggable, que só escuta mouse → ponte toque→mouse. **Primeira
+  tentativa não funcionou**: usei delegação do jQuery no document e ela nunca disparava — medindo,
+  handler direto no elemento dispara e delegado não, ou seja a lib do canvas interrompe a
+  propagação do `touchstart` no `.flowchart-operator`. Refeito com listener **nativo em fase de
+  captura**, que roda antes disso. Também precisou de `touch-action: none` na alça, senão o Chrome
+  assume que é rolagem e manda `touchcancel` no meio do arraste.
+- *Conectar blocos* já funcionava (a lib escuta `touchstart`).
+- O bloqueio virou um aviso que não esconde a tela, explicando como usar no celular.
+
+**Dois defeitos que apareceram ao validar:**
+1. `admin/dashboard.php` estourava 107px na horizontal — item de grid tem `min-width: auto`, então o
+   canvas do Chart.js (que ganha largura fixa em px) empurrava a coluna: painel de 484px num viewport
+   de 393. Só apareceu agora porque a tela era bloqueada. Corrigido com `min-width: 0` nos itens.
+2. `.oculto-desktop` não tinha regra base — só funcionava em elemento que já nascia `display: none`
+   (o card de destaque). O aviso novo do editor vazava pro desktop. Corrigido.
+
+**Como foi verificado:** Playwright + Chromium em viewport de celular (Pixel 5, `hasTouch`), as 18
+telas com as duas contas; arraste de bloco testado com toque real via CDP (`Input.dispatchTouchEvent`
+— o bloco saiu de 400/400 pra 460/440, batendo com o gesto); e regressão no desktop (1440px): arraste
+com mouse continua funcionando (400/400 → 464/440) e nenhum elemento mobile aparece.
