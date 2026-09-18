@@ -23,6 +23,15 @@
         trash: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>'
     };
 
+    // Duas letras, como no protótipo: iniciais de duas palavras ("Sítio Monte Luca" -> SM,
+    // "katii_gamer" -> KG) ou as duas primeiras letras quando é uma palavra só.
+    function iniciaisBot(nome) {
+        const partes = String(nome).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+        if (!partes.length) return '?';
+        const letras = partes.length > 1 ? partes[0].charAt(0) + partes[1].charAt(0) : partes[0].slice(0, 2);
+        return letras.toUpperCase();
+    }
+
     function carregarBots() {
         const $list = $('#lista-bots');
         $list.html('<div class="estado-vazio">Carregando...</div>');
@@ -43,27 +52,33 @@
                 }
 
                 bots.forEach(function (bot) {
-                    const nome = bot.primeiro_nome || 'Sem nome';
-                    const iniciais = nome.trim().charAt(0).toUpperCase() || '?';
-                    const flow_text = bot.id_fluxo_conectado ? `Fluxo: ${escaparHtml(bot.id_fluxo_conectado)}` : 'Sem fluxo ligado';
-                    const status_badge = bot.id_fluxo_conectado
-                        ? '<span class="badge badge-sucesso">Com fluxo</span>'
-                        : '<span class="badge badge-alerta">Sem fluxo</span>';
+                    const nome = bot.primeiro_nome || bot.nome_usuario || 'Sem nome';
+                    const tem_fluxo = Boolean(bot.id_fluxo_conectado);
+                    const nome_fluxo = tem_fluxo ? (bot.nome_fluxo || 'Fluxo #' + bot.id_fluxo_conectado) : '— definir';
+                    const leads_7d = Number(bot.leads_7d || 0).toLocaleString('pt-BR');
 
                     $list.append(`
                         <div class="cartao-bot-item">
                             <div class="cartao-cabecalho">
-                                <span class="avatar-item">${escaparHtml(iniciais)}</span>
-                                <h3>${escaparHtml(nome)}</h3>
+                                <span class="avatar-item">${escaparHtml(iniciaisBot(nome))}</span>
+                                <div class="bot-identidade">
+                                    <h3>${escaparHtml(nome)}</h3>
+                                    <span class="bot-username mono">@${escaparHtml(bot.nome_usuario || 'sem_username')}</span>
+                                </div>
+                                <span class="bot-status ${tem_fluxo ? 'ativo' : 'pendente'}" title="${tem_fluxo ? 'Fluxo conectado' : 'Sem fluxo conectado'}"></span>
                             </div>
-                            <div class="cartao-corpo">
-                                <p class="texto-suave">@${escaparHtml(bot.nome_usuario || 'sem_username')}</p>
-                                <p>${flow_text}</p>
-                                <p class="texto-suave">${escaparHtml(bot.descricao_curta || 'Sem descrição')}</p>
-                                ${status_badge}
+                            <div class="bot-metricas">
+                                <div class="bot-metrica">
+                                    <span class="bot-metrica-rotulo">Fluxo</span>
+                                    <span class="bot-metrica-valor">${escaparHtml(nome_fluxo)}</span>
+                                </div>
+                                <div class="bot-metrica">
+                                    <span class="bot-metrica-rotulo">Leads 7d</span>
+                                    <span class="bot-metrica-valor">${leads_7d}</span>
+                                </div>
                             </div>
                             <div class="cartao-acoes">
-                                <a href="bot.php?id=${encodeURIComponent(bot.id)}" class="btn-icon editar" title="Editar">${icons.edit}</a>
+                                <a href="bot.php?id=${encodeURIComponent(bot.id)}" class="botao-configurar">Configurar</a>
                                 <button type="button" class="btn-icon excluir btn-excluir-bot" data-id="${escaparHtml(bot.id)}" title="Excluir">${icons.trash}</button>
                             </div>
                         </div>

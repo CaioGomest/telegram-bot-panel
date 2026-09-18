@@ -407,7 +407,19 @@ try {
             break;
 
         case 'listar_bots':
-            $stmt = $pdo->prepare("SELECT * FROM bots WHERE id_usuario = ? ORDER BY atualizado_em DESC");
+            // Traz junto o nome do fluxo conectado e os leads dos últimos 7 dias -- é o que os
+            // cards da lista mostram (antes o card exibia o ID cru do fluxo, ex. "Fluxo: 2").
+            // A contagem usa idx_leads_bot_criado_em (bot_id, criado_em), então é barata.
+            $stmt = $pdo->prepare("
+                SELECT b.*,
+                       f.nome AS nome_fluxo,
+                       (SELECT COUNT(*) FROM leads l
+                         WHERE l.bot_id = b.id AND l.criado_em >= NOW() - INTERVAL 7 DAY) AS leads_7d
+                FROM bots b
+                LEFT JOIN fluxos f ON f.id = b.id_fluxo_conectado
+                WHERE b.id_usuario = ?
+                ORDER BY b.atualizado_em DESC
+            ");
             $stmt->execute([$usuario_id]);
             $bots = $stmt->fetchAll();
             responder(true, ['bots' => $bots]);
