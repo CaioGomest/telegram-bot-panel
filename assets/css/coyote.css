@@ -297,6 +297,10 @@ html[data-theme="light"] .botao-primario:hover { color: #fff; }
 .campo-com-acao input,
 .campo-com-acao select { flex: 1; min-width: 0; width: auto; }
 .campo-com-acao .botao { flex-shrink: 0; white-space: nowrap; }
+/* Linha de botoes no fim de um formulario/modal. A classe ja era usada em varias telas
+   (algumas com justify-content inline), mas nunca teve regra -- sem display:flex o
+   alinhamento a direita dos modais nao fazia efeito. */
+.linha-acoes { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .campo label {
     font: 700 10.5px 'Manrope', sans-serif;
     letter-spacing: .1em;
@@ -997,7 +1001,7 @@ html[data-theme] a.botao-configurar { color: var(--or); }
         height: 42px;
         border-radius: 12px;
         flex-shrink: 0;
-        background: url('../img/coyote-logo.jpg') center / cover no-repeat;
+        background: var(--logo-url) center / cover no-repeat;
     }
     .cabecalho-pagina > div:first-child { order: 1; min-width: 0; }
     /* Quebra de linha forçada logo depois do botão de tema -- só quando a página tem

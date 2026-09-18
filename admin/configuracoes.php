@@ -1,7 +1,42 @@
-<?php declare(strict_types=1);
+<?php
+declare(strict_types=1);
+
 require_once __DIR__ . '/../funcoes/usuario.php';
 verificarAdmin();
 $caminho_base = '../';
+
+$mensagem = '';
+$tipo_mensagem = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verificarCsrf();
+    try {
+        $nome = trim($_POST['nome_sistema'] ?? '');
+        if ($nome === '') {
+            throw new RuntimeException('O nome do sistema não pode ficar vazio.');
+        }
+        definirConfigSistema('nome_sistema', mb_substr($nome, 0, 60));
+
+        if (isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
+            definirConfigSistema('logo', salvarArquivoMarca($_FILES['logo'], 'marca_logo'));
+        }
+        if (isset($_FILES['favicon']) && $_FILES['favicon']['error'] === UPLOAD_ERR_OK) {
+            definirConfigSistema('favicon', salvarArquivoMarca($_FILES['favicon'], 'marca_favicon'));
+        }
+
+        registrarAtividade((int) $_SESSION['usuario_id'], 'sistema', 'Identidade visual', 'Nome/logo/favicon do painel atualizados.');
+        header('Location: configuracoes?salvo=1');
+        exit;
+    } catch (RuntimeException $e) {
+        $mensagem = $e->getMessage();
+        $tipo_mensagem = 'erro';
+    }
+}
+
+if (isset($_GET['salvo'])) {
+    $mensagem = 'Identidade visual atualizada.';
+    $tipo_mensagem = 'sucesso';
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -20,7 +55,7 @@ $caminho_base = '../';
         <div class="cabecalho-pagina">
             <div>
                 <h1>Configurações</h1>
-                <p>Gerencie suas preferências.</p>
+                <p>Nome, logo e favicon que aparecem para todos os usuários do painel.</p>
             </div>
             <div class="acoes-cabecalho">
                 <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
@@ -31,23 +66,46 @@ $caminho_base = '../';
         </div>
 
         <div class="painel" style="max-width: 700px;">
-            <form>
-                <div class="grade grade-2">
-                    <div class="campo">
-                        <label>Nome do Usuário</label>
-                        <input type="text" value="Administrador" disabled>
-                    </div>
-                    <div class="campo">
-                        <label>E-mail</label>
-                        <input type="email" value="admin@admin.com" disabled>
-                    </div>
-                    <div class="campo completo">
-                        <label>Nova Senha</label>
-                        <input type="password" placeholder="Digite para alterar a senha...">
-                    </div>
+            <?php if ($mensagem): ?>
+                <div class="aviso aviso-<?php echo $tipo_mensagem; ?>"><?php echo htmlspecialchars($mensagem); ?></div>
+            <?php endif; ?>
+
+            <form method="POST" enctype="multipart/form-data">
+                <?php echo campoCsrf(); ?>
+
+                <div class="campo">
+                    <label for="nome_sistema">Nome do sistema</label>
+                    <input type="text" id="nome_sistema" name="nome_sistema" maxlength="60" required
+                           value="<?php echo htmlspecialchars(nomeSistema()); ?>">
+                    <small>Aparece na barra lateral, no topo do celular e no título das abas do navegador.</small>
                 </div>
-                <div class="linha-acoes" style="margin-top: 20px;">
-                    <button type="button" class="botao botao-primario" onclick="alert('Funcionalidade em desenvolvimento!')">Salvar Alterações</button>
+
+                <div class="campo" style="margin-top:18px;">
+                    <label>Logo</label>
+                    <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px;">
+                        <img src="<?php echo htmlspecialchars(logoSistema($caminho_base)); ?>" alt=""
+                             style="width:56px;height:56px;border-radius:14px;object-fit:cover;border:1px solid var(--bd);"
+                             onerror="this.style.display='none'">
+                        <span class="texto-suave">Atual</span>
+                    </div>
+                    <input type="file" name="logo" accept=".png,.jpg,.jpeg,.webp">
+                    <small>PNG, JPG ou WEBP, até 2 MB. Quadrada fica melhor. Deixe em branco para manter a atual.</small>
+                </div>
+
+                <div class="campo" style="margin-top:18px;">
+                    <label>Favicon</label>
+                    <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px;">
+                        <img src="<?php echo htmlspecialchars(faviconSistema($caminho_base)); ?>" alt=""
+                             style="width:28px;height:28px;border-radius:7px;object-fit:cover;border:1px solid var(--bd);"
+                             onerror="this.style.display='none'">
+                        <span class="texto-suave">Atual</span>
+                    </div>
+                    <input type="file" name="favicon" accept=".png,.ico,.jpg,.jpeg,.webp">
+                    <small>Ícone da aba do navegador. Sem favicon próprio, o sistema usa a logo.</small>
+                </div>
+
+                <div class="linha-acoes" style="margin-top: 22px;">
+                    <button type="submit" class="botao botao-primario">Salvar</button>
                 </div>
             </form>
         </div>

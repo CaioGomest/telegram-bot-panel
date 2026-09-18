@@ -53,6 +53,7 @@ $icones = [
     'traqueamento' => 'M22 12h-4l-3 9L9 3l-3 9H2',
     'links' => 'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71',
     'usuarios' => 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
+    'identidade' => 'M3 5h18v14H3zM3 16l5-5 4 4 3-3 6 6M8.5 9.5a1 1 0 1 0 0-.1z',
     'debug' => 'M12 8v8M8 12h8M4 4h16v16H4z',
     'sair' => 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
 ];
@@ -78,6 +79,7 @@ if ($is_admin) {
     $grupo_admin[] = ['href' => 'admin/logs', 'label' => 'Logs', 'icone' => 'logs'];
     $grupo_admin[] = ['href' => 'admin/usuarios', 'label' => 'Usuários', 'icone' => 'usuarios'];
     $grupo_admin[] = ['href' => 'admin/ranking', 'label' => 'Campanhas de Ranking', 'icone' => 'ranking'];
+    $grupo_admin[] = ['href' => 'admin/configuracoes', 'label' => 'Identidade Visual', 'icone' => 'identidade'];
 }
 
 $grupo_debug = [];
@@ -107,9 +109,9 @@ $iniciais = mb_strtoupper(mb_substr($nome_usuario, 0, 1), 'UTF-8');
 ?>
 <aside class="barra-lateral">
     <div class="barra-lateral-topo">
-        <img src="<?php echo $caminho_base; ?>assets/img/coyote-logo.jpg" alt="" class="logo-marca" onerror="this.style.display='none'">
+        <img src="<?php echo htmlspecialchars(logoSistema($caminho_base)); ?>" alt="" class="logo-marca" onerror="this.style.display='none'">
         <div class="logo-textos">
-            <span class="logo-titulo">Coyote Bot</span>
+            <span class="logo-titulo"><?php echo htmlspecialchars(nomeSistema()); ?></span>
             <span class="logo-subtitulo">Painel de automação</span>
         </div>
     </div>

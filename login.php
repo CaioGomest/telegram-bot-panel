@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'login')
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Coyote Bot</title>
+    <title>Login - <?php echo htmlspecialchars(nomeSistema()); ?></title>
     <?php include 'tema_inline.php'; ?>
     <link rel="stylesheet" href="assets/css/coyote.css?v=<?php echo @filemtime(__DIR__.'/assets/css/coyote.css'); ?>">
 </head>
@@ -50,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'login')
 
 <div class="tela-login">
     <div class="login-marca">
-        <img src="assets/img/coyote-logo.jpg" alt="Coyote Bot" class="login-logo">
+        <img src="<?php echo htmlspecialchars(logoSistema()); ?>" alt="<?php echo htmlspecialchars(nomeSistema()); ?>" class="login-logo">
         <h1 class="login-titulo">Seus bots vendendo no automático</h1>
         <p class="login-descricao">Fluxos, PIX, remarketing e leads em um só painel. Entre para continuar de onde parou.</p>
         <div class="login-metricas">

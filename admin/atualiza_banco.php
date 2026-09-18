@@ -485,6 +485,17 @@ try {
     try { $pdo->exec("ALTER TABLE links_rastreamento ADD COLUMN starts INT DEFAULT 0 AFTER bot_id"); } catch (PDOException $e) {}
     echo "Tabela 'links_rastreamento' OK.<br>";
 
+    // Identidade visual do painel (white-label): nome, logo e favicon por instalação.
+    // Ver funcoes/configuracoes.php e admin/configuracoes.php.
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS configuracoes (
+            chave VARCHAR(50) NOT NULL PRIMARY KEY,
+            valor TEXT,
+            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ");
+    echo "Tabela 'configuracoes' OK.<br>";
+
     $sql_tentativas_login = "
         CREATE TABLE IF NOT EXISTS tentativas_login (
             id INT AUTO_INCREMENT PRIMARY KEY,

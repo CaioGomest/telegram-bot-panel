@@ -43,6 +43,7 @@ if (instaladorJaTemAdmin()) {
     session_start();
 }
 require_once __DIR__ . '/funcoes/csrf.php';
+require_once __DIR__ . '/funcoes/configuracoes.php';
 
 $mensagem = '';
 $tipo_mensagem = '';
@@ -53,6 +54,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $usuario_banco = $_POST['usuario_banco'] ?? 'root';
     $senha_banco = $_POST['senha_banco'] ?? '';
     $nome_banco = $_POST['nome_banco'] ?? 'telegram_bot_saas';
+    $nome_sistema = trim($_POST['nome_sistema'] ?? '');
+    $aviso_marca = '';
 
     try {
         $pdo = new PDO("mysql:host=$banco_host;charset=utf8mb4", $usuario_banco, $senha_banco, [
@@ -325,6 +328,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             UNIQUE KEY unique_identificador_usuario (id_usuario, identificador)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
+        $pdo->exec("CREATE TABLE IF NOT EXISTS configuracoes (
+            chave VARCHAR(50) NOT NULL PRIMARY KEY,
+            valor TEXT,
+            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
         $pdo->exec("CREATE TABLE IF NOT EXISTS tentativas_login (
             id INT AUTO_INCREMENT PRIMARY KEY,
             identificador VARCHAR(150) NOT NULL,
@@ -394,6 +403,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // linha existir pra aparecer na tela de configuração).
         $pdo->exec("INSERT INTO gateways (nome, titulo, ativo) VALUES ('infopago', 'InfoPago (Pix)', 0)");
 
+        // Identidade visual (white-label): o que o instalador recebeu vira a marca desta
+        // instalação. Vai num try/catch próprio porque um upload ruim não pode derrubar uma
+        // instalação que já criou o banco inteiro -- o admin troca depois em admin/configuracoes.
+        try {
+            if ($nome_sistema !== '') {
+                definirConfigSistema('nome_sistema', mb_substr($nome_sistema, 0, 60));
+            }
+            if (isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
+                definirConfigSistema('logo', salvarArquivoMarca($_FILES['logo'], 'marca_logo'));
+            }
+            if (isset($_FILES['favicon']) && $_FILES['favicon']['error'] === UPLOAD_ERR_OK) {
+                definirConfigSistema('favicon', salvarArquivoMarca($_FILES['favicon'], 'marca_favicon'));
+            }
+        } catch (Throwable $e) {
+            $aviso_marca = ' (a identidade visual não pôde ser salva: ' . $e->getMessage() . ' — ajuste depois em Configurações)';
+        }
         $senha_hash = password_hash('123456', PASSWORD_DEFAULT);
         $sql_user_padrao = "INSERT IGNORE INTO usuarios (id, nome, email, senha, perfil) VALUES (1, 'Admin', 'admin@exemplo.com', '$senha_hash', 'admin')";
         $pdo->exec($sql_user_padrao);
@@ -410,7 +435,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         file_put_contents('config.php', $config_content);
 
-        $mensagem = "Instalação concluída com sucesso! Banco de dados criado e configurado.";
+        $mensagem = "Instalação concluída com sucesso! Banco de dados criado e configurado." . $aviso_marca;
         $tipo_mensagem = "sucesso";
 
     } catch (PDOException $e) {
@@ -424,10 +449,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Instalação - Coyote Bot</title>
+    <title>Instalação</title>
     <?php include __DIR__ . '/tema_inline.php'; ?>
     <link rel="stylesheet" href="assets/css/coyote.css?v=<?php echo @filemtime(__DIR__.'/assets/css/coyote.css'); ?>">
-    <style>body { display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }</style>
+    <style>body { display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 24px 16px; box-sizing: border-box; }</style>
 </head>
 <body>
     <div class="painel" style="width: 100%; max-width: 400px;">
@@ -438,7 +463,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="aviso aviso-<?= $tipo_mensagem ?>"><?= $mensagem ?></div>
         <?php endif; ?>
 
-        <form method="POST">
+        <form method="POST" enctype="multipart/form-data">
             <?php echo campoCsrf(); ?>
             <div class="campo">
                 <label for="banco_host">Servidor do Banco de Dados (Host)</label>
@@ -455,6 +480,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="campo" style="margin-top:14px;">
                 <label for="senha_banco">Senha do Banco</label>
                 <input type="password" id="senha_banco" name="senha_banco" placeholder="Deixe em branco se não houver senha">
+            </div>
+
+            <div style="margin-top:22px;padding-top:16px;border-top:1px solid var(--bd);">
+                <strong style="font-size:13px;">Identidade do painel</strong>
+                <p class="texto-suave" style="margin:4px 0 0;font-size:12px;">Opcional — dá pra trocar depois em Configurações.</p>
+            </div>
+            <div class="campo" style="margin-top:14px;">
+                <label for="nome_sistema">Nome do sistema</label>
+                <input type="text" id="nome_sistema" name="nome_sistema" maxlength="60" placeholder="Ex: Painel de Bots">
+            </div>
+            <div class="campo" style="margin-top:14px;">
+                <label for="logo">Logo</label>
+                <input type="file" id="logo" name="logo" accept=".png,.jpg,.jpeg,.webp">
+            </div>
+            <div class="campo" style="margin-top:14px;">
+                <label for="favicon">Favicon</label>
+                <input type="file" id="favicon" name="favicon" accept=".png,.ico,.jpg,.jpeg,.webp">
             </div>
             <button type="submit" class="botao botao-primario botao-bloco" style="margin-top:20px;">Instalar e Criar Banco</button>
         </form>

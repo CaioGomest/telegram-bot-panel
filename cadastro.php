@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cadastro - Coyote Bot</title>
+    <title>Cadastro - <?php echo htmlspecialchars(nomeSistema()); ?></title>
     <?php include 'tema_inline.php'; ?>
     <link rel="stylesheet" href="assets/css/coyote.css?v=<?php echo @filemtime(__DIR__.'/assets/css/coyote.css'); ?>">
 </head>
@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <div class="tela-login">
     <div class="login-marca">
-        <img src="assets/img/coyote-logo.jpg" alt="Coyote Bot" class="login-logo">
+        <img src="<?php echo htmlspecialchars(logoSistema()); ?>" alt="<?php echo htmlspecialchars(nomeSistema()); ?>" class="login-logo">
         <h1 class="login-titulo">Junte-se à plataforma</h1>
         <p class="login-descricao">Crie sua conta e comece a gerenciar seus bots e fluxos de mensagens com eficiência.</p>
     </div>

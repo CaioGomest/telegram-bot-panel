@@ -93,7 +93,7 @@ if ($ranking) {
             <div>
                 <div class="hero-ranking">
                     <div class="hero-ranking-halo"></div>
-                    <img src="assets/img/coyote-logo.jpg" alt="" class="hero-ranking-logo">
+                    <img src="<?php echo htmlspecialchars(logoSistema()); ?>" alt="" class="hero-ranking-logo">
                     <div class="hero-ranking-conteudo">
                         <div style="display:flex;gap:8px;flex-wrap:wrap;">
                             <span class="pill-campanha" style="background:var(--orsoft);color:var(--or);">Campanha oficial</span>
@@ -259,7 +259,7 @@ if ($ranking) {
 
                 <div class="painel">
                     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
-                        <span class="rotulo-kpi">Ligas Coyote</span>
+                        <span class="rotulo-kpi">Ligas privadas</span>
                         <span class="badge badge-sucesso">Disponível</span>
                     </div>
                     <p class="texto-suave" style="margin:10px 0 14px;line-height:1.55;">Crie ou entre em uma liga privada com outros competidores e dispute um ranking à parte.</p>
