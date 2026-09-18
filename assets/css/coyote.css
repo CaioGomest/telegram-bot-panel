@@ -610,6 +610,11 @@ html[data-theme] a.botao-configurar { color: var(--or); }
 .rodape-kpi > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 .grade-dashboard-baixo { display: grid; grid-template-columns: 1.55fr 1fr; gap: 14px; }
+/* min-width:0 porque item de grid tem min-width:auto por padrão -- sem isso o canvas do
+   Chart.js (que ganha largura fixa em px) empurra a coluna e faz a página inteira estourar
+   na horizontal no celular (visto em admin/dashboard.php: painel de 484px num viewport de 393). */
+.grade-dashboard-baixo > * { min-width: 0; }
+.area-grafico canvas { max-width: 100%; }
 
 .area-grafico { position: relative; height: 300px; width: 100%; }
 
