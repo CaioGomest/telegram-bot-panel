@@ -191,6 +191,11 @@ html[data-theme] *::-webkit-scrollbar-thumb:hover { background: var(--m); }
 .botao-sair:hover { color: var(--da); border-color: var(--da); }
 .botao-sair svg { width: 15px; height: 15px; }
 
+/* .oculto-desktop só valia pra elemento que já nascia display:none (o card de destaque),
+   porque a única regra existente era o display:block dentro do breakpoint mobile. Sem esta
+   regra base, qualquer outro elemento com a classe aparecia no desktop também. */
+.oculto-desktop { display: none; }
+
 /* Tab bar mobile — escondida no desktop */
 .barra-mobile { display: none; }
 
