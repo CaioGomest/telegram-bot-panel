@@ -1057,12 +1057,19 @@ html[data-theme] a.botao-configurar { color: var(--or); }
         left: 0;
         right: 0;
         bottom: 0;
-        z-index: 50;
+        /* acima do controle de zoom do editor de fluxo, que é z-index 100 */
+        z-index: 200;
         display: flex;
         background: var(--p);
         border-top: 1px solid var(--bd);
     }
     .mobile-item {
+        /* o item "Mais" é <button>: sem isto herda fundo e borda padrão do navegador
+           (aparecia como um retângulo branco no canto da barra). */
+        background: none;
+        border: 0;
+        font: inherit;
+        cursor: pointer;
         flex: 1;
         display: flex;
         flex-direction: column;
@@ -1081,7 +1088,7 @@ html[data-theme] a.botao-configurar { color: var(--or); }
         display: block;
         position: fixed;
         inset: 0;
-        z-index: 60;
+        z-index: 210;
     }
     .folha-menu[hidden] { display: none; }
     .folha-menu-fundo {

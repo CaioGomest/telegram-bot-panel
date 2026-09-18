@@ -38,9 +38,6 @@ verificarLogin();
             </div>
         </div>
 
-        <div class="aviso aviso-alerta oculto-desktop" style="margin-bottom:14px;">
-            Editor de fluxo no celular: toque num bloco da paleta para adicionar e arraste o bloco no canvas para mover. Para fluxos grandes, o desktop continua mais confortável.
-        </div>
 
         <div>
         <div class="painel">
