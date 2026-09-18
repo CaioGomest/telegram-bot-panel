@@ -105,3 +105,28 @@ código.
 **Ainda diferente do protótipo, de propósito (não mexi sem pedir):** o sino de notificação (o Caio
 pediu pra deixar de lado por ora) e o texto de alguns rodapés de card ("Leads iniciaram conversa"
 vs "novas conversas", "X PIX gerados" vs "por venda") — é conteúdo, não layout.
+
+## Tela "Meus Bots" + cache de JS — 2026-09-17, 3ª rodada
+
+Pílulas do filtro ganharam `flex: 1 0 auto` (dividem a linha inteira, sem o espaço morto que
+sobrava depois de "Total" com só 5 períodos; se voltar a ter pílula demais, transborda e rola em
+vez de espremer).
+
+**Card de bot refeito no formato do protótipo** (`assets/lista_bots.js` + CSS): avatar com 2
+iniciais, nome + @usuário empilhados, bolinha de status (verde = fluxo conectado, âmbar = sem
+fluxo), dois quadros de métrica (FLUXO / LEADS 7D) e botão "Configurar" largo + excluir. O card
+antigo mostrava **o ID cru do fluxo** ("Fluxo: 2") — `listar_bots` agora traz `nome_fluxo`
+(LEFT JOIN em `fluxos`) e `leads_7d` (COUNT coberto por `idx_leads_bot_criado_em`).
+
+Dois achados no caminho, os dois só apareceram porque conferi com screenshot real em vez de só
+ler o código:
+
+1. **JS sem cache-busting.** O CDN da Hostinger serve estático com `Cache-Control: max-age=604800`
+   (7 dias). O CSS já era versionado com `?v=filemtime` e o `edicao_fluxo.js` também, mas os outros
+   29 includes de JS não — depois de um deploy, navegador/CDN continuavam rodando o JS antigo por
+   até uma semana. Peguei na prática: o card recém-refeito voltou pro layout velho num teste porque
+   o edge serviu a versão em cache. Versionados todos (23 arquivos).
+2. **Duas regras de CSS que nunca valeram por especificidade.** `.cartao-cabecalho h3` já pedia
+   Manrope + `text-transform: none` e `.botao-configurar` já pedia `color: var(--or)`, mas perdiam
+   pra `html[data-theme] h3` e `html[data-theme] a` (especificidade maior) — o nome do bot saía em
+   CAIXA ALTA e o botão perdia o laranja. Prefixadas pra valer.
