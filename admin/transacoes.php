@@ -71,9 +71,24 @@ if ($usuario_id > 0) {
 } else {
     $sql_count_base = "FROM vendas v WHERE $where_sql";
 }
-$stmt_total = $pdo->prepare("SELECT COUNT(*) $sql_count_base");
-$stmt_total->execute($params);
-$total_transacoes = (int)$stmt_total->fetchColumn();
+if ($where_sql === '1=1') {
+    // Visão padrão (sem nenhum filtro): um COUNT(*) exato aqui é full table scan --
+    // medido em 2026-09-17 a 6,8 milhões de linhas: 1,57s, escala linear com o total
+    // acumulado na plataforma (ver anotacoes/analise-potencia-e-escala.md secao 11).
+    // $total_transacoes só alimenta o paginador() (numeração de página), nunca é
+    // exibido como "X resultados" -- uma estimativa instantânea das estatísticas do
+    // InnoDB é suficiente pra isso, não precisa ser exata.
+    $total_transacoes = (int) ($pdo->query("
+        SELECT TABLE_ROWS FROM information_schema.TABLES
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'vendas'
+    ")->fetchColumn() ?: 0);
+} else {
+    // Com filtro ativo, a query já cai num índice (status/criado_em/usuario) e fica
+    // rápida mesmo em tabela grande -- COUNT(*) exato aqui não tem o mesmo custo.
+    $stmt_total = $pdo->prepare("SELECT COUNT(*) $sql_count_base");
+    $stmt_total->execute($params);
+    $total_transacoes = (int)$stmt_total->fetchColumn();
+}
 
 $pagina_atual = isset($_GET['pagina']) ? max(1, (int)$_GET['pagina']) : 1;
 $por_pagina = 25;
