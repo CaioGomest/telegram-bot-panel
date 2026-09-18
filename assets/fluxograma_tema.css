@@ -9,6 +9,9 @@ html[data-theme] .flowchart-container {
 
 .conteiner-fluxo {
     overflow: hidden; /* O panning cuida do movimento */
+    /* Todo gesto de toque é tratado no JS (arrastar com 1 dedo, zoom de pinça com 2).
+       Sem isto o navegador fica com a pinça e dá zoom na página inteira. */
+    touch-action: none;
     position: relative;
     cursor: grab;
     height: calc(100vh - 250px);

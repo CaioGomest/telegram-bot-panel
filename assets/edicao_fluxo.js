@@ -1273,6 +1273,13 @@
                 // handler delegado no document nunca chega a rodar (medido: direto no elemento
                 // dispara, delegado não). Captura roda de cima pra baixo, antes disso.
                 document.addEventListener('touchstart', function (ev) {
+                    // Chegou um segundo dedo no meio de um arraste: o gesto é pinça, não
+                    // arraste. Solta o bloco onde está, senão ele seguiria um dos dedos
+                    // enquanto o canvas muda de escala.
+                    if (ev.touches.length > 1 && arrastando_toque) {
+                        arrastando_toque = false;
+                        repassarComoMouse(ev.changedTouches[0], 'mouseup');
+                    }
                     if (ev.touches.length !== 1) return;
                     if (!ev.target.closest || !ev.target.closest(ALCA)) return;
                     arrastando_toque = true;
@@ -1384,6 +1391,88 @@
             $flowchart.css('cursor', '');
         });
 
+        // ===== Gestos de toque no canvas: arrastar com 1 dedo, zoom de pinça com 2 =====
+        // O pan acima é só de mouse. No celular nada disso acontecia: o .conteiner-fluxo tem
+        // overflow:hidden (o pan é feito por scrollLeft/scrollTop via script), então o navegador
+        // não considera ele rolável e mandava o gesto pra página -- medido: arrastar não movia o
+        // canvas e a pinça dava zoom na página inteira (visualViewport.scale ia a 5).
+        // Com touch-action:none no container, todo gesto chega aqui e nós decidimos o que fazer.
+        const el_wrapper = $wrapper.get(0);
+        if (el_wrapper) {
+            const IGNORAR = '.flowchart-operator, .flowchart-link, .botao, input, textarea, select, button';
+            let gesto = null;              // null | 'pan' | 'pinca'
+            let ini = null;
+
+            const distancia = (a, b) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+            // Ponto médio em coordenadas de dentro do container, não da janela.
+            function meio(a, b) {
+                const r = el_wrapper.getBoundingClientRect();
+                return { x: (a.clientX + b.clientX) / 2 - r.left, y: (a.clientY + b.clientY) / 2 - r.top };
+            }
+
+            function iniciarPan(t) {
+                gesto = 'pan';
+                ini = { x: t.clientX, y: t.clientY, sl: el_wrapper.scrollLeft, st: el_wrapper.scrollTop };
+            }
+
+            el_wrapper.addEventListener('touchstart', function (ev) {
+                if (ev.touches.length >= 2) {
+                    const m = meio(ev.touches[0], ev.touches[1]);
+                    gesto = 'pinca';
+                    ini = {
+                        dist: distancia(ev.touches[0], ev.touches[1]),
+                        zoom: zoom_level,
+                        // Ponto do canvas que está sob os dedos agora. É ele que tem que ficar
+                        // parado enquanto a escala muda -- senão o zoom "foge" pro canto.
+                        cx: (m.x + el_wrapper.scrollLeft) / zoom_level,
+                        cy: (m.y + el_wrapper.scrollTop) / zoom_level
+                    };
+                    if (ev.cancelable) ev.preventDefault();
+                    return;
+                }
+                if (ev.touches.length === 1) {
+                    const t = ev.touches[0];
+                    // Em cima de um bloco/link/botão o toque é deles: mover o bloco e editar
+                    // continuam funcionando (a ponte de arraste cuida disso).
+                    if (t.target.closest && t.target.closest(IGNORAR)) { gesto = null; return; }
+                    iniciarPan(t);
+                }
+            }, { passive: false });
+
+            el_wrapper.addEventListener('touchmove', function (ev) {
+                if (gesto === 'pinca' && ev.touches.length >= 2) {
+                    if (ev.cancelable) ev.preventDefault();
+                    const d = distancia(ev.touches[0], ev.touches[1]);
+                    if (!ini.dist) return;
+                    setZoom(ini.zoom * (d / ini.dist));
+                    // setZoom limita entre 20% e 300%: lê zoom_level de volta em vez de confiar
+                    // na conta, senão nos limites o canvas continuaria deslizando sem escalar.
+                    const m = meio(ev.touches[0], ev.touches[1]);
+                    el_wrapper.scrollLeft = ini.cx * zoom_level - m.x;
+                    el_wrapper.scrollTop  = ini.cy * zoom_level - m.y;
+                    return;
+                }
+                if (gesto === 'pan' && ev.touches.length === 1) {
+                    if (ev.cancelable) ev.preventDefault();
+                    const t = ev.touches[0];
+                    el_wrapper.scrollLeft = ini.sl - (t.clientX - ini.x);
+                    el_wrapper.scrollTop  = ini.st - (t.clientY - ini.y);
+                }
+            }, { passive: false });
+
+            function encerrarGesto(ev) {
+                if (ev.touches.length === 0) { gesto = null; ini = null; return; }
+                // Tirou um dedo da pinça: reancora o arraste no dedo que sobrou, senão o canvas
+                // daria um salto na primeira mexida seguinte.
+                if (ev.touches.length === 1) {
+                    const t = ev.touches[0];
+                    if (t.target.closest && t.target.closest(IGNORAR)) { gesto = null; ini = null; return; }
+                    iniciarPan(t);
+                }
+            }
+            el_wrapper.addEventListener('touchend', encerrarGesto);
+            el_wrapper.addEventListener('touchcancel', encerrarGesto);
+        }
         $flowchart.on('dblclick', '.flowchart-operator-title', function (e) {
             if ($(e.target).closest('.btn-excluir').length) return;
             const $title = $(this);
