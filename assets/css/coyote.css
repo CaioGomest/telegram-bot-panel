@@ -194,6 +194,13 @@ html[data-theme] *::-webkit-scrollbar-thumb:hover { background: var(--m); }
 /* Tab bar mobile — escondida no desktop */
 .barra-mobile { display: none; }
 
+/* Cabeçalho fixo do topo mobile (logo) — escondido no desktop, onde a logo já
+   aparece na barra lateral (.barra-lateral-topo). */
+.barra-mobile-topo { display: none; }
+.barra-mobile-topo img { width: 28px; height: 28px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
+.logo-mobile-texto { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 18px; letter-spacing: .3px; text-transform: uppercase; color: var(--t); }
+.logo-mobile-texto .cor-bot { color: var(--or); }
+
 /* ===== Cabeçalho de página ===== */
 .cabecalho-pagina {
     padding: 26px 32px 18px;
@@ -914,7 +921,7 @@ html[data-theme] small { display: block; margin-top: 5px; font-size: 11px; color
 
 @media (max-width: 860px) {
     .barra-lateral { display: none; }
-    .layout-painel { flex-direction: column; padding-bottom: 64px; }
+    .layout-painel { flex-direction: column; padding-top: 52px; padding-bottom: 64px; }
     .conteudo-principal { padding: 0 16px 24px; }
     .cabecalho-pagina { padding: 16px; }
     .cabecalho-pagina h1 { font-size: 22px; }
@@ -922,6 +929,40 @@ html[data-theme] small { display: block; margin-top: 5px; font-size: 11px; color
     .cartao-kpi-larga { grid-column: span 2; }
     .grade-2, .grade-3 { grid-template-columns: 1fr; }
     .grade-cards { grid-template-columns: 1fr; }
+
+    .barra-mobile-topo {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 50;
+        padding: 10px 16px;
+        background: var(--p);
+        border-bottom: 1px solid var(--bd);
+    }
+
+    /* Filtro de período em linha única com scroll horizontal (em vez de quebrar
+       "Personalizado" pra uma segunda linha). */
+    .acoes-cabecalho { width: 100%; }
+    .seletor-periodo {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+        max-width: 100%;
+    }
+    .seletor-periodo::-webkit-scrollbar { display: none; }
+    .periodo-item { white-space: nowrap; }
+
+    /* O botão "Aplicar" só serve pra confirmar data personalizada ou o filtro de
+       bot -- nesses dois casos ele continua visível; fora deles, escondido (o
+       formulário em si continua no DOM porque o JS chama filter_form.submit()
+       programaticamente ao clicar num período fixo, ver script no fim da página). */
+    .form-periodo > .botao { display: none; }
+    .form-periodo:has(select) > .botao,
+    .form-periodo:has(.grupo-data-personalizada.ativo) > .botao { display: inline-flex; }
 
     .barra-mobile {
         position: fixed;
