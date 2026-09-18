@@ -62,5 +62,6 @@ try {
     echo json_encode(['sucesso' => true]);
 } catch (Exception $e) {
     $pdo->rollBack();
-    echo json_encode(['sucesso' => false, 'erro' => 'Erro ao salvar: ' . $e->getMessage()]);
+    error_log('[salvar_splits_usuario] ' . $e->getMessage());
+    echo json_encode(['sucesso' => false, 'erro' => 'Não foi possível salvar os splits. Tente novamente.']);
 }

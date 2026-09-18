@@ -44,7 +44,7 @@ Não renomeados de propósito: `cron_*.php` e `webhook*.php` (nomes usados fora 
 - **🔴 Sem `session_regenerate_id()` após login (varredura 08)** — fixação de sessão, correção trivial, aguardando confirmação do Caio.
 - ~~🔴 XSS armazenado → sessão do admin (varredura 09)~~ **Feito** — `escaparHtml()` aplicado no modal "Detalhes" de `admin/usuarios.php`.
 - ~~🔴 SSRF via campo "Token ou URL de Postback" da UTMfy (varredura 09)~~ **Feito** — `funcoes/utmfy.php` agora recusa URL que resolva pra host privado/interno antes de disparar a requisição.
-- **🟡 `teste_gateway_infopago*.php` sem `verificarAdmin()` (varredura 09, não corrigido)** — qualquer usuário logado dispara cobrança real na conta compartilhada da InfoPago.
+- ~~🟡 `teste_gateway_infopago*.php` sem `verificarAdmin()` (varredura 09)~~ **Resolvido em 2026-09-18** — os dois arquivos foram **apagados** em vez de protegidos: eram páginas temporárias de diagnóstico (o próprio texto dentro delas mandava apagar depois dos testes) e ninguém linkava pra elas.
 - **🟡 `enviarEventoFacebook`/`enviarEventoTikTok` sem timeout de cURL (varredura 09, não corrigido)**.
 - ~~🔴 `cron/cron_ranking.php` sem proteção de acesso e sem `flock` (varredura 10)~~ **Feito** — `CHAVE_SECRETA_CRON` (CLI-ou-chave) + `flock` em `cron_ranking.php`, e mesma chave em `cron_metricas_admin.php`. **⚠️ trocar `CHAVE_SECRETA_CRON` no `config.php` do servidor antes de produção, e ajustar a URL do crontab se ele chamar via HTTP.** Ver `anotacoes/varredura-10-cron-ranking-segredos-formulario.md`.
 - **🟡 Segredo de gateway em claro no formulário (varredura 10, não corrigido)** — `client_secret`/`chave_pix`/`cashout_client_secret` ecoados com valor real em `gateways.php`.

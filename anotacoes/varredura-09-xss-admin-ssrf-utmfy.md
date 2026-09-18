@@ -49,6 +49,12 @@ O servidor faz um **POST autenticado por ele mesmo** pra essa URL, com payload c
 
 **Correção recomendada:** trocar `verificarLogin()` por `verificarAdmin()` nos dois arquivos.
 
+> **✅ Resolvido em 2026-09-18 — de outro jeito: os dois arquivos foram apagados.** Numa revisão
+> pré-lançamento, vi que continuavam publicados no servidor e que o próprio texto dentro deles já
+> dizia "apague este arquivo depois de terminar os testes". Como eram páginas temporárias de
+> diagnóstico e nada no projeto linkava pra elas, apagar resolve melhor que proteger — some a
+> superfície em vez de restringi-la.
+
 ### 4. `enviarEventoFacebook()`/`enviarEventoTikTok()` sem `CURLOPT_TIMEOUT`
 
 Diferente de `funcoes/utmfy.php` (que já tem `CURLOPT_TIMEOUT, 15`), `funcoes/facebook.php` e `funcoes/tiktok.php` fazem `curl_exec` sem timeout definido. Chamado no caminho síncrono de confirmação de pagamento (`webhook.php`/`webhook_infopago.php`) — API lenta do Facebook/TikTok pode segurar um worker PHP-FPM além da conta. Mesma categoria do achado de escala em [[analise-escala-seguranca-vendas]]. Correção trivial.

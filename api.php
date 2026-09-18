@@ -971,7 +971,13 @@ try {
             responder(false, ['mensagem' => 'Ação inválida.'], 404);
     }
 } catch (PDOException $e) {
-    responder(false, ['mensagem' => 'Erro de banco de dados: ' . $e->getMessage()], 500);
+    // A mensagem crua do PDO vaza usuário e host do banco, nome da tabela e trecho do SQL
+    // direto na tela do usuário (já aconteceu: o erro de permissão apareceu pro Caio com
+    // `u214219698_telegram`@`localhost` visível). Detalhe vai pro log do servidor, usuário
+    // recebe mensagem genérica.
+    error_log('[api.php] acao=' . $acao . ' usuario=' . $usuario_id . ' PDOException: ' . $e->getMessage());
+    responder(false, ['mensagem' => 'Não foi possível concluir a operação. Tente novamente.'], 500);
 } catch (Exception $e) {
-    responder(false, ['mensagem' => 'Erro interno: ' . $e->getMessage()], 500);
+    error_log('[api.php] acao=' . $acao . ' usuario=' . $usuario_id . ' Exception: ' . $e->getMessage());
+    responder(false, ['mensagem' => 'Não foi possível concluir a operação. Tente novamente.'], 500);
 }
