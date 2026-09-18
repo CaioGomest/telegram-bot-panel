@@ -983,7 +983,11 @@ html[data-theme] small { display: block; margin-top: 5px; font-size: 11px; color
         scrollbar-width: none;
     }
     .seletor-periodo::-webkit-scrollbar { display: none; }
-    .periodo-item { white-space: nowrap; }
+    /* flex: 1 0 auto -> as pílulas crescem pra dividir a linha inteira (sem sobrar
+       espaço morto depois de "Total"), mas nunca encolhem abaixo do texto: se voltar
+       a ter pílula demais pra caber (ex. reativando "Personalizado"), em vez de
+       espremer elas voltam a transbordar e a linha rola na horizontal. */
+    .periodo-item { white-space: nowrap; flex: 1 0 auto; text-align: center; }
 
     /* Com "Personalizado" fora da barra, o form de datas não tem mais função no
        mobile -- e, mesmo invisível, os inputs de data seguiam ocupando uma linha
