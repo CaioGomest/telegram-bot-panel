@@ -108,7 +108,7 @@ verificarLogin();
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script>if (window.CSRF_TOKEN) { $.ajaxSetup({ headers: { 'X-CSRF-Token': window.CSRF_TOKEN } }); }</script>
-<script src="assets/js/tema.js"></script>
-<script src="assets/links_rastreamento.js"></script>
+<script src="assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/tema.js'); ?>"></script>
+<script src="assets/links_rastreamento.js?v=<?php echo @filemtime(__DIR__ . '/assets/links_rastreamento.js'); ?>"></script>
 </body>
 </html>

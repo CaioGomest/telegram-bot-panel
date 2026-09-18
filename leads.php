@@ -256,7 +256,7 @@ $meus_bots = $stmt_bots->fetchAll(PDO::FETCH_ASSOC);
     </main>
 </div>
 
-<script src="assets/js/tema.js"></script>
+<script src="assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/tema.js'); ?>"></script>
 <script>
 document.getElementById('busca-lead').addEventListener('input', function () {
     const termo = this.value.trim().toLowerCase();

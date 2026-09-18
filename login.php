@@ -164,7 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'login')
     </div>
 </div>
 
-<script src="assets/js/tema.js"></script>
+<script src="assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/tema.js'); ?>"></script>
 <script>
 function abrirEsqueciSenha(){
     var m = document.getElementById('modal-esqueci-senha');

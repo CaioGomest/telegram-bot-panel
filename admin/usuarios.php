@@ -588,4 +588,4 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
     .split-remove:hover { background: var(--da); color: #fff; }
  </style>
 
-<script src="../assets/js/tema.js"></script>
+<script src="../assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/../assets/js/tema.js'); ?>"></script>

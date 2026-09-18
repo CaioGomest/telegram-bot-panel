@@ -632,7 +632,7 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
     </main>
 </div>
 
-<script src="assets/js/tema.js"></script>
+<script src="assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/tema.js'); ?>"></script>
 <script>
 function openModal(id)  { document.getElementById(id).classList.add('aberto');    document.body.style.overflow='hidden'; }
 function closeModal(id) { document.getElementById(id).classList.remove('aberto'); document.body.style.overflow='';       }

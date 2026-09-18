@@ -304,8 +304,8 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
             </div>
         </div>
         <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-        <script src="assets/js/tema.js"></script>
-        <script src="assets/remarketing.js"></script>
+        <script src="assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/tema.js'); ?>"></script>
+        <script src="assets/remarketing.js?v=<?php echo @filemtime(__DIR__ . '/assets/remarketing.js'); ?>"></script>
     </main>
 </div>
 </body>

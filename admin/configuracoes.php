@@ -54,6 +54,6 @@ $caminho_base = '../';
     </main>
 </div>
 
-<script src="../assets/js/tema.js"></script>
+<script src="../assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/../assets/js/tema.js'); ?>"></script>
 </body>
 </html>
