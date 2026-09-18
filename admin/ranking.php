@@ -22,6 +22,7 @@ function salvarPremiosCampanha(PDO $pdo, int $campanha_id, array $titulos, array
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verificarCsrf();
     $acao = $_POST['acao'] ?? '';
 
     if ($acao === 'salvar_campanha') {
@@ -144,6 +145,7 @@ function campoPremio(int $posicao, array $premios_edicao): array
         <div class="painel">
             <div class="painel-cabecalho"><h2><?php echo $campanha_edicao ? 'Editar campanha' : 'Nova campanha'; ?></h2></div>
             <form method="POST">
+                <?php echo campoCsrf(); ?>
                 <input type="hidden" name="acao" value="salvar_campanha">
                 <?php if ($campanha_edicao): ?><input type="hidden" name="id" value="<?php echo (int) $campanha_edicao['id']; ?>"><?php endif; ?>
 
@@ -241,6 +243,7 @@ function campoPremio(int $posicao, array $premios_edicao): array
                                     <div style="display:flex;gap:6px;">
                                         <a href="ranking.php?editar=<?php echo (int) $c['id']; ?>" class="botao">Editar</a>
                                         <form method="POST" style="display:inline;">
+                                            <?php echo campoCsrf(); ?>
                                             <input type="hidden" name="acao" value="alternar_ativa">
                                             <input type="hidden" name="id" value="<?php echo (int) $c['id']; ?>">
                                             <button type="submit" class="botao"><?php echo $c['ativa'] ? 'Desativar' : 'Ativar'; ?></button>

@@ -13,6 +13,7 @@ $erro = null;
 $sucesso = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verificarCsrf();
     $nome = $_POST['nome'] ?? '';
     $email = $_POST['email'] ?? '';
     $senha = $_POST['senha'] ?? '';
@@ -71,6 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <?php if (!$sucesso): ?>
             <form method="POST">
+                <?php echo campoCsrf(); ?>
                 <div class="campo">
                     <label for="nome">Nome Completo</label>
                     <input type="text" id="nome" name="nome" required

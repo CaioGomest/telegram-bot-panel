@@ -9,6 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['sucesso' => false, 'erro' => 'Método inválido.']);
     exit;
 }
+verificarCsrf();
 
 $id = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT);
 

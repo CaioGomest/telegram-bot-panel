@@ -13,6 +13,7 @@ $user_id = $_SESSION['usuario_id'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'reordenar_gateways') {
     header('Content-Type: application/json');
+    verificarCsrf();
     $ordem = $_POST['ordem'] ?? [];
     if (!is_array($ordem)) { echo json_encode(['sucesso' => false]); exit; }
     try {
@@ -35,6 +36,7 @@ $mensagem = '';
 $erro = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verificarCsrf();
     if ($is_admin && isset($_POST['acao']) && $_POST['acao'] === 'salvar_admin') {
         $salvos = 0;
         $total = 0;
@@ -249,6 +251,7 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
 
             <?php if ($is_admin): ?>
                 <form method="POST" id="formAdmin">
+                    <?php echo campoCsrf(); ?>
                     <input type="hidden" name="acao" value="salvar_admin">
 
                     <div class="grade-gateways-admin">
@@ -340,6 +343,7 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                         if (!empty($cfg['gerenciado_pelo_admin'])) {
                             ?>
                             <form method="POST">
+                                <?php echo campoCsrf(); ?>
                                 <input type="hidden" name="acao"       value="salvar_user">
                                 <input type="hidden" name="gateway_id" value="<?php echo $id; ?>">
                                 <input type="hidden" name="client_id"     value="">
@@ -361,6 +365,7 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
 
                         ?>
                         <form method="POST" enctype="multipart/form-data">
+                            <?php echo campoCsrf(); ?>
                             <input type="hidden" name="acao"       value="salvar_user">
                             <input type="hidden" name="gateway_id" value="<?php echo $id; ?>">
 
@@ -426,6 +431,7 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                             O destino e o percentual do split são configurados pelo admin na tela de usuários.
                         </p>
                         <form method="POST" enctype="multipart/form-data" autocomplete="off">
+                            <?php echo campoCsrf(); ?>
                             <input type="hidden" name="acao" value="salvar_infopago_split">
                             <input type="hidden" name="gateway_id" value="<?php echo $id; ?>">
 
@@ -609,10 +615,12 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                     <?php endif; ?>
 
                     <form id="form-desativar" method="POST" style="display:none;">
+                        <?php echo campoCsrf(); ?>
                         <input type="hidden" name="acao"       value="desativar_user">
                         <input type="hidden" name="gateway_id" id="desativar-gw-id">
                     </form>
                     <form id="form-ativar" method="POST" style="display:none;">
+                        <?php echo campoCsrf(); ?>
                         <input type="hidden" name="acao"       value="ativar_user">
                         <input type="hidden" name="gateway_id" id="ativar-gw-id">
                     </form>
@@ -690,6 +698,7 @@ function ativarGateway(id) {
         const ordem = cards.map(c => c.dataset.gwId);
         const fd = new FormData();
         fd.append('acao', 'reordenar_gateways');
+        fd.append('csrf_token', <?php echo json_encode(csrfToken()); ?>);
         ordem.forEach((id, i) => fd.append('ordem[' + i + ']', id));
         fetch('gateways.php', { method: 'POST', body: fd });
     }

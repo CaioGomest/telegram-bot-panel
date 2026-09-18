@@ -27,6 +27,7 @@ if (!$config) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verificarCsrf();
     $fb_ativo = isset($_POST['facebook_ativo']) ? 1 : 0;
     $fb_pixel = trim($_POST['facebook_pixel_id'] ?? '');
     $fb_token = trim($_POST['facebook_access_token'] ?? '');
@@ -142,6 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php endif; ?>
 
             <form method="POST" action="">
+                <?php echo campoCsrf(); ?>
 
                 <div class="secao-plataforma" id="facebook_fields">
                     <div class="cabecalho-plataforma">

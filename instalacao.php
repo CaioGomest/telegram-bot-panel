@@ -36,12 +36,19 @@ function instaladorJaTemAdmin(): bool {
 if (instaladorJaTemAdmin()) {
     require_once __DIR__ . '/funcoes/usuario.php';
     verificarAdmin();
+} elseif (session_status() === PHP_SESSION_NONE) {
+    // Primeiro deploy (sem admin ainda) -- funcoes/usuario.php não é carregado nesse
+    // ramo (depende de banco configurado), então inicia a sessão aqui mesmo só pra
+    // poder ter um token CSRF no formulário de instalação.
+    session_start();
 }
+require_once __DIR__ . '/funcoes/csrf.php';
 
 $mensagem = '';
 $tipo_mensagem = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verificarCsrf();
     $banco_host = $_POST['banco_host'] ?? 'localhost';
     $usuario_banco = $_POST['usuario_banco'] ?? 'root';
     $senha_banco = $_POST['senha_banco'] ?? '';
@@ -141,6 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endif; ?>
 
         <form method="POST">
+            <?php echo campoCsrf(); ?>
             <div class="campo">
                 <label for="banco_host">Servidor do Banco de Dados (Host)</label>
                 <input type="text" id="banco_host" name="banco_host" value="localhost" required placeholder="Ex: localhost">

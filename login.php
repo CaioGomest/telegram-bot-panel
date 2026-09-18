@@ -15,6 +15,7 @@ if (usuarioLogado()) {
 
 $erro_login = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'login') {
+    verificarCsrf();
     $email = $_POST['email'] ?? '';
     $senha = $_POST['senha'] ?? '';
     $lembrar = !empty($_POST['lembrar']);
@@ -90,6 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'login')
             <?php endif; ?>
 
             <form method="POST" action="login.php">
+                <?php echo campoCsrf(); ?>
                 <input type="hidden" name="acao" value="login">
 
                 <div class="campo">

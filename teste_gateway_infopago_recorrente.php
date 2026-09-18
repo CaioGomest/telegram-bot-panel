@@ -14,6 +14,7 @@ $resultado = null;
 $erro = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['acao'] === 'testar') {
+    verificarCsrf();
     if (!$cfg || empty($cfg['client_id']) || empty($cfg['client_secret']) || empty($cfg['certificado'])) {
         $erro = 'Faltam credenciais da InfoPago configuradas. Configure em Gateways antes de testar.';
     } else {
@@ -102,6 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
                 <div class="aviso aviso-alerta">Você ainda não configurou o gateway InfoPago na sua conta. Vá em <a href="gateways.php">Gateways</a> primeiro.</div>
             <?php else: ?>
                 <form method="POST">
+                    <?php echo campoCsrf(); ?>
                     <input type="hidden" name="acao" value="testar">
                     <div class="linha-campos">
                         <div class="campo">

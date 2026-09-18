@@ -9,6 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['sucesso' => false, 'erro' => 'Método inválido.']);
     exit;
 }
+verificarCsrf();
 
 $nome   = trim($_POST['nome'] ?? '');
 $email  = trim($_POST['email'] ?? '');

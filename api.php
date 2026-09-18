@@ -15,6 +15,14 @@ if (!usuarioLogado()) {
 
 header('Content-Type: application/json; charset=utf-8');
 
+// Toda ação que muda estado (salvar fluxo/bot, upload, excluir, etc.) passa por aqui como
+// POST -- as únicas chamadas GET a este arquivo são leituras (listar_*/obter_*/exportar_fluxo),
+// que não precisam de proteção CSRF. Token vem do header X-CSRF-Token, setado globalmente
+// via $.ajaxSetup() nas páginas que usam este endpoint (ver barra_lateral.php).
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verificarCsrf();
+}
+
 const DIRETORIO_UPLOADS = __DIR__ . '/uploads';
 
 if (!is_dir(DIRETORIO_UPLOADS)) {

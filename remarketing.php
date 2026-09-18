@@ -36,6 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         || (stripos($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json') !== false);
     if ($is_ajax) {
         header('Content-Type: application/json; charset=utf-8');
+        verificarCsrf();
         $resp = processarCampanha($_POST, $pdo, $id_usuario);
         echo json_encode($resp, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
@@ -257,6 +258,7 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                 </div>
                 <div class="corpo-modal">
                     <form id="form-campanha">
+                        <?php echo campoCsrf(); ?>
                         <div class="grade grade-2 grade-compacta">
                             <div class="campo">
                                 <label for="modal-bot_id">Bot</label>

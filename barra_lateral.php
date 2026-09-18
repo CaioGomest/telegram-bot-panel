@@ -171,3 +171,11 @@ $iniciais = mb_strtoupper(mb_substr($nome_usuario, 0, 1), 'UTF-8');
         </a>
     <?php endforeach; ?>
 </nav>
+<?php if (function_exists('csrfToken')): ?>
+<script>
+    // Disponível globalmente (sem depender do jQuery já ter carregado) pra qualquer página
+    // usar em chamadas a api.php/ajax -- páginas que chamam api.php via $.ajax fazem
+    // $.ajaxSetup({headers:{'X-CSRF-Token': window.CSRF_TOKEN}}) logo após carregar o jQuery.
+    window.CSRF_TOKEN = <?php echo json_encode(csrfToken()); ?>;
+</script>
+<?php endif; ?>

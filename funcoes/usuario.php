@@ -17,6 +17,7 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once __DIR__ . '/../conexao.php';
 require_once __DIR__ . '/email.php';
 require_once __DIR__ . '/log.php';
+require_once __DIR__ . '/csrf.php';
 
 function usuarioLogado(): bool {
     return isset($_SESSION['usuario_id']) && $_SESSION['usuario_id'] > 0;

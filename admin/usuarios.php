@@ -109,6 +109,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
         <div class="corpo-modal">
             <div id="msgAdicionar" class="msg-box" style="display:none;"></div>
             <form id="formAdicionar" onsubmit="salvarNovoUsuario(event)">
+                <?php echo campoCsrf(); ?>
                 <div class="campo">
                     <label>Nome</label>
                     <input type="text" name="nome" required placeholder="Nome completo">
@@ -146,6 +147,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
         <div class="corpo-modal">
             <div id="msgEditar" class="msg-box" style="display:none;"></div>
             <form id="formEditar" onsubmit="salvarEdicaoUsuario(event)">
+                <?php echo campoCsrf(); ?>
                 <input type="hidden" name="id" id="editarId">
                 <div class="campo">
                     <label>Nome</label>
@@ -236,6 +238,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
 </div>
 
 <script>
+    const CSRF_TOKEN = <?php echo json_encode(csrfToken()); ?>;
     function escaparHtml(value) {
         return String(value || '')
             .replace(/&/g, '&amp;')
@@ -318,6 +321,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
                 const fd = new FormData();
                 fd.append('id_usuario', user_id);
                 fd.append('splits', JSON.stringify(splits));
+                fd.append('csrf_token', CSRF_TOKEN);
                 return fetch('../ajax/salvar_splits_usuario.php', { method: 'POST', body: fd })
                     .then(r => r.json())
                     .then(rs => {
@@ -419,6 +423,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
         if (!confirm('Tem certeza que deseja excluir o usuário "' + nome + '"? Esta ação não pode ser desfeita.')) return;
         const data = new FormData();
         data.append('id', id);
+        data.append('csrf_token', CSRF_TOKEN);
         fetch('../ajax/deletar_usuario.php', { method: 'POST', body: data })
             .then(r => r.json())
             .then(res => {

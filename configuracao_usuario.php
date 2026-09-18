@@ -9,6 +9,7 @@ $mensagem = '';
 $tipo_mensagem = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verificarCsrf();
     $nome = trim($_POST['nome'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $apelido_publico = trim($_POST['apelido_publico'] ?? '');
@@ -80,6 +81,7 @@ if (empty($dados_usuario)) {
             <?php endif; ?>
 
             <form method="POST" action="">
+                <?php echo campoCsrf(); ?>
                 <div class="grade grade-compacta">
                     <div class="campo">
                         <label for="nome">Nome Completo</label>
