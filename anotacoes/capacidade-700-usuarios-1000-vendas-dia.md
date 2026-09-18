@@ -99,3 +99,92 @@ de 1 segundo (ver `analise-potencia-e-escala.md` seção 11).
 
 De 1.000 vendas/dia por usuário pra cima, o problema deixa de ser o código e passa a ser
 infraestrutura.
+
+---
+
+# Parte 2 — E se o plano de hospedagem não for o limite?
+
+O Caio respondeu: *"mas aí eu assino um plano melhor da Hostinger, tô falando do sistema, painel"*.
+Então aqui vai a mesma pergunta ignorando disco, CPU e RAM: **o código aguenta?**
+
+**Resposta: o painel sim, o motor não.** As telas escalam bem (isso está medido). O que trava são
+os crons e o caminho síncrono do pagamento — e é limite de *arquitetura*, que plano nenhum resolve.
+
+## 2.1 O que escala bem (medido, não teoria)
+
+Com 6,7 milhões de vendas no banco, medido nesta série de testes:
+
+| Caminho | Tempo |
+|---|---|
+| Dashboard (lê de `metricas_horarias_*`) | 0,001 s |
+| Fila de PIX pendentes (`status='gerado'`, indexado) | 0,0004 s |
+| Listagem paginada de transações | 0,001 s |
+| Recálculo de métricas (janela de 24h) | 0,13 s |
+
+Esses caminhos não crescem com o acumulado: ou leem cache pré-calculado, ou filtram por coluna
+indexada que se mantém pequena. O Telegram também não é gargalo — os limites são por token de bot,
+e são 700 tokens diferentes.
+
+## 2.2 🔴 O gargalo real: os crons são sequenciais e chamam API externa
+
+Com 700.000 vendas/dia, todo dia vencem ~700.000 acessos. O `cron_verificar_acessos.php` roda
+**a cada minuto, sem `LIMIT`, em loop sequencial**, e cada membro expirado custa 3-4 chamadas ao
+Telegram (revogar link, banir, desbanir, avisar) ≈ 1,5 s:
+
+| Cron | Itens/dia no cenário | Capacidade atual | Déficit |
+|---|---|---|---|
+| `cron_verificar_acessos.php` (corte de acesso) | ~700.000 | ~40/min = **57.600/dia** | **12× abaixo** |
+| `cron_aviso_vencimento.php` (aviso) | ~700.000 | ~200/min = **288.000/dia** | **2,4× abaixo** |
+| `cron_renovacao.php` (gera PIX de renovação) | proporcional às assinaturas | ~60/min | abaixo |
+
+Ou seja: o corte de acesso acumularia uma fila que **nunca** seria zerada — cliente que não pagou
+continuaria no grupo indefinidamente, e o `flock` (que impede rodadas sobrepostas) faria a próxima
+execução simplesmente desistir enquanto a anterior ainda estivesse arrastando.
+
+Não é falta de máquina: é um laço de uma coisa por vez esperando resposta de rede. **O próprio
+projeto já tem o padrão certo em `cron_remarketing.php`** — `curl_multi` com várias chamadas em
+voo, pacing de 40 ms e `FOR UPDATE SKIP LOCKED` pra várias instâncias trabalharem em paralelo sem
+pisar uma na outra. Os crons de acesso/aviso/renovação nunca receberam esse tratamento.
+
+Some-se que `cron_aviso_vencimento.php`, `cron_verificar_acessos.php` e `cron_renovacao.php` não
+têm `LIMIT` nenhum (conferido: zero ocorrências) e a varredura de cobranças expiradas do
+`cron_verificar_pix.php` também não — com PIX expirando em 15 min e 700 mil gerados por dia, essa
+query sozinha não fecha na janela de 1 minuto.
+
+## 2.3 🔴 Pagamento confirmado segura o worker
+
+`dispararSplitInfopago()` roda **antes** do `http_response_code(200)` (conferido em
+`webhook_infopago.php:268` e `:416`). Cada confirmação faz, em sequência e dentro da requisição:
+consulta à InfoPago + OAuth do Cash-Out + 1 transferência por destino de split (timeout de 30 s
+cada) + `createChatInviteLink` + mensagens ao cliente. Fácil passar de 2-5 s por confirmação.
+
+A 8,1 confirmações/s, isso são **~25 a 40 workers PHP ocupados o tempo todo só com confirmação de
+pagamento** — e a InfoPago reenvia o webhook se não receber 200 rápido, o que vira uma tempestade
+de reentregas justamente no pico.
+
+Contando o funil inteiro (~17 milhões de requisições/dia, ~200 req/s de média e ~590 no pico) com
+o desenho síncrono atual, a conta de workers fica em **~80 na média e ~300 no pico**. Com fila
+assíncrona (webhook responde 200 na hora e o trabalho pesado sai depois), o mesmo volume cabe em
+**~30 workers** — cerca de 10× menos máquina pro mesmo resultado.
+
+## 2.4 🔴 Um arquivo JSON compartilhado por todos os tenants
+
+`storage/pix_recorrente_estado.json` guarda o estado de PIX recorrente em andamento **de todos os
+usuários no mesmo arquivo**, com leitura sem lock. Com 700 contas gravando ao mesmo tempo isso é
+ponto de serialização da plataforma inteira e risco real de uma escrita sobrescrever a outra.
+Precisa virar tabela no banco.
+
+## 2.5 Veredito
+
+| Camada | Aguenta 700 × 1.000/dia? |
+|---|---|
+| Telas do painel (dashboard, listagens, filtros) | ✅ sim — medido, sub-segundo com milhões de linhas |
+| Banco (consultas do caminho do cliente) | ✅ sim — índices cobrem, não crescem com o acumulado |
+| Webhook de pagamento | ⚠️ só com fila assíncrona; hoje é síncrono |
+| Crons de acesso/aviso/renovação | ❌ não — 2× a 12× abaixo do necessário |
+| Estado de PIX recorrente em arquivo | ❌ não — arquivo único pra 700 tenants |
+
+**Resumo:** o painel está pronto pra esse volume; o motor não. As quatro mudanças que destravam são
+(1) paralelizar os crons no padrão que o `cron_remarketing.php` já usa, (2) pôr `LIMIT` em todas as
+varreduras, (3) tirar split e liberação de acesso do caminho síncrono do webhook (fila), e (4) mover
+o estado de PIX recorrente do arquivo JSON pro banco. Nenhuma delas depende de plano de hospedagem.
