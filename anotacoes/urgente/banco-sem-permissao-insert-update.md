@@ -1,58 +1,56 @@
-# 🔴 URGENTE — usuário do banco perdeu INSERT/UPDATE (app está só-leitura)
+# ✅ RESOLVIDO — banco estourou a cota e a Hostinger revogou a escrita
 
-Detectado em 2026-09-18, quando o Caio mandou print de erro ao salvar um fluxo no celular:
+Ocorrido em 2026-09-18. O Caio mandou print de erro ao salvar um fluxo no celular:
 
 ```
 SQLSTATE[42000]: 1142 UPDATE command denied to user 'u214219698_telegram'@'localhost'
 for table `u214219698_telegram`.`fluxos`
 ```
 
-**Não é problema do código nem específico de `fluxos`.** Conferido no servidor com `SHOW GRANTS`:
+## O que era
 
-```
-GRANT SELECT, DELETE, DROP, REFERENCES, ALTER, CREATE TEMPORARY TABLES, LOCK TABLES,
-      EXECUTE, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, EVENT, TRIGGER,
-      DELETE HISTORY, SHOW CREATE ROUTINE ON `u214219698_telegram`.*
-```
+**Não era problema de código nem específico de `fluxos`.** O usuário MySQL tinha perdido
+**INSERT, UPDATE, CREATE e INDEX** no banco inteiro — `SELECT` e `DELETE` continuavam valendo.
+Testado tabela a tabela: `SELECT` ok, `INSERT`/`UPDATE` negados com 1142 em todas.
 
-Faltam **INSERT, UPDATE, CREATE e INDEX** — no banco inteiro. Testado tabela a tabela
-(`fluxos`, `bots`, `vendas`, `leads`, `usuarios`): `SELECT` funciona, `UPDATE` e `INSERT` são
-negados com erro 1142 em todas.
+**Causa raiz:** o banco estourou a cota de disco — **4435 MB de 3072 MB** (o print do hPanel
+mostrava "Você usou todo o seu espaço em disco"). A Hostinger revoga privilégios de escrita
+automaticamente quando isso acontece. Ou seja: o erro 1142 era consequência, não a doença.
 
-## O que isso quebra na prática
+**Quem encheu:** o teste de capacidade de 2 anos que rodei na véspera (5 milhões de vendas +
+5 milhões de leads em `bot_id=1`). `vendas` sozinha estava com 2419 MB e `leads` com 1798 MB.
 
-Com o banco só-leitura, **nada que grava funciona**:
+## O que quebrava
 
-- salvar/criar fluxo e bot;
-- registrar lead novo (todo `/start` no bot);
-- gerar cobrança PIX (`INSERT INTO vendas`);
-- **confirmar pagamento** (`UPDATE vendas SET status='pago'`) — o webhook da InfoPago e o cron
-  de fallback falham igual;
-- liberar/cortar acesso a grupo (`membros_grupos`);
-- qualquer cron que grava (métricas, ranking, remarketing, retry de split).
+Com o banco só-leitura, nada que grava funcionava: salvar fluxo/bot, registrar lead, gerar
+cobrança PIX e — mais grave — **confirmar pagamento** (`UPDATE vendas SET status='pago'`, tanto
+pelo webhook quanto pelo cron de fallback).
 
-Ou seja: o painel abre e mostra os dados antigos, mas o produto não funciona.
+## Como foi resolvido
 
-## Quando mudou
+Sem depender do hPanel (o usuário do app não tem GRANT OPTION, tentei e deu 1044):
 
-Hoje mais cedo (2026-09-17, mesma conta) rodaram sem problema: `UPDATE` em massa corrigindo
-datas, `INSERT` de 5 milhões de linhas do teste de carga, `CREATE TABLE` das tabelas de
-verificação e recálculo de cache. Então o privilégio foi removido **entre ontem à noite e hoje de
-manhã**, não é um estado antigo.
+1. `OPTIMIZE TABLE` estava negado (exige INSERT), mas **`ALTER TABLE ... FORCE` era permitido** —
+   esse foi o caminho pra devolver espaço ao disco, já que `DELETE` sozinho no InnoDB não encolhe
+   o arquivo da tabela.
+2. Apagadas, em lotes de 50 mil (por causa do `MAX_STATEMENT_TIME 120`): 6.000.000 vendas e
+   6.000.000 leads do bot de teste de carga, e 1.480.088 linhas antigas de `atividades` (ficaram
+   as 20 mil mais recentes). O dataset "Carlos 3 anos" (`bot_id=2`) foi **preservado**.
+3. `ALTER TABLE vendas FORCE` pra reconstruir. A conexão caiu no meio ("MySQL server has gone
+   away") e o banco ficou vários minutos sem responder nem a um `SELECT 1` — a reconstrução
+   continuou rodando no servidor e terminou sozinha.
 
-Hipótese mais provável: alguma ação automática da Hostinger (o teste de carga daquela sessão criou
-~10 milhões de linhas e deixou a tabela `vendas` com ~6,7M) ou alguma mudança feita no hPanel.
-Não dá pra confirmar do lado do servidor — só o painel/suporte da Hostinger mostra isso.
+**Resultado:** 4424 MB → **1033 MB** (34% da cota). A Hostinger **restaurou a escrita
+automaticamente** assim que voltou pra dentro do limite — confirmado com teste de `INSERT` e
+`UPDATE` em transação com rollback: os dois OK.
 
-## Como resolver (precisa ser no hPanel — eu não consigo)
+## Lição pra não repetir
 
-Tentei restaurar por SQL e foi negado, como esperado:
-`GRANT INSERT, UPDATE ... -> 1044 Access denied` (o usuário do app não tem GRANT OPTION).
+Teste de carga nesse ambiente tem que caber na cota de 3 GB. Os ~10 milhões de linhas da
+simulação de 2 anos ocupavam sozinhos mais que o plano inteiro. Se for repetir, gerar em volume
+menor e extrapolar (como a própria `analise-potencia-e-escala.md` seção 11 já recomendava) — e
+apagar + `ALTER TABLE ... FORCE` logo depois de coletar os números, não deixar acumulado.
 
-Caminho: **hPanel → Bancos de Dados → Gerenciamento de bancos MySQL** → no usuário
-`u214219698_telegram`, restaurar todos os privilégios (ou remover e readicionar o usuário ao
-banco, que costuma reconceder o conjunto completo). Se não aparecer opção de privilégios, abrir
-chamado no suporte da Hostinger citando o erro 1142 e a lista de grants acima.
-
-Depois de restaurar, dá pra conferir em 1 minuto rodando um teste de `INSERT`/`UPDATE` numa
-transação com rollback — foi assim que diagnostiquei.
+Estado atual das tabelas grandes: `leads` 714 MB (1,09M linhas), `vendas` 311 MB (766 mil).
+`leads` ainda não foi reconstruída — um `ALTER TABLE leads FORCE` devolveria uns 500 MB a mais,
+mas trava o banco por alguns minutos, então ficou pra quando for conveniente.
