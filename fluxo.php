@@ -38,13 +38,11 @@ verificarLogin();
             </div>
         </div>
 
-        <div class="somente-desktop-aviso ativo-mobile">
-            <h2>Melhor no desktop</h2>
-            <p>O editor de fluxos precisa de mais espaço na tela para arrastar e conectar os blocos.</p>
-            <a href="fluxos.php" class="botao botao-primario" style="margin-top:14px;display:inline-flex;">Voltar aos fluxos</a>
+        <div class="aviso aviso-alerta oculto-desktop" style="margin-bottom:14px;">
+            Editor de fluxo no celular: toque num bloco da paleta para adicionar e arraste o bloco no canvas para mover. Para fluxos grandes, o desktop continua mais confortável.
         </div>
 
-        <div class="oculto-mobile">
+        <div>
         <div class="painel">
             <div class="grade grade-2 grade-compacta">
                 <div class="campo">

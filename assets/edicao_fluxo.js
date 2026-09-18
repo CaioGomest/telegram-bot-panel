@@ -1233,6 +1233,59 @@
                 $(this).css('opacity', '1');
             });
 
+            // ===== Suporte a toque (celular/tablet) =====
+            // 1) Adicionar bloco: o caminho normal é drag-and-drop HTML5, que não dispara em
+            //    toque. No touch, o toque simples adiciona o bloco no canto visível do canvas,
+            //    em cascata pra não empilhar um em cima do outro.
+            const tem_toque = window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+            if (tem_toque) {
+                let cascata = 0;
+                $('.adicionar-no').on('click', function (e) {
+                    e.preventDefault();
+                    const type = $(this).data('node-type');
+                    if (!type) return;
+                    const wrapper = $('.conteiner-fluxo');
+                    const x = (wrapper.scrollLeft() + 24) / zoom_level + (cascata % 5) * 22;
+                    const y = (wrapper.scrollTop() + 24) / zoom_level + (cascata % 5) * 22;
+                    cascata++;
+                    addNode(type, { left: Math.max(10, x), top: Math.max(10, y) });
+                });
+
+                // 2) Mover bloco: o jQuery UI draggable só escuta eventos de mouse. Esta ponte
+                //    traduz o toque em mousedown/mousemove/mouseup apenas em cima da alça de
+                //    arraste do bloco -- não toca em nada do desktop (esses eventos de toque
+                //    simplesmente não existem lá) nem no pan do canvas (que tem lógica própria).
+                const ALCA = '.flowchart-operator-title, .flowchart-operator-body';
+                let arrastando_toque = false;
+
+                function repassarComoMouse(ev_toque, tipo) {
+                    const t = ev_toque.originalEvent.changedTouches[0];
+                    if (!t) return;
+                    t.target.dispatchEvent(new MouseEvent(tipo, {
+                        bubbles: true, cancelable: true, view: window,
+                        clientX: t.clientX, clientY: t.clientY,
+                        screenX: t.screenX, screenY: t.screenY,
+                        button: 0, buttons: tipo === 'mouseup' ? 0 : 1
+                    }));
+                }
+
+                $(document).on('touchstart', ALCA, function (e) {
+                    if (e.originalEvent.touches.length !== 1) return;
+                    arrastando_toque = true;
+                    repassarComoMouse(e, 'mousedown');
+                });
+                $(document).on('touchmove', function (e) {
+                    if (!arrastando_toque) return;
+                    e.preventDefault(); // segura o scroll da página enquanto arrasta o bloco
+                    repassarComoMouse(e, 'mousemove');
+                });
+                $(document).on('touchend touchcancel', function (e) {
+                    if (!arrastando_toque) return;
+                    arrastando_toque = false;
+                    repassarComoMouse(e, 'mouseup');
+                });
+            }
+
             $('.conteiner-fluxo').on('dragover', function(e) {
                 e.preventDefault(); // Permite drop
                 e.originalEvent.dataTransfer.dropEffect = 'copy';

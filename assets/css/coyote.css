@@ -1118,6 +1118,20 @@ html[data-theme] a.botao-configurar { color: var(--or); }
         gap: 16px;
     }
 
+    /* Editor de fluxo no celular: paleta vira fileira rolável e o canvas ganha altura
+       fixa (senão colapsa, já que o conteúdo é posicionado em absoluto). */
+    .paleta-blocos {
+        display: flex;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        gap: 8px;
+        scrollbar-width: none;
+    }
+    .paleta-blocos::-webkit-scrollbar { display: none; }
+    .paleta-blocos .botao { flex: 0 0 auto; }
+    .paleta-blocos-titulo { display: none; }
+    .conteiner-fluxo { height: 60vh; touch-action: pan-x pan-y; }
+
     .oculto-mobile { display: none; }
     .oculto-desktop { display: block; }
     .somente-desktop-aviso.ativo-mobile { display: block; }
