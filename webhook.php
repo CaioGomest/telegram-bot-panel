@@ -25,6 +25,9 @@ function requisicaoTelegram(string $token, string $metodo, array $parametros = [
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/x-www-form-urlencoded']);
         curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($parametros));
     }
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+    // Upload de mídia (foto/vídeo/áudio do fluxo) precisa de mais tempo que uma mensagem de texto simples.
+    curl_setopt($ch, CURLOPT_TIMEOUT, !empty($arquivos) ? 30 : 15);
     $resposta = curl_exec($ch);
     curl_close($ch);
     $decodificado = json_decode($resposta ?: '', true);

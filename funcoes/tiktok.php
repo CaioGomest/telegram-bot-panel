@@ -68,7 +68,9 @@ function enviarEventoTikTok($pixel_id, $access_token, $evento, $dados, $user_dat
         'Content-Type: application/json',
         'Access-Token: ' . $access_token
     ]);
-    
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+
     $resposta = curl_exec($ch);
     $codigo_http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $erro_curl = curl_error($ch);

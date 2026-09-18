@@ -24,10 +24,26 @@ function telegramRequestAviso(string $token, string $metodo, array $parametros =
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($parametros));
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
     $resposta = curl_exec($ch);
     curl_close($ch);
     return json_decode($resposta ?: '', true) ?: ['ok' => false];
 }
+
+// Trava contra execução concorrente -- mesmo padrão de cron_verificar_pix.php/cron_remarketing.php.
+$lock_file = sys_get_temp_dir() . '/cron_aviso_vencimento.lock';
+$lock = fopen($lock_file, 'c');
+if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) {
+    logAviso("Execução anterior ainda em andamento. Encerrando essa chamada.");
+    exit;
+}
+// Libera a trava em qualquer saída (inclusive os "exit" antecipados abaixo), sem precisar
+// duplicar flock(LOCK_UN)/fclose() em cada ponto de saída do script.
+register_shutdown_function(function () use ($lock) {
+    flock($lock, LOCK_UN);
+    fclose($lock);
+});
 
 $agora = date('Y-m-d H:i:s');
 logAviso("Iniciando verificação de avisos de vencimento em $agora...");

@@ -33,6 +33,8 @@ function requisicaoTelegramLocal(string $token, string $metodo, array $parametro
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($parametros));
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
     $resposta = curl_exec($ch);
     curl_close($ch);
     return json_decode($resposta ?: '', true) ?: ['ok' => false];
