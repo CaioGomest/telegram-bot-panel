@@ -152,11 +152,6 @@ $iniciais = mb_strtoupper(mb_substr($nome_usuario, 0, 1), 'UTF-8');
     </div>
 </aside>
 
-<header class="barra-mobile-topo">
-    <img src="<?php echo $caminho_base; ?>assets/img/coyote-logo.jpg" alt="" onerror="this.style.display='none'">
-    <span class="logo-mobile-texto">COYOTE<span class="cor-bot">BOT</span></span>
-</header>
-
 <nav class="barra-mobile">
     <?php
     $itens_mobile = [

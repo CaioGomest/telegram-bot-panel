@@ -194,13 +194,6 @@ html[data-theme] *::-webkit-scrollbar-thumb:hover { background: var(--m); }
 /* Tab bar mobile — escondida no desktop */
 .barra-mobile { display: none; }
 
-/* Cabeçalho fixo do topo mobile (logo) — escondido no desktop, onde a logo já
-   aparece na barra lateral (.barra-lateral-topo). */
-.barra-mobile-topo { display: none; }
-.barra-mobile-topo img { width: 28px; height: 28px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
-.logo-mobile-texto { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 18px; letter-spacing: .3px; text-transform: uppercase; color: var(--t); }
-.logo-mobile-texto .cor-bot { color: var(--or); }
-
 /* ===== Cabeçalho de página ===== */
 .cabecalho-pagina {
     padding: 26px 32px 18px;
@@ -921,37 +914,70 @@ html[data-theme] small { display: block; margin-top: 5px; font-size: 11px; color
 
 @media (max-width: 860px) {
     .barra-lateral { display: none; }
-    .layout-painel { flex-direction: column; padding-top: 52px; padding-bottom: 64px; }
+    .layout-painel { flex-direction: column; padding-bottom: 64px; }
     .conteudo-principal { padding: 0 16px 24px; }
-    .cabecalho-pagina { padding: 16px; }
     .cabecalho-pagina h1 { font-size: 22px; }
     .grade-kpi { grid-template-columns: repeat(2, 1fr); }
     .cartao-kpi-larga { grid-column: span 2; }
     .grade-2, .grade-3 { grid-template-columns: 1fr; }
     .grade-cards { grid-template-columns: 1fr; }
 
-    .barra-mobile-topo {
-        display: flex;
+    /* Cabeçalho da página no mobile, no mesmo padrão do protótipo: logo à esquerda,
+       título + subtítulo no meio, botão de tema (só ícone) à direita -- e tudo que
+       for ação da página (filtro de período, "+ Novo Bot", etc.) numa linha própria
+       abaixo. Sem padding lateral: alinha com os cards, que já ficam dentro dos 16px
+       de .conteudo-principal (antes o cabeçalho tinha 16px a mais e o filtro ficava
+       visivelmente mais estreito que os cards). */
+    .cabecalho-pagina {
+        padding: 16px 0;
         align-items: center;
-        gap: 8px;
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        z-index: 50;
-        padding: 10px 16px;
-        background: var(--p);
-        border-bottom: 1px solid var(--bd);
+        gap: 12px;
     }
+    /* Logo: caminho relativo a este arquivo (assets/css/) -- funciona igual em
+       qualquer página, inclusive nas de admin/, sem depender de $caminho_base. */
+    .cabecalho-pagina::before {
+        content: '';
+        order: 0;
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        flex-shrink: 0;
+        background: url('../img/coyote-logo.jpg') center / cover no-repeat;
+    }
+    .cabecalho-pagina > div:first-child { order: 1; min-width: 0; }
+    /* Quebra de linha forçada logo depois do botão de tema -- só quando a página tem
+       alguma ação além dele (filtro de período, "+ Novo Bot"...), pra não sobrar uma
+       linha vazia nas telas que só têm o botão de tema. */
+    .cabecalho-pagina:has(.acoes-cabecalho > *:not(.alternador-tema))::after {
+        content: '';
+        order: 2;
+        flex-basis: 100%;
+        height: 0;
+    }
+    /* Os filhos de .acoes-cabecalho viram itens diretos do cabeçalho, pra poder
+       separar o botão de tema (linha do título) do resto (linha de baixo). */
+    .acoes-cabecalho { display: contents; }
+    .acoes-cabecalho > *:not(.alternador-tema) { order: 3; }
+    .alternador-tema {
+        order: 2;
+        width: 40px;
+        height: 40px;
+        padding: 0;
+        gap: 0;
+        border-radius: 50%;
+        justify-content: center;
+        font-size: 0;
+        flex-shrink: 0;
+    }
+    .alternador-tema svg { width: 17px; height: 17px; }
 
-    /* Filtro de período em linha única com scroll horizontal (em vez de quebrar
-       "Personalizado" pra uma segunda linha). */
-    .acoes-cabecalho { width: 100%; }
+    /* Filtro de período ocupa a largura toda (igual aos cards), em linha única com
+       scroll horizontal em vez de quebrar "Personalizado" pra uma segunda linha. */
     .seletor-periodo {
+        width: 100%;
         flex-wrap: nowrap;
         overflow-x: auto;
         scrollbar-width: none;
-        max-width: 100%;
     }
     .seletor-periodo::-webkit-scrollbar { display: none; }
     .periodo-item { white-space: nowrap; }
