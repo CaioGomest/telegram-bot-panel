@@ -381,7 +381,7 @@ html[data-theme] small { display: block; margin-top: 5px; font-size: 11px; color
 }
 .cartao-bot-item:hover { border-color: var(--bd2); }
 .cartao-cabecalho { display: flex; align-items: center; gap: 11px; margin-bottom: 12px; }
-.cartao-cabecalho h3 { font-family: 'Manrope', sans-serif; font-weight: 800; text-transform: none; letter-spacing: normal; font-size: 15px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html[data-theme] .cartao-cabecalho h3 { font-family: 'Manrope', sans-serif; font-weight: 800; text-transform: none; letter-spacing: normal; font-size: 15px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .avatar-item {
     width: 44px;
     height: 44px;
@@ -430,6 +430,7 @@ html[data-theme] small { display: block; margin-top: 5px; font-size: 11px; color
     border: 1px solid transparent;
 }
 .botao-configurar:hover { border-color: var(--or); }
+html[data-theme] a.botao-configurar { color: var(--or); }
 
 .cartao-corpo p { margin: 0 0 6px; font-size: 13px; }
 .texto-suave { color: var(--m); font-size: 12px; }
