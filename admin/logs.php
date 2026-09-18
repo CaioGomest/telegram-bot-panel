@@ -44,12 +44,8 @@ $logs = listarAtividades($filtros, $por_pagina, $offset);
             </div>
         </div>
 
-        <div class="somente-desktop-aviso ativo-mobile">
-            <h2>Melhor no desktop</h2>
-            <p>A tabela de logs funciona melhor em uma tela maior.</p>
-        </div>
 
-        <div class="painel oculto-mobile">
+        <div class="painel">
             <div class="tabela-dados">
                 <table>
                     <thead>

@@ -29,13 +29,8 @@ verificarLogin();
             </div>
         </div>
 
-        <div class="somente-desktop-aviso ativo-mobile">
-            <h2>Melhor no desktop</h2>
-            <p>A configuração do bot funciona melhor em uma tela maior.</p>
-            <a href="bots.php" class="botao botao-primario" style="margin-top:14px;display:inline-flex;">Voltar aos meus bots</a>
-        </div>
 
-        <div class="grade-config-bot oculto-mobile">
+        <div class="grade-config-bot">
             <div class="coluna-principal">
                 <div class="painel">
                     <div class="painel-cabecalho">

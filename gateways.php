@@ -235,13 +235,8 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
             </div>
         </div>
 
-        <div class="somente-desktop-aviso ativo-mobile">
-            <h2>Melhor no desktop</h2>
-            <p>A gestão de gateways envolve várias credenciais e funciona melhor em uma tela maior.</p>
-            <a href="index.php" class="botao botao-primario" style="margin-top:14px;display:inline-flex;">Voltar ao dashboard</a>
-        </div>
 
-        <div class="painel oculto-mobile">
+        <div class="painel">
             <?php if ($mensagem): ?>
                 <div class="aviso aviso-sucesso"><?php echo $mensagem; ?></div>
             <?php endif; ?>

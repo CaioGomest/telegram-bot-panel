@@ -170,7 +170,88 @@ $iniciais = mb_strtoupper(mb_substr($nome_usuario, 0, 1), 'UTF-8');
             <span class="mobile-texto"><?php echo htmlspecialchars($item['label']); ?></span>
         </a>
     <?php endforeach; ?>
+
+    <?php // As 6 abas acima são as do protótipo. "Mais" existe porque a barra lateral (17 links)
+          // some no mobile: sem ele, Remarketing/Traqueamento/Links e a área de admin inteira
+          // ficavam inalcançáveis no celular -- ver anotacoes/varredura-11-cobertura-mobile.md. ?>
+    <button type="button" class="mobile-item" id="abrir-menu-mobile" aria-label="Mais opções" aria-expanded="false">
+        <span class="mobile-icone"><?php echo iconeNav('M4 7h16M4 12h16M4 17h16'); ?></span>
+        <span class="mobile-texto">Mais</span>
+    </button>
 </nav>
+
+<div class="folha-menu" id="folha-menu" hidden>
+    <div class="folha-menu-fundo" data-fechar-menu></div>
+    <div class="folha-menu-caixa" role="dialog" aria-modal="true" aria-label="Menu">
+        <div class="folha-menu-topo">
+            <span class="usuario-avatar"><?php echo htmlspecialchars($iniciais); ?></span>
+            <div class="usuario-info">
+                <span class="usuario-nome"><?php echo htmlspecialchars($nome_usuario); ?></span>
+                <span class="usuario-email"><?php echo htmlspecialchars($email_usuario); ?></span>
+            </div>
+            <button type="button" class="fechar-modal" data-fechar-menu aria-label="Fechar">✕</button>
+        </div>
+
+        <nav class="folha-menu-nav">
+            <div class="nav-grupo">
+                <span class="nav-grupo-titulo">Operação</span>
+                <?php foreach ($grupo_operacao as $item) {
+                    renderizarItemNav($item, $pagina_atual, $icones, $caminho_base);
+                } ?>
+            </div>
+
+            <?php if ($grupo_admin): ?>
+            <div class="nav-grupo">
+                <span class="nav-grupo-titulo">Administração</span>
+                <?php foreach ($grupo_admin as $item) {
+                    renderizarItemNav($item, $pagina_atual, $icones, $caminho_base);
+                } ?>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($grupo_debug): ?>
+            <div class="nav-grupo">
+                <span class="nav-grupo-titulo">Debug</span>
+                <?php foreach ($grupo_debug as $item) {
+                    renderizarItemNav($item, $pagina_atual, $icones, $caminho_base);
+                } ?>
+            </div>
+            <?php endif; ?>
+
+            <div class="nav-grupo">
+                <a href="<?php echo $caminho_base; ?>logout.php" class="nav-item">
+                    <span class="nav-icone"><?php echo iconeNav($icones['sair']); ?></span>
+                    <span class="nav-texto">Sair</span>
+                </a>
+            </div>
+        </nav>
+    </div>
+</div>
+
+<script>
+(function () {
+    const folha = document.getElementById('folha-menu');
+    const botao = document.getElementById('abrir-menu-mobile');
+    if (!folha || !botao) return;
+
+    function abrir() {
+        folha.hidden = false;
+        requestAnimationFrame(() => folha.classList.add('aberta'));
+        botao.setAttribute('aria-expanded', 'true');
+        document.body.style.overflow = 'hidden';
+    }
+    function fechar() {
+        folha.classList.remove('aberta');
+        botao.setAttribute('aria-expanded', 'false');
+        document.body.style.overflow = '';
+        setTimeout(() => { folha.hidden = true; }, 200);
+    }
+
+    botao.addEventListener('click', abrir);
+    folha.querySelectorAll('[data-fechar-menu]').forEach(el => el.addEventListener('click', fechar));
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !folha.hidden) fechar(); });
+})();
+</script>
 <?php if (function_exists('csrfToken')): ?>
 <script>
     // Disponível globalmente (sem depender do jQuery já ter carregado) pra qualquer página

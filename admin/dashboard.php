@@ -371,12 +371,8 @@ $atividades = listarAtividades($filtros_logs, $por_pagina, $offset);
             </div>
         </div>
 
-        <div class="somente-desktop-aviso ativo-mobile">
-            <h2>Melhor no desktop</h2>
-            <p>Os gráficos e indicadores administrativos funcionam melhor em uma tela maior.</p>
-        </div>
 
-        <div class="oculto-mobile">
+        <div class="">
         <div class="grade-kpi">
             <div class="cartao-kpi">
                 <div class="cartao-kpi-cabecalho">

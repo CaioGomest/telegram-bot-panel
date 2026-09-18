@@ -290,12 +290,8 @@ function celulaSplit(array $venda, array $linhas_split): string {
             </div>
         </div>
 
-        <div class="somente-desktop-aviso ativo-mobile">
-            <h2>Melhor no desktop</h2>
-            <p>A tabela de transações e os filtros funcionam melhor em uma tela maior.</p>
-        </div>
 
-        <div class="painel oculto-mobile">
+        <div class="painel">
             <div class="barra-filtros" style="flex-wrap:wrap;">
                 <form method="GET" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;flex:1;">
                     <select name="usuario_id" id="usuario_id">

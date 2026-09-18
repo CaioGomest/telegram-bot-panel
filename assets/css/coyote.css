@@ -194,6 +194,10 @@ html[data-theme] *::-webkit-scrollbar-thumb:hover { background: var(--m); }
 /* Tab bar mobile — escondida no desktop */
 .barra-mobile { display: none; }
 
+/* Folha de menu ("Mais" da tab bar) — só existe no mobile, onde a barra lateral some.
+   Ver anotacoes/varredura-11-cobertura-mobile.md. */
+.folha-menu { display: none; }
+
 /* ===== Cabeçalho de página ===== */
 .cabecalho-pagina {
     padding: 26px 32px 18px;
@@ -1062,6 +1066,52 @@ html[data-theme] a.botao-configurar { color: var(--or); }
     .mobile-item.ativo { color: var(--or); }
     .mobile-icone svg { width: 20px; height: 20px; }
     .mobile-texto { font: 700 9.5px 'Manrope', sans-serif; }
+
+    .folha-menu {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 60;
+    }
+    .folha-menu[hidden] { display: none; }
+    .folha-menu-fundo {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, .55);
+        opacity: 0;
+        transition: opacity .2s ease;
+    }
+    .folha-menu.aberta .folha-menu-fundo { opacity: 1; }
+    .folha-menu-caixa {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        max-height: 82vh;
+        display: flex;
+        flex-direction: column;
+        background: var(--p);
+        border-top: 1px solid var(--bd);
+        border-radius: 18px 18px 0 0;
+        transform: translateY(100%);
+        transition: transform .2s ease;
+    }
+    .folha-menu.aberta .folha-menu-caixa { transform: translateY(0); }
+    .folha-menu-topo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 16px;
+        border-bottom: 1px solid var(--bd);
+    }
+    .folha-menu-topo .usuario-info { flex: 1; min-width: 0; }
+    .folha-menu-nav {
+        overflow-y: auto;
+        padding: 12px 10px calc(12px + env(safe-area-inset-bottom));
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
 
     .oculto-mobile { display: none; }
     .oculto-desktop { display: block; }
