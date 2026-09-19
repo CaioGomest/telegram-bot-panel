@@ -146,6 +146,24 @@ function montarUrlFiltroDashboard(array $overrides = []): string
 // por bot), então cai de volta pra query ao vivo -- ver anotacoes/analise-potencia-e-escala.md.
 $usa_cache_metricas = ($bot_id_selecionado === 'todos');
 
+// A lista de atividade e' buscada ANTES do bloco pesado de KPI/grafico de proposito:
+// quando o pedido e' so' desta lista, a guarda abaixo sai daqui e nenhuma das ~20
+// consultas do painel chega a rodar. Ela so' depende de $user_id e do ?pagina=.
+// Só eventos do próprio usuário e só os que vêm do Telegram (venda, lead).
+$filtros_atividades = [
+    'id_usuario' => $user_id,
+    'tipos_in'   => ['venda', 'pix_gerado', 'lead'],
+];
+$por_pagina = 10;
+$offset = (max(1, (int) ($_GET['pagina'] ?? 1)) - 1) * $por_pagina;
+$total_atividades = contarAtividades($filtros_atividades);
+$atividades = listarAtividades($filtros_atividades, $por_pagina, $offset);
+
+if (pedidoDeBloco('atividade')) {
+    include __DIR__ . '/parciais/lista_atividades.php';
+    exit;
+}
+
 try {
     if ($usa_cache_metricas) {
         $where_usuario_metricas = "AND id_usuario = $user_id";
@@ -398,19 +416,6 @@ try {
     }
 
 
-    // Só eventos do próprio usuário e só os que vêm do Telegram (venda, lead).
-    $filtros_atividades = [
-        'id_usuario' => $user_id,
-        'tipos_in'   => ['venda', 'pix_gerado', 'lead'],
-    ];
-
-    $por_pagina = 10;
-    $pagina_atual = isset($_GET['pagina']) ? max(1, (int)$_GET['pagina']) : 1;
-    $offset = ($pagina_atual - 1) * $por_pagina;
-
-    $total_atividades = contarAtividades($filtros_atividades);
-    $atividades = listarAtividades($filtros_atividades, $por_pagina, $offset);
-
 } catch (Exception $e) {
     // Se der erro, define valores padrão para evitar que a página quebre
     error_log("Erro no dashboard: " . $e->getMessage());
@@ -423,8 +428,6 @@ try {
     $grafico_dados = [];
     $grafico_labels = [];
     $texto_grafico = "Erro ao carregar dados";
-    $atividades = [];
-    $total_atividades = 0;
 }
 
 
@@ -571,50 +574,16 @@ try {
                 <div class="painel-cabecalho">
                     <h2>Atividade</h2>
                 </div>
-                <div class="lista-atividade">
-                    <?php foreach($atividades as $ativ): ?>
-                        <?php
-                            $icone_svg = '';
-                            if ($ativ['tipo'] == 'venda') {
-                                $icone_svg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
-                            } elseif ($ativ['tipo'] == 'pix_gerado') {
-                                $icone_svg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
-                            } else {
-                                $icone_svg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>';
-                            }
-
-                            $data_criado = strtotime($ativ['criado_em']);
-                            $diff = abs(time() - $data_criado);
-                            if ($diff < 60) $tempo = 'agora';
-                            elseif ($diff < 3600) $tempo = floor($diff / 60) . 'm';
-                            elseif ($diff < 86400) $tempo = floor($diff / 3600) . 'h';
-                            else $tempo = floor($diff / 86400) . 'd';
-                        ?>
-                        <div class="item-atividade">
-                            <div class="icone-atividade <?php echo htmlspecialchars($ativ['tipo']); ?>">
-                                <?php echo $icone_svg; ?>
-                            </div>
-                            <div class="atividade-conteudo">
-                                <p class="atividade-titulo"><?php echo htmlspecialchars($ativ['titulo']); ?></p>
-                                <p class="atividade-descricao"><?php echo htmlspecialchars($ativ['descricao']); ?></p>
-                            </div>
-                            <div class="atividade-tempo">
-                                <?php echo $tempo; ?><br>
-                                <?php echo date('d/m, H:i', $data_criado); ?>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                    <?php if(empty($atividades)): ?>
-                        <div class="estado-vazio">Nenhum evento recente.</div>
-                    <?php endif; ?>
-                </div>
-                <?php echo paginador($total_atividades, $por_pagina); ?>
+                <?php echo inicioBlocoPaginado('atividade'); ?>
+                <?php include __DIR__ . '/parciais/lista_atividades.php'; ?>
+                <?php echo fimBlocoPaginado(); ?>
             </div>
         </div>
     </main>
 </div>
 
 <script src="assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/tema.js'); ?>"></script>
+<script src="assets/js/paginacao.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/paginacao.js'); ?>"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const periodo_btns = document.querySelectorAll('.seletor-periodo a');

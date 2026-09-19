@@ -6,6 +6,23 @@ require_once __DIR__ . '/../conexao.php';
 verificarAdmin();
 $caminho_base = '../';
 
+// O log do sistema e' buscado ANTES das consultas de KPI/grafico de proposito: quando o
+// pedido e' so' desta lista, a guarda abaixo sai daqui e nenhuma das ~19 consultas do
+// painel chega a rodar. Ela nao depende de nada calculado abaixo.
+// Exclui 'venda'/'lead'/'pix_gerado' pro log do admin focar em ações administrativas/de sistema.
+$filtros_logs = ['excluir_tipos' => ['venda', 'lead', 'pix_gerado']];
+$por_pagina = 10;
+$offset = (max(1, (int) ($_GET['pagina'] ?? 1)) - 1) * $por_pagina;
+$total_atividades = contarAtividades($filtros_logs);
+$atividades = listarAtividades($filtros_logs, $por_pagina, $offset);
+$mostrar_usuario = true;
+$texto_vazio = 'Nenhuma atividade registrada ainda.';
+
+if (pedidoDeBloco('atividade')) {
+    include __DIR__ . '/../parciais/lista_atividades.php';
+    exit;
+}
+
 $periodo = $_GET['periodo'] ?? '7dias';
 $where_data_vendas = '';
 $where_bot_vendas = '';
@@ -303,15 +320,6 @@ if ($periodo === 'personalizado') {
     }
 }
 
-// Exclui 'venda'/'lead'/'pix_gerado' para o log do admin focar em ações administrativas/de sistema
-$filtros_logs = ['excluir_tipos' => ['venda', 'lead', 'pix_gerado']];
-$por_pagina = 10;
-$pagina_atual = isset($_GET['pagina']) ? max(1, (int)$_GET['pagina']) : 1;
-$offset = ($pagina_atual - 1) * $por_pagina;
-
-$total_logs = contarAtividades($filtros_logs);
-$atividades = listarAtividades($filtros_logs, $por_pagina, $offset);
-
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -435,44 +443,9 @@ $atividades = listarAtividades($filtros_logs, $por_pagina, $offset);
                 <div class="painel-cabecalho">
                     <h2>Log do sistema</h2>
                 </div>
-                <div class="lista-atividade">
-                    <?php foreach($atividades as $ativ): ?>
-                        <?php
-                            $icone_svg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
-                            if ($ativ['tipo'] == 'venda') {
-                                $icone_svg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
-                            } elseif ($ativ['tipo'] == 'lead') {
-                                $icone_svg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>';
-                            }
-
-                            $data_criado = strtotime($ativ['criado_em']);
-                            $diff = abs(time() - $data_criado);
-                            if ($diff < 60) $tempo = 'agora';
-                            elseif ($diff < 3600) $tempo = floor($diff / 60) . 'm';
-                            elseif ($diff < 86400) $tempo = floor($diff / 3600) . 'h';
-                            else $tempo = floor($diff / 86400) . 'd';
-
-                            $nome_user = $ativ['nome_usuario'] ? ' (' . htmlspecialchars($ativ['nome_usuario']) . ')' : '';
-                        ?>
-                        <div class="item-atividade">
-                            <div class="icone-atividade <?php echo htmlspecialchars($ativ['tipo']); ?>">
-                                <?php echo $icone_svg; ?>
-                            </div>
-                            <div class="atividade-conteudo">
-                                <p class="atividade-titulo"><?php echo htmlspecialchars($ativ['titulo']); ?><span class="texto-suave" style="font-weight:500;"><?php echo $nome_user; ?></span></p>
-                                <p class="atividade-descricao"><?php echo htmlspecialchars($ativ['descricao']); ?></p>
-                            </div>
-                            <div class="atividade-tempo">
-                                <?php echo $tempo; ?><br>
-                                <?php echo date('d/m, H:i', $data_criado); ?>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                    <?php if(empty($atividades)): ?>
-                        <div class="estado-vazio">Nenhuma atividade registrada ainda.</div>
-                    <?php endif; ?>
-                </div>
-                <?php echo paginador($total_logs, $por_pagina); ?>
+                <?php echo inicioBlocoPaginado('atividade'); ?>
+                <?php include __DIR__ . '/../parciais/lista_atividades.php'; ?>
+                <?php echo fimBlocoPaginado(); ?>
             </div>
         </div>
         </div>
@@ -480,6 +453,7 @@ $atividades = listarAtividades($filtros_logs, $por_pagina, $offset);
 </div>
 
 <script src="../assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/../assets/js/tema.js'); ?>"></script>
+<script src="../assets/js/paginacao.js?v=<?php echo @filemtime(__DIR__ . '/../assets/js/paginacao.js'); ?>"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const periodo_btns = document.querySelectorAll('.seletor-periodo a');
