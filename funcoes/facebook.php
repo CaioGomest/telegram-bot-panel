@@ -5,7 +5,9 @@ function enviarEventoFacebook($pixel_id, $access_token, $evento, $dados, $user_d
         return ['sucesso' => false, 'erro' => 'Pixel ID ou Access Token não configurados'];
     }
 
-    $url = "https://graph.facebook.com/v19.0/{$pixel_id}/events?access_token={$access_token}";
+    // O token ia na query string, entao aparecia em log de proxy, de CDN e no access_log do
+    // servidor. A Graph API aceita ele dentro do corpo do POST (ver $payload abaixo).
+    $url = "https://graph.facebook.com/v19.0/" . rawurlencode($pixel_id) . "/events";
     
     $timestamp = time();
 
@@ -23,7 +25,13 @@ function enviarEventoFacebook($pixel_id, $access_token, $evento, $dados, $user_d
         $user_params['em'] = hash('sha256', strtolower(trim($user_data['email'])));
     }
     if (!empty($user_data['telefone'])) {
-        $user_params['ph'] = hash('sha256', preg_replace('/[^0-9]/', '', $user_data['telefone']));
+        // A Meta espera o telefone com codigo do pais (5511999999999). Sem ele o hash e
+        // sempre "valido" mas nunca casa com o que a Meta tem -- falha silenciosa, sem erro.
+        $fone = preg_replace('/[^0-9]/', '', $user_data['telefone']);
+        if (strlen($fone) <= 11) {
+            $fone = '55' . $fone;  // numero brasileiro salvo sem DDI
+        }
+        $user_params['ph'] = hash('sha256', $fone);
     }
     if (!empty($user_data['ip'])) {
         $user_params['client_ip_address'] = $user_data['ip'];
@@ -37,6 +45,7 @@ function enviarEventoFacebook($pixel_id, $access_token, $evento, $dados, $user_d
     }
 
     $payload = [
+        'access_token' => $access_token,
         'data' => [
             [
                 'event_name' => $nome_evento,

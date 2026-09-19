@@ -416,18 +416,15 @@ foreach ($notificacao['pix'] as $pix) {
         dispararSplitInfopago($id_dono, (float)$venda['valor'], $txid, (int)$venda['id']);
 
         require_once __DIR__ . '/funcoes/traqueamento.php';
-        $nome_lead = '';
-        try {
-            $r = $pdo->prepare("SELECT nome FROM leads WHERE id_telegram = ? AND bot_id = ?");
-            $r->execute([$venda['id_telegram'], $venda['bot_id']]);
-            $nome_lead = $r->fetchColumn() ?: '';
-        } catch (Exception $e) {}
-
         enviarEventosTraqueamento($id_dono, 'compra', [
             'valor'        => (float)$venda['valor'],
+            'comissao'     => (float)($venda['comissao_admin'] ?? 0),
+            'plano_id'     => $venda['id_plano'] ?? null,
+            'nome_produto' => $venda['nome_produto'] ?? null,
+            'pago_em'      => $venda['pago_em'] ?? null,
             'transacao_id' => $txid,
             'event_id'     => $txid
-        ], ['id_telegram' => $venda['id_telegram'], 'first_name' => $nome_lead]);
+        ], montarUserDataTraqueamento($pdo, $venda['id_telegram'], $venda['bot_id']));
     }
 
     if (!$token_bot) {

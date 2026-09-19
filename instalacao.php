@@ -119,6 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             id_telegram VARCHAR(50) NOT NULL,
             nome VARCHAR(100),
             telefone VARCHAR(30) DEFAULT NULL,
+            origem_rastreio VARCHAR(100) DEFAULT NULL,
             bot_id INT,
             criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE SET NULL,

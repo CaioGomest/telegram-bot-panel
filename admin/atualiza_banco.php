@@ -559,6 +559,14 @@ try {
 
     // Marca que o cron já fechou o placar final desta campanha. Enquanto for NULL e a data
     // tiver passado, o cron ainda deve um último recálculo. Ver cron/cron_ranking.php.
+    // Guarda de qual link de rastreamento o lead veio. Antes o identificador do /start so
+    // incrementava contador em links_rastreamento e era descartado -- sem isso nao da pra
+    // dizer qual campanha gerou qual venda, que e o proposito do traqueamento.
+    try {
+        $pdo->exec("ALTER TABLE leads ADD COLUMN origem_rastreio VARCHAR(100) DEFAULT NULL AFTER telefone");
+        echo "Coluna 'origem_rastreio' adicionada em 'leads'.<br>";
+    } catch (PDOException $e) {}
+
     try {
         $pdo->exec("ALTER TABLE campanhas_ranking ADD COLUMN finalizada_em DATETIME DEFAULT NULL AFTER ativa");
         echo "Coluna 'finalizada_em' adicionada em 'campanhas_ranking'.<br>";

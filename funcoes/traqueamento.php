@@ -77,3 +77,52 @@ function enviarEventosTraqueamento($id_usuario, $evento, $dados, $user_data = []
 
     return $resultados;
 }
+
+/**
+ * Monta o $user_data dos eventos de traqueamento a partir do que o sistema realmente sabe
+ * sobre o lead.
+ *
+ * Existe porque os três pontos de chamada (webhook.php x2, webhook_infopago.php) montavam
+ * esse array na mão e só passavam id_telegram -- então Facebook e UTMify recebiam evento sem
+ * nenhum dado de correspondência e a atribuição não acontecia, mesmo com a API devolvendo
+ * 200. Ver anotacoes/revisao-traqueamento-facebook-utmify.md.
+ *
+ * O que dá pra enviar hoje: nome, telefone (quando o lead informou) e a origem do link de
+ * rastreamento. E-mail e IP o Telegram não fornece -- ficam de fora em vez de serem
+ * inventados.
+ */
+function montarUserDataTraqueamento(PDO $pdo, $id_telegram, $bot_id): array
+{
+    $user_data = ['id_telegram' => $id_telegram];
+
+    try {
+        $stmt = $pdo->prepare("SELECT nome, telefone, origem_rastreio FROM leads WHERE id_telegram = ? AND bot_id = ? LIMIT 1");
+        $stmt->execute([$id_telegram, $bot_id]);
+        $lead = $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        error_log('[traqueamento] falha ao buscar lead: ' . $e->getMessage());
+        return $user_data;
+    }
+
+    if (!$lead) {
+        return $user_data;
+    }
+
+    if (!empty($lead['nome'])) {
+        $user_data['first_name'] = $lead['nome'];
+    }
+    if (!empty($lead['telefone'])) {
+        $user_data['telefone'] = $lead['telefone'];
+    }
+
+    // A origem é o identificador do link de rastreamento que trouxe o lead. Vira utm_source
+    // e utm_campaign: é a única informação de campanha que este sistema tem, e sem ela a
+    // UTMify recebe pedido sem origem -- que é justamente o que ela não precisa.
+    if (!empty($lead['origem_rastreio'])) {
+        $user_data['utm_source']   = 'telegram';
+        $user_data['utm_medium']   = 'bot';
+        $user_data['utm_campaign'] = $lead['origem_rastreio'];
+    }
+
+    return $user_data;
+}

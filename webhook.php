@@ -550,9 +550,7 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
                              'transacao_id' => $txid,
                              'event_id' => $txid
                          ];
-                         $user_data = [
-                             'id_telegram' => $id_chat,
-                         ];
+                         $user_data = montarUserDataTraqueamento($pdo, $id_chat, $bot['id']);
                          enviarEventosTraqueamento($id_usuario_dono_insert, 'pix_gerado', $dados_evento, $user_data);
                      }
                 }
@@ -747,22 +745,16 @@ if (strpos($texto, 'verificar_pagamento_') === 0) {
                         }
 
                         require_once __DIR__ . '/funcoes/traqueamento.php';
-                        $nome_lead_manual = '';
-                        try {
-                            $stmt_lead = $pdo->prepare("SELECT nome FROM leads WHERE id_telegram = ? AND bot_id = ?");
-                            $stmt_lead->execute([$venda['id_telegram'], $venda['bot_id']]);
-                            $nome_lead_manual = $stmt_lead->fetchColumn() ?: '';
-                        } catch (Exception $e) {}
-
                         $dados_evento_manual = [
                             'valor' => (float)$venda['valor'],
+                            'comissao' => (float)($venda['comissao_admin'] ?? 0),
+                            'plano_id' => $venda['id_plano'] ?? null,
+                            'nome_produto' => $venda['nome_produto'] ?? null,
+                            'pago_em' => $venda['pago_em'] ?? null,
                             'transacao_id' => $txid,
                             'event_id' => $txid
                         ];
-                        $user_data_manual = [
-                            'id_telegram' => $venda['id_telegram'],
-                            'first_name' => $nome_lead_manual
-                        ];
+                        $user_data_manual = montarUserDataTraqueamento($pdo, $venda['id_telegram'], $venda['bot_id']);
 
                         enviarEventosTraqueamento((int)$id_usuario_dono, 'compra', $dados_evento_manual, $user_data_manual);
 
@@ -935,13 +927,23 @@ if ($texto === '/start') {
             $nome_usuario = trim(($dados_remetente['first_name'] ?? '') . ' ' . ($dados_remetente['last_name'] ?? ''));
             if ($nome_usuario === '') $nome_usuario = 'Usuário ' . $id_chat;
             $data_criacao = date('Y-m-d H:i:s');
-            $stmt_insert_lead = $pdo->prepare("INSERT INTO leads (id_telegram, nome, bot_id, criado_em) VALUES (?, ?, ?, ?)");
-            $stmt_insert_lead->execute([$id_chat, $nome_usuario, $bot['id'], $data_criacao]);
+            // origem_rastreio guarda de qual link o lead veio. Antes o $start_param so
+            // incrementava contador e era descartado -- sem ele nao da pra dizer depois
+            // qual campanha gerou a venda.
+            $stmt_insert_lead = $pdo->prepare("INSERT INTO leads (id_telegram, nome, origem_rastreio, bot_id, criado_em) VALUES (?, ?, ?, ?, ?)");
+            $stmt_insert_lead->execute([$id_chat, $nome_usuario, $start_param ?: null, $bot['id'], $data_criacao]);
             $stmt_insert_ativ = $pdo->prepare("INSERT INTO atividades (id_usuario, tipo, titulo, descricao, icone, criado_em) VALUES (?, ?, ?, ?, ?, ?)");
             $stmt_insert_ativ->execute([$bot['id_usuario'], 'lead', 'Novo Lead', $nome_usuario . ' iniciou conversa', 'user', $data_criacao]);
         }
         // Se veio de um link de rastreamento, incrementa starts (sempre) e leads (só se for novo lead)
         if ($start_param) {
+            // Lead que ja existia e ainda nao tinha origem: grava a primeira que aparecer.
+            // Primeiro toque, de proposito -- se sobrescrevesse, a ultima campanha levaria
+            // o credito de um lead que outra trouxe.
+            if (!$is_novo_lead) {
+                $pdo->prepare("UPDATE leads SET origem_rastreio = ? WHERE id_telegram = ? AND bot_id = ? AND (origem_rastreio IS NULL OR origem_rastreio = '')")
+                    ->execute([$start_param, $id_chat, $bot['id']]);
+            }
             $campos_rast = 'starts = starts + 1' . ($is_novo_lead ? ', leads = leads + 1' : '');
             $pdo->prepare("UPDATE links_rastreamento SET $campos_rast WHERE bot_id = ? AND identificador = ?")
                 ->execute([$bot['id'], $start_param]);
