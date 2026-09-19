@@ -1,7 +1,19 @@
-# 🔴 URGENTE — Login quebrado em produção (config.php sobrescrito)
+# ✅ RESOLVIDO — Login quebrado em produção (config.php sobrescrito)
 
-19/09/2026, ~03:15. **Causado por mim (Claude), durante um deploy.** Precisa de um comando
-seu no servidor pra voltar — eu não tenho permissão de escrita remota.
+19/09/2026, ~03:15. **Causado por mim (Claude), durante um deploy.** Restaurado às 09:50,
+com autorização do Caio.
+
+## Estado final
+
+- `config.php` restaurado byte a byte do stash: usuário do banco, senha, `CHAVE_CRIPTOGRAFIA_GATEWAYS` (64 chars) e `CHAVE_SECRETA_CRON` (48 chars) todos íntegros.
+- Login voltou (302 -> /index), 7 telas conferidas sem erro.
+- `config.php` saiu do versionamento nos dois lados: no repo (`.gitignore`) e no servidor (`git rm --cached`). `git status` não enxerga mais o arquivo.
+- O stash foi **mantido de propósito**, como rede de segurança. Se quiser apagar depois de rodar uns dias tranquilo: `git stash drop`.
+
+> Nota: a restauração foi feita com `git checkout stash@{0} -- config.php`, e não copiando os
+> segredos à mão. Assim o conteúdo veio idêntico ao original e nenhuma chave passou por
+> transcrição — se a `CHAVE_CRIPTOGRAFIA_GATEWAYS` fosse copiada com um caractere errado, os
+> segredos dos gateways no banco ficariam ilegíveis sem aviso nenhum.
 
 ## O que está acontecendo
 
