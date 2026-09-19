@@ -627,7 +627,10 @@ html[data-theme] a.botao-configurar { color: var(--or); }
 
 .area-grafico { position: relative; height: 300px; width: 100%; }
 
-.lista-atividade { display: flex; flex-direction: column; gap: 10px; height: 300px; overflow-y: auto; }
+/* max-height, nao height: com a lista vazia a caixa de "nenhum evento" tem 120px e o
+   height fixo deixava 180px de buraco embaixo dela. Com teto, a lista encolhe pro tamanho
+   do conteudo e continua rolando quando passa de 300px -- o caso cheio nao muda. */
+.lista-atividade { display: flex; flex-direction: column; gap: 10px; max-height: 300px; overflow-y: auto; }
 .item-atividade {
     background: var(--p2);
     border: 1px solid var(--bd);
