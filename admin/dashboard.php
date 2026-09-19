@@ -178,16 +178,18 @@ if ($periodo == 'hoje') {
         $stmt = $pdo->prepare("SELECT hora, comissao FROM metricas_horarias_admin WHERE data = CURDATE()");
         $stmt->execute();
         $por_hora = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'comissao', 'hora');
+    } else {
+        // Uma consulta agregada em vez de uma por ponto do grafico, e range em criado_em
+        // no lugar de DATE()/HOUR() no WHERE -- funcao na coluna impede o indice de ser
+        // usado, entao cada iteracao varria a tabela de vendas inteira. Medido antes:
+        // 'ontem' com um bot selecionado levava 31,9s.
+        $stmt = $pdo->prepare("SELECT HOUR(v.criado_em) AS h, SUM(v.comissao_admin) AS t FROM vendas v WHERE v.status = 'pago' AND v.criado_em >= CURDATE() AND v.criado_em < CURDATE() + INTERVAL 1 DAY $where_bot_vendas GROUP BY h");
+        $stmt->execute();
+        $por_hora = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 't', 'h');
     }
     for ($i = 0; $i <= date('H'); $i++) {
         $grafico_labels[] = sprintf('%02d:00', $i);
-        if ($usa_cache_metricas) {
-            $grafico_dados[] = (float) ($por_hora[$i] ?? 0);
-        } else {
-            $stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = CURDATE() AND HOUR(v.criado_em) = ? $where_bot_vendas");
-            $stmt->execute([$i]);
-            $grafico_dados[] = (float) $stmt->fetchColumn();
-        }
+        $grafico_dados[] = (float) ($por_hora[$i] ?? 0);
     }
 } elseif ($periodo == 'ontem') {
     $texto_grafico = "ONTEM (POR HORA)";
@@ -195,16 +197,14 @@ if ($periodo == 'hoje') {
         $stmt = $pdo->prepare("SELECT hora, comissao FROM metricas_horarias_admin WHERE data = CURDATE() - INTERVAL 1 DAY");
         $stmt->execute();
         $por_hora = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'comissao', 'hora');
+    } else {
+        $stmt = $pdo->prepare("SELECT HOUR(v.criado_em) AS h, SUM(v.comissao_admin) AS t FROM vendas v WHERE v.status = 'pago' AND v.criado_em >= CURDATE() - INTERVAL 1 DAY AND v.criado_em < CURDATE() $where_bot_vendas GROUP BY h");
+        $stmt->execute();
+        $por_hora = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 't', 'h');
     }
     for ($i = 0; $i <= 23; $i++) {
         $grafico_labels[] = sprintf('%02d:00', $i);
-        if ($usa_cache_metricas) {
-            $grafico_dados[] = (float) ($por_hora[$i] ?? 0);
-        } else {
-            $stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = CURDATE() - INTERVAL 1 DAY AND HOUR(v.criado_em) = ? $where_bot_vendas");
-            $stmt->execute([$i]);
-            $grafico_dados[] = (float) $stmt->fetchColumn();
-        }
+        $grafico_dados[] = (float) ($por_hora[$i] ?? 0);
     }
 } elseif ($periodo == '30dias') {
     $texto_grafico = "ÚLTIMOS 30 DIAS";
@@ -212,17 +212,15 @@ if ($periodo == 'hoje') {
         $stmt = $pdo->prepare("SELECT data, SUM(comissao) AS total FROM metricas_horarias_admin WHERE data >= CURDATE() - INTERVAL 29 DAY GROUP BY data");
         $stmt->execute();
         $por_dia = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'total', 'data');
+    } else {
+        $stmt = $pdo->prepare("SELECT DATE(v.criado_em) AS d, SUM(v.comissao_admin) AS t FROM vendas v WHERE v.status = 'pago' AND v.criado_em >= CURDATE() - INTERVAL 29 DAY AND v.criado_em < CURDATE() + INTERVAL 1 DAY $where_bot_vendas GROUP BY d");
+        $stmt->execute();
+        $por_dia = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 't', 'd');
     }
     for ($i = 29; $i >= 0; $i--) {
         $data = date('Y-m-d', strtotime("-$i days"));
         $grafico_labels[] = date('d/m', strtotime("-$i days"));
-        if ($usa_cache_metricas) {
-            $grafico_dados[] = (float) ($por_dia[$data] ?? 0);
-        } else {
-            $stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = ? $where_bot_vendas");
-            $stmt->execute([$data]);
-            $grafico_dados[] = (float) $stmt->fetchColumn();
-        }
+        $grafico_dados[] = (float) ($por_dia[$data] ?? 0);
     }
 } elseif ($periodo == 'total') {
     $texto_grafico = "HISTÓRICO TOTAL (ÚLTIMOS 12 MESES)";
@@ -276,20 +274,17 @@ if ($periodo == 'hoje') {
         $stmt = $pdo->prepare("SELECT data, SUM(comissao) AS total FROM metricas_horarias_admin WHERE data >= CURDATE() - INTERVAL 7 DAY GROUP BY data");
         $stmt->execute();
         $por_dia = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'total', 'data');
+    } else {
+        $stmt = $pdo->prepare("SELECT DATE(v.criado_em) AS d, SUM(v.comissao_admin) AS t FROM vendas v WHERE v.status = 'pago' AND v.criado_em >= CURDATE() - INTERVAL 7 DAY AND v.criado_em < CURDATE() + INTERVAL 1 DAY $where_bot_vendas GROUP BY d");
+        $stmt->execute();
+        $por_dia = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 't', 'd');
     }
     for ($i = 7; $i >= 0; $i--) {
         $data = date('Y-m-d', strtotime("-$i days"));
         $dia_semana = date('D', strtotime("-$i days"));
         $dias_map = ['Sun'=>'Dom', 'Mon'=>'Seg', 'Tue'=>'Ter', 'Wed'=>'Qua', 'Thu'=>'Qui', 'Fri'=>'Sex', 'Sat'=>'Sáb'];
         $grafico_labels[] = $dias_map[$dia_semana] ?? $dia_semana;
-
-        if ($usa_cache_metricas) {
-            $grafico_dados[] = (float) ($por_dia[$data] ?? 0);
-        } else {
-            $stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = ? $where_bot_vendas");
-            $stmt->execute([$data]);
-            $grafico_dados[] = (float) $stmt->fetchColumn();
-        }
+        $grafico_dados[] = (float) ($por_dia[$data] ?? 0);
     }
 }
 
@@ -302,19 +297,17 @@ if ($periodo === 'personalizado') {
             $stmt = $pdo->prepare("SELECT data, SUM(comissao) AS total FROM metricas_horarias_admin WHERE data BETWEEN ? AND ? GROUP BY data");
             $stmt->execute([$data_inicio, $data_fim]);
             $por_dia = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'total', 'data');
+        } else {
+            $stmt = $pdo->prepare("SELECT DATE(v.criado_em) AS d, SUM(v.comissao_admin) AS t FROM vendas v WHERE v.status = 'pago' AND v.criado_em >= ? AND v.criado_em < DATE_ADD(?, INTERVAL 1 DAY) $where_bot_vendas GROUP BY d");
+            $stmt->execute([$data_inicio, $data_fim]);
+            $por_dia = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 't', 'd');
         }
         $data_atual = new DateTime($data_inicio);
         $data_final = new DateTime($data_fim);
         while ($data_atual <= $data_final) {
             $data_iso = $data_atual->format('Y-m-d');
             $grafico_labels[] = $data_atual->format('d/m');
-            if ($usa_cache_metricas) {
-                $grafico_dados[] = (float) ($por_dia[$data_iso] ?? 0);
-            } else {
-                $stmt = $pdo->prepare("SELECT SUM(v.comissao_admin) FROM vendas v WHERE v.status = 'pago' AND DATE(v.criado_em) = ? $where_bot_vendas");
-                $stmt->execute([$data_iso]);
-                $grafico_dados[] = (float) $stmt->fetchColumn();
-            }
+            $grafico_dados[] = (float) ($por_dia[$data_iso] ?? 0);
             $data_atual->modify('+1 day');
         }
     }
