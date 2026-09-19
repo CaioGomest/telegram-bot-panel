@@ -60,3 +60,35 @@ function paginador(int $total, int $por_pagina): string {
     
     return $html;
 }
+
+/**
+ * Abre o container de um bloco paginado. O JS de assets/js/paginacao.js procura por
+ * [data-bloco] pra saber o que trocar quando você clica numa página.
+ *
+ * Existe porque virar página recarregava a tela inteira: no dashboard isso refazia as ~20
+ * consultas de KPI e redesenhava os gráficos só pra trocar 10 linhas de uma lista que fica
+ * no rodapé -- e ainda jogava o scroll de volta pro topo.
+ */
+function inicioBlocoPaginado(string $nome): string
+{
+    return '<div class="bloco-paginado" data-bloco="' . htmlspecialchars($nome) . '">';
+}
+
+function fimBlocoPaginado(): string
+{
+    return '</div>';
+}
+
+/**
+ * O pedido é do JS querendo só este bloco, em vez da página inteira?
+ *
+ * Exige o cabeçalho de XHR de propósito: abrir a URL na mão continua devolvendo a página
+ * completa, então o link de paginação segue funcionando sem JS e ninguém cai num pedaço
+ * solto de HTML sem menu.
+ */
+function pedidoDeBloco(string $nome): bool
+{
+    return ($_GET['bloco'] ?? '') === $nome
+        && !empty($_SERVER['HTTP_X_REQUESTED_WITH'])
+        && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+}

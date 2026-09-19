@@ -16,6 +16,13 @@ $offset = ($pagina_atual - 1) * $por_pagina;
 
 $total_logs = contarAtividades($filtros);
 $logs = listarAtividades($filtros, $por_pagina, $offset);
+
+// Pedido do JS querendo só a lista: devolve o parcial e para aqui, sem montar
+// cabeçalho, menu e o resto da página.
+if (pedidoDeBloco('logs')) {
+    include __DIR__ . '/../parciais/lista_logs.php';
+    exit;
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -46,55 +53,14 @@ $logs = listarAtividades($filtros, $por_pagina, $offset);
 
 
         <div class="painel">
-            <div class="tabela-dados">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Data/Hora</th>
-                            <th>Usuário</th>
-                            <th>Tipo</th>
-                            <th>Evento</th>
-                            <th>Descrição</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($logs as $log): ?>
-                        <tr>
-                            <td class="mono texto-suave"><?php echo date('d/m/Y H:i:s', strtotime($log['criado_em'])); ?></td>
-                            <td>
-                                <?php if ($log['nome_usuario']): ?>
-                                    <?php echo htmlspecialchars($log['nome_usuario']); ?>
-                                <?php else: ?>
-                                    <span class="texto-suave">Sistema</span>
-                                <?php endif; ?>
-                            </td>
-                            <td>
-                                <?php
-                                $classe = 'badge-neutro';
-                                if ($log['tipo'] === 'venda') $classe = 'badge-sucesso';
-                                if ($log['tipo'] === 'lead') $classe = 'badge-alerta';
-                                ?>
-                                <span class="badge <?php echo $classe; ?>"><?php echo strtoupper($log['tipo']); ?></span>
-                            </td>
-                            <td><?php echo htmlspecialchars($log['titulo']); ?></td>
-                            <td class="texto-suave"><?php echo htmlspecialchars($log['descricao']); ?></td>
-                        </tr>
-                        <?php endforeach; ?>
-
-                        <?php if (empty($logs)): ?>
-                        <tr>
-                            <td colspan="5" style="text-align: center; padding: 40px; color: var(--m);">Nenhum registro encontrado.</td>
-                        </tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-
-            <?php echo paginador($total_logs, $por_pagina); ?>
+            <?php echo inicioBlocoPaginado('logs'); ?>
+            <?php include __DIR__ . '/../parciais/lista_logs.php'; ?>
+            <?php echo fimBlocoPaginado(); ?>
         </div>
     </main>
 </div>
 
 <script src="../assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/../assets/js/tema.js'); ?>"></script>
+<script src="../assets/js/paginacao.js?v=<?php echo @filemtime(__DIR__ . '/../assets/js/paginacao.js'); ?>"></script>
 </body>
 </html>
