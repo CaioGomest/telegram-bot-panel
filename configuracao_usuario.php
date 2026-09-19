@@ -141,7 +141,7 @@ $iniciais_conta = mb_strtoupper(mb_substr($partes_nome[0] ?? '?', 0, 1)
                         </div>
                     </details>
 
-                    <button type="submit" class="botao botao-primario botao-bloco" style="padding:15px;">Salvar alterações</button>
+                    <button type="submit" class="botao botao-primario botao-bloco conta-salvar" style="padding:15px;">Salvar alterações</button>
 
                     <a href="gateways" class="conta-item">
                         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"></rect><path d="M2 10h20"></path></svg>

@@ -910,9 +910,18 @@ html[data-theme] .conta-perfil-email { color: var(--m); }
 html[data-theme] .conta-item, html[data-theme] .conta-secao > summary { background: var(--p); border: 1px solid var(--bd); color: var(--t); }
 .conta-item svg, .conta-secao > summary svg { width: 19px; height: 19px; flex-shrink: 0; stroke: var(--or); }
 .conta-item-seta { margin-left: auto; transition: transform .18s; }
-.conta-item-seta svg { stroke: var(--m); width: 16px; height: 16px; }
+/* Precisa casar a profundidade de .conta-secao > summary svg, senao o laranja do icone
+   da esquerda pinta tambem a seta da direita. */
+.conta-item .conta-item-seta svg,
+.conta-secao > summary .conta-item-seta svg { stroke: var(--m); width: 16px; height: 16px; }
 .conta-secao[open] > summary .conta-item-seta { transform: rotate(90deg); }
 .conta-secao-corpo { padding: 18px 4px 4px; }
+/* Com tudo fechado a lista tem so as 4 linhas, como no prototipo; o Salvar entra quando
+   voce abre uma secao. No desktop as secoes vivem abertas, entao ele esta sempre la. */
+@media (max-width: 860px) {
+    .conta-salvar { display: none; }
+    .conta-lista:has(.conta-secao[open]) .conta-salvar { display: block; }
+}
 
 /* Paginas de texto corrido e publicas (termos de uso). Mesmo tom das telas de login. */
 .pagina-texto { max-width: 720px; margin: 0 auto; padding: 22px 20px 56px; }
