@@ -889,6 +889,31 @@ html[data-theme] a.botao-configurar { color: var(--or); }
 .login-cabecalho-logo { width: 54px; height: 54px; border-radius: 16px; object-fit: cover; }
 html[data-theme] .login-cabecalho-logo { border: 1px solid var(--bd); }
 
+/* ===== Minha Conta: cartão de perfil + linhas de menu (padrão do protótipo) =====
+   As linhas de "Dados pessoais" e "Alterar senha" são <details>: no mobile abrem ao toque,
+   no desktop o JS da própria página deixa as duas abertas e o CSS esconde o cabeçalho delas,
+   pra não transformar um formulário que sempre coube numa tela em dois cliques. */
+.conta-perfil { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; padding: 26px 20px; border-radius: 16px; margin-bottom: 14px; }
+html[data-theme] .conta-perfil { background: var(--p); border: 1px solid var(--bd); }
+.conta-avatar { width: 76px; height: 76px; border-radius: 22px; display: flex; align-items: center; justify-content: center; font: 700 26px 'Manrope', sans-serif; color: #fff; background: var(--or); margin-bottom: 10px; }
+.conta-perfil-nome { font-size: 16px; font-weight: 700; }
+.conta-perfil-email { font-size: 13px; }
+html[data-theme] .conta-perfil-email { color: var(--m); }
+
+.conta-lista { display: flex; flex-direction: column; gap: 10px; }
+.conta-item, .conta-secao > summary {
+    display: flex; align-items: center; gap: 13px;
+    padding: 17px 16px; border-radius: 14px; cursor: pointer;
+    font: 600 14px 'Manrope', sans-serif; list-style: none;
+}
+.conta-secao > summary::-webkit-details-marker { display: none; }
+html[data-theme] .conta-item, html[data-theme] .conta-secao > summary { background: var(--p); border: 1px solid var(--bd); color: var(--t); }
+.conta-item svg, .conta-secao > summary svg { width: 19px; height: 19px; flex-shrink: 0; stroke: var(--or); }
+.conta-item-seta { margin-left: auto; transition: transform .18s; }
+.conta-item-seta svg { stroke: var(--m); width: 16px; height: 16px; }
+.conta-secao[open] > summary .conta-item-seta { transform: rotate(90deg); }
+.conta-secao-corpo { padding: 18px 4px 4px; }
+
 /* Paginas de texto corrido e publicas (termos de uso). Mesmo tom das telas de login. */
 .pagina-texto { max-width: 720px; margin: 0 auto; padding: 22px 20px 56px; }
 .pagina-texto-cabecalho { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; }
@@ -987,6 +1012,11 @@ html[data-theme] a.login-link-esqueci { color: var(--or); }
 .somente-desktop-aviso h2 { font-size: 22px; color: var(--t); margin-bottom: 8px; }
 
 /* ===== Responsivo ===== */
+@media (min-width: 861px) {
+    .conta-secao > summary { display: none; }
+    .conta-perfil { display: none; }  /* no desktop o nome/e-mail já estão na barra lateral */
+}
+
 @media (max-width: 900px) {
     .grade-kpi { grid-template-columns: repeat(2, 1fr); }
     .cartao-kpi-larga { grid-column: span 2; }
