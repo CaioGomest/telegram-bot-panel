@@ -84,14 +84,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <form method="POST">
                 <?php echo campoCsrf(); ?>
                 <div class="campo">
-                    <label for="nome">Nome Completo</label>
-                    <input type="text" id="nome" name="nome" required
+                    <label for="nome">Nome</label>
+                    <input type="text" id="nome" name="nome" required placeholder="Seu nome completo"
                            value="<?php echo htmlspecialchars($_POST['nome'] ?? ''); ?>">
                 </div>
 
                 <div class="campo" style="margin-top:16px;">
                     <label for="email">E-mail</label>
-                    <input type="email" id="email" name="email" required
+                    <input type="email" id="email" name="email" required placeholder="voce@email.com"
                            value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>">
                 </div>
 

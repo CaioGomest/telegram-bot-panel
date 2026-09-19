@@ -106,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'login')
 
                 <div class="campo">
                     <label for="email">E-mail</label>
-                    <input type="email" id="email" name="email" required
+                    <input type="email" id="email" name="email" required placeholder="voce@email.com"
                            value="<?php echo htmlspecialchars($_POST['email'] ?? 'admin@admin.com'); ?>">
                 </div>
 

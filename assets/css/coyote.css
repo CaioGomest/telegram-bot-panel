@@ -904,6 +904,9 @@ html[data-theme] .login-abas { background: var(--p2); border: 1px solid var(--bd
 html[data-theme] .login-aba { color: var(--m); }
 html[data-theme] .login-aba.ativa { background: var(--or); color: #fff; }
 .login-link-esqueci { font: 700 12.5px 'Manrope', sans-serif; color: var(--or); cursor: pointer; text-decoration: none; }
+/* Em <a>, o seletor html[data-theme] a { color: inherit } tem mais especificidade que a
+   classe e comia o laranja -- "Cadastre-se" e "termos de uso" saiam brancos. */
+html[data-theme] a.login-link-esqueci { color: var(--or); }
 
 /* ===== Ranking ===== */
 .grade-ranking { display: grid; grid-template-columns: 1.6fr minmax(260px, 1fr); gap: 14px; align-items: start; }
