@@ -83,8 +83,30 @@ Webhooks respondendo 200, e `traqueamento`, `leads`, `index`, `links_rastreament
 
 Depende de conferir a documentação atual do terceiro, ou de decisão de produto:
 
-- **F3** — `action_source` está como `system_generated`; pra venda por conversa, `chat` talvez
-  descreva melhor. Precisa checar a doc atual da Meta.
+### F3 — `action_source` (pendente, decidir depois)
+
+`action_source` é campo obrigatório da Conversions API e responde "onde essa conversão
+aconteceu?". A Meta usa isso pra modelar a conversão, e alguns valores exigem outros campos
+junto (`website`, por exemplo, exige a URL de origem).
+
+Hoje **os dois caminhos mandam `system_generated`**, que significa "meu sistema gerou este
+evento, sem ação direta de ninguém naquele momento".
+
+O problema é que o sistema tem dois casos bem diferentes, e só um deles é esse:
+
+| caminho | o que realmente acontece | valor provável |
+|---|---|---|
+| `webhook.php` / `webhook_infopago.php` | a pessoa está conversando com o bot, escolhe o plano e paga | `chat` |
+| `cron/cron_verificar_pix.php`, renovação automática | confirmação posterior, sem ninguém na frente | `system_generated` (certo hoje) |
+
+Ou seja: a compra feita dentro da conversa provavelmente está classificada errada, e a
+renovação automática está certa por acidente.
+
+**Não mudei porque** a Meta altera essa lista de valores e as regras de cada um com alguma
+frequência, e não dá pra testar sem um pixel real. Afirmar de memória qual é o conjunto
+válido hoje seria chute. Antes de mexer: conferir a documentação atual da Conversions API
+(valores aceitos para `action_source` e o que cada um exige) e validar com um evento de
+teste no Events Manager.
 - **F4** — `test_event_code`, pra testar sem sujar o dado real. Vale se você for validar o
   Facebook de verdade.
 - **F6** — falha de rede perde o evento. Não há fila nem nova tentativa. Resolver isso direito
