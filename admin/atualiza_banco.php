@@ -557,6 +557,21 @@ try {
     $pdo->exec($sql_ranking_cache);
     echo "Tabela 'ranking_cache' OK.<br>";
 
+    // Marca que o cron já fechou o placar final desta campanha. Enquanto for NULL e a data
+    // tiver passado, o cron ainda deve um último recálculo. Ver cron/cron_ranking.php.
+    try {
+        $pdo->exec("ALTER TABLE campanhas_ranking ADD COLUMN finalizada_em DATETIME DEFAULT NULL AFTER ativa");
+        echo "Coluna 'finalizada_em' adicionada em 'campanhas_ranking'.<br>";
+    } catch (PDOException $e) {}
+
+    // O ENUM 'tipo' ('oficial'/'mensal') saiu: a tela só buscava 'oficial', então uma campanha
+    // criada como 'mensal' simplesmente nunca aparecia pra ninguém. Agora existe uma campanha
+    // em cartaz por vez, escolhida pelas datas.
+    try {
+        $pdo->exec("ALTER TABLE campanhas_ranking DROP COLUMN tipo");
+        echo "Coluna 'tipo' removida de 'campanhas_ranking'.<br>";
+    } catch (PDOException $e) {}
+
     try {
         $pdo->exec("ALTER TABLE usuarios ADD COLUMN apelido_publico VARCHAR(40) DEFAULT NULL AFTER nome");
         echo "Coluna 'apelido_publico' adicionada em 'usuarios'.<br>";

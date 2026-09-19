@@ -348,10 +348,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             slug VARCHAR(60) NOT NULL UNIQUE,
             titulo VARCHAR(100) NOT NULL,
             subtitulo VARCHAR(255) DEFAULT NULL,
-            tipo ENUM('oficial','mensal') DEFAULT 'oficial',
             data_inicio DATETIME NOT NULL,
             data_fim DATETIME NOT NULL,
             ativa TINYINT(1) DEFAULT 1,
+            finalizada_em DATETIME DEFAULT NULL,
             criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
             atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");

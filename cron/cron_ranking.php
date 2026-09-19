@@ -37,14 +37,19 @@ if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) {
 }
 
 try {
+    // Pega a campanha em andamento E a que já terminou mas ainda não foi fechada. Esse
+    // segundo caso é o que garante o placar final correto: antes a consulta exigia
+    // `NOW() BETWEEN inicio AND fim`, então a última rodada do cron acontecia ANTES do fim da
+    // campanha e as vendas entre ela e o prazo simplesmente nunca eram contadas.
+    // Depois de fechar, a campanha sai daqui e o cache dela não é mais tocado.
     $campanhas = $pdo->query("
-        SELECT id, data_inicio, data_fim
+        SELECT id, data_inicio, data_fim, (data_fim < NOW()) AS terminou
         FROM campanhas_ranking
-        WHERE ativa = 1 AND NOW() BETWEEN data_inicio AND data_fim
+        WHERE ativa = 1 AND data_inicio <= NOW() AND finalizada_em IS NULL
     ")->fetchAll(PDO::FETCH_ASSOC);
 
     if (!$campanhas) {
-        logCronRanking('Nenhuma campanha ativa no momento.');
+        logCronRanking('Nenhuma campanha a recalcular no momento.');
         flock($lock, LOCK_UN);
         fclose($lock);
         exit;
@@ -69,8 +74,15 @@ try {
             ");
             $stmt->execute([$campanha_id, $campanha['data_inicio'], $campanha['data_fim']]);
 
+            // Fecha a campanha DEPOIS do recálculo, dentro da mesma transação: ou o placar
+            // final e a marcação entram juntos, ou nenhum dos dois entra.
+            if ((int) $campanha['terminou'] === 1) {
+                $pdo->prepare("UPDATE campanhas_ranking SET finalizada_em = NOW() WHERE id = ?")->execute([$campanha_id]);
+            }
+
             $pdo->commit();
-            logCronRanking("Campanha #$campanha_id: ranking recalculado ({$stmt->rowCount()} participantes).");
+            $sufixo = (int) $campanha['terminou'] === 1 ? ' — placar final, campanha fechada.' : '';
+            logCronRanking("Campanha #$campanha_id: ranking recalculado ({$stmt->rowCount()} participantes).$sufixo");
         } catch (Throwable $e) {
             $pdo->rollBack();
             logCronRanking("Campanha #$campanha_id: erro ao recalcular — " . $e->getMessage());

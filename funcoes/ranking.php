@@ -2,24 +2,45 @@
 declare(strict_types=1);
 
 /**
- * Campanha ativa de um tipo (`oficial` ou `mensal`). O ranking em si vem de
- * `ranking_cache`, recalculado periodicamente por cron/cron_ranking.php — esta
- * função nunca agrega `vendas` diretamente.
+ * A campanha que a tela deve mostrar, e em que estado ela está.
+ *
+ * Existe UMA campanha em cartaz por vez. A escolha segue esta ordem, e o primeiro que
+ * existir ganha:
+ *
+ *   1. a que está rodando agora          -> estado 'ativa'
+ *   2. senão, a última que já terminou   -> estado 'encerrada'
+ *   3. senão, a próxima agendada         -> estado 'agendada'
+ *
+ * O passo 2 é o ponto importante. Antes a busca exigia `NOW() BETWEEN data_inicio AND
+ * data_fim`, então a campanha sumia da tela no segundo em que acabava -- justamente quando
+ * todo mundo quer ver quem ganhou. Agora o resultado final fica no ar até a próxima campanha
+ * começar (ou até o admin desativar essa).
+ *
+ * `ativa` na tabela é o interruptor do admin ("essa campanha conta?"), não tem nada a ver
+ * com estar em andamento -- quem diz isso são as datas.
  */
-function buscarCampanhaAtiva(string $tipo = 'oficial'): ?array
+function buscarCampanhaVigente(): ?array
 {
     global $pdo;
-    $stmt = $pdo->prepare("
-        SELECT * FROM campanhas_ranking
-        WHERE tipo = ? AND ativa = 1 AND NOW() BETWEEN data_inicio AND data_fim
-        ORDER BY data_inicio DESC
-        LIMIT 1
-    ");
-    $stmt->execute([$tipo]);
-    $campanha = $stmt->fetch(PDO::FETCH_ASSOC);
-    return $campanha ?: null;
-}
 
+    // Cada consulta pega um dos três casos, na ordem de prioridade acima.
+    $tentativas = [
+        ['ativa',      "data_inicio <= NOW() AND data_fim >= NOW()", "data_fim ASC"],
+        ['encerrada',  "data_fim < NOW()",                           "data_fim DESC"],
+        ['agendada',   "data_inicio > NOW()",                        "data_inicio ASC"],
+    ];
+
+    foreach ($tentativas as [$estado, $condicao, $ordem]) {
+        $stmt = $pdo->prepare("SELECT * FROM campanhas_ranking WHERE ativa = 1 AND $condicao ORDER BY $ordem LIMIT 1");
+        $stmt->execute();
+        $campanha = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($campanha) {
+            $campanha['estado'] = $estado;
+            return $campanha;
+        }
+    }
+    return null;
+}
 function buscarPremiosCampanha(int $campanha_id): array
 {
     global $pdo;

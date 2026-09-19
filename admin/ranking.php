@@ -30,7 +30,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $slug = trim($_POST['slug'] ?? '');
         $titulo = trim($_POST['titulo'] ?? '');
         $subtitulo = trim($_POST['subtitulo'] ?? '');
-        $tipo = in_array($_POST['tipo'] ?? '', ['oficial', 'mensal'], true) ? $_POST['tipo'] : 'oficial';
         $data_inicio = trim($_POST['data_inicio'] ?? '');
         $data_fim = trim($_POST['data_fim'] ?? '');
         $ativa = isset($_POST['ativa']) ? 1 : 0;
@@ -46,17 +45,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($id) {
                     $stmt = $pdo->prepare("
                         UPDATE campanhas_ranking
-                        SET slug = ?, titulo = ?, subtitulo = ?, tipo = ?, data_inicio = ?, data_fim = ?, ativa = ?
+                        SET slug = ?, titulo = ?, subtitulo = ?, data_inicio = ?, data_fim = ?, ativa = ?
                         WHERE id = ?
                     ");
-                    $stmt->execute([$slug, $titulo, $subtitulo ?: null, $tipo, $data_inicio, $data_fim, $ativa, $id]);
+                    $stmt->execute([$slug, $titulo, $subtitulo ?: null, $data_inicio, $data_fim, $ativa, $id]);
                     $campanha_id = $id;
                 } else {
                     $stmt = $pdo->prepare("
-                        INSERT INTO campanhas_ranking (slug, titulo, subtitulo, tipo, data_inicio, data_fim, ativa)
+                        INSERT INTO campanhas_ranking (slug, titulo, subtitulo, data_inicio, data_fim, ativa)
                         VALUES (?, ?, ?, ?, ?, ?, ?)
                     ");
-                    $stmt->execute([$slug, $titulo, $subtitulo ?: null, $tipo, $data_inicio, $data_fim, $ativa]);
+                    $stmt->execute([$slug, $titulo, $subtitulo ?: null, $data_inicio, $data_fim, $ativa]);
                     $campanha_id = (int) $pdo->lastInsertId();
                 }
 
@@ -155,13 +154,6 @@ function campoPremio(int $posicao, array $premios_edicao): array
                         <input type="text" id="slug" name="slug" required maxlength="60" placeholder="dubai-2026"
                                value="<?php echo htmlspecialchars($campanha_edicao['slug'] ?? ''); ?>">
                     </div>
-                    <div class="campo">
-                        <label for="tipo">Tipo</label>
-                        <select id="tipo" name="tipo">
-                            <option value="oficial" <?php echo (($campanha_edicao['tipo'] ?? 'oficial') === 'oficial') ? 'selected' : ''; ?>>Oficial</option>
-                            <option value="mensal" <?php echo (($campanha_edicao['tipo'] ?? '') === 'mensal') ? 'selected' : ''; ?>>Mensal</option>
-                        </select>
-                    </div>
                     <div class="campo completo">
                         <label for="titulo">Título</label>
                         <input type="text" id="titulo" name="titulo" required maxlength="100" placeholder="Dubai 2026"
@@ -224,21 +216,28 @@ function campoPremio(int $posicao, array $premios_edicao): array
                     <thead>
                         <tr>
                             <th>Título</th>
-                            <th>Tipo</th>
+                            <th>Situação</th>
                             <th>Período</th>
-                            <th>Status</th>
                             <th>Ações</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($campanhas)): ?>
-                            <tr><td colspan="5" style="text-align:center;padding:32px;" class="texto-suave">Nenhuma campanha cadastrada ainda.</td></tr>
+                            <tr><td colspan="4" style="text-align:center;padding:32px;" class="texto-suave">Nenhuma campanha cadastrada ainda.</td></tr>
                         <?php else: foreach ($campanhas as $c): ?>
                             <tr>
                                 <td><?php echo htmlspecialchars($c['titulo']); ?><div class="celula-sub mono"><?php echo htmlspecialchars($c['slug']); ?></div></td>
-                                <td><?php echo $c['tipo'] === 'mensal' ? 'Mensal' : 'Oficial'; ?></td>
+                                <?php
+                                // Mesma leitura da tela do usuário: quem diz se está rolando são
+                                // as datas; `ativa` é só o interruptor do admin.
+                                $agora_ts = time();
+                                if (!$c['ativa'])                                     { $sit = ['Desligada', 'badge-neutro']; }
+                                elseif (strtotime($c['data_inicio']) > $agora_ts)     { $sit = ['Agendada', 'badge-alerta']; }
+                                elseif (strtotime($c['data_fim']) < $agora_ts)        { $sit = ['Encerrada', 'badge-neutro']; }
+                                else                                                  { $sit = ['Em andamento', 'badge-sucesso']; }
+                                ?>
+                                <td><span class="badge <?php echo $sit[1]; ?>"><?php echo $sit[0]; ?></span></td>
                                 <td class="mono texto-suave"><?php echo date('d/m/y', strtotime($c['data_inicio'])); ?> — <?php echo date('d/m/y', strtotime($c['data_fim'])); ?></td>
-                                <td><span class="badge <?php echo $c['ativa'] ? 'badge-sucesso' : 'badge-neutro'; ?>"><?php echo $c['ativa'] ? 'Ativa' : 'Inativa'; ?></span></td>
                                 <td>
                                     <div style="display:flex;gap:6px;">
                                         <a href="ranking.php?editar=<?php echo (int) $c['id']; ?>" class="botao">Editar</a>

@@ -4,27 +4,30 @@ require_once __DIR__ . '/funcoes/ranking.php';
 bloquearAdmin();
 
 $usuario_id = (int) $_SESSION['usuario_id'];
-$campanha = buscarCampanhaAtiva('oficial');
+$campanha = buscarCampanhaVigente();
+$estado = $campanha['estado'] ?? null;   // ativa | encerrada | agendada
 $ranking = $campanha ? buscarRankingCampanha((int) $campanha['id'], $usuario_id) : null;
 $premios = $campanha ? buscarPremiosCampanha((int) $campanha['id']) : [];
 
-$contagem = [
-    ['v' => '00', 'l' => 'dias'], ['v' => '00', 'l' => 'horas'], ['v' => '00', 'l' => 'min'], ['v' => '00', 'l' => 'seg'],
-];
-if ($campanha) {
-    $fim_campanha = new DateTime($campanha['data_fim']);
-    $agora = new DateTime();
-    if ($agora < $fim_campanha) {
-        $restante = $agora->diff($fim_campanha);
-        $contagem = [
-            ['v' => str_pad((string) $restante->days, 2, '0', STR_PAD_LEFT), 'l' => 'dias'],
-            ['v' => str_pad((string) $restante->h, 2, '0', STR_PAD_LEFT), 'l' => 'horas'],
-            ['v' => str_pad((string) $restante->i, 2, '0', STR_PAD_LEFT), 'l' => 'min'],
-            ['v' => str_pad((string) $restante->s, 2, '0', STR_PAD_LEFT), 'l' => 'seg'],
-        ];
-    }
+// A contagem serve aos dois sentidos: quanto falta pra acabar (campanha rodando) ou quanto
+// falta pra começar (agendada). Encerrada não tem contagem.
+$contagem = null;
+$alvo_contagem = null;
+if ($estado === 'ativa') {
+    $alvo_contagem = new DateTime($campanha['data_fim']);
+} elseif ($estado === 'agendada') {
+    $alvo_contagem = new DateTime($campanha['data_inicio']);
 }
-
+if ($alvo_contagem) {
+    $agora = new DateTime();
+    $restante = $agora < $alvo_contagem ? $agora->diff($alvo_contagem) : null;
+    $contagem = [
+        ['v' => str_pad((string) ($restante->days ?? 0), 2, '0', STR_PAD_LEFT), 'l' => 'dias'],
+        ['v' => str_pad((string) ($restante->h ?? 0), 2, '0', STR_PAD_LEFT), 'l' => 'horas'],
+        ['v' => str_pad((string) ($restante->i ?? 0), 2, '0', STR_PAD_LEFT), 'l' => 'min'],
+        ['v' => str_pad((string) ($restante->s ?? 0), 2, '0', STR_PAD_LEFT), 'l' => 'seg'],
+    ];
+}
 $progresso_top5_pct = 0;
 if ($ranking && $ranking['sua_posicao'] && !empty($ranking['faturamento_top5'])) {
     $meu = (float) $ranking['sua_posicao']['faturamento'];
@@ -83,11 +86,6 @@ if ($ranking) {
             </div>
         <?php else: ?>
 
-        <div class="abas-status" style="margin-bottom:14px;">
-            <span class="aba-status ativa"><?php echo htmlspecialchars($campanha['titulo']); ?></span>
-            <span class="aba-status">Ranking mensal</span>
-            <span class="aba-status">Minhas ligas</span>
-        </div>
 
         <div class="grade-ranking">
             <div>
@@ -97,7 +95,13 @@ if ($ranking) {
                     <div class="hero-ranking-conteudo">
                         <div style="display:flex;gap:8px;flex-wrap:wrap;">
                             <span class="pill-campanha" style="background:var(--orsoft);color:var(--or);">Campanha oficial</span>
-                            <span class="pill-campanha" style="background:var(--oksoft);color:var(--ok);"><span class="ponto-vivo"></span>Em disputa</span>
+                            <?php if ($estado === 'ativa'): ?>
+                                <span class="pill-campanha" style="background:var(--oksoft);color:var(--ok);"><span class="ponto-vivo"></span>Em disputa</span>
+                            <?php elseif ($estado === 'encerrada'): ?>
+                                <span class="pill-campanha" style="background:var(--p3);color:var(--m);">Encerrada em <?php echo date('d/m/Y', strtotime($campanha['data_fim'])); ?></span>
+                            <?php else: ?>
+                                <span class="pill-campanha" style="background:var(--wasoft);color:var(--wa);">Começa em <?php echo date('d/m/Y', strtotime($campanha['data_inicio'])); ?></span>
+                            <?php endif; ?>
                         </div>
                         <h2 class="hero-ranking-titulo"><?php echo htmlspecialchars($campanha['titulo']); ?></h2>
                         <?php if ($campanha['subtitulo']): ?>
@@ -114,9 +118,11 @@ if ($ranking) {
                     <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
                         <span class="rotulo-kpi">Classificação oficial</span>
                         <div style="flex:1;"></div>
-                        <span style="display:flex;align-items:center;gap:7px;font:700 11px 'Manrope',sans-serif;color:var(--ok);"><span class="ponto-vivo"></span>Atualiza a cada 60s</span>
+                        <?php if ($estado === 'ativa'): ?>
+                            <span style="display:flex;align-items:center;gap:7px;font:700 11px 'Manrope',sans-serif;color:var(--ok);"><span class="ponto-vivo"></span>Atualiza a cada 60s</span>
+                        <?php endif; ?>
                     </div>
-                    <h2 style="margin:6px 0 0;font-size:28px;">Placar ao vivo</h2>
+                    <h2 style="margin:6px 0 0;font-size:28px;"><?php echo $estado === 'encerrada' ? 'Resultado final' : 'Placar ao vivo'; ?></h2>
 
                     <?php if (empty($ranking['top3'])): ?>
                         <div class="estado-vazio" style="margin-top:16px;">Ninguém pontuou nesta campanha ainda.</div>
@@ -220,7 +226,8 @@ if ($ranking) {
                         <?php endif; ?>
                     <?php endif; ?>
 
-                    <div class="rotulo-kpi" style="margin:20px 0 8px;">A corrida termina em</div>
+                    <?php if ($contagem): ?>
+                    <div class="rotulo-kpi" style="margin:20px 0 8px;"><?php echo $estado === 'agendada' ? 'A corrida começa em' : 'A corrida termina em'; ?></div>
                     <div class="grade-contagem">
                         <?php foreach ($contagem as $c): ?>
                             <div class="caixa-contagem">
@@ -229,6 +236,7 @@ if ($ranking) {
                             </div>
                         <?php endforeach; ?>
                     </div>
+                    <?php endif; ?>
                 </div>
 
                 <?php if ($premios): ?>
@@ -257,14 +265,6 @@ if ($ranking) {
                 </div>
                 <?php endif; ?>
 
-                <div class="painel">
-                    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
-                        <span class="rotulo-kpi">Ligas privadas</span>
-                        <span class="badge badge-sucesso">Disponível</span>
-                    </div>
-                    <p class="texto-suave" style="margin:10px 0 14px;line-height:1.55;">Crie ou entre em uma liga privada com outros competidores e dispute um ranking à parte.</p>
-                    <button type="button" class="botao botao-bloco" disabled title="Em breve">Abrir minhas ligas</button>
-                </div>
             </div>
         </div>
         <?php endif; ?>
