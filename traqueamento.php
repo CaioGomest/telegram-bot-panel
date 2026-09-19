@@ -110,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             secao.classList.toggle('secao-desativada', !checkbox.checked);
         }
         document.addEventListener('DOMContentLoaded', () => {
-            ['facebook', 'tiktok', 'utmfy'].forEach(id => {
+            ['facebook', 'utmfy'].forEach(id => {   // 'tiktok' saiu junto com a seção desativada
                 alternarSecaoPlataforma(id);
                 document.getElementById(id + '_ativo').addEventListener('change', () => alternarSecaoPlataforma(id));
             });
@@ -172,6 +172,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
 
+                <?php /* ===== TikTok Ads: DESATIVADO em 19/09/2026 =====
+                     Sem conta de TikTok Ads pra validar o envio, o campo só criaria a
+                     expectativa de que o traqueamento está funcionando. Pra religar:
+                     descomentar isto e o bloco correspondente em funcoes/traqueamento.php.
+
                 <div class="secao-plataforma" id="tiktok_fields">
                     <div class="cabecalho-plataforma">
                         <div class="titulo-plataforma">
@@ -198,6 +203,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </div>
                 </div>
+
+                */ ?>
 
                 <div class="secao-plataforma" id="utmfy_fields">
                     <div class="cabecalho-plataforma">
