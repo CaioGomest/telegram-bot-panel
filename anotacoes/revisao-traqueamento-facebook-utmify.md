@@ -1,5 +1,16 @@
 # Revisão linha por linha — Facebook e UTMify
 
+> **Atualização 19/09/2026 (commit `d5cfc8e`): corrigidos** — o problema transversal (evento
+> sem identificação), U1, U2, U3, U4, U5, U6, U8, U9, F1 e F2.
+>
+> **Ficaram de fora**, por dependerem de conferir a documentação atual do terceiro ou de
+> decisão sua: F3 (`action_source` `system_generated` vs `chat`), F4 (`test_event_code`),
+> F5, F6 (nova tentativa em falha de rede), F7, U7, U10 (janela de DNS rebinding) e U11.
+>
+> Verificado ao vivo depois da correção: o payload da UTMify sai com UTM, comissão certa
+> (975 + 8775 = 9750), produto real e data de pagamento convertida pra UTC; o do Facebook sai
+> com o token no corpo e o telefone com DDI. Detalhes em `traqueamento-o-que-foi-corrigido.md`.
+
 19/09/2026. Revisão de código, sem teste ao vivo: não tenho conta de anúncio nem token pra
 disparar evento de verdade. Onde a conclusão depende do comportamento atual da API do
 terceiro, está marcado.
