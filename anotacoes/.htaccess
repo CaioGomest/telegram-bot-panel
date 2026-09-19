@@ -1,0 +1,13 @@
+# As anotações deste projeto são documentação interna: varreduras de segurança, análise de
+# capacidade, checklist pré-lançamento. Servidas pela URL, viram um mapa de ataque pronto
+# (o checklist chega a dizer quais segredos ainda não foram trocados).
+#
+# Elas ficam dentro da pasta pública só porque o deploy é um `git pull` da raiz do projeto.
+
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>

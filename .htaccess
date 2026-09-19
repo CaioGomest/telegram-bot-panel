@@ -16,6 +16,23 @@ Options -Indexes
     </DirectoryMatch>
 </IfModule>
 
+# ===== Documentacao interna nao e conteudo do site =====
+# CLAUDE.md e README.md estavam sendo servidos como texto: o CLAUDE.md dizia em quais pastas
+# o projeto mora no servidor, listava os outros dominios da mesma conta Hostinger e afirmava
+# que a senha de todos os usuarios do ambiente de teste e 123456. .gitignore entregava a
+# estrutura de pastas. Nada disso e usado pelo painel em runtime.
+
+<IfModule mod_authz_core.c>
+    <FilesMatch "(?i)\.(md|markdown|yml|yaml|lock|dist|example|bak|sql)$|^\.(gitignore|gitattributes|env)">
+        Require all denied
+    </FilesMatch>
+</IfModule>
+<IfModule !mod_authz_core.c>
+    <FilesMatch "(?i)\.(md|markdown|yml|yaml|lock|dist|example|bak|sql)$|^\.(gitignore|gitattributes|env)">
+        Order allow,deny
+        Deny from all
+    </FilesMatch>
+</IfModule>
 # ===== URL sem .php (/bots em vez de /bots.php) =====
 # Duas regras: (a) manda o .php antigo pra URL limpa, (b) serve a URL limpa a partir do
 # arquivo .php de verdade. As condições existem por causa de três armadilhas deste projeto:
