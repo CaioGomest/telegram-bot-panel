@@ -6,7 +6,10 @@ bloquearAdmin();
 $usuario_id = (int) $_SESSION['usuario_id'];
 $campanha = buscarCampanhaVigente();
 $estado = $campanha['estado'] ?? null;   // ativa | encerrada | agendada
-$ranking = $campanha ? buscarRankingCampanha((int) $campanha['id'], $usuario_id) : null;
+// Campanha agendada não tem placar — o ranking_cache ainda guarda os números da janela
+// anterior, e mostrar aquilo como "placar ao vivo" de uma disputa que nem começou seria
+// simplesmente mentira.
+$ranking = ($campanha && $estado !== 'agendada') ? buscarRankingCampanha((int) $campanha['id'], $usuario_id) : null;
 $premios = $campanha ? buscarPremiosCampanha((int) $campanha['id']) : [];
 
 // A contagem serve aos dois sentidos: quanto falta pra acabar (campanha rodando) ou quanto
@@ -69,7 +72,11 @@ if ($ranking) {
         <div class="cabecalho-pagina">
             <div>
                 <h1>Ranking</h1>
-                <p>Campanha oficial de faturamento — acompanhe sua posição em tempo real.</p>
+                <p><?php
+                    echo $estado === 'encerrada' ? 'Campanha encerrada — veja o resultado final abaixo.'
+                       : ($estado === 'agendada' ? 'A próxima campanha oficial de faturamento já tem data.'
+                       : 'Campanha oficial de faturamento — acompanhe sua posição em tempo real.');
+                ?></p>
             </div>
             <div class="acoes-cabecalho">
                 <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
@@ -109,11 +116,18 @@ if ($ranking) {
                         <?php endif; ?>
                         <div class="hero-ranking-meta">
                             <span><?php echo date('d/m/Y', strtotime($campanha['data_inicio'])); ?> — <?php echo date('d/m/Y', strtotime($campanha['data_fim'])); ?></span>
-                            <span><?php echo number_format($ranking['total_participantes'], 0, ',', '.'); ?> participantes</span>
+                            <?php if ($ranking): ?><span><?php echo number_format($ranking['total_participantes'], 0, ',', '.'); ?> participantes</span><?php endif; ?>
                         </div>
                     </div>
                 </div>
 
+                <?php if (!$ranking): ?>
+                <div class="painel">
+                    <span class="rotulo-kpi">Classificação oficial</span>
+                    <h2 style="margin:6px 0 10px;font-size:28px;">A disputa ainda não começou</h2>
+                    <p class="texto-suave" style="margin:0;line-height:1.55;">O placar aparece aqui quando a campanha abrir, em <?php echo date('d/m/Y \à\s H:i', strtotime($campanha['data_inicio'])); ?>. Vale o faturamento aprovado a partir dessa data.</p>
+                </div>
+                <?php else: ?>
                 <div class="painel">
                     <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
                         <span class="rotulo-kpi">Classificação oficial</span>
@@ -195,9 +209,11 @@ if ($ranking) {
                     </div>
                     <?php endif; ?>
                 </div>
+                <?php endif; ?>
             </div>
 
             <div>
+                <?php if ($ranking): ?>
                 <div class="painel">
                     <div class="cartao-passe-titulo">
                         <span class="rotulo-kpi">Passe do competidor</span>
@@ -238,6 +254,7 @@ if ($ranking) {
                     </div>
                     <?php endif; ?>
                 </div>
+                <?php endif; ?>
 
                 <?php if ($premios): ?>
                 <div class="painel">
