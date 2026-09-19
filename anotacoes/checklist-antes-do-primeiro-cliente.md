@@ -15,6 +15,10 @@ Aberto em 2026-09-18 numa revisão pré-lançamento. Marcar conforme for resolve
       rate limit. Já estava mapeado na `varredura-09` e nunca corrigido. Apagados (o próprio texto
       dentro deles pedia isso); ninguém linkava pra elas.
 
+- [x] **Documentação interna estava servida pela web.** `/CLAUDE.md` (que diz que a senha de
+      todos é `123456` e lista os outros domínios da conta), `/README.md`, `/.gitignore` e os 32
+      arquivos de `/anotacoes/`. Bloqueados por `.htaccess`. Ver `varredura-12-documentacao-exposta.md`.
+
 ## Pendente — precisa de ação sua
 
 - [ ] **Definir a marca do painel** em Administração → Identidade Visual (nome, logo, favicon).
