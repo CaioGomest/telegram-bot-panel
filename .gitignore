@@ -1,3 +1,9 @@
+# Credenciais desta instalacao. NUNCA versionar: o config.php do servidor tem o usuario
+# e senha reais do banco, a CHAVE_CRIPTOGRAFIA_GATEWAYS (que descriptografa os segredos
+# dos gateways) e a CHAVE_SECRETA_CRON. Versionado, qualquer git pull no servidor
+# sobrescreve as credenciais de producao com as de quem commitou por ultimo.
+config.php
+
 logs/*
 !logs/.gitkeep
 !logs/.htaccess
