@@ -56,8 +56,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <div class="login-formulario">
         <div class="login-formulario-conteudo">
-            <h2>Criar conta</h2>
-            <p class="texto-suave" style="margin:6px 0 22px;">Novo usuário do painel.</p>
+            <div class="login-cabecalho-mobile">
+                <img src="<?php echo htmlspecialchars(logoSistema()); ?>" alt="<?php echo htmlspecialchars(nomeSistema()); ?>" class="login-cabecalho-logo">
+                <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>
+                </button>
+            </div>
+            <h2>Criar sua conta</h2>
+            <p class="texto-suave" style="margin:8px 0 0;">Leva menos de um minuto. Depois você conecta seu primeiro bot.</p>
+            <nav class="login-abas">
+                <a href="login" class="login-aba">Entrar</a>
+                <a href="cadastro" class="login-aba ativa">Criar conta</a>
+            </nav>
 
             <?php if ($erro): ?>
                 <div class="aviso aviso-erro"><?php echo htmlspecialchars($erro); ?></div>
@@ -95,11 +105,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <input type="password" id="confirma_senha" name="confirma_senha" required>
                 </div>
 
-                <button type="submit" class="botao botao-primario botao-bloco" style="margin-top:20px;padding:15px;">Criar Conta</button>
+                <p class="texto-suave" style="margin:18px 0 0;font-size:12.5px;line-height:1.5;">Ao criar a conta você concorda com os <a href="termos" class="login-link-esqueci">termos de uso</a>.</p>
+                <button type="submit" class="botao botao-primario botao-bloco" style="margin-top:14px;padding:15px;">Criar conta</button>
             </form>
             <?php endif; ?>
 
-            <p style="margin:18px 0 0;text-align:center;font-size:12.5px;" class="texto-suave">
+            <p style="margin:18px 0 0;text-align:center;font-size:12.5px;" class="texto-suave login-rodape-alternar">
                 Já tem uma conta? <a href="login" class="login-link-esqueci">Fazer login</a>
             </p>
         </div>

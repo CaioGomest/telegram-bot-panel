@@ -62,8 +62,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'login')
 
     <div class="login-formulario">
         <div class="login-formulario-conteudo">
+            <div class="login-cabecalho-mobile">
+                <img src="<?php echo htmlspecialchars(logoSistema()); ?>" alt="<?php echo htmlspecialchars(nomeSistema()); ?>" class="login-cabecalho-logo">
+                <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>
+                </button>
+            </div>
             <h2>Entrar no painel</h2>
-            <p class="texto-suave" style="margin:6px 0 22px;">Use o e-mail cadastrado na sua conta.</p>
+            <p class="texto-suave" style="margin:8px 0 0;">Bem-vindo de volta. Continue de onde parou.</p>
+            <nav class="login-abas">
+                <a href="login" class="login-aba ativa">Entrar</a>
+                <a href="cadastro" class="login-aba">Criar conta</a>
+            </nav>
 
             <?php if ($erro_login || isset($_GET['erro'])): ?>
                 <div class="aviso aviso-erro">
@@ -115,14 +125,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'login')
                         <input type="checkbox" id="lembrar" name="lembrar" value="1">
                         <span class="chave-gateway-trilho"></span>
                     </label>
-                    <span class="texto-suave" style="margin-right:auto;margin-left:8px;">Lembrar de mim</span>
+                    <span class="texto-suave" style="margin-right:auto;margin-left:8px;">Lembrar</span>
                     <span class="login-link-esqueci" onclick="abrirEsqueciSenha()">Esqueci a senha</span>
                 </div>
 
                 <button type="submit" class="botao botao-primario botao-bloco" style="margin-top:20px;padding:15px;">Entrar</button>
             </form>
 
-            <p style="margin:18px 0 0;text-align:center;font-size:12.5px;" class="texto-suave">
+            <p style="margin:18px 0 0;text-align:center;font-size:12.5px;" class="texto-suave login-rodape-alternar">
                 Não tem conta? <a href="cadastro" class="login-link-esqueci">Cadastre-se</a>
             </p>
         </div>

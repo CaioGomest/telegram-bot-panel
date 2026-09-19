@@ -882,6 +882,27 @@ html[data-theme] a.botao-configurar { color: var(--or); }
 .login-metrica-rotulo { font: 700 10.5px 'Manrope', sans-serif; letter-spacing: .1em; text-transform: uppercase; color: var(--m); margin-top: 2px; }
 .login-formulario-conteudo { width: 100%; max-width: 380px; margin: 0 auto; }
 .login-opcoes { display: flex; align-items: center; margin: 16px 0 0; }
+
+/* Cabeçalho compacto e abas Entrar/Criar conta: só existem no mobile (ver o @media abaixo).
+   No desktop quem faz esse papel é a coluna de marca à esquerda e o link no rodapé. */
+.login-cabecalho-mobile { display: none; }
+.login-cabecalho-logo { width: 54px; height: 54px; border-radius: 16px; object-fit: cover; }
+html[data-theme] .login-cabecalho-logo { border: 1px solid var(--bd); }
+
+/* Paginas de texto corrido e publicas (termos de uso). Mesmo tom das telas de login. */
+.pagina-texto { max-width: 720px; margin: 0 auto; padding: 22px 20px 56px; }
+.pagina-texto-cabecalho { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; }
+.pagina-texto h1 { font-size: 34px; margin: 0 0 6px; }
+.pagina-texto h2 { font-size: 19px; margin: 30px 0 8px; }
+.pagina-texto p { margin: 0 0 12px; line-height: 1.65; }
+html[data-theme] .pagina-texto p { color: var(--m); }
+html[data-theme] .pagina-texto h1, html[data-theme] .pagina-texto h2 { color: var(--t); }
+
+.login-abas { display: none; gap: 4px; padding: 5px; margin: 20px 0 24px; border-radius: 15px; }
+html[data-theme] .login-abas { background: var(--p2); border: 1px solid var(--bd); }
+.login-aba { flex: 1; text-align: center; padding: 13px 8px; border-radius: 11px; font: 700 13.5px 'Manrope', sans-serif; }
+html[data-theme] .login-aba { color: var(--m); }
+html[data-theme] .login-aba.ativa { background: var(--or); color: #fff; }
 .login-link-esqueci { font: 700 12.5px 'Manrope', sans-serif; color: var(--or); cursor: pointer; text-decoration: none; }
 
 /* ===== Ranking ===== */
@@ -972,6 +993,31 @@ html[data-theme] a.botao-configurar { color: var(--or); }
 }
 
 @media (max-width: 860px) {
+    /* Login e cadastro no mobile seguem o protótipo: o bloco de marketing (logo gigante,
+       manchete e métricas) sai, porque empurrava o formulário pra fora da primeira tela --
+       era preciso rolar pra ver o campo de e-mail. No lugar entra um cabeçalho compacto
+       (logo à esquerda, tema à direita) e a troca entre entrar/criar conta vira pills.
+       No desktop nada disso muda: a coluna de marca continua como era. */
+    .tela-login { display: block; }
+    .login-marca { display: none; }
+    .tela-login > .alternador-tema { display: none; }  /* o absoluto; no mobile vai no cabeçalho */
+    .login-formulario { padding: 20px 20px 36px; justify-content: flex-start; min-height: 100vh; }
+    .login-formulario-conteudo { max-width: none; }
+    .login-cabecalho-mobile { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .login-formulario-conteudo h2 { font-size: 34px; line-height: 1.02; }
+    .login-abas { display: flex; }
+    .login-rodape-alternar { display: none; }  /* as pills já fazem isso */
+
+    /* O olho de mostrar senha vira ícone dentro do campo: no protótipo a senha ocupa a
+       largura toda, igual aos outros campos. Escopado no .login-formulario pra não mexer
+       no .campo-com-acao das telas de admin. */
+    .login-formulario .campo-com-acao { position: relative; display: block; }
+    .login-formulario .campo-com-acao input { width: 100%; padding-right: 46px; }
+    .login-formulario .campo-com-acao .botao {
+        position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+        background: transparent; border: 0; padding: 8px 10px; min-width: 0;
+    }
+
     .barra-lateral { display: none; }
     .layout-painel { flex-direction: column; padding-bottom: 64px; }
     .conteudo-principal { padding: 0 16px 24px; }
