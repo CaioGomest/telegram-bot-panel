@@ -3,10 +3,9 @@ require_once __DIR__ . '/funcoes/usuario.php';
 require_once __DIR__ . '/funcoes/log.php';
 require_once __DIR__ . '/funcoes/paginador.php';
 require_once __DIR__ . '/conexao.php';
-verificarLogin();
+bloquearAdmin();
 
 $user_id = $_SESSION['usuario_id'];
-$is_admin = ehAdmin();
 
 $where_user = "";
 $where_user_vendas = "";
@@ -18,36 +17,21 @@ $bot_id_selecionado = 'todos';
 $bots_filtro = [];
 $mostrar_filtro_bot = false;
 
-if (!$is_admin) {
-    $where_user_vendas = " AND v.bot_id IN (SELECT id FROM bots WHERE id_usuario = $user_id) ";
-    $where_user_leads = " AND l.bot_id IN (SELECT id FROM bots WHERE id_usuario = $user_id) ";
-    $where_user_atividades = " WHERE id_usuario = $user_id ";
-} else {
-    $where_user_vendas = "";
-    $where_user_leads = "";
-    $where_user_atividades = "";
-}
+// Esta tela é do usuário. O admin nunca chega aqui (bloquearAdmin() manda pra
+// /admin/dashboard), então não existe mais o ramo "admin vê tudo" que havia aqui.
+$where_user_vendas = " AND v.bot_id IN (SELECT id FROM bots WHERE id_usuario = $user_id) ";
+$where_user_leads = " AND l.bot_id IN (SELECT id FROM bots WHERE id_usuario = $user_id) ";
+$where_user_atividades = " WHERE id_usuario = $user_id ";
 
-if ($is_admin) {
-    $stmt_bots = $pdo->prepare("
-        SELECT 
-            id,
-            COALESCE(NULLIF(primeiro_nome, ''), NULLIF(nome_usuario, ''), CONCAT('Bot #', id)) AS nome
-        FROM bots
-        ORDER BY nome ASC
-    ");
-    $stmt_bots->execute();
-} else {
-    $stmt_bots = $pdo->prepare("
-        SELECT 
-            id,
-            COALESCE(NULLIF(primeiro_nome, ''), NULLIF(nome_usuario, ''), CONCAT('Bot #', id)) AS nome
-        FROM bots
-        WHERE id_usuario = ?
-        ORDER BY nome ASC
-    ");
-    $stmt_bots->execute([$user_id]);
-}
+$stmt_bots = $pdo->prepare("
+    SELECT 
+        id,
+        COALESCE(NULLIF(primeiro_nome, ''), NULLIF(nome_usuario, ''), CONCAT('Bot #', id)) AS nome
+    FROM bots
+    WHERE id_usuario = ?
+    ORDER BY nome ASC
+");
+$stmt_bots->execute([$user_id]);
 $bots_filtro = $stmt_bots->fetchAll(PDO::FETCH_ASSOC);
 $mostrar_filtro_bot = count($bots_filtro) > 1;
 $ids_bots_permitidos = array_map(static function (array $bot): int {
@@ -164,7 +148,7 @@ $usa_cache_metricas = ($bot_id_selecionado === 'todos');
 
 try {
     if ($usa_cache_metricas) {
-        $where_usuario_metricas = $is_admin ? '' : "AND id_usuario = $user_id";
+        $where_usuario_metricas = "AND id_usuario = $user_id";
         $stmt = $pdo->query("SELECT SUM(valor_pago), SUM(qtd_paga), SUM(qtd_gerada), SUM(qtd_leads) FROM metricas_horarias_usuario WHERE 1=1 $where_data_metricas $where_usuario_metricas");
         [$vendas_aprovadas, $pix_pagos, $pix_gerados, $total_starts] = $stmt->fetch(PDO::FETCH_NUM);
         $vendas_aprovadas = (float) $vendas_aprovadas;
@@ -414,13 +398,11 @@ try {
     }
 
 
-    // Para usuários, mostrar apenas eventos relacionados ao Telegram (venda, lead)
-    // Para admin, mostra tudo (ou poderia ser só eventos globais, mas aqui seguimos o padrão dashboard)
-    $filtros_atividades = [];
-    if (!$is_admin) {
-        $filtros_atividades['id_usuario'] = $user_id;
-        $filtros_atividades['tipos_in'] = ['venda', 'pix_gerado', 'lead'];
-    }
+    // Só eventos do próprio usuário e só os que vêm do Telegram (venda, lead).
+    $filtros_atividades = [
+        'id_usuario' => $user_id,
+        'tipos_in'   => ['venda', 'pix_gerado', 'lead'],
+    ];
 
     $por_pagina = 10;
     $pagina_atual = isset($_GET['pagina']) ? max(1, (int)$_GET['pagina']) : 1;

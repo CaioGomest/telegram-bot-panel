@@ -159,13 +159,23 @@ $iniciais = mb_strtoupper(mb_substr($nome_usuario, 0, 1), 'UTF-8');
 
 <nav class="barra-mobile">
     <?php
-    $itens_mobile = [
-        ['href' => $is_admin ? 'admin/dashboard' : 'index', 'label' => 'Início', 'icone' => 'dashboard'],
-        ['href' => 'bots', 'label' => 'Bots', 'icone' => 'bots'],
-        ['href' => 'fluxos', 'label' => 'Fluxos', 'icone' => 'fluxos'],
-        ['href' => 'leads', 'label' => 'Leads', 'icone' => 'leads'],
-        ['href' => 'ranking', 'label' => 'Ranking', 'icone' => 'ranking'],
-        ['href' => 'configuracao_usuario', 'label' => 'Conta', 'icone' => 'conta'],
+    // As abas seguem o mesmo corte do menu lateral: quem opera bot é o usuário, o admin
+    // administra a plataforma. Antes esta lista era fixa e só olhava $is_admin no "Início",
+    // então o admin via Bots/Fluxos/Leads no celular enquanto o menu do desktop escondia
+    // exatamente esses itens dele -- os dois menus discordavam na mesma sessão.
+    $itens_mobile = $is_admin ? [
+        ['href' => 'admin/dashboard',      'label' => 'Início',     'icone' => 'dashboard'],
+        ['href' => 'admin/transacoes',     'label' => 'Transações', 'icone' => 'transacoes'],
+        ['href' => 'admin/usuarios',       'label' => 'Usuários',   'icone' => 'usuarios'],
+        ['href' => 'admin/logs',           'label' => 'Logs',       'icone' => 'logs'],
+        ['href' => 'configuracao_usuario', 'label' => 'Conta',      'icone' => 'conta'],
+    ] : [
+        ['href' => 'index',                'label' => 'Início',  'icone' => 'dashboard'],
+        ['href' => 'bots',                 'label' => 'Bots',    'icone' => 'bots'],
+        ['href' => 'fluxos',               'label' => 'Fluxos',  'icone' => 'fluxos'],
+        ['href' => 'leads',                'label' => 'Leads',   'icone' => 'leads'],
+        ['href' => 'ranking',              'label' => 'Ranking', 'icone' => 'ranking'],
+        ['href' => 'configuracao_usuario', 'label' => 'Conta',   'icone' => 'conta'],
     ];
     foreach ($itens_mobile as $item):
         $ativo = basename($item['href']) === $pagina_atual;

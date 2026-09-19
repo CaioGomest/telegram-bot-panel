@@ -3,7 +3,7 @@ declare(strict_types=1);
 require_once 'conexao.php';
 require_once __DIR__ . '/funcoes/usuario.php';
 
-verificarLogin();
+bloquearAdmin();
 
 $usuario_id = $_SESSION['usuario_id'];
 $mensagem = '';

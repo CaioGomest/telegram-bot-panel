@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/funcoes/usuario.php';
-verificarLogin();
+bloquearAdmin();
 $id_usuario = $_SESSION['usuario_id'];
 $stmt_bots = $pdo->prepare("SELECT id, COALESCE(primeiro_nome, nome_usuario) as nome FROM bots WHERE id_usuario = ?");
 $stmt_bots->execute([$id_usuario]);

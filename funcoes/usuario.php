@@ -146,6 +146,21 @@ function verificarAdmin(): void {
     }
 }
 
+/**
+ * O contrário de verificarAdmin(): barra o ADMIN nas telas de operação (bots, fluxos, leads,
+ * remarketing...). Quem opera bot é o usuário; o admin administra a plataforma.
+ *
+ * A barra lateral já escondia esses itens do admin desde sempre, mas era só visual -- as
+ * páginas continuavam abrindo por URL, e o admin que caísse em /fluxo acabava criando fluxo
+ * em nome próprio sem perceber. Ver anotacoes/separacao-admin-usuario.md.
+ */
+function bloquearAdmin(): void {
+    verificarLogin();
+    if (ehAdmin()) {
+        header('Location: /admin/dashboard');
+        exit;
+    }
+}
 function sistemaJaInstalado(): bool {
     global $pdo;
 

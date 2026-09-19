@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/funcoes/usuario.php';
 require_once __DIR__ . '/funcoes/paginador.php';
-verificarLogin();
+bloquearAdmin();
 
 $id_usuario = $_SESSION['usuario_id'];
 $is_admin = ehAdmin();
