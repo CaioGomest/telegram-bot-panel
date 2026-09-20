@@ -97,9 +97,13 @@ foreach ($campanhas as $c) {
             ->execute([$total, $cid]);
     }
 
+    // ORDER BY obrigatorio: o envio pagina com LIMIT/OFFSET entre execucoes do cron, e sem
+    // ordem definida o MySQL nao garante a mesma sequencia de uma rodada pra outra. Na
+    // pratica isso manda mensagem repetida pra uns leads e pula outros -- justo o que nao
+    // pode acontecer num disparo em massa. l.id e imutavel, entao serve de ordem estavel.
     $sql_leads = "SELECT l.id_telegram FROM leads l WHERE l.bot_id = ?"
         . audienciaFiltro($c['audiencia'])
-        . " LIMIT " . BATCH_SIZE . " OFFSET " . $offset;
+        . " ORDER BY l.id LIMIT " . BATCH_SIZE . " OFFSET " . $offset;
     $s = $pdo->prepare($sql_leads);
     $s->execute([$c['bot_id']]);
 
