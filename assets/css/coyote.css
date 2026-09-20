@@ -996,7 +996,12 @@ html[data-theme] a.login-link-esqueci { color: var(--or); }
 .mini-ranking-avatar { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font: 800 11px 'Manrope', sans-serif; border: 2px solid var(--m); color: var(--m); background: var(--p3); }
 .mini-ranking-item.lider .mini-ranking-avatar { border-color: var(--or); color: var(--or); }
 .mini-ranking-corpo { flex: 1; min-width: 0; }
-.mini-ranking-nome { display: flex; align-items: center; gap: 6px; font: 700 12.5px 'Manrope', sans-serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* min-width:0 é o que deixa o filho .mini-ranking-nome-texto encolher dentro do flex --
+   sem isso um nome comprido (o fallback "Usuário #3" já é longo por si só) empurra o sufixo
+   "(você)" pra fora da linha e ele some cortado em vez de aparecer inteiro. */
+.mini-ranking-nome { display: flex; align-items: center; gap: 6px; font: 700 12.5px 'Manrope', sans-serif; min-width: 0; }
+.mini-ranking-nome-texto { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.mini-ranking-voce-tag { flex: none; color: var(--or); font-weight: 800; }
 .mini-ranking-pos { flex: none; font: 800 10.5px 'Manrope', sans-serif; padding: 1px 6px; border-radius: 99px; background: var(--p3); color: var(--m); }
 .mini-ranking-item.lider .mini-ranking-pos { background: var(--or); color: #0a0b0e; }
 .mini-ranking-valor { flex: none; font: 700 12.5px 'JetBrains Mono', monospace; padding: 5px 10px; border-radius: 99px; background: var(--p3); color: var(--t); }

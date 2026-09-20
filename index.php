@@ -629,7 +629,8 @@ try {
                         <div class="mini-ranking-corpo">
                             <div class="mini-ranking-nome">
                                 <span class="mini-ranking-pos">#<?php echo (int) $item['posicao']; ?></span>
-                                <?php echo htmlspecialchars($nome_item); ?><?php echo $eh_voce ? ' (você)' : ''; ?>
+                                <span class="mini-ranking-nome-texto"><?php echo htmlspecialchars($nome_item); ?></span>
+                                <?php if ($eh_voce): ?><span class="mini-ranking-voce-tag">você</span><?php endif; ?>
                             </div>
                         </div>
                         <div class="mini-ranking-valor"><?php echo htmlspecialchars(formatarReaisResumido((float) $item['faturamento'])); ?></div>
@@ -644,7 +645,8 @@ try {
                         <div class="mini-ranking-corpo">
                             <div class="mini-ranking-nome">
                                 <span class="mini-ranking-pos">#<?php echo (int) $ranking_dash['sua_posicao']['posicao']; ?></span>
-                                <?php echo htmlspecialchars($meu_nome_dash); ?> (você)
+                                <span class="mini-ranking-nome-texto"><?php echo htmlspecialchars($meu_nome_dash); ?></span>
+                                <span class="mini-ranking-voce-tag">você</span>
                             </div>
                         </div>
                         <div class="mini-ranking-valor"><?php echo htmlspecialchars(formatarReaisResumido((float) $ranking_dash['sua_posicao']['faturamento'])); ?></div>
