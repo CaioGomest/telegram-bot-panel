@@ -2,6 +2,7 @@
 require_once __DIR__ . '/funcoes/usuario.php';
 require_once __DIR__ . '/funcoes/log.php';
 require_once __DIR__ . '/funcoes/paginador.php';
+require_once __DIR__ . '/funcoes/ranking.php';
 require_once __DIR__ . '/conexao.php';
 bloquearAdmin();
 
@@ -45,6 +46,21 @@ if (isset($_GET['bot_id']) && $_GET['bot_id'] !== 'todos') {
         $where_bot_vendas = " AND v.bot_id = $bot_id_informado";
         $where_bot_leads = " AND l.bot_id = $bot_id_informado";
     }
+}
+
+// Mini-ranking da dashboard: top 5 da campanha vigente. Try/catch próprio -- é o mesmo
+// raciocínio de tentativas_login e membros_grupos.em_renovacao: uma instalação que ainda não
+// rodou atualiza_banco.php (sem as tabelas de campanhas_ranking) não pode derrubar a
+// dashboard inteira por causa de um widget que é só um resumo do que já existe em /ranking.
+$campanha_dash = null;
+$ranking_dash = null;
+try {
+    $campanha_dash = buscarCampanhaVigente();
+    if ($campanha_dash && $campanha_dash['estado'] !== 'agendada') {
+        $ranking_dash = buscarRankingCampanha((int) $campanha_dash['id'], $user_id);
+    }
+} catch (\Throwable $e) {
+    error_log('[dashboard] mini-ranking indisponível: ' . $e->getMessage());
 }
 
 $periodo = $_GET['periodo'] ?? '7dias';
@@ -575,6 +591,73 @@ try {
                 <?php echo fimBlocoPaginado(); ?>
             </div>
         </div>
+
+        <?php if ($campanha_dash): ?>
+        <div class="painel" style="margin-top: 14px;">
+            <div class="painel-cabecalho">
+                <h2><?php echo htmlspecialchars($campanha_dash['titulo']); ?></h2>
+                <span class="texto-suave">
+                    <?php
+                    echo $campanha_dash['estado'] === 'ativa' ? 'Em disputa'
+                       : ($campanha_dash['estado'] === 'encerrada' ? 'Encerrada' : 'Começa em breve');
+                    ?>
+                </span>
+            </div>
+
+            <?php if ($campanha_dash['estado'] === 'agendada' || !$ranking_dash || empty($ranking_dash['top3'])): ?>
+                <div class="mini-ranking-vazio">
+                    <?php echo $campanha_dash['estado'] === 'agendada'
+                        ? 'O placar aparece aqui quando a campanha abrir.'
+                        : 'Ninguém pontuou ainda nesta campanha.'; ?>
+                </div>
+            <?php else: ?>
+                <?php
+                // Top 5 pra caber num widget compacto -- o pódio completo (top 3 + linhas 4-10)
+                // e "sua posição" continuam só em /ranking, essa aqui é a vitrine.
+                $top5_dash = array_slice(array_merge($ranking_dash['top3'], $ranking_dash['linhas']), 0, 5);
+                $minha_posicao_fora_do_top5 = $ranking_dash['sua_posicao']
+                    && (int) $ranking_dash['sua_posicao']['posicao'] > 5;
+                ?>
+                <div class="mini-ranking-lista">
+                    <?php foreach ($top5_dash as $item):
+                        $nome_item = nomeExibicaoRanking($item['apelido_publico'], (int) $item['id_usuario']);
+                        $eh_lider = (int) $item['posicao'] === 1;
+                        $eh_voce = (int) $item['id_usuario'] === $user_id;
+                    ?>
+                    <div class="mini-ranking-item<?php echo $eh_lider ? ' lider' : ''; ?><?php echo (!$eh_lider && $eh_voce) ? ' voce' : ''; ?>">
+                        <div class="mini-ranking-avatar"><?php echo htmlspecialchars(iniciaisRanking($nome_item)); ?></div>
+                        <div class="mini-ranking-corpo">
+                            <div class="mini-ranking-nome">
+                                <span class="mini-ranking-pos">#<?php echo (int) $item['posicao']; ?></span>
+                                <?php echo htmlspecialchars($nome_item); ?><?php echo $eh_voce ? ' (você)' : ''; ?>
+                            </div>
+                        </div>
+                        <div class="mini-ranking-valor"><?php echo htmlspecialchars(formatarReaisResumido((float) $item['faturamento'])); ?></div>
+                    </div>
+                    <?php endforeach; ?>
+
+                    <?php if ($minha_posicao_fora_do_top5):
+                        $meu_nome_dash = nomeExibicaoRanking($ranking_dash['sua_posicao']['apelido_publico'], $user_id);
+                    ?>
+                    <div class="mini-ranking-item voce">
+                        <div class="mini-ranking-avatar"><?php echo htmlspecialchars(iniciaisRanking($meu_nome_dash)); ?></div>
+                        <div class="mini-ranking-corpo">
+                            <div class="mini-ranking-nome">
+                                <span class="mini-ranking-pos">#<?php echo (int) $ranking_dash['sua_posicao']['posicao']; ?></span>
+                                <?php echo htmlspecialchars($meu_nome_dash); ?> (você)
+                            </div>
+                        </div>
+                        <div class="mini-ranking-valor"><?php echo htmlspecialchars(formatarReaisResumido((float) $ranking_dash['sua_posicao']['faturamento'])); ?></div>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
+
+            <div class="mini-ranking-rodape">
+                <a href="ranking">Ver ranking completo →</a>
+            </div>
+        </div>
+        <?php endif; ?>
     </main>
 </div>
 

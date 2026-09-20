@@ -985,6 +985,26 @@ html[data-theme] a.login-link-esqueci { color: var(--or); }
 .faixa-sua-posicao .linha-ranking-pos { color: var(--or); width: 66px; }
 .faixa-sua-posicao .linha-ranking-avatar { background: var(--or); color: #0a0b0e; }
 
+/* ===== Mini-ranking (widget da dashboard) =====
+   Resumo do /ranking em formato de cartão por linha, mesma paleta do pódio (1º em --or,
+   os demais em --m/--p2 -- o app não tem tokens de prata/bronze, então segue a mesma
+   convenção de estiloPodio() em vez de inventar uma cor nova). */
+.mini-ranking-lista { display: flex; flex-direction: column; gap: 8px; }
+.mini-ranking-item { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--bd); background: var(--p2); }
+.mini-ranking-item.lider { border-color: var(--or); background: var(--orsoft); }
+.mini-ranking-item.voce { border-color: var(--or); border-style: dashed; }
+.mini-ranking-avatar { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font: 800 11px 'Manrope', sans-serif; border: 2px solid var(--m); color: var(--m); background: var(--p3); }
+.mini-ranking-item.lider .mini-ranking-avatar { border-color: var(--or); color: var(--or); }
+.mini-ranking-corpo { flex: 1; min-width: 0; }
+.mini-ranking-nome { display: flex; align-items: center; gap: 6px; font: 700 12.5px 'Manrope', sans-serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mini-ranking-pos { flex: none; font: 800 10.5px 'Manrope', sans-serif; padding: 1px 6px; border-radius: 99px; background: var(--p3); color: var(--m); }
+.mini-ranking-item.lider .mini-ranking-pos { background: var(--or); color: #0a0b0e; }
+.mini-ranking-valor { flex: none; font: 700 12.5px 'JetBrains Mono', monospace; padding: 5px 10px; border-radius: 99px; background: var(--p3); color: var(--t); }
+.mini-ranking-item.lider .mini-ranking-valor { background: rgba(255, 106, 26, .16); color: var(--or); }
+.mini-ranking-rodape { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--bd); text-align: center; }
+.mini-ranking-rodape a { font: 700 12px 'Manrope', sans-serif; color: var(--or); }
+.mini-ranking-vazio { padding: 26px 10px; text-align: center; color: var(--m); font-size: 12.5px; }
+
 .cartao-passe-titulo { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .passe-posicao { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 52px; line-height: .9; }
 .barra-progresso { height: 8px; border-radius: 99px; background: var(--p3); overflow: hidden; margin-top: 6px; }
