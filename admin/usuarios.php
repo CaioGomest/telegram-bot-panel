@@ -129,7 +129,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
                         <option value="admin">Admin</option>
                     </select>
                 </div>
-                <div class="linha-acoes" style="justify-content:flex-end; margin-top:20px;">
+                <div class="linha-acoes" style="margin-top:20px;">
                     <button type="button" class="botao" onclick="fecharModalAdicionar()">Cancelar</button>
                     <button type="submit" class="botao botao-primario">Criar Usuário</button>
                 </div>
@@ -182,7 +182,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
                     <div id="splitVazio" class="texto-suave" style="font-style:italic; display:none;">Nenhum split configurado.</div>
                 </div>
 
-                <div class="linha-acoes" style="justify-content:flex-end; margin-top:24px;">
+                <div class="linha-acoes" style="margin-top:24px;">
                     <button type="button" class="botao" onclick="fecharModalEditar()">Cancelar</button>
                     <button type="submit" class="botao botao-primario">Salvar</button>
                 </div>

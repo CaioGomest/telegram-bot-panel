@@ -95,7 +95,7 @@ bloquearAdmin();
                     </select>
                 </div>
 
-                <div class="linha-acoes" style="margin-top:20px;justify-content:flex-end;">
+                <div class="linha-acoes" style="margin-top:20px;">
                     <button type="button" class="botao" id="btn-cancelar-modal">Cancelar</button>
                     <button type="submit" class="botao botao-primario" id="btn-salvar-link">Gerar link</button>
                 </div>
