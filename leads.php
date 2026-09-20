@@ -10,6 +10,7 @@ $is_admin = ehAdmin();
 
 $bot_id = isset($_GET['bot_id']) ? (int)$_GET['bot_id'] : 0;
 $status = isset($_GET['status']) ? $_GET['status'] : '';
+$busca = trim($_GET['busca'] ?? '');
 
 // Resolve os bots do usuário primeiro (sempre poucas linhas) e filtra leads direto
 // por "l.bot_id IN (...)", em vez de "JOIN bots b WHERE b.id_usuario = ?". Testado:
@@ -50,6 +51,17 @@ if (empty($ids_bots_usuario)) {
         $where[] = "EXISTS (SELECT 1 FROM vendas v WHERE v.id_telegram = l.id_telegram AND v.bot_id = l.bot_id AND v.status = 'pago')";
     } elseif ($status === 'nao_pago') {
         $where[] = "NOT EXISTS (SELECT 1 FROM vendas v WHERE v.id_telegram = l.id_telegram AND v.bot_id = l.bot_id AND v.status = 'pago')";
+    }
+
+    // A caixa de busca era só um filtro de JS escondendo <tr> já carregado na página --
+    // filtrava dentro dos 25 leads da página atual, mas a paginação embaixo continuava
+    // contando TODOS os leads (sem a busca), então "Caio" podia mostrar "43695 páginas"
+    // mesmo a pessoa toda inteira estando numa página que não era a atual. Agora é filtro
+    // de banco de verdade: entra no WHERE, então conta e pagina certo.
+    if ($busca !== '') {
+        $where[] = "(l.nome LIKE ? OR l.id_telegram LIKE ?)";
+        $params[] = "%$busca%";
+        $params[] = "%$busca%";
     }
 
     $where_sql = implode(' AND ', $where);
@@ -130,6 +142,11 @@ $total_leads = (int) $stmt_total->fetchColumn();
 
 $por_pagina = 25;
 $pagina_atual = isset($_GET['pagina']) ? max(1, (int)$_GET['pagina']) : 1;
+// Trava contra página presa: trocar de aba/bot/busca sem sair de "página 5" (os links de
+// filtro preservam ?pagina= do jeito que estavam) podia deixar o offset além do total e
+// devolver "Nenhum lead encontrado" mesmo havendo resultado -- só que na página 1.
+$total_paginas = $total_leads > 0 ? (int) ceil($total_leads / $por_pagina) : 1;
+$pagina_atual = min($pagina_atual, $total_paginas);
 $offset = ($pagina_atual - 1) * $por_pagina;
 
 $stmt = $pdo->prepare($sql_campos . " LIMIT $por_pagina OFFSET $offset");
@@ -139,6 +156,12 @@ $leads = $stmt->fetchAll(PDO::FETCH_ASSOC);
 $stmt_bots = $pdo->prepare("SELECT id, COALESCE(primeiro_nome, nome_usuario) as nome FROM bots WHERE id_usuario = ?");
 $stmt_bots->execute([$id_usuario]);
 $meus_bots = $stmt_bots->fetchAll(PDO::FETCH_ASSOC);
+
+// Base pros links de filtro (abas de status): tira 'pagina', senão trocar de aba estando na
+// página 5 mantinha ?pagina=5 -- o clamp acima já protege contra erro, mas o certo é o link
+// já levar pra página 1 de cara, não "pular" pra última página disponível do novo filtro.
+$params_link = $_GET;
+unset($params_link['pagina']);
 
 ?>
 <!DOCTYPE html>
@@ -173,17 +196,22 @@ $meus_bots = $stmt_bots->fetchAll(PDO::FETCH_ASSOC);
 
         <div class="painel">
             <div class="barra-filtros">
-                <div class="campo-busca">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
-                    <input type="text" id="busca-lead" placeholder="Buscar por nome ou ID do Telegram">
-                </div>
+                <form method="GET" class="campo-busca">
+                    <?php if ($status !== ''): ?><input type="hidden" name="status" value="<?php echo htmlspecialchars($status); ?>"><?php endif; ?>
+                    <?php if ($bot_id > 0): ?><input type="hidden" name="bot_id" value="<?php echo $bot_id; ?>"><?php endif; ?>
+                    <button type="submit" aria-label="Buscar">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+                    </button>
+                    <input type="text" name="busca" id="busca-lead" value="<?php echo htmlspecialchars($busca); ?>" placeholder="Buscar por nome ou ID do Telegram">
+                </form>
                 <div class="abas-status">
-                    <a href="?<?php echo http_build_query(array_merge($_GET, ['status' => ''])); ?>" class="aba-status<?php echo $status === '' ? ' ativa' : ''; ?>">Todos</a>
-                    <a href="?<?php echo http_build_query(array_merge($_GET, ['status' => 'pago'])); ?>" class="aba-status<?php echo $status === 'pago' ? ' ativa' : ''; ?>">Já pagou</a>
-                    <a href="?<?php echo http_build_query(array_merge($_GET, ['status' => 'nao_pago'])); ?>" class="aba-status<?php echo $status === 'nao_pago' ? ' ativa' : ''; ?>">Não pagou</a>
+                    <a href="?<?php echo http_build_query(array_merge($params_link, ['status' => ''])); ?>" class="aba-status<?php echo $status === '' ? ' ativa' : ''; ?>">Todos</a>
+                    <a href="?<?php echo http_build_query(array_merge($params_link, ['status' => 'pago'])); ?>" class="aba-status<?php echo $status === 'pago' ? ' ativa' : ''; ?>">Já pagou</a>
+                    <a href="?<?php echo http_build_query(array_merge($params_link, ['status' => 'nao_pago'])); ?>" class="aba-status<?php echo $status === 'nao_pago' ? ' ativa' : ''; ?>">Não pagou</a>
                 </div>
                 <form method="GET">
                     <?php if ($status !== ''): ?><input type="hidden" name="status" value="<?php echo htmlspecialchars($status); ?>"><?php endif; ?>
+                    <?php if ($busca !== ''): ?><input type="hidden" name="busca" value="<?php echo htmlspecialchars($busca); ?>"><?php endif; ?>
                     <select name="bot_id" onchange="this.form.submit()">
                         <option value="">Todos os Bots</option>
                         <?php foreach ($meus_bots as $b): ?>
