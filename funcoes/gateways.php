@@ -208,7 +208,10 @@ function saveInfopagoCashoutConfig(int $user_id, int $gateway_id, string $cashou
 
         $certificado_final = $cashout_certificado ?: $exists['cashout_certificado'];
         $cert_password_final = $cashout_cert_password !== '' ? criptografarSegredo($cashout_cert_password) : $exists['cashout_cert_password'];
-        $cashout_client_secret_cifrado = criptografarSegredo($cashout_client_secret);
+        // Mesma regra do cert_password logo acima: vazio mantém o que já estava gravado.
+        $cashout_client_secret_cifrado = $cashout_client_secret !== ''
+            ? criptografarSegredo($cashout_client_secret)
+            : ($exists['cashout_client_secret'] ?? '');
 
         $stmt = $pdo->prepare("UPDATE usuarios_gateways SET cashout_client_id = ?, cashout_client_secret = ?, cashout_certificado = ?, cashout_cert_password = ? WHERE id = ?");
         if ($stmt->execute([$cashout_client_id, $cashout_client_secret_cifrado, $certificado_final, $cert_password_final, $exists['id']])) {

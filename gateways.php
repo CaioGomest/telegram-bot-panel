@@ -86,8 +86,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (isset($_POST['acao']) && $_POST['acao'] === 'salvar_user') {
         $gateway_id = (int)$_POST['gateway_id'];
         $client_id = $_POST['client_id'];
-        $client_secret = $_POST['client_secret'];
-        $chave_pix = $_POST['chave_pix'] ?? '';
+        $client_secret = trim($_POST['client_secret'] ?? '');
+        $chave_pix = trim($_POST['chave_pix'] ?? '');
         $ativo = isset($_POST['ativo']);
         $prioridade = isset($_POST['prioridade']) ? max(1, min(999, (int)$_POST['prioridade'])) : 100;
         $tipo_conta = in_array($_POST['tipo_conta'] ?? '', ['pf', 'pj']) ? $_POST['tipo_conta'] : 'pj';
@@ -95,6 +95,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$gateway_id]);
         $gateway_nome = $stmt->fetchColumn();
         $current_config = getUserGatewayConfig($user_id, $gateway_nome);
+
+        // Os campos de segredo chegam vazios quando a pessoa não quis trocá-los (o
+        // formulário não ecoa mais o valor salvo). Vazio aqui significa "mantém", nunca
+        // "apaga" -- senão abrir a tela e salvar zeraria a credencial do gateway.
+        if ($client_secret === '') {
+            $client_secret = $current_config['client_secret'] ?? '';
+        }
+        if ($chave_pix === '') {
+            $chave_pix = $current_config['chave_pix'] ?? '';
+        }
 
         if (isset($_FILES['certificado']) && $_FILES['certificado']['error'] === UPLOAD_ERR_OK) {
             $ext = pathinfo($_FILES['certificado']['name'], PATHINFO_EXTENSION);
@@ -376,15 +386,37 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                             </div>
                             <div class="campo">
                                 <label>Client Secret (Produção)</label>
+                                <?php /* Sem value: o type=password mascara na tela, mas o segredo ia inteiro
+                                     no HTML e aparecia em "ver código-fonte". Mesmo padrão que
+                                     cert_password já usava aqui embaixo. */ ?>
                                 <input type="password" name="client_secret"
-                                       value="<?php echo htmlspecialchars($cfg['client_secret'] ?? ''); ?>" required>
+                                       autocomplete="new-password" data-lpignore="true" data-1p-ignore
+                                       placeholder="<?php echo !empty($cfg['client_secret']) ? '•••••••• (salvo)' : ''; ?>"
+                                       <?php echo empty($cfg['client_secret']) ? 'required' : ''; ?>>
+                                <?php if (!empty($cfg['client_secret'])): ?>
+                                    <small>Deixe em branco para manter o atual.</small>
+                                <?php endif; ?>
                             </div>
 
                             <div class="campo">
                                 <label>Chave Pix (Recebedor)</label>
+                                <?php
+                                // A chave Pix não é credencial, mas é CPF/CNPJ/e-mail do recebedor -- dado
+                                // pessoal, e é ela que decide pra onde o dinheiro vai. Em vez do valor
+                                // inteiro no HTML, mostra só os 4 últimos caracteres pra pessoa reconhecer
+                                // qual está configurada.
+                                $pix_salva = $cfg['chave_pix'] ?? '';
+                                $pix_dica = $pix_salva !== ''
+                                    ? '•••• ' . mb_substr($pix_salva, -4) . ' (salva)'
+                                    : 'CPF, CNPJ, Email…';
+                                ?>
                                 <input type="text" name="chave_pix"
-                                       value="<?php echo htmlspecialchars($cfg['chave_pix'] ?? ''); ?>"
-                                       placeholder="CPF, CNPJ, Email…" required>
+                                       autocomplete="off" data-lpignore="true" data-1p-ignore
+                                       placeholder="<?php echo htmlspecialchars($pix_dica); ?>"
+                                       <?php echo $pix_salva === '' ? 'required' : ''; ?>>
+                                <?php if ($pix_salva !== ''): ?>
+                                    <small>Deixe em branco para manter a atual.</small>
+                                <?php endif; ?>
                             </div>
 
                             <div class="campo">
@@ -440,7 +472,10 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                                 <label>Client Secret (API Contas / Cash-Out)</label>
                                 <input type="password" name="cashout_client_secret"
                                        autocomplete="new-password" data-lpignore="true" data-1p-ignore
-                                       value="<?php echo htmlspecialchars($cfg['cashout_client_secret'] ?? ''); ?>">
+                                       placeholder="<?php echo !empty($cfg['cashout_client_secret']) ? '•••••••• (salvo)' : ''; ?>">
+                                <?php if (!empty($cfg['cashout_client_secret'])): ?>
+                                    <small>Deixe em branco para manter o atual.</small>
+                                <?php endif; ?>
                             </div>
                             <div class="campo">
                                 <label>Certificado de Cash-Out (.p12, .pfx ou .pem)</label>
