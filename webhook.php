@@ -439,8 +439,22 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
         }
 
         if (!$gateway_selecionado || !($resp['sucesso'] ?? false)) {
-            $erro_msg = "Erro ao gerar Pix. Tentativas:\n" . implode("\n", $tentativas);
-            requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => $erro_msg]);
+            // O rastro completo (nome do gateway, "não configurado", erro cru da API do
+            // provedor, até exceção de PHP) ia inteiro numa mensagem do bot pro CLIENTE que
+            // está tentando comprar -- achado na varredura 15. Quem compra não tem nada a ver
+            // com qual gateway o vendedor esqueceu de configurar; e o vendedor, por outro lado,
+            // nunca ficava sabendo que o PIX dele estava quebrado, porque isso só existia aqui
+            // dentro de uma mensagem de erro que o próprio cliente recebia.
+            $detalhe_falha = "Erro ao gerar Pix. Tentativas:\n" . implode("\n", $tentativas);
+            file_put_contents(__DIR__ . '/logs/vendas_debug.log', "[" . date('Y-m-d H:i:s') . "] FALHA AO GERAR PIX (dono id_usuario={$id_usuario_dono}): $detalhe_falha\n", FILE_APPEND);
+            if ($id_usuario_dono) {
+                // require aqui (não só lá embaixo, no fluxo de sucesso) porque este ramo de
+                // falha roda ANTES do require_once original -- sem isto, registrarAtividade()
+                // seria uma função indefinida nesse ponto e o webhook cairia com fatal error.
+                require_once __DIR__ . '/funcoes/log.php';
+                registrarAtividade((int) $id_usuario_dono, 'sistema', 'Falha ao gerar Pix', 'Um cliente tentou pagar e a geração do Pix falhou em todos os gateways configurados. Veja os logs para detalhes.');
+            }
+            requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => "Não foi possível gerar seu Pix agora. Tente novamente em instantes."]);
             return;
         }
 
