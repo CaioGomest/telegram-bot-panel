@@ -585,6 +585,19 @@ try {
         echo "Coluna 'apelido_publico' adicionada em 'usuarios'.<br>";
     } catch (PDOException $e) {}
 
+    // Login com Google: guarda o "sub" (ID único e permanente do Google pra aquela conta) e
+    // usa pra achar o usuário depois -- e-mail sozinho não serve como chave de identidade
+    // permanente porque a pessoa pode trocar o e-mail da conta Google. NULL pra quem nunca
+    // usou Google, e UNIQUE pra impedir duas contas nossas ligadas ao mesmo Google.
+    try {
+        $pdo->exec("ALTER TABLE usuarios ADD COLUMN google_id VARCHAR(255) DEFAULT NULL AFTER email");
+        echo "Coluna 'google_id' adicionada em 'usuarios'.<br>";
+    } catch (PDOException $e) {}
+    try {
+        $pdo->exec("ALTER TABLE usuarios ADD UNIQUE KEY idx_usuarios_google_id (google_id)");
+        echo "Índice único de 'google_id' adicionado em 'usuarios'.<br>";
+    } catch (PDOException $e) {}
+
     try { $pdo->exec("ALTER TABLE vendas ADD INDEX idx_vendas_ranking (status, criado_em, bot_id)"); } catch (PDOException $e) {}
 
     // Cache pré-calculado do dashboard de admin (métricas por hora) — ver cron/cron_metricas_admin.php

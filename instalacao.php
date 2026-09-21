@@ -77,6 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             nome VARCHAR(100) NOT NULL,
             apelido_publico VARCHAR(40) DEFAULT NULL,
             email VARCHAR(150) NOT NULL UNIQUE,
+            google_id VARCHAR(255) DEFAULT NULL UNIQUE,
             senha VARCHAR(255) NOT NULL,
             perfil ENUM('admin', 'usuario') DEFAULT 'usuario',
             criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,

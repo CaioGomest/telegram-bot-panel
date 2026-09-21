@@ -2,13 +2,16 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../funcoes/usuario.php';
+require_once __DIR__ . '/../funcoes/google_auth.php';
 verificarAdmin();
 $caminho_base = '../';
 
 $mensagem = '';
 $tipo_mensagem = '';
+$mensagem_google = '';
+$tipo_mensagem_google = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'identidade') {
     verificarCsrf();
     try {
         $nome = trim($_POST['nome_sistema'] ?? '');
@@ -33,9 +36,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'google') {
+    verificarCsrf();
+    $client_id = trim($_POST['google_client_id'] ?? '');
+    $client_secret = trim($_POST['google_client_secret'] ?? '');
+    if ($client_id === '') {
+        $mensagem_google = 'Preencha o Client ID.';
+        $tipo_mensagem_google = 'erro';
+    } elseif (definirCredenciaisGoogle($client_id, $client_secret)) {
+        registrarAtividade((int) $_SESSION['usuario_id'], 'sistema', 'Login com Google', 'Credenciais do login com Google atualizadas.');
+        header('Location: configuracoes?salvo_google=1');
+        exit;
+    } else {
+        $mensagem_google = 'Erro ao salvar as credenciais.';
+        $tipo_mensagem_google = 'erro';
+    }
+}
+
 if (isset($_GET['salvo'])) {
     $mensagem = 'Identidade visual atualizada.';
     $tipo_mensagem = 'sucesso';
+}
+if (isset($_GET['salvo_google'])) {
+    $mensagem_google = 'Credenciais do Google atualizadas.';
+    $tipo_mensagem_google = 'sucesso';
 }
 ?>
 <!DOCTYPE html>
@@ -55,7 +79,7 @@ if (isset($_GET['salvo'])) {
         <div class="cabecalho-pagina">
             <div>
                 <h1>Configurações</h1>
-                <p>Nome, logo e favicon que aparecem para todos os usuários do painel.</p>
+                <p>Identidade visual e integrações do painel.</p>
             </div>
             <div class="acoes-cabecalho">
                 <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
@@ -72,6 +96,7 @@ if (isset($_GET['salvo'])) {
 
             <form method="POST" enctype="multipart/form-data">
                 <?php echo campoCsrf(); ?>
+                <input type="hidden" name="acao" value="identidade">
 
                 <div class="campo">
                     <label for="nome_sistema">Nome do sistema</label>
@@ -102,6 +127,55 @@ if (isset($_GET['salvo'])) {
                     </div>
                     <input type="file" name="favicon" accept=".png,.ico,.jpg,.jpeg,.webp">
                     <small>Ícone da aba do navegador. Sem favicon próprio, o sistema usa a logo.</small>
+                </div>
+
+                <div class="linha-acoes" style="margin-top: 22px;">
+                    <button type="submit" class="botao botao-primario">Salvar</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="painel" style="max-width: 700px; margin-top: 20px;">
+            <div class="painel-cabecalho">
+                <h2>Login com Google</h2>
+                <span class="badge <?php echo googleLoginConfigurado() ? 'badge-sucesso' : 'badge-neutro'; ?>">
+                    <?php echo googleLoginConfigurado() ? 'Ativo' : 'Não configurado'; ?>
+                </span>
+            </div>
+
+            <?php if ($mensagem_google): ?>
+                <div class="aviso aviso-<?php echo $tipo_mensagem_google; ?>"><?php echo htmlspecialchars($mensagem_google); ?></div>
+            <?php endif; ?>
+
+            <p class="texto-suave" style="margin:0 0 16px;line-height:1.6;">
+                Pra ativar, crie um "OAuth 2.0 Client ID" em
+                <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" class="login-link-esqueci">console.cloud.google.com/apis/credentials</a>
+                (tipo "Aplicativo da Web") e cole abaixo o Client ID e o Client Secret que o Google gerar.
+                Em "URIs de redirecionamento autorizados", cole exatamente esta URL:
+            </p>
+            <div class="campo" style="margin-bottom:18px;">
+                <input type="text" readonly onclick="this.select()" value="<?php echo htmlspecialchars(googleRedirectUri()); ?>" class="mono">
+                <small>Tem que bater caractere por caractere com o que está cadastrado no Google, incluindo https.</small>
+            </div>
+
+            <form method="POST">
+                <?php echo campoCsrf(); ?>
+                <input type="hidden" name="acao" value="google">
+
+                <div class="campo">
+                    <label for="google_client_id">Client ID</label>
+                    <input type="text" id="google_client_id" name="google_client_id" autocomplete="off"
+                           value="<?php echo htmlspecialchars(googleClientId()); ?>" placeholder="xxxxxxxxxx.apps.googleusercontent.com">
+                </div>
+
+                <div class="campo" style="margin-top:16px;">
+                    <label for="google_client_secret">Client Secret</label>
+                    <input type="password" id="google_client_secret" name="google_client_secret"
+                           autocomplete="new-password" data-lpignore="true" data-1p-ignore
+                           placeholder="<?php echo googleClientSecret() !== '' ? '•••••••• (salvo)' : ''; ?>">
+                    <?php if (googleClientSecret() !== ''): ?>
+                        <small>Deixe em branco para manter o atual.</small>
+                    <?php endif; ?>
                 </div>
 
                 <div class="linha-acoes" style="margin-top: 22px;">
