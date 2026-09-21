@@ -79,7 +79,7 @@ if ($is_admin) {
     $grupo_admin[] = ['href' => 'admin/logs', 'label' => 'Logs', 'icone' => 'logs'];
     $grupo_admin[] = ['href' => 'admin/usuarios', 'label' => 'Usuários', 'icone' => 'usuarios'];
     $grupo_admin[] = ['href' => 'admin/ranking', 'label' => 'Campanhas de Ranking', 'icone' => 'ranking'];
-    $grupo_admin[] = ['href' => 'admin/configuracoes', 'label' => 'Identidade Visual', 'icone' => 'identidade'];
+    $grupo_admin[] = ['href' => 'admin/configuracoes', 'label' => 'Configurações', 'icone' => 'identidade'];
 }
 
 $grupo_debug = [];
