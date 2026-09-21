@@ -717,6 +717,15 @@ try {
             if (!in_array($extensao, ['mp4', 'avi', 'mov', 'mkv'], true)) {
                 responder(false, ['mensagem' => 'Formato de vídeo não suportado (use mp4, avi, mov, mkv).'], 422);
             }
+            // Diferente do upload de imagem (getimagesize() já confirma o conteúdo), este só
+            // checava a extensão do nome do arquivo -- um .txt renomeado pra .mp4 passava direto
+            // e ia parar no Telegram de um lead de verdade como se fosse o vídeo do produto.
+            // mime_content_type() já é usado em produção (api.php linha ~65, webhook.php), então
+            // a extensão fileinfo está confirmada disponível no servidor.
+            $mime_video = function_exists('mime_content_type') ? (mime_content_type($tmp) ?: '') : '';
+            if ($mime_video !== '' && strpos($mime_video, 'video/') !== 0) {
+                responder(false, ['mensagem' => 'O arquivo não parece ser um vídeo de verdade.'], 422);
+            }
             $caminho_local = DIRETORIO_UPLOADS . '/' . uniqid('flow_video_', true) . '.' . $extensao;
             if (!move_uploaded_file($tmp, $caminho_local) || !file_exists($caminho_local)) {
                 responder(false, ['mensagem' => 'Falha ao salvar o vídeo.'], 500);
@@ -738,6 +747,11 @@ try {
             // Extensões comuns de áudio suportadas pelo Telegram
             if (!in_array($extensao, ['mp3', 'ogg', 'wav', 'm4a'], true)) {
                 responder(false, ['mensagem' => 'Formato de áudio não suportado (use mp3, ogg, wav, m4a).'], 422);
+            }
+            // Mesmo raciocínio do vídeo acima: só a extensão do nome não garante o conteúdo.
+            $mime_audio = function_exists('mime_content_type') ? (mime_content_type($tmp) ?: '') : '';
+            if ($mime_audio !== '' && strpos($mime_audio, 'audio/') !== 0) {
+                responder(false, ['mensagem' => 'O arquivo não parece ser um áudio de verdade.'], 422);
             }
             $caminho_local = DIRETORIO_UPLOADS . '/' . uniqid('flow_audio_', true) . '.' . $extensao;
             if (!move_uploaded_file($tmp, $caminho_local) || !file_exists($caminho_local)) {
