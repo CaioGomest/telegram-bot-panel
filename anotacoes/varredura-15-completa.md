@@ -83,22 +83,27 @@ bloqueado.
 
 ---
 
-## 🔴 Bloqueio da sessão: SSH parou de aceitar a senha
+## ✅ Bloqueio da sessão: resolvido — SSH trocou de senha, deploy concluído
 
-Durante essa varredura, o acesso SSH ao servidor (`185.213.81.10:65002`, usado o tempo todo
-nas sessões anteriores) começou a rejeitar a senha documentada em
-`credenciais-ssh-hostinger.md`, com erro explícito de credencial (`FATAL ERROR: Configured
-password was not accepted`), não timeout de rede. **O site em si está 100% normal** — testei
-`/login` e `/index` direto por HTTPS e respondem certo. O problema é isolado ao acesso remoto.
+Durante essa varredura, o acesso SSH ao servidor começou a rejeitar a senha documentada
+(`FATAL ERROR: Configured password was not accepted`), não timeout de rede — o site em si
+seguiu 100% normal o tempo todo. Já tinha acontecido uma vez antes (a Hostinger trocou a
+senha em 16/09 sem aviso).
 
-Testado 3 vezes ao longo da sessão (incluindo uma última tentativa antes de fechar este
-relatório), sempre a mesma rejeição. Parei de tentar pra não arriscar um bloqueio de IP por
-tentativa repetida. Isso já aconteceu uma vez antes (a própria nota de credenciais registra
-que a Hostinger trocou a senha em 16/09 sem aviso).
+O Caio confirmou a senha nova (`Jshhhah626@`) e o acesso voltou. `anotacoes/credenciais-ssh-hostinger.md`
+atualizado (arquivo gitignored, não versionado). Deploy concluído:
 
-**Efeito prático:** os dois achados corrigidos acima (itens 1 e 2) estão **commitados e
-enviados pro GitHub, mas não aplicados em produção** — preciso da senha nova (ou confirmação
-de que ela mudou) pra rodar o `git pull` no servidor.
+- `git pull` no servidor trouxe os dois commits pendentes.
+- `php -l` sem erro nos dois arquivos tocados.
+- **`registrarAtividade()` testado rodando de verdade em produção** (não só `php -l`), com a
+  mesma cadeia de `require` usada no fix do webhook — linha de teste apagada depois.
+- **A checagem de MIME testada em produção**: um arquivo PHP disfarçado de `.mp4` é detectado
+  como `text/x-php` e seria bloqueado.
+- Regressão: `login`, `index`, `bots`, `fluxo`, `leads` respondendo 200 sem erro; os dois
+  webhooks (`webhook.php`, `webhook_infopago.php`) respondendo 200 — Telegram e InfoPago
+  continuam recebidos normalmente.
+
+Os dois achados estão **no ar**, não só no GitHub.
 
 ---
 
@@ -115,4 +120,4 @@ de que ela mudou) pra rodar o `git pull` no servidor.
 | Corrida em pagamento | limpo |
 | Vazamento de erro pro usuário | 🔴 1 achado, corrigido |
 | Fuso do banco | limpo |
-| Acesso SSH | 🔴 fora do ar, bloqueando deploy |
+| Acesso SSH | ✅ senha trocada pelo Caio, deploy concluído e verificado em produção |
