@@ -154,7 +154,12 @@ if (isset($_GET['salvo_google'])) {
                 Em "URIs de redirecionamento autorizados", cole exatamente esta URL:
             </p>
             <div class="campo" style="margin-bottom:18px;">
-                <input type="text" readonly onclick="this.select()" value="<?php echo htmlspecialchars(googleRedirectUri()); ?>" class="mono">
+                <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--bd);border-radius:10px;background:var(--p2);">
+                    <span id="google-redirect-uri" class="mono" style="flex:1;word-break:break-all;font-size:12.5px;">
+                        <?php echo htmlspecialchars(googleRedirectUri()); ?>
+                    </span>
+                    <button type="button" class="botao" id="btn-copiar-redirect-uri" style="flex-shrink:0;">Copiar</button>
+                </div>
                 <small>Tem que bater caractere por caractere com o que está cadastrado no Google, incluindo https.</small>
             </div>
 
@@ -187,5 +192,42 @@ if (isset($_GET['salvo_google'])) {
 </div>
 
 <script src="../assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/../assets/js/tema.js'); ?>"></script>
+<script>
+// Mesmo padrão em duas etapas já usado em assets/links_rastreamento.js -- Clipboard API
+// quando disponível (precisa de contexto seguro, https), senão volta pro jeito antigo via
+// textarea temporária + execCommand. Achado no celular: a URL não cabia numa linha só e
+// não dava pra ver/copiar o resto sem um botão de verdade.
+(function () {
+    var btn = document.getElementById('btn-copiar-redirect-uri');
+    if (!btn) return;
+    var texto = document.getElementById('google-redirect-uri').textContent.trim();
+
+    function avisar() {
+        var original = btn.textContent;
+        btn.textContent = 'Copiado!';
+        setTimeout(function () { btn.textContent = original; }, 1500);
+    }
+
+    btn.addEventListener('click', function () {
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(texto).then(avisar).catch(function () {
+                copiarFallback(texto, avisar);
+            });
+        } else {
+            copiarFallback(texto, avisar);
+        }
+    });
+
+    function copiarFallback(valor, callback) {
+        var tmp = document.createElement('textarea');
+        tmp.value = valor;
+        document.body.appendChild(tmp);
+        tmp.select();
+        document.execCommand('copy');
+        document.body.removeChild(tmp);
+        callback();
+    }
+})();
+</script>
 </body>
 </html>
