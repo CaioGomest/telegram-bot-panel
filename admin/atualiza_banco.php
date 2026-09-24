@@ -703,6 +703,65 @@ try {
     ");
     echo "Histórico de 'metricas_horarias_usuario' preenchido a partir de 'vendas'/'leads'.<br>";
 
+    // Navbar de stories (tipo Instagram/WhatsApp Status) -- feature isolada, não referenciada
+    // por nenhuma tabela de venda/pagamento. Expiração de 24h é resolvida por filtro de
+    // consulta (expira_em > NOW()) em todo SELECT, sem depender de cron pra "esconder" nada;
+    // cron/cron_limpar_stories.php só faz limpeza best-effort de linhas/arquivos antigos.
+    // Ver anotacoes/pendente/plano-recursos-sharkbot.md.
+    $sql_stories = "
+        CREATE TABLE IF NOT EXISTS stories (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            id_usuario INT NOT NULL,
+            tipo_midia ENUM('foto', 'video') NOT NULL,
+            arquivo VARCHAR(255) NOT NULL,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            expira_em DATETIME NOT NULL,
+            FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ";
+    $pdo->exec($sql_stories);
+    // A barra de stories só lê linhas com expira_em > NOW() -- sem índice nessa coluna, isso
+    // vira table scan conforme o histórico cresce (mesmo raciocínio de idx_atividades_tipo).
+    try { $pdo->exec("ALTER TABLE stories ADD INDEX idx_stories_expira (expira_em)"); } catch (PDOException $e) {}
+    try { $pdo->exec("ALTER TABLE stories ADD INDEX idx_stories_usuario (id_usuario)"); } catch (PDOException $e) {}
+    echo "Tabela 'stories' OK.<br>";
+
+    $sql_stories_visualizacoes = "
+        CREATE TABLE IF NOT EXISTS stories_visualizacoes (
+            story_id INT NOT NULL,
+            id_usuario INT NOT NULL,
+            visto_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (story_id, id_usuario),
+            FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE,
+            FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ";
+    $pdo->exec($sql_stories_visualizacoes);
+    echo "Tabela 'stories_visualizacoes' OK.<br>";
+
+    // Página Comunidade: links institucionais da plataforma (grupos, canais, redes).
+    // Quem edita é o admin (admin/comunidade.php); o usuário só vê os ativos em comunidade.php.
+    // membros_max = 0 significa sem limite de vagas — o card não mostra contador nem LOTADO.
+    // Ver anotacoes/pendente/plano-recursos-sharkbot.md.
+    $sql_comunidade = "
+        CREATE TABLE IF NOT EXISTS comunidade_links (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            tipo VARCHAR(30) NOT NULL DEFAULT 'outro',
+            titulo VARCHAR(80) NOT NULL,
+            subtitulo VARCHAR(120) DEFAULT NULL,
+            url VARCHAR(500) NOT NULL,
+            icone VARCHAR(30) NOT NULL DEFAULT 'link',
+            membros_atual INT UNSIGNED NOT NULL DEFAULT 0,
+            membros_max INT UNSIGNED NOT NULL DEFAULT 0,
+            ordem INT NOT NULL DEFAULT 0,
+            ativo TINYINT(1) NOT NULL DEFAULT 1,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ";
+    $pdo->exec($sql_comunidade);
+    echo "Tabela 'comunidade_links' OK.<br>";
+
     $stmt = $pdo->query("SELECT COUNT(*) FROM usuarios");
     $total = $stmt->fetchColumn();
 

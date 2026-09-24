@@ -981,6 +981,51 @@ try {
             responder($resultado['sucesso'], $resultado, $resultado['sucesso'] ? 200 : 404);
             break;
 
+        case 'listar_stories':
+            require_once __DIR__ . '/funcoes/stories.php';
+            responder(true, ['grupos' => listarBarraStories($usuario_id)]);
+            break;
+
+        case 'criar_story':
+            require_once __DIR__ . '/funcoes/stories.php';
+            $validacao = validarUploadStory($_FILES['midia'] ?? []);
+            if (!$validacao['sucesso']) {
+                responder(false, ['mensagem' => $validacao['mensagem']], 422);
+            }
+            try {
+                $nome_arquivo = salvarArquivoStory($_FILES['midia'], $validacao['extensao']);
+            } catch (RuntimeException $e) {
+                responder(false, ['mensagem' => 'Falha ao salvar o arquivo. Tente novamente.'], 500);
+            }
+            $resultado = criarStory($usuario_id, $validacao['tipo_midia'], $nome_arquivo);
+            if (!$resultado['sucesso']) {
+                // Já validado antes de gravar -- só falha aqui por limite de stories ativos,
+                // então desfaz o arquivo que acabou de ser salvo pra não sobrar lixo em disco.
+                @unlink(STORIES_DIRETORIO_UPLOADS . '/' . $nome_arquivo);
+            }
+            responder($resultado['sucesso'], $resultado, $resultado['sucesso'] ? 200 : 422);
+            break;
+
+        case 'marcar_story_vista':
+            require_once __DIR__ . '/funcoes/stories.php';
+            $story_id = (int) ($entrada['story_id'] ?? 0);
+            if ($story_id <= 0) {
+                responder(false, ['mensagem' => 'ID inválido.'], 422);
+            }
+            marcarStoryVista($usuario_id, $story_id);
+            responder(true);
+            break;
+
+        case 'excluir_story':
+            require_once __DIR__ . '/funcoes/stories.php';
+            $story_id = (int) ($entrada['id'] ?? 0);
+            if ($story_id <= 0) {
+                responder(false, ['mensagem' => 'ID inválido.'], 422);
+            }
+            $resultado = excluirStory($usuario_id, $story_id);
+            responder($resultado['sucesso'], $resultado, $resultado['sucesso'] ? 200 : 404);
+            break;
+
         default:
             responder(false, ['mensagem' => 'Ação inválida.'], 404);
     }

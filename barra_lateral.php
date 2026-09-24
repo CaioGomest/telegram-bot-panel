@@ -52,6 +52,7 @@ $icones = [
     'remarketing' => 'M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M8.5 7a4 4 0 1 0 0 8M17 11l2 2 4-4',
     'traqueamento' => 'M22 12h-4l-3 9L9 3l-3 9H2',
     'links' => 'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71',
+    'comunidade' => 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
     'usuarios' => 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
     'identidade' => 'M3 5h18v14H3zM3 16l5-5 4 4 3-3 6 6M8.5 9.5a1 1 0 1 0 0-.1z',
     'debug' => 'M12 8v8M8 12h8M4 4h16v16H4z',
@@ -68,6 +69,7 @@ if (!$is_admin) {
     $grupo_operacao[] = ['href' => 'remarketing', 'label' => 'Remarketing', 'icone' => 'remarketing'];
     $grupo_operacao[] = ['href' => 'traqueamento', 'label' => 'Traqueamento', 'icone' => 'traqueamento'];
     $grupo_operacao[] = ['href' => 'links_rastreamento', 'label' => 'Links de Rastreamento', 'icone' => 'links'];
+    $grupo_operacao[] = ['href' => 'comunidade', 'label' => 'Comunidade', 'icone' => 'comunidade'];
 }
 $grupo_operacao[] = ['href' => 'gateways', 'label' => 'Gateways', 'icone' => 'gateways'];
 $grupo_operacao[] = ['href' => 'configuracao_usuario', 'label' => 'Minha Conta', 'icone' => 'conta'];
@@ -79,6 +81,7 @@ if ($is_admin) {
     $grupo_admin[] = ['href' => 'admin/logs', 'label' => 'Logs', 'icone' => 'logs'];
     $grupo_admin[] = ['href' => 'admin/usuarios', 'label' => 'Usuários', 'icone' => 'usuarios'];
     $grupo_admin[] = ['href' => 'admin/ranking', 'label' => 'Campanhas de Ranking', 'icone' => 'ranking'];
+    $grupo_admin[] = ['href' => 'admin/comunidade', 'label' => 'Comunidade', 'icone' => 'comunidade'];
     $grupo_admin[] = ['href' => 'admin/configuracoes', 'label' => 'Configurações', 'icone' => 'identidade'];
 }
 

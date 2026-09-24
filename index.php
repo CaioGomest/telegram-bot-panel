@@ -504,6 +504,8 @@ try {
             </div>
         </div>
 
+        <?php include __DIR__ . '/parciais/barra_stories.php'; ?>
+
         <?php
         $rotulos_periodo_destaque = [
             'hoje' => 'HOJE', 'ontem' => 'ONTEM', '7dias' => '8 DIAS', '30dias' => '30 DIAS',
@@ -665,6 +667,7 @@ try {
 
 <script src="assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/tema.js'); ?>"></script>
 <script src="assets/js/paginacao.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/paginacao.js'); ?>"></script>
+<script src="assets/stories.js?v=<?php echo @filemtime(__DIR__ . '/assets/stories.js'); ?>"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const periodo_btns = document.querySelectorAll('.seletor-periodo a');

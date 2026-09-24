@@ -330,6 +330,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             UNIQUE KEY unique_identificador_usuario (id_usuario, identificador)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
+        $pdo->exec("CREATE TABLE IF NOT EXISTS stories (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            id_usuario INT NOT NULL,
+            tipo_midia ENUM('foto', 'video') NOT NULL,
+            arquivo VARCHAR(255) NOT NULL,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            expira_em DATETIME NOT NULL,
+            FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE,
+            INDEX idx_stories_expira (expira_em),
+            INDEX idx_stories_usuario (id_usuario)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS stories_visualizacoes (
+            story_id INT NOT NULL,
+            id_usuario INT NOT NULL,
+            visto_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (story_id, id_usuario),
+            FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE,
+            FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
         $pdo->exec("CREATE TABLE IF NOT EXISTS configuracoes (
             chave VARCHAR(50) NOT NULL PRIMARY KEY,
             valor TEXT,
