@@ -142,6 +142,13 @@ function resolveGatewayProvider(string $gateway_nome, array $config): ?object {
             }
             require_once __DIR__ . '/infopago_banco.php';
             return new InfopagoBanco($config['client_id'], $config['client_secret'], $config['certificado'] ?? '', true, $config['cert_password'] ?? '');
+        case 'omegapayments':
+            // Sem certificado/OAuth — só client_id/client_secret (headers x-public-key/x-secret-key).
+            if (empty($config['client_id']) || empty($config['client_secret'])) {
+                return null;
+            }
+            require_once __DIR__ . '/omegapayments_banco.php';
+            return new OmegaPaymentsBanco($config['client_id'], $config['client_secret']);
         default:
             return null;
     }
@@ -150,7 +157,7 @@ function resolveGatewayProvider(string $gateway_nome, array $config): ?object {
 // Gateways sem provider implementado (ex-EFI, ex-PushinPay) continuam na tabela por causa do
 // histórico de vendas, mas não devem aparecer como opção pra ativar/configurar.
 function gatewaysSuportados(): array {
-    return ['infopago'];
+    return ['infopago', 'omegapayments'];
 }
 
 function saveUserGatewayConfig(int $user_id, int $gateway_id, string $client_id, string $client_secret, string $certificado, string $cert_password, string $chave_pix, bool $ativo, int $prioridade = 100, string $tipo_conta = 'pj'): bool {

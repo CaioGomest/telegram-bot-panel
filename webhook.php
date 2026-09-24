@@ -416,7 +416,11 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
                     $link_pagamento = '';
 
                 } else {
-                    $payload = $provedor->montaPayloadCobranca($valor, $chave_pix, $split_data, $expiracao_segundos);
+                    // $nome_usuario/$documento_limpo (nome do lead + CPF/CNPJ) são passados como
+                    // argumentos extras — providers que não usam isso (ex. InfopagoBanco) simplesmente
+                    // ignoram (PHP não reclama de argumentos extras em chamadas normais). Necessário
+                    // pra OmegaPaymentsBanco montar o campo "client" obrigatório na cobrança.
+                    $payload = $provedor->montaPayloadCobranca($valor, $chave_pix, $split_data, $expiracao_segundos, $nome_usuario, $documento_limpo);
 
                     $resp = $provedor->criarCobranca($payload);
                     if (!($resp['sucesso'] ?? false)) {
@@ -424,7 +428,7 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
                         continue;
                     }
 
-                    // InfoPago já devolve o pixCopiaECola direto na criação da cobrança (sem passo extra de QR code).
+                    // InfoPago e OmegaPayments já devolvem o pixCopiaECola direto na criação da cobrança (sem passo extra de QR code).
                     $pix_copia_cola  = $resp['dados']['pixCopiaECola'] ?? '';
                     $txid          = $resp['dados']['txid'] ?? '';
                     $link_pagamento = '';

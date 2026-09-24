@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/../funcoes/usuario.php';
+require_once __DIR__ . '/../funcoes/gateways.php';
 verificarAdmin();
 
 header('Content-Type: application/json; charset=utf-8');
@@ -14,6 +15,16 @@ verificarCsrf();
 $user_id = filter_input(INPUT_POST, 'id_usuario', FILTER_VALIDATE_INT);
 if (!$user_id) {
     echo json_encode(['sucesso' => false, 'erro' => 'ID inválido.']);
+    exit;
+}
+
+// Cada gateway tem seu próprio conjunto de splits (usuarios_splits.gateway_nome) — sem
+// receber isso aqui, salvar o split de um gateway sempre gravava fixo como 'infopago',
+// e o DELETE abaixo apagava os splits de TODOS os gateways daquele usuário, não só do
+// que estava sendo editado (bug: salvar InfoPago apagava o da OmegaPayments, e vice-versa).
+$gateway_nome = trim((string)($_POST['gateway_nome'] ?? ''));
+if (!in_array($gateway_nome, gatewaysSuportados(), true)) {
+    echo json_encode(['sucesso' => false, 'erro' => 'Gateway inválido.']);
     exit;
 }
 
@@ -47,14 +58,14 @@ if ($soma_percentual > 100) {
 global $pdo;
 try {
     $pdo->beginTransaction();
-    $pdo->prepare("DELETE FROM usuarios_splits WHERE id_usuario = ?")->execute([$user_id]);
+    $pdo->prepare("DELETE FROM usuarios_splits WHERE id_usuario = ? AND gateway_nome = ?")->execute([$user_id, $gateway_nome]);
 
     $ordem = 0;
     foreach ($linhas_validas as $linha) {
         $pdo->prepare(
             "INSERT INTO usuarios_splits (id_usuario, gateway_nome, tipo_split, taxa_split, chave_pix_split, descricao, ordem)
-             VALUES (?, 'infopago', 'percentual', ?, ?, ?, ?)"
-        )->execute([$user_id, $linha['taxa'], $linha['chave'], $linha['descricao'], $ordem]);
+             VALUES (?, ?, 'percentual', ?, ?, ?, ?)"
+        )->execute([$user_id, $gateway_nome, $linha['taxa'], $linha['chave'], $linha['descricao'], $ordem]);
         $ordem++;
     }
 

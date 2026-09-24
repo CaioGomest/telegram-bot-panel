@@ -816,6 +816,7 @@ html[data-theme] a.botao-configurar { color: var(--or); }
     font: 800 1rem 'Manrope', sans-serif; color: #fff;
 }
 .icone-gateway-infopago { background: linear-gradient(135deg, #0ea5e9, #0369a1); }
+.icone-gateway-omegapayments { background: linear-gradient(135deg, #a855f7, #6d28d9); }
 .icone-gateway-padrao { background: linear-gradient(135deg, var(--m), var(--p3)); }
 .nome-gateway { font: 700 14px 'Manrope', sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 

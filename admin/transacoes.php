@@ -53,11 +53,10 @@ $sql_base = "
     JOIN usuarios u ON b.id_usuario = u.id
     LEFT JOIN gateways g ON v.id_gateway = g.id
     LEFT JOIN (
-        SELECT id_usuario, SUM(taxa_split) AS soma_pct
+        SELECT id_usuario, gateway_nome, SUM(taxa_split) AS soma_pct
         FROM usuarios_splits
-        WHERE gateway_nome = 'infopago'
-        GROUP BY id_usuario
-    ) us ON us.id_usuario = u.id
+        GROUP BY id_usuario, gateway_nome
+    ) us ON us.id_usuario = u.id AND us.gateway_nome = g.nome
     WHERE $where_sql
 ";
 
@@ -127,11 +126,10 @@ if ($ids_pagina) {
         JOIN usuarios u ON b.id_usuario = u.id
         LEFT JOIN gateways g ON v.id_gateway = g.id
         LEFT JOIN (
-            SELECT id_usuario, SUM(taxa_split) AS soma_pct
+            SELECT id_usuario, gateway_nome, SUM(taxa_split) AS soma_pct
             FROM usuarios_splits
-            WHERE gateway_nome = 'infopago'
-            GROUP BY id_usuario
-        ) us ON us.id_usuario = u.id
+            GROUP BY id_usuario, gateway_nome
+        ) us ON us.id_usuario = u.id AND us.gateway_nome = g.nome
         WHERE v.id IN ($placeholders_ids)
         ORDER BY v.criado_em DESC
     ";

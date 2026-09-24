@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../funcoes/usuario.php';
 require_once __DIR__ . '/../funcoes/relatorio_debug.php';
+require_once __DIR__ . '/../funcoes/gateways.php';
 verificarAdminOuInstalacao();
 
 ob_start();
@@ -360,9 +361,13 @@ try {
     $pdo->exec($sql_usuarios_splits);
 
     // Splits salvos com gateway_nome de gateways já removidos (ex-pushinpay) nunca foram
-    // usados de fato pelo motor de split (que só olha 'infopago') — remove esse lixo.
+    // usados de fato pelo motor de split — remove esse lixo. Escopado pela lista de
+    // gateways suportados de verdade (não mais só 'infopago' — desde que a OmegaPayments
+    // entrou, isso apagaria os splits dela a cada execução se ficasse hardcoded).
     try {
-        $pdo->exec("DELETE FROM usuarios_splits WHERE gateway_nome <> 'infopago'");
+        $gateways_suportados_split = gatewaysSuportados();
+        $placeholders = implode(',', array_fill(0, count($gateways_suportados_split), '?'));
+        $pdo->prepare("DELETE FROM usuarios_splits WHERE gateway_nome NOT IN ($placeholders)")->execute($gateways_suportados_split);
     } catch (PDOException $e) {}
 
     echo "Tabela 'usuarios_splits' OK.<br>";
@@ -462,6 +467,12 @@ try {
     if ($stmt_gateway->fetchColumn() == 0) {
         $pdo->exec("INSERT INTO gateways (nome, titulo, ativo) VALUES ('infopago', 'InfoPago (Pix)', 0)");
         echo "Gateway 'InfoPago' inserido.<br>";
+    }
+
+    $stmt_gateway_omega = $pdo->query("SELECT COUNT(*) FROM gateways WHERE nome = 'omegapayments'");
+    if ($stmt_gateway_omega->fetchColumn() == 0) {
+        $pdo->exec("INSERT INTO gateways (nome, titulo, ativo) VALUES ('omegapayments', 'OmegaPayments (Pix)', 0)");
+        echo "Gateway 'OmegaPayments' inserido.<br>";
     }
 
     $sql_links_rastreamento = "

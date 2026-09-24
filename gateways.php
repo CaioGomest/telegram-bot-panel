@@ -264,9 +264,9 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                             $g_id        = (int)$g['id'];
                             $is_ativo    = (bool)$g['ativo'];
                             $nome       = $g['nome'];
-                            $icon_class  = match($nome) { 'infopago' => 'icone-gateway-infopago', default => 'icone-gateway-padrao' };
-                            $icon_letter = match($nome) { 'infopago' => 'I', default => '?' };
-                            $subtitle   = match($nome) { 'infopago' => 'OAuth2 + Certificado mTLS', default => 'Gateway' };
+                            $icon_class  = match($nome) { 'infopago' => 'icone-gateway-infopago', 'omegapayments' => 'icone-gateway-omegapayments', default => 'icone-gateway-padrao' };
+                            $icon_letter = match($nome) { 'infopago' => 'I', 'omegapayments' => 'O', default => '?' };
+                            $subtitle   = match($nome) { 'infopago' => 'OAuth2 + Certificado mTLS', 'omegapayments' => 'Chave Pública/Secreta (API Key)', default => 'Gateway' };
                         ?>
                         <div class="cartao-gateway-admin <?php echo $is_ativo ? 'ativo' : ''; ?>" id="adm-card-<?php echo $g_id; ?>">
                             <input type="hidden" name="ids[]" value="<?php echo $g_id; ?>">
@@ -327,14 +327,16 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
 
                     function gwIconClass(string $nome): string {
                         return match($nome) {
-                            'infopago'  => 'icone-gateway-infopago',
-                            default     => 'icone-gateway-padrao',
+                            'infopago'      => 'icone-gateway-infopago',
+                            'omegapayments' => 'icone-gateway-omegapayments',
+                            default         => 'icone-gateway-padrao',
                         };
                     }
                     function gwIconLetter(string $nome): string {
                         return match($nome) {
-                            'infopago'  => 'I',
-                            default     => '?',
+                            'infopago'      => 'I',
+                            'omegapayments' => 'O',
+                            default         => '?',
                         };
                     }
 
@@ -419,6 +421,11 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                                 <?php endif; ?>
                             </div>
 
+                            <?php if ($nome === 'omegapayments'): ?>
+                                <!-- OmegaPayments não tem PIX Recorrente nem certificado mTLS (v1) --
+                                     esconde os dois campos em vez de mostrar algo que não se aplica. -->
+                                <input type="hidden" name="tipo_conta" value="pj">
+                            <?php else: ?>
                             <div class="campo">
                                 <label>Tipo de Conta</label>
                                 <select name="tipo_conta">
@@ -427,8 +434,10 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                                 </select>
                                 <small>Necessário para habilitar <strong>PIX Recorrente (Assinatura)</strong> nos seus fluxos — esse recurso só funciona em contas PJ.</small>
                             </div>
+                            <?php endif; ?>
                             <input type="hidden" name="prioridade" value="<?php echo (int)($cfg['prioridade'] ?? 100); ?>">
 
+                            <?php if ($nome !== 'omegapayments'): ?>
                             <div class="campo">
                                 <label>Certificado (.p12, .pfx ou .pem)</label>
                                 <?php if (!empty($cfg['certificado'])): ?>
@@ -444,6 +453,7 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                                        placeholder="<?php echo !empty($cfg['cert_password']) ? '••••••••' : ''; ?>">
                                 <small>Deixe em branco pra manter a senha já salva.</small>
                             </div>
+                            <?php endif; ?>
 
                             <button type="submit" class="botao botao-primario botao-bloco">Salvar Credenciais</button>
                         </form>

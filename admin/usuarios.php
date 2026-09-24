@@ -1,6 +1,7 @@
 <?php declare(strict_types=1);
 require_once __DIR__ . '/../funcoes/usuario.php';
 require_once __DIR__ . '/../funcoes/paginador.php';
+require_once __DIR__ . '/../funcoes/gateways.php';
 verificarAdmin();
 $caminho_base = '../';
 
@@ -10,6 +11,10 @@ $offset = ($pagina_atual - 1) * $por_pagina;
 
 $total_usuarios = contarTotalUsuarios();
 $usuarios = listarTodosUsuarios($por_pagina, $offset);
+
+// Splits são configurados por gateway (usuarios_splits.gateway_nome) — a lista de abas
+// abaixo é montada a partir dos gateways de fato suportados, não fixa em InfoPago.
+$gateways_para_split = listarGatewaysAdmin();
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -177,6 +182,23 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
                         </div>
                         <button type="button" class="botao" style="font-size:12px; padding:6px 12px;" onclick="adicionarLinhasSplit()">+ Adicionar Split</button>
                     </div>
+
+                    <?php if (count($gateways_para_split) > 1): ?>
+                    <!-- Cada gateway tem seu próprio conjunto de splits -- aba por gateway em vez de
+                         misturar tudo numa lista só (senão não dava pra saber qual linha era de qual). -->
+                    <div id="splitAbasGateway" class="abas-split-gateway" style="display:flex; gap:6px; margin-bottom:14px;">
+                        <?php foreach ($gateways_para_split as $indice_gw => $gw_split): ?>
+                        <button type="button"
+                                class="aba-split-gateway<?php echo $indice_gw === 0 ? ' ativa' : ''; ?>"
+                                data-gateway-nome="<?php echo htmlspecialchars($gw_split['nome']); ?>"
+                                onclick="trocarAbaSplitGateway('<?php echo htmlspecialchars($gw_split['nome'], ENT_QUOTES); ?>', this)">
+                            <?php echo htmlspecialchars($gw_split['titulo']); ?>
+                        </button>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php endif; ?>
+                    <input type="hidden" id="splitGatewayAtivo" value="<?php echo htmlspecialchars($gateways_para_split[0]['nome'] ?? 'infopago'); ?>">
+
                     <div id="splitCarregando" class="texto-suave" style="font-style:italic; display:none;">Carregando splits...</div>
                     <div id="splitLista"></div>
                     <div id="splitVazio" class="texto-suave" style="font-style:italic; display:none;">Nenhum split configurado.</div>
@@ -287,7 +309,27 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
         document.getElementById('formEditar').querySelector('[name=senha]').value = '';
         document.getElementById('msgEditar').style.display = 'none';
         document.getElementById('modalEditar').style.display = 'flex';
-        carregarSplits(id);
+
+        // Sempre reabre na primeira aba de gateway (evita ficar "presa" na aba do usuário anterior).
+        const abas = document.querySelectorAll('#splitAbasGateway .aba-split-gateway');
+        abas.forEach((aba, i) => aba.classList.toggle('ativa', i === 0));
+        const gatewayInicial = abas.length ? abas[0].dataset.gatewayNome : document.getElementById('splitGatewayAtivo').value;
+        document.getElementById('splitGatewayAtivo').value = gatewayInicial;
+
+        carregarSplits(id, gatewayInicial);
+    }
+
+    /**
+     * Troca a aba de gateway ativa na edição de split. Recarrega a lista pra esse gateway --
+     * qualquer edição não salva na aba anterior é descartada (mesmo comportamento de reabrir
+     * o modal: a lista sempre vem fresca do banco via listar_splits_usuario.php).
+     */
+    function trocarAbaSplitGateway(gatewayNome, btn) {
+        document.querySelectorAll('#splitAbasGateway .aba-split-gateway').forEach(el => el.classList.remove('ativa'));
+        btn.classList.add('ativa');
+        document.getElementById('splitGatewayAtivo').value = gatewayNome;
+        const user_id = document.getElementById('editarId').value;
+        carregarSplits(user_id, gatewayNome);
     }
     function fecharModalEditar() {
         document.getElementById('modalEditar').style.display = 'none';
@@ -317,9 +359,11 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
                     return;
                 }
                 const user_id = document.getElementById('editarId').value;
+                const gatewayAtivo = document.getElementById('splitGatewayAtivo').value;
                 const splits = coletarSplits();
                 const fd = new FormData();
                 fd.append('id_usuario', user_id);
+                fd.append('gateway_nome', gatewayAtivo);
                 fd.append('splits', JSON.stringify(splits));
                 fd.append('csrf_token', CSRF_TOKEN);
                 return fetch('../ajax/salvar_splits_usuario.php', { method: 'POST', body: fd })
@@ -341,7 +385,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
             });
     }
 
-    function carregarSplits(user_id) {
+    function carregarSplits(user_id, gatewayNome) {
         const lista    = document.getElementById('splitLista');
         const vazio    = document.getElementById('splitVazio');
         const loading  = document.getElementById('splitCarregando');
@@ -349,7 +393,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
         vazio.style.display    = 'none';
         loading.style.display  = 'block';
 
-        fetch('../ajax/listar_splits_usuario.php?id=' + user_id)
+        fetch('../ajax/listar_splits_usuario.php?id=' + user_id + '&gateway_nome=' + encodeURIComponent(gatewayNome))
             .then(r => r.json())
             .then(splits => {
                 loading.style.display = 'none';
@@ -380,7 +424,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
                     <input type="number" step="0.01" min="0" max="100" class="form-input split-taxa" value="${taxa}" placeholder="Ex: 10">
                 </div>
                 <div class="split-field split-field-lg">
-                    <label class="split-label">Chave Pix de destino (InfoPago)</label>
+                    <label class="split-label">Chave Pix de destino</label>
                     <input type="text" class="form-input split-chave-pix" value="${chave_simples}" placeholder="CPF, CNPJ, e-mail, EVP, ou telefone c/ +55 (ex: +5511999999999)">
                 </div>
                 <div class="split-field split-field-desc">
@@ -405,11 +449,12 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
     }
 
     function coletarSplits() {
+        // gateway_nome não vem mais fixo aqui -- salvar_splits_usuario.php recebe o gateway
+        // da aba ativa (campo separado no FormData, ver salvarEdicaoUsuario), não por linha.
         const rows = document.querySelectorAll('#splitLista .split-row');
         const result = [];
         rows.forEach(row => {
             result.push({
-                gateway_nome:    'infopago',
                 tipo_split:      'percentual',
                 taxa_split:      row.querySelector('.split-taxa').value,
                 chave_pix_split: row.querySelector('.split-chave-pix').value,
@@ -586,6 +631,9 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
     .split-label { font: 700 10.5px 'Manrope', sans-serif; color: var(--m); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
     .split-remove { flex-shrink: 0; background: var(--dasoft); border: none; color: var(--da); width: 30px; height: 30px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
     .split-remove:hover { background: var(--da); color: #fff; }
+
+    .aba-split-gateway { padding: 7px 14px; font: 700 12.5px 'Manrope', sans-serif; color: var(--m); background: var(--p2); border: 1px solid var(--bd); border-radius: 8px; cursor: pointer; }
+    .aba-split-gateway.ativa { color: var(--t); background: var(--p3); border-color: var(--or); }
  </style>
 
 <script src="../assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/../assets/js/tema.js'); ?>"></script>
