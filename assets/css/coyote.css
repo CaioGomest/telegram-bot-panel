@@ -765,12 +765,14 @@ html[data-theme] a.botao-configurar { color: var(--or); }
 .grade-dashboard-baixo > * { min-width: 0; }
 .area-grafico canvas { max-width: 100%; }
 
-/* Topo do dashboard do cliente: 4 KPIs à esquerda (empilham em .grade-kpi normalmente,
-   2x2 na largura dessa coluna) + "Seu desempenho" à direita, mais largo por ser o
-   conteúdo principal. Mesmo motivo de min-width:0 do .grade-dashboard-baixo acima. */
+/* Topo do dashboard do cliente: 4 KPIs em grade 2x2 à esquerda + "Seu desempenho" à
+   direita, mais largo por ser o conteúdo principal. Mesmo motivo de min-width:0 do
+   .grade-dashboard-baixo acima. */
 .grade-dashboard-topo { display: grid; grid-template-columns: 1fr 1.55fr; gap: 14px; }
 .grade-dashboard-topo > * { min-width: 0; }
-.grade-dashboard-topo .grade-kpi { margin-bottom: 0; }
+/* A coluna de cards é estreita demais pro auto-fit de .grade-kpi (minmax 215px) caber duas
+   por linha -- força 2x2 em vez de empilhar as 4 verticalmente. */
+.grade-dashboard-topo .grade-kpi { grid-template-columns: repeat(2, 1fr); margin-bottom: 0; }
 
 .area-grafico { position: relative; height: 300px; width: 100%; }
 
