@@ -100,7 +100,7 @@ if (isset($_GET['salvo_google'])) {
                 <div class="aviso aviso-<?php echo $tipo_mensagem; ?>"><?php echo htmlspecialchars($mensagem); ?></div>
             <?php endif; ?>
 
-            <form method="POST" enctype="multipart/form-data">
+            <form method="POST" enctype="multipart/form-data" id="form-identidade" data-confirmar="Confirma salvar essas alterações de identidade visual? Isso muda o nome, logo, favicon e/ou cor de destaque pra todo mundo que usa o painel.">
                 <?php echo campoCsrf(); ?>
                 <input type="hidden" name="acao" value="identidade">
 
@@ -176,7 +176,7 @@ if (isset($_GET['salvo_google'])) {
                 <small>Tem que bater caractere por caractere com o que está cadastrado no Google, incluindo https.</small>
             </div>
 
-            <form method="POST">
+            <form method="POST" id="form-google" data-confirmar="Confirma salvar essas credenciais do login com Google? Se estiverem erradas, o botão de login com Google pode parar de funcionar pra quem já usa.">
                 <?php echo campoCsrf(); ?>
                 <input type="hidden" name="acao" value="google">
 
@@ -204,7 +204,69 @@ if (isset($_GET['salvo_google'])) {
     </main>
 </div>
 
+<div class="sobreposicao-modal" id="modal-confirmar-config">
+    <div class="modal-gateway" style="max-width:420px;">
+        <div class="cabecalho-modal">
+            <span class="titulo-modal">Confirmar alteração</span>
+            <button type="button" class="fechar-modal" id="btn-fechar-confirmar-config">✕</button>
+        </div>
+        <div class="corpo-modal">
+            <p id="texto-confirmar-config" style="margin:0 0 18px;line-height:1.6;"></p>
+            <div class="linha-acoes">
+                <button type="button" class="botao" id="btn-cancelar-confirmar-config">Cancelar</button>
+                <button type="button" class="botao botao-primario" id="btn-confirmar-confirmar-config">Confirmar e salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="../assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/../assets/js/tema.js'); ?>"></script>
+<script>
+// Segunda confirmação antes de salvar: essa tela muda a identidade visual pra todo mundo
+// (nome/logo/favicon/cor) e as credenciais do login com Google -- um clique errado aqui
+// tem efeito em todos os usuários do painel, ou pode quebrar o login com Google de quem
+// já usa. Intercepta o submit, mostra o que vai mudar, e só envia de fato no "Confirmar".
+(function () {
+    var modal = document.getElementById('modal-confirmar-config');
+    var texto = document.getElementById('texto-confirmar-config');
+    var btnConfirmar = document.getElementById('btn-confirmar-confirmar-config');
+    var btnCancelar = document.getElementById('btn-cancelar-confirmar-config');
+    var btnFechar = document.getElementById('btn-fechar-confirmar-config');
+    var formPendente = null;
+
+    function abrirConfirmacao(form) {
+        formPendente = form;
+        texto.textContent = form.dataset.confirmar || 'Confirma salvar essas alterações?';
+        modal.classList.add('aberto');
+    }
+    function fecharConfirmacao() {
+        formPendente = null;
+        modal.classList.remove('aberto');
+    }
+
+    ['form-identidade', 'form-google'].forEach(function (id) {
+        var form = document.getElementById(id);
+        if (!form) return;
+        form.addEventListener('submit', function (e) {
+            if (form.dataset.confirmado === '1') return; // já confirmado, deixa enviar
+            e.preventDefault();
+            abrirConfirmacao(form);
+        });
+    });
+
+    btnConfirmar.addEventListener('click', function () {
+        if (!formPendente) return;
+        formPendente.dataset.confirmado = '1';
+        formPendente.submit();
+        fecharConfirmacao();
+    });
+    btnCancelar.addEventListener('click', fecharConfirmacao);
+    btnFechar.addEventListener('click', fecharConfirmacao);
+    modal.addEventListener('click', function (e) {
+        if (e.target === modal) fecharConfirmacao();
+    });
+})();
+</script>
 <script>
 // Mesmo padrão em duas etapas já usado em assets/links_rastreamento.js -- Clipboard API
 // quando disponível (precisa de contexto seguro, https), senão volta pro jeito antigo via
