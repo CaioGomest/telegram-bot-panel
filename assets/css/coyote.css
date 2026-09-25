@@ -772,7 +772,10 @@ html[data-theme] a.botao-configurar { color: var(--or); }
 /* Topo do dashboard do cliente: 4 KPIs em grade 2x2 à esquerda + "Seu desempenho" à
    direita, mais largo por ser o conteúdo principal. Mesmo motivo de min-width:0 do
    .grade-dashboard-baixo acima. */
-.grade-dashboard-topo { display: grid; grid-template-columns: 1fr 1.55fr; gap: 14px; }
+/* align-items:start pra coluna de cards nao esticar pra altura do grafico (grid por
+   padrao estica os itens pra bater a altura da linha) -- sem isso cada card virava tao
+   alto quanto o grafico, sobrando um vao vazio embaixo do numero. */
+.grade-dashboard-topo { display: grid; grid-template-columns: 1fr 1.55fr; gap: 14px; align-items: start; }
 .grade-dashboard-topo > * { min-width: 0; }
 /* A coluna de cards é estreita demais pro auto-fit de .grade-kpi (minmax 215px) caber duas
    por linha -- força 2x2 em vez de empilhar as 4 verticalmente. */
