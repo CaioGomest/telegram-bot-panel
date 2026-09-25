@@ -57,7 +57,7 @@ html[data-theme] .chevron-flow-meta { color: var(--m); }
 .chevron-flow-meta.aberto { transform: rotate(180deg); }
 .acoes-flow-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .acoes-flow-meta .botao svg { flex: none; display: block; }
-.secao-detalhes-fluxo {
+.secao-detalhes-fluxo:not([hidden]) {
     display: grid;
     gap: 14px;
     padding: 14px 4px 4px;

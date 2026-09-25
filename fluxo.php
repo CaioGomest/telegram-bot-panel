@@ -39,7 +39,7 @@ bloquearAdmin();
             <div class="linha-meta-fluxo">
                 <button type="button" class="btn-toggle-meta-fluxo" id="btn-toggle-flow-meta">
                     <span class="texto-nome-fluxo-colapsado" id="texto-nome-fluxo-colapsado">Novo fluxo</span>
-                    <span class="texto-hint-flow-meta" id="texto-hint-flow-meta">Nome, descrição e link de suporte</span>
+                    <span class="texto-hint-flow-meta" id="texto-hint-flow-meta">Nome e descrição</span>
                     <svg class="chevron-flow-meta" id="chevron-flow-meta" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"></path></svg>
                 </button>
                 <div class="acoes-flow-meta">
@@ -59,7 +59,7 @@ bloquearAdmin();
                 </div>
             </div>
             <div class="secao-detalhes-fluxo" id="secao-detalhes-fluxo" hidden>
-                <div class="grade grade-3 grade-compacta">
+                <div class="grade grade-2 grade-compacta">
                     <div class="campo">
                         <label for="nome-fluxo">Nome do fluxo</label>
                         <input type="text" id="nome-fluxo" placeholder="Ex.: Atendimento inicial">
@@ -68,14 +68,10 @@ bloquearAdmin();
                         <label for="descricao-fluxo">Descrição</label>
                         <input type="text" id="descricao-fluxo" placeholder="Uso interno do fluxo">
                     </div>
-                    <div class="campo">
-                        <label for="link-suporte-fluxo">Link de Suporte (opcional)</label>
-                        <input type="text" id="link-suporte-fluxo" placeholder="https://t.me/seu_usuario">
-                        <p class="texto-ajuda">Usado nas mensagens automáticas de aviso/expiração de acesso enviadas pelo sistema (fora do fluxo).</p>
-                    </div>
                 </div>
             </div>
             <input type="hidden" id="id-fluxo">
+            <input type="hidden" id="link-suporte-fluxo">
         </div>
 
         <div class="paleta-blocos">

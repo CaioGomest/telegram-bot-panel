@@ -916,7 +916,7 @@
             $secao.attr('hidden', true);
         }
         $('#chevron-flow-meta').toggleClass('aberto', abrindo);
-        $('#texto-hint-flow-meta').text(abrindo ? 'Ocultar detalhes' : 'Nome, descrição e link de suporte');
+        $('#texto-hint-flow-meta').text(abrindo ? 'Ocultar detalhes' : 'Nome e descrição');
     });
     $('#nome-fluxo').on('input', function () {
         $('#texto-nome-fluxo-colapsado').text($(this).val().trim() || 'Novo fluxo');
