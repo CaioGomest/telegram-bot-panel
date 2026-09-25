@@ -500,9 +500,8 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                                         <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.1 4.9A10 10 0 0 0 4.9 19.1M19.1 19.1A10 10 0 0 0 4.9 4.9"/></svg>
                                         Configurar
                                     </button>
-                                    <button type="button" class="botao botao-perigo" onclick="desativarGateway(<?php echo $g['id']; ?>, '<?php echo htmlspecialchars($g['titulo'], ENT_QUOTES); ?>', this)">
-                                        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                                        Desativar
+                                    <button type="button" class="btn-icon desativar" title="Desativar" onclick="desativarGateway(<?php echo $g['id']; ?>, '<?php echo htmlspecialchars($g['titulo'], ENT_QUOTES); ?>', this)">
+                                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                                     </button>
                                 </div>
                             </div>
@@ -560,9 +559,8 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                                         Configurar
                                     </button>
                                     <?php if ($tem_credenciais): ?>
-                                    <button type="button" class="botao botao-primario" onclick="ativarGateway(<?php echo $g['id']; ?>, this)">
-                                        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-                                        Ativar
+                                    <button type="button" class="btn-icon ativar" title="Ativar" onclick="ativarGateway(<?php echo $g['id']; ?>, this)">
+                                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                                     </button>
                                     <?php endif; ?>
                                 </div>

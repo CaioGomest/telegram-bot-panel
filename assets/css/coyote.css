@@ -608,6 +608,8 @@ html[data-theme] a.botao-configurar { color: var(--or); }
 .btn-icon svg { width: 16px; height: 16px; }
 .btn-icon.editar:hover { border-color: var(--or); color: var(--or); }
 .btn-icon.excluir:hover { border-color: var(--da); color: var(--da); }
+.btn-icon.ativar:hover { border-color: var(--ok); color: var(--ok); }
+.btn-icon.desativar:hover { border-color: var(--wa); color: var(--wa); }
 
 .estado-vazio {
     grid-column: 1 / -1;
