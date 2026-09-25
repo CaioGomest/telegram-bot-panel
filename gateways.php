@@ -304,13 +304,22 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                 </form>
 
                 <script>
+                    // O checkbox dispara submit() da página inteira a cada troca. Sem travar os
+                    // controles nesse instante, dar 2-3 cliques rápidos (ativar/desativar em
+                    // sequência) empilha navegações umas em cima das outras -- nesse servidor
+                    // isso às vezes deixa a conexão HTTP/2 reaproveitada num estado ruim
+                    // (ERR_HTTP2_PROTOCOL_ERROR até o navegador abrir uma conexão nova).
                     function admToggleCard(id, ativo) {
                         const card  = document.getElementById('adm-card-' + id);
                         const badge = document.getElementById('badge-' + id);
                         card.classList.toggle('ativo', ativo);
                         badge.className = 'badge ' + (ativo ? 'badge-sucesso' : 'badge-neutro');
                         badge.textContent = ativo ? 'Ativo' : 'Inativo';
+                        // submit() primeiro (já captura os valores atuais dos checkboxes), só
+                        // depois desabilita -- desabilitar antes tiraria os checkboxes do POST
+                        // (campo disabled não é enviado) e zeraria todo mundo pra "inativo".
                         document.getElementById('formAdmin').submit();
+                        document.querySelectorAll('#formAdmin input[type="checkbox"]').forEach(cb => cb.disabled = true);
                     }
                 </script>
 
@@ -565,7 +574,7 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                                         <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.1 4.9A10 10 0 0 0 4.9 19.1M19.1 19.1A10 10 0 0 0 4.9 4.9"/></svg>
                                         Configurar
                                     </button>
-                                    <button type="button" class="botao botao-perigo" onclick="desativarGateway(<?php echo $g['id']; ?>, '<?php echo htmlspecialchars($g['titulo'], ENT_QUOTES); ?>')">
+                                    <button type="button" class="botao botao-perigo" onclick="desativarGateway(<?php echo $g['id']; ?>, '<?php echo htmlspecialchars($g['titulo'], ENT_QUOTES); ?>', this)">
                                         <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                                         Desativar
                                     </button>
@@ -625,7 +634,7 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                                         Configurar
                                     </button>
                                     <?php if ($tem_credenciais): ?>
-                                    <button type="button" class="botao botao-primario" onclick="ativarGateway(<?php echo $g['id']; ?>)">
+                                    <button type="button" class="botao botao-primario" onclick="ativarGateway(<?php echo $g['id']; ?>, this)">
                                         <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                                         Ativar
                                     </button>
@@ -677,13 +686,19 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
 function openModal(id)  { document.getElementById(id).classList.add('aberto');    document.body.style.overflow='hidden'; }
 function closeModal(id) { document.getElementById(id).classList.remove('aberto'); document.body.style.overflow='';       }
 
-function desativarGateway(id, nome) {
+// Desabilita o botão assim que o clique dispara a navegação -- clicar de novo antes da
+// página recarregar (ativar/desativar/ativar em sequência rápida) cancela a requisição
+// em andamento e, nesse servidor, isso às vezes deixa a conexão HTTP/2 reaproveitada num
+// estado ruim (ERR_HTTP2_PROTOCOL_ERROR até o navegador abrir uma conexão nova).
+function desativarGateway(id, nome, btn) {
     if (!confirm('Desativar "' + nome + '"? Seus bots deixarão de usar este gateway.')) return;
+    if (btn) btn.disabled = true;
     document.getElementById('desativar-gw-id').value = id;
     document.getElementById('form-desativar').submit();
 }
 
-function ativarGateway(id) {
+function ativarGateway(id, btn) {
+    if (btn) btn.disabled = true;
     document.getElementById('ativar-gw-id').value = id;
     document.getElementById('form-ativar').submit();
 }
