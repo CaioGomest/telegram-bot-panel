@@ -420,6 +420,45 @@ try {
             responder(true, ['mensagem' => 'Fluxo excluído com sucesso.']);
             break;
 
+        case 'excluir_bot':
+            // Achado: o botão de excluir em bots.php chamava essa ação, mas ela nunca existiu
+            // aqui -- todo clique caía no "default" (404 "Ação inválida"), então o bot nunca
+            // era removido. leads/vendas sobrevivem com bot_id=NULL (FK já é ON DELETE SET
+            // NULL); bot_grupos/membros_grupos/links_rastreamento/remarketing_campanhas/
+            // webhooks são apagados junto (FK ON DELETE CASCADE) -- histórico de venda/lead
+            // nunca é perdido ao excluir um bot.
+            $id_bot = (int) ($entrada['id'] ?? 0);
+            if ($id_bot <= 0) {
+                responder(false, ['mensagem' => 'ID do bot inválido.'], 422);
+            }
+
+            $stmt = $pdo->prepare("SELECT primeiro_nome, nome_usuario, caminho_foto FROM bots WHERE id = ? AND id_usuario = ?");
+            $stmt->execute([$id_bot, $usuario_id]);
+            $bot_alvo = $stmt->fetch();
+            if (!$bot_alvo) {
+                responder(false, ['mensagem' => 'Bot não encontrado.'], 404);
+            }
+            $nome_bot = $bot_alvo['primeiro_nome'] ?: ($bot_alvo['nome_usuario'] ?: "ID $id_bot");
+
+            $stmt = $pdo->prepare("DELETE FROM bots WHERE id = ? AND id_usuario = ?");
+            $stmt->execute([$id_bot, $usuario_id]);
+            if ($stmt->rowCount() === 0) {
+                responder(false, ['mensagem' => 'Bot não encontrado ou já excluído.'], 404);
+            }
+
+            $foto = (string) ($bot_alvo['caminho_foto'] ?? '');
+            if ($foto !== '' && strpos($foto, 'uploads/') === 0 && strpos($foto, '..') === false) {
+                $caminho_real = realpath(__DIR__ . '/' . $foto);
+                $base_real = realpath(DIRETORIO_UPLOADS);
+                if ($caminho_real && $base_real && strpos($caminho_real, $base_real) === 0) {
+                    @unlink($caminho_real);
+                }
+            }
+
+            registrarAtividade($usuario_id, 'sistema', 'Bot', "Excluiu o bot: $nome_bot");
+            responder(true, ['mensagem' => 'Bot excluído com sucesso.']);
+            break;
+
         case 'listar_bots':
             // Traz junto o nome do fluxo conectado e os leads dos últimos 7 dias -- é o que os
             // cards da lista mostram (antes o card exibia o ID cru do fluxo, ex. "Fluxo: 2").
