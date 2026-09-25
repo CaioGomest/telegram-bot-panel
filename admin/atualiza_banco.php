@@ -1,6 +1,21 @@
 <?php
 declare(strict_types=1);
 
+// Migração incremental do banco -- idempotente e segura pra rodar quantas vezes quiser
+// (CREATE TABLE IF NOT EXISTS + ALTER em try/catch que ignora "coluna já existe"). É a
+// ferramenta de ATUALIZAR uma instalação já existente; instalacao.php é a de criar uma
+// do zero (e já nasce com o schema completo de hoje, reconferido em 2026-09-25).
+//
+// Convenção a partir de 2026-09-25: toda coluna/tabela nova entra AQUI primeiro, como um
+// novo bloco CREATE/ALTER (nunca editando o schema de instalacao.php direto) -- só depois
+// de confirmado que funciona é que o mesmo campo é espelhado em instalacao.php, pra
+// instalação nova nascer completa sem depender de rodar este arquivo em seguida. Os ALTERs
+// mais antigos abaixo continuam aqui de propósito (não foram "limpos"): mesmo que a coluna
+// já apareça no CREATE TABLE logo acima dele nesta mesma função, o CREATE só roda de fato
+// numa tabela que ainda não existe -- numa instalação mais antiga, que já tinha a tabela
+// antes daquela coluna ser adicionada, é o ALTER (não o CREATE) que efetivamente traz a
+// coluna. Apagar esses ALTERs quebraria o caminho de atualização pra qualquer instalação
+// que ainda não rodou este arquivo desde então.
 require_once __DIR__ . '/../funcoes/usuario.php';
 require_once __DIR__ . '/../funcoes/relatorio_debug.php';
 require_once __DIR__ . '/../funcoes/gateways.php';

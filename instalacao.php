@@ -65,13 +65,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->exec("CREATE DATABASE IF NOT EXISTS `$nome_banco` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
         $pdo->exec("USE `$nome_banco`");
 
-        // Schema completo (22 tabelas), consolidado a partir de admin/atualiza_banco.php em
-        // 2026-09-17 -- antes disso, um install novo só criava usuarios/fluxos/bots e dependia
-        // de rodar atualiza_banco.php manualmente depois pra chegar no schema atual (o que
-        // também já tinha ficado lento demais pra rodar de uma vez com muito dado acumulado,
-        // ver anotacoes/analise-potencia-e-escala.md). Conferido campo a campo contra
+        // Schema completo (28 tabelas), consolidado a partir de admin/atualiza_banco.php em
+        // 2026-09-17 e reconferido em 2026-09-25 (fechada a lacuna de comunidade_links/
+        // webhooks/webhooks_envios, que só o atualiza_banco.php criava até então) -- antes
+        // disso, um install novo só criava usuarios/fluxos/bots e dependia de rodar
+        // atualiza_banco.php manualmente depois pra chegar no schema atual (o que também já
+        // tinha ficado lento demais pra rodar de uma vez com muito dado acumulado, ver
+        // anotacoes/HISTORICO-CONSOLIDADO.md seção 4). Conferido campo a campo contra
         // `SHOW CREATE TABLE` do ambiente de teste em produção pra garantir que bate exatamente
-        // com o schema real depois de anos de ALTER TABLE incrementais.
+        // com o schema real depois de anos de ALTER TABLE incrementais. Convenção: toda
+        // mudança de schema nova entra primeiro em admin/atualiza_banco.php (como ALTER
+        // incremental, pra quem já tem o banco criado poder atualizar) e, quando o schema
+        // "assentar", vem espelhada aqui pra instalação nova nascer completa de uma vez.
         $pdo->exec("CREATE TABLE IF NOT EXISTS usuarios (
             id INT AUTO_INCREMENT PRIMARY KEY,
             nome VARCHAR(100) NOT NULL,
@@ -349,6 +354,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             PRIMARY KEY (story_id, id_usuario),
             FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE,
             FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+        // Página Comunidade: links institucionais (grupos, canais, redes) — editado só pelo
+        // admin (admin/comunidade.php), exibido em comunidade.php. membros_max = 0 = sem limite.
+        $pdo->exec("CREATE TABLE IF NOT EXISTS comunidade_links (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            tipo VARCHAR(30) NOT NULL DEFAULT 'outro',
+            titulo VARCHAR(80) NOT NULL,
+            subtitulo VARCHAR(120) DEFAULT NULL,
+            url VARCHAR(500) NOT NULL,
+            icone VARCHAR(30) NOT NULL DEFAULT 'link',
+            membros_atual INT UNSIGNED NOT NULL DEFAULT 0,
+            membros_max INT UNSIGNED NOT NULL DEFAULT 0,
+            ordem INT NOT NULL DEFAULT 0,
+            ativo TINYINT(1) NOT NULL DEFAULT 1,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+        // Webhooks de saída do usuário (lead, PIX gerado, pagamento aprovado). bot_id NULL =
+        // todos os bots daquele usuário. Ver funcoes/webhooks.php.
+        $pdo->exec("CREATE TABLE IF NOT EXISTS webhooks (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            id_usuario INT NOT NULL,
+            nome VARCHAR(80) NOT NULL,
+            url VARCHAR(500) NOT NULL,
+            secret VARCHAR(128) DEFAULT NULL,
+            eventos VARCHAR(120) NOT NULL,
+            bot_id INT DEFAULT NULL,
+            ativo TINYINT(1) NOT NULL DEFAULT 1,
+            falhas_consecutivas INT NOT NULL DEFAULT 0,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE,
+            FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE,
+            INDEX idx_webhooks_usuario_ativo (id_usuario, ativo)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS webhooks_envios (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            webhook_id INT NOT NULL,
+            evento VARCHAR(40) NOT NULL,
+            http_status SMALLINT DEFAULT NULL,
+            sucesso TINYINT(1) NOT NULL DEFAULT 0,
+            erro VARCHAR(180) DEFAULT NULL,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (webhook_id) REFERENCES webhooks(id) ON DELETE CASCADE,
+            INDEX idx_webhooks_envios_webhook (webhook_id, criado_em)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
         $pdo->exec("CREATE TABLE IF NOT EXISTS configuracoes (
