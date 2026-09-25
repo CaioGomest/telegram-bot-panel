@@ -100,18 +100,22 @@ $url_foto_conta = urlFotoPerfil($foto_conta);
                     <div class="painel">
                         <div class="painel-cabecalho"><h2>Dados pessoais</h2></div>
                         <div class="conta-foto">
-                            <form method="POST" enctype="multipart/form-data" id="form-foto-perfil">
-                                <?php echo campoCsrf(); ?>
-                                <input type="hidden" name="acao" value="foto">
-                                <label class="conta-avatar" for="input-foto-perfil" title="Trocar foto">
-                                    <?php if ($url_foto_conta !== ''): ?>
-                                        <img src="<?php echo htmlspecialchars($url_foto_conta); ?>" alt="">
-                                    <?php else: ?>
-                                        <?php echo htmlspecialchars($iniciais_conta); ?>
-                                    <?php endif; ?>
-                                </label>
-                                <input type="file" id="input-foto-perfil" name="foto" accept="image/jpeg,image/png,image/webp" hidden>
-                            </form>
+                            <?php
+                            // form-foto-perfil vive FORA do <form> principal (declarado depois dele
+                            // fechar, mais abaixo) -- <form> dentro de <form> é HTML inválido, o
+                            // navegador descarta a tag interna e todo campo daqui (inclusive o
+                            // acao=foto escondido) acaba solto dentro do form de fora, fazendo até o
+                            // botão "Atualizar senha" mandar acao=foto sem arquivo nenhum. O atributo
+                            // form="form-foto-perfil" no input abaixo associa ele ao form externo.
+                            ?>
+                            <label class="conta-avatar" for="input-foto-perfil" title="Trocar foto">
+                                <?php if ($url_foto_conta !== ''): ?>
+                                    <img src="<?php echo htmlspecialchars($url_foto_conta); ?>" alt="">
+                                <?php else: ?>
+                                    <?php echo htmlspecialchars($iniciais_conta); ?>
+                                <?php endif; ?>
+                            </label>
+                            <input type="file" id="input-foto-perfil" name="foto" form="form-foto-perfil" accept="image/jpeg,image/png,image/webp" hidden>
                             <div>
                                 <div class="conta-foto-acoes">
                                     <!-- <label for="input-foto-perfil"> em vez de <button>+JS pra abrir o seletor de
@@ -125,12 +129,6 @@ $url_foto_conta = urlFotoPerfil($foto_conta);
                                 <span class="texto-ajuda">JPG, PNG ou WebP. Máximo 2 MB.</span>
                             </div>
                         </div>
-                        <?php if ($url_foto_conta !== ''): ?>
-                            <form method="POST" id="form-remover-foto" hidden>
-                                <?php echo campoCsrf(); ?>
-                                <input type="hidden" name="acao" value="remover_foto">
-                            </form>
-                        <?php endif; ?>
                         <div class="grade grade-compacta">
                             <div class="campo">
                                 <label for="nome">Nome completo</label>
@@ -174,6 +172,17 @@ $url_foto_conta = urlFotoPerfil($foto_conta);
                     </div>
                 </div>
             </form>
+
+            <form method="POST" enctype="multipart/form-data" id="form-foto-perfil" hidden>
+                <?php echo campoCsrf(); ?>
+                <input type="hidden" name="acao" value="foto">
+            </form>
+            <?php if ($url_foto_conta !== ''): ?>
+                <form method="POST" id="form-remover-foto" hidden>
+                    <?php echo campoCsrf(); ?>
+                    <input type="hidden" name="acao" value="remover_foto">
+                </form>
+            <?php endif; ?>
 
             <div class="conta-lista" style="margin-top:14px;">
                 <a href="gateways" class="conta-item">
