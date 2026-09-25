@@ -3,7 +3,6 @@ declare(strict_types=1);
 date_default_timezone_set('America/Sao_Paulo');
 require_once 'conexao.php';
 require_once __DIR__ . '/funcoes/gateways.php';
-require_once __DIR__ . '/funcoes/infopago_split.php';
 require_once __DIR__ . '/funcoes/webhooks.php';
 const DIRETORIO_UPLOADS = __DIR__ . '/uploads';
 /** CNPJ fixo (65.915.116/0001-04) para todas as cobranças PIX recorrentes — apenas dígitos */
@@ -366,74 +365,30 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
                 $tempo_expiracao = (int)($propriedades['expiracao_minutos'] ?? $propriedades['tempo_nao_pago'] ?? 15);
                 $expiracao_segundos = $tempo_expiracao * 60;
 
-                if ($eh_recorrente && $nome_gateway === 'infopago') {
-                    // ── InfoPago: PIX Automático, Jornada 3 (QR Code composto com cobrança imediata) ──
-                    // Paga na hora (acesso liberado igual ao Pix único) e já autoriza a renovação
-                    // automática no mesmo QR. Corrigido (2026-07-07): o passo /locrec não faz parte
-                    // dessa jornada (dava 403 AcessoNegado — endpoint errado, não falta de permissão).
-                    // Fluxo real: /cob/{txid} (cobrança imediata) → /rec (com ativacao.dadosJornada.txid
-                    // vinculando a cobrança) → GET /rec/{idRec}?txid={txid} (QR composto em dadosQR.pixCopiaECola).
-                    $periodicidade = $propriedades['periodicidade'] ?? 'mensal';
-
-                    $payload_cobranca = $provedor->montaPayloadCobranca($valor, $chave_pix, $split_data, $expiracao_segundos);
-                    $resp_cobranca = $provedor->criarCobranca($payload_cobranca);
-                    if (!($resp_cobranca['sucesso'] ?? false)) {
-                        $tentativas[] = "{$nome_gateway} criarCobranca (imediata p/ recorrência) falhou: " . ($resp_cobranca['erro'] ?? 'desconhecido');
-                        continue;
-                    }
-                    $txid_imediata = $resp_cobranca['dados']['txid'] ?? '';
-
-                    $payload_rec = $provedor->montaPayloadRecorrencia(
-                        $valor,
-                        null,
-                        $periodicidade,
-                        $nome_usuario,
-                        $documento_limpo,
-                        $propriedades['nome'] ?? 'Assinatura',
-                        $txid_imediata
-                    );
-                    $resp_rec = $provedor->criarRecorrencia($payload_rec);
-                    if (!($resp_rec['sucesso'] ?? false)) {
-                        $tentativas[] = "{$nome_gateway} criarRecorrencia falhou: " . ($resp_rec['erro'] ?? 'desconhecido');
-                        continue;
-                    }
-                    $id_assinatura = $resp_rec['dados']['idRec'] ?? null;
-                    if (!$id_assinatura) {
-                        $tentativas[] = "{$nome_gateway} idRec ausente na resposta da recorrência";
-                        continue;
-                    }
-
-                    $resp_consulta_rec = $provedor->consultarRecorrencia($id_assinatura, $txid_imediata);
-                    if (!($resp_consulta_rec['sucesso'] ?? false)) {
-                        $tentativas[] = "{$nome_gateway} consultarRecorrencia falhou: " . ($resp_consulta_rec['erro'] ?? 'desconhecido');
-                        continue;
-                    }
-
-                    $eh_recorrente_oficial = true;
-                    $resp = $resp_cobranca;
-                    // QR composto (paga + autoriza recorrência); some pra trás pro copia-e-cola simples da cobrança se a API não devolver o composto.
-                    $pix_copia_cola  = $resp_consulta_rec['dados']['dadosQR']['pixCopiaECola'] ?? ($resp_cobranca['dados']['pixCopiaECola'] ?? '');
-                    $txid          = $txid_imediata;
-                    $link_pagamento = '';
-
-                } else {
-                    // $nome_usuario/$documento_limpo (nome do lead + CPF/CNPJ) são passados como
-                    // argumentos extras — providers que não usam isso (ex. InfopagoBanco) simplesmente
-                    // ignoram (PHP não reclama de argumentos extras em chamadas normais). Necessário
-                    // pra OmegaPaymentsBanco montar o campo "client" obrigatório na cobrança.
-                    $payload = $provedor->montaPayloadCobranca($valor, $chave_pix, $split_data, $expiracao_segundos, $nome_usuario, $documento_limpo);
-
-                    $resp = $provedor->criarCobranca($payload);
-                    if (!($resp['sucesso'] ?? false)) {
-                        $tentativas[] = "{$nome_gateway} criarCobranca falhou: " . ($resp['erro'] ?? 'desconhecido');
-                        continue;
-                    }
-
-                    // InfoPago e OmegaPayments já devolvem o pixCopiaECola direto na criação da cobrança (sem passo extra de QR code).
-                    $pix_copia_cola  = $resp['dados']['pixCopiaECola'] ?? '';
-                    $txid          = $resp['dados']['txid'] ?? '';
-                    $link_pagamento = '';
+                // Nenhum gateway suportado hoje tem PIX Recorrente (a OmegaPayments não tem esse
+                // recurso na v1) -- mesmo padrão do skip de conta PF acima: pula pro próximo
+                // gateway em vez de degradar silenciosamente pra cobrança avulsa.
+                if ($eh_recorrente) {
+                    $tentativas[] = "Gateway {$nome_gateway} não suporta PIX Recorrente";
+                    continue;
                 }
+
+                // $nome_usuario/$documento_limpo (nome do lead + CPF/CNPJ) são passados como
+                // argumentos extras — providers que não usam isso simplesmente ignoram (PHP não
+                // reclama de argumentos extras em chamadas normais). Necessário pra
+                // OmegaPaymentsBanco montar o campo "client" obrigatório na cobrança.
+                $payload = $provedor->montaPayloadCobranca($valor, $chave_pix, $split_data, $expiracao_segundos, $nome_usuario, $documento_limpo);
+
+                $resp = $provedor->criarCobranca($payload);
+                if (!($resp['sucesso'] ?? false)) {
+                    $tentativas[] = "{$nome_gateway} criarCobranca falhou: " . ($resp['erro'] ?? 'desconhecido');
+                    continue;
+                }
+
+                // OmegaPayments já devolve o pixCopiaECola direto na criação da cobrança (sem passo extra de QR code).
+                $pix_copia_cola  = $resp['dados']['pixCopiaECola'] ?? '';
+                $txid          = $resp['dados']['txid'] ?? '';
+                $link_pagamento = '';
 
                 $gateway_selecionado = $gw;
                 break;
@@ -744,11 +699,12 @@ if (strpos($texto, 'verificar_pagamento_') === 0) {
                     $stmt_gw_nome->execute([$venda['id_gateway']]);
                     $nome_gw_venda = $stmt_gw_nome->fetchColumn() ?: null;
                 }
-                if (!$nome_gw_venda) {
-                    $nome_gw_venda = 'infopago';
-                }
 
-                $gateway_config = getUserGatewayConfig((int)$id_usuario_dono, $nome_gw_venda);
+                // Venda antiga de antes da coluna id_gateway existir, sem como saber qual
+                // gateway foi usado -- não dá pra reconsultar, segue sem confirmar por aqui
+                // (o cliente pode continuar tentando; algum outro caminho de confirmação
+                // resolve se o pagamento realmente caiu).
+                $gateway_config = $nome_gw_venda ? getUserGatewayConfig((int)$id_usuario_dono, $nome_gw_venda) : null;
                 $debug_log = __DIR__ . '/logs/verificar_pag_debug.log';
                 file_put_contents($debug_log, '[' . date('Y-m-d H:i:s') . '] TXID=' . $txid . ' | gateway=' . $nome_gw_venda . ' | gatewayConfig=' . ($gateway_config ? 'ok' : 'NULL') . PHP_EOL, FILE_APPEND);
                 if ($gateway_config) {
@@ -758,7 +714,7 @@ if (strpos($texto, 'verificar_pagamento_') === 0) {
                     file_put_contents($debug_log, '[' . date('Y-m-d H:i:s') . '] resp=' . json_encode($resp) . ' | statusVerif=' . $status_verif . PHP_EOL, FILE_APPEND);
                     if ($resp['sucesso'] && in_array($status_verif, ['CONCLUIDA', 'PAGO', 'LIQUIDADO', 'PAID', 'APPROVED', 'COMPLETED'])) {
                         // Transição atômica: o UPDATE só afeta a linha se ela ainda não estava paga.
-                        // Se o webhook do InfoPago ou o cron de fallback confirmarem a mesma venda
+                        // Se o webhook do gateway ou o cron de fallback confirmarem a mesma venda
                         // ao mesmo tempo, só um dos dois ganha a corrida (rowCount() = 1) e segue
                         // adiante — evita disparar o split duas vezes pra mesma venda.
                         $stmt_marca = $pdo->prepare("UPDATE vendas SET status = 'pago', pago_em = NOW() WHERE id = ? AND status != 'pago'");
@@ -766,10 +722,6 @@ if (strpos($texto, 'verificar_pagamento_') === 0) {
                         if ($stmt_marca->rowCount() === 0) {
                              // Já foi processado por outra requisição simultânea. Para aqui.
                              exit;
-                        }
-
-                        if ($nome_gw_venda === 'infopago') {
-                            dispararSplitInfopago((int)$id_usuario_dono, (float)$venda['valor'], $txid, (int)$venda['id']);
                         }
 
                         require_once __DIR__ . '/funcoes/traqueamento.php';
@@ -806,7 +758,7 @@ if (strpos($texto, 'verificar_pagamento_') === 0) {
                             // Estende a partir da expiração atual se o acesso ainda estiver ativo (ex.
                             // renovação confirmada antes de vencer) -- em vez de sempre "agora + plano",
                             // que descartaria os dias que o cliente ainda tinha pagos. Mesma lógica já
-                            // usada em webhook_infopago.php::liberarAcessoGrupoInfopago() e
+                            // usada em webhook_omegapayments.php::liberarAcessoGrupoOmegapayments() e
                             // cron/cron_verificar_pix.php.
                             $stmt_membro_atual = $pdo->prepare("SELECT data_expiracao FROM membros_grupos WHERE id_telegram = ? AND id_grupo_telegram = ? AND bot_id = ?");
                             $stmt_membro_atual->execute([$venda['id_telegram'], $id_grupo, $venda['bot_id']]);

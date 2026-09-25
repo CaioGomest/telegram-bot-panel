@@ -304,26 +304,20 @@ try {
         echo "Coluna 'tipo_conta' adicionada em 'usuarios_gateways'.<br>";
     } catch (PDOException $e) {}
 
-    // Credenciais de Cash-Out (API de Contas/transferência) — usadas pela InfoPago para simular
-    // split via transferência manual após o Pix cair (a API de cobrança dela não tem split nativo).
-    try {
-        $pdo->exec("ALTER TABLE usuarios_gateways ADD COLUMN cashout_client_id VARCHAR(255) NULL AFTER tipo_conta");
-    } catch (PDOException $e) {}
-    try {
-        $pdo->exec("ALTER TABLE usuarios_gateways ADD COLUMN cashout_client_secret VARCHAR(255) NULL AFTER cashout_client_id");
-    } catch (PDOException $e) {}
-    try {
-        $pdo->exec("ALTER TABLE usuarios_gateways ADD COLUMN cashout_certificado VARCHAR(255) NULL AFTER cashout_client_secret");
-        echo "Colunas de Cash-Out adicionadas em 'usuarios_gateways'.<br>";
-    } catch (PDOException $e) {}
-    try {
-        $pdo->exec("ALTER TABLE usuarios_gateways ADD COLUMN cashout_cert_password VARCHAR(255) NULL AFTER cashout_certificado");
-        echo "Coluna 'cashout_cert_password' adicionada em 'usuarios_gateways'.<br>";
-    } catch (PDOException $e) {}
+    // Colunas de Cash-Out (API de Contas/transferência) eram só da InfoPago -- simulava split
+    // via transferência manual após o Pix cair (removida do sistema, ver
+    // anotacoes/pendente/plano-remocao-infopago.md). Dropa se ainda existirem de uma instalação
+    // anterior; instalação nova nunca chega a criar essas colunas.
+    foreach (['cashout_client_id', 'cashout_client_secret', 'cashout_certificado', 'cashout_cert_password'] as $coluna_cashout) {
+        try {
+            $pdo->exec("ALTER TABLE usuarios_gateways DROP COLUMN $coluna_cashout");
+            echo "Coluna '$coluna_cashout' removida de 'usuarios_gateways' (era só da InfoPago).<br>";
+        } catch (PDOException $e) {}
+    }
 
     // Os campos abaixo passam a guardar valor cifrado (ver funcoes/criptografia.php), que é
     // maior que o texto original — alarga a coluna pra não correr risco de truncar.
-    foreach (['client_secret', 'cert_password', 'chave_pix', 'cashout_client_secret', 'cashout_cert_password'] as $coluna_cifrada) {
+    foreach (['client_secret', 'cert_password', 'chave_pix'] as $coluna_cifrada) {
         try {
             $pdo->exec("ALTER TABLE usuarios_gateways MODIFY COLUMN $coluna_cifrada VARCHAR(500) NULL");
         } catch (PDOException $e) {}
@@ -334,11 +328,11 @@ try {
     // ignorados (detectados pelo prefixo 'enc:v1:' dentro de criptografarSegredo/decifrar).
     require_once __DIR__ . '/../funcoes/criptografia.php';
     if (chaveCriptografiaDisponivel()) {
-        $stmt_gw_cred = $pdo->query("SELECT id, client_secret, cert_password, chave_pix, cashout_client_secret, cashout_cert_password FROM usuarios_gateways");
+        $stmt_gw_cred = $pdo->query("SELECT id, client_secret, cert_password, chave_pix FROM usuarios_gateways");
         $linhas_migradas = 0;
         foreach ($stmt_gw_cred->fetchAll(PDO::FETCH_ASSOC) as $linha_gw) {
             $campos_atualizar = [];
-            foreach (['client_secret', 'cert_password', 'chave_pix', 'cashout_client_secret', 'cashout_cert_password'] as $campo) {
+            foreach (['client_secret', 'cert_password', 'chave_pix'] as $campo) {
                 $valor_atual = (string)($linha_gw[$campo] ?? '');
                 if ($valor_atual !== '' && strpos($valor_atual, 'enc:v1:') !== 0) {
                     $campos_atualizar[$campo] = criptografarSegredo($valor_atual);
@@ -480,12 +474,10 @@ try {
     echo "Tabela 'usuarios_traqueamento' OK.<br>";
 
 
-    $stmt_gateway = $pdo->query("SELECT COUNT(*) FROM gateways WHERE nome = 'infopago'");
-    if ($stmt_gateway->fetchColumn() == 0) {
-        $pdo->exec("INSERT INTO gateways (nome, titulo, ativo) VALUES ('infopago', 'InfoPago (Pix)', 0)");
-        echo "Gateway 'InfoPago' inserido.<br>";
-    }
-
+    // InfoPago saiu do sistema (ver anotacoes/pendente/plano-remocao-infopago.md) -- não semeia
+    // mais essa linha. A linha antiga (se existir de uma instalação anterior) fica só de
+    // histórico pras vendas antigas continuarem mostrando o nome do gateway corretamente;
+    // gatewaysSuportados() já não inclui 'infopago', então ela some sozinha de toda UI.
     $stmt_gateway_omega = $pdo->query("SELECT COUNT(*) FROM gateways WHERE nome = 'omegapayments'");
     if ($stmt_gateway_omega->fetchColumn() == 0) {
         $pdo->exec("INSERT INTO gateways (nome, titulo, ativo) VALUES ('omegapayments', 'OmegaPayments (Pix)', 0)");

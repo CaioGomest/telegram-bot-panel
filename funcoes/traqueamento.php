@@ -82,7 +82,7 @@ function enviarEventosTraqueamento($id_usuario, $evento, $dados, $user_data = []
  * Monta o $user_data dos eventos de traqueamento a partir do que o sistema realmente sabe
  * sobre o lead.
  *
- * Existe porque os três pontos de chamada (webhook.php x2, webhook_infopago.php) montavam
+ * Existe porque os pontos de chamada (webhook.php x2, webhook_omegapayments.php) montavam
  * esse array na mão e só passavam id_telegram -- então Facebook e UTMify recebiam evento sem
  * nenhum dado de correspondência e a atribuição não acontecia, mesmo com a API devolvendo
  * 200. Ver anotacoes/revisao-traqueamento-facebook-utmify.md.

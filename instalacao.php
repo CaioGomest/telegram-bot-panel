@@ -227,10 +227,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             cert_password VARCHAR(500) NULL,
             chave_pix VARCHAR(500),
             tipo_conta ENUM('pf', 'pj') DEFAULT 'pj',
-            cashout_client_id VARCHAR(255) NULL,
-            cashout_client_secret VARCHAR(500) NULL,
-            cashout_certificado VARCHAR(255) NULL,
-            cashout_cert_password VARCHAR(500) NULL,
             ativo TINYINT(1) DEFAULT 0,
             prioridade INT DEFAULT 100,
             criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -424,9 +420,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             PRIMARY KEY (id_usuario, data, hora)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
-        // Seed: gateway InfoPago (único gateway suportado hoje -- gateways.php espera essa
+        // Seed: gateway OmegaPayments (único gateway suportado hoje -- gateways.php espera essa
         // linha existir pra aparecer na tela de configuração).
-        $pdo->exec("INSERT INTO gateways (nome, titulo, ativo) VALUES ('infopago', 'InfoPago (Pix)', 0)");
+        $pdo->exec("INSERT INTO gateways (nome, titulo, ativo) VALUES ('omegapayments', 'OmegaPayments (Pix)', 0)");
 
         // Identidade visual (white-label): o que o instalador recebeu vira a marca desta
         // instalação. Vai num try/catch próprio porque um upload ruim não pode derrubar uma

@@ -161,39 +161,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $erro = 'Erro ao salvar suas credenciais.';
             }
         }
-    } elseif (isset($_POST['acao']) && $_POST['acao'] === 'salvar_infopago_split') {
-        // Credenciais de Cash-Out (API de Contas, separada da de cobrança) — usadas para simular
-        // split via transferência manual. O destino/percentual do split é configurado pelo admin
-        // em usuarios.php. Ver docs/infopago/01-api-referencia.md §5.
-        $gateway_id = (int)$_POST['gateway_id'];
-        $cashout_client_id = trim($_POST['cashout_client_id'] ?? '');
-        $cashout_client_secret = trim($_POST['cashout_client_secret'] ?? '');
-        $cashout_cert_password = trim($_POST['cashout_cert_password'] ?? '');
-
-        $cashout_certificado_path = null;
-        if (isset($_FILES['cashout_certificado']) && $_FILES['cashout_certificado']['error'] === UPLOAD_ERR_OK) {
-            $ext = strtolower(pathinfo($_FILES['cashout_certificado']['name'], PATHINFO_EXTENSION));
-            if (!in_array($ext, ['pem', 'p12', 'pfx'], true)) {
-                $erro = 'Certificado de Cash-Out: apenas arquivos .pem, .p12 ou .pfx são permitidos.';
-            } else {
-                $caminho_dir = __DIR__ . '/certificados';
-                if (!is_dir($caminho_dir)) mkdir($caminho_dir, 0755, true);
-                $cashout_certificado_path = $caminho_dir . "/cashout_cert_{$user_id}_{$gateway_id}.{$ext}";
-                if (!move_uploaded_file($_FILES['cashout_certificado']['tmp_name'], $cashout_certificado_path)) {
-                    $erro = 'Erro ao salvar o certificado de Cash-Out.';
-                    $cashout_certificado_path = null;
-                }
-            }
-        }
-
-        if (!$erro) {
-            if (saveInfopagoCashoutConfig($user_id, $gateway_id, $cashout_client_id, $cashout_client_secret, $cashout_certificado_path, $cashout_cert_password)) {
-                $_SESSION['gw_mensagem'] = 'Credenciais de Cash-Out salvas!';
-                $mensagem = 'Credenciais de Cash-Out salvas!';
-            } else {
-                $erro = 'Erro ao salvar as credenciais de Cash-Out.';
-            }
-        }
     }
     // PRG: redireciona para evitar reenvio do POST ao recarregar
     if (!$erro) {
@@ -264,9 +231,9 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                             $g_id        = (int)$g['id'];
                             $is_ativo    = (bool)$g['ativo'];
                             $nome       = $g['nome'];
-                            $icon_class  = match($nome) { 'infopago' => 'icone-gateway-infopago', 'omegapayments' => 'icone-gateway-omegapayments', default => 'icone-gateway-padrao' };
-                            $icon_letter = match($nome) { 'infopago' => 'I', 'omegapayments' => 'O', default => '?' };
-                            $subtitle   = match($nome) { 'infopago' => 'OAuth2 + Certificado mTLS', 'omegapayments' => 'Chave Pública/Secreta (API Key)', default => 'Gateway' };
+                            $icon_class  = match($nome) { 'omegapayments' => 'icone-gateway-omegapayments', default => 'icone-gateway-padrao' };
+                            $icon_letter = match($nome) { 'omegapayments' => 'O', default => '?' };
+                            $subtitle   = match($nome) { 'omegapayments' => 'Chave Pública/Secreta (API Key)', default => 'Gateway' };
                         ?>
                         <div class="cartao-gateway-admin <?php echo $is_ativo ? 'ativo' : ''; ?>" id="adm-card-<?php echo $g_id; ?>">
                             <input type="hidden" name="ids[]" value="<?php echo $g_id; ?>">
@@ -336,14 +303,12 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
 
                     function gwIconClass(string $nome): string {
                         return match($nome) {
-                            'infopago'      => 'icone-gateway-infopago',
                             'omegapayments' => 'icone-gateway-omegapayments',
                             default         => 'icone-gateway-padrao',
                         };
                     }
                     function gwIconLetter(string $nome): string {
                         return match($nome) {
-                            'infopago'      => 'I',
                             'omegapayments' => 'O',
                             default         => '?',
                         };
@@ -353,32 +318,6 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                         $nome           = $g['nome'];
                         $id = (int)$g['id'];
                         $cfg = $g['user_config'];
-
-                        // InfoPago usa credenciais compartilhadas do admin — usuário comum só liga/desliga,
-                        // sem ver/editar client_id, secret, certificado ou chave Pix.
-                        if (!empty($cfg['gerenciado_pelo_admin'])) {
-                            ?>
-                            <form method="POST">
-                                <?php echo campoCsrf(); ?>
-                                <input type="hidden" name="acao"       value="salvar_user">
-                                <input type="hidden" name="gateway_id" value="<?php echo $id; ?>">
-                                <input type="hidden" name="client_id"     value="">
-                                <input type="hidden" name="client_secret" value="">
-                                <input type="hidden" name="chave_pix"     value="">
-                                <input type="hidden" name="tipo_conta"    value="pj">
-                                <input type="hidden" name="prioridade"    value="<?php echo (int)($cfg['prioridade'] ?? 100); ?>">
-                                <input type="hidden" name="cert_password" value="">
-
-                                <label class="opcao-ativar-gateway">
-                                    <input type="checkbox" name="ativo" <?php echo ($cfg['ativo'] ?? false) ? 'checked' : ''; ?>>
-                                    <span>Habilitar este gateway nos meus bots</span>
-                                </label>
-                                <button type="submit" class="botao botao-primario botao-bloco" style="margin-top:14px;">Salvar</button>
-                            </form>
-                            <?php
-                            return;
-                        }
-
                         ?>
                         <form method="POST" enctype="multipart/form-data">
                             <?php echo campoCsrf(); ?>
@@ -391,12 +330,12 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                             </label>
 
                             <div class="campo">
-                                <label>Client ID (Produção)</label>
+                                <label>Client ID</label>
                                 <input type="text" name="client_id"
                                        value="<?php echo htmlspecialchars($cfg['client_id'] ?? ''); ?>" required>
                             </div>
                             <div class="campo">
-                                <label>Client Secret (Produção)</label>
+                                <label>Client Secret</label>
                                 <?php /* Sem value: o type=password mascara na tela, mas o segredo ia inteiro
                                      no HTML e aparecia em "ver código-fonte". Mesmo padrão que
                                      cert_password já usava aqui embaixo. */ ?>
@@ -467,54 +406,6 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                             <button type="submit" class="botao botao-primario botao-bloco">Salvar Credenciais</button>
                         </form>
 
-                        <?php if ($nome === 'infopago'): ?>
-                        <hr style="margin:18px 0;">
-                        <p style="font-size:12.5px;color:var(--m);margin:0 0 10px;">
-                            <strong>Credenciais de Cash-Out (para split de pagamento)</strong><br>
-                            A InfoPago não tem split nativo na cobrança — o sistema simula repassando um valor
-                            automaticamente via transferência Pix (Cash-Out) assim que a cobrança é confirmada.
-                            Preencha aqui as credenciais da API de Contas/Cash-Out (separadas da API de cobrança acima).
-                            O destino e o percentual do split são configurados pelo admin na tela de usuários.
-                        </p>
-                        <form method="POST" enctype="multipart/form-data" autocomplete="off">
-                            <?php echo campoCsrf(); ?>
-                            <input type="hidden" name="acao" value="salvar_infopago_split">
-                            <input type="hidden" name="gateway_id" value="<?php echo $id; ?>">
-
-                            <div class="campo">
-                                <label>Client ID (API Contas / Cash-Out)</label>
-                                <input type="text" name="cashout_client_id"
-                                       autocomplete="off" data-lpignore="true" data-1p-ignore
-                                       value="<?php echo htmlspecialchars($cfg['cashout_client_id'] ?? ''); ?>">
-                            </div>
-                            <div class="campo">
-                                <label>Client Secret (API Contas / Cash-Out)</label>
-                                <input type="password" name="cashout_client_secret"
-                                       autocomplete="new-password" data-lpignore="true" data-1p-ignore
-                                       placeholder="<?php echo !empty($cfg['cashout_client_secret']) ? '•••••••• (salvo)' : ''; ?>">
-                                <?php if (!empty($cfg['cashout_client_secret'])): ?>
-                                    <small>Deixe em branco para manter o atual.</small>
-                                <?php endif; ?>
-                            </div>
-                            <div class="campo">
-                                <label>Certificado de Cash-Out (.p12, .pfx ou .pem)</label>
-                                <?php if (!empty($cfg['cashout_certificado'])): ?>
-                                    <p style="margin:0 0 6px;font-size:12.5px;color:var(--ok);font-weight:600;">✅ Certificado enviado</p>
-                                <?php endif; ?>
-                                <input type="file" name="cashout_certificado" accept=".pem,.p12,.pfx">
-                                <small>Certificado da pasta ACCOUNTS (Cash-Out) — diferente do de QRCODES-MTLS usado na cobrança acima</small>
-                            </div>
-                            <div class="campo">
-                                <label>Senha do certificado de Cash-Out (se houver)</label>
-                                <input type="password" name="cashout_cert_password"
-                                       autocomplete="new-password" data-lpignore="true" data-1p-ignore
-                                       placeholder="<?php echo !empty($cfg['cashout_cert_password']) ? '••••••••' : ''; ?>">
-                                <small>Deixe em branco pra manter a senha já salva.</small>
-                            </div>
-
-                            <button type="submit" class="botao botao-primario botao-bloco">Salvar Credenciais de Cash-Out</button>
-                        </form>
-                        <?php endif; ?>
                         <?php
                     }
                 ?>

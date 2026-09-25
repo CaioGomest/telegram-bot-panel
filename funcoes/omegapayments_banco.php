@@ -3,11 +3,11 @@ declare(strict_types=1);
 
 /**
  * Integração com a OmegaPayments (OmegaPay) — gateway Pix com split nativo.
- * Autenticação simples via headers (sem OAuth2, sem certificado mTLS — diferente da InfoPago):
+ * Autenticação simples via headers (sem OAuth2, sem certificado mTLS):
  *   x-public-key: <client_id>
  *   x-secret-key: <client_secret>
  *
- * Cada dono de bot usa as próprias credenciais aqui (não é conta compartilhada como a InfoPago).
+ * Cada dono de bot usa as próprias credenciais aqui (não é conta compartilhada entre usuários).
  *
  * [A CONFIRMAR EM SANDBOX] A documentação pública (app.omegapayments.com.br/docs/v1) bloqueou
  * o levantamento com bot-detection (403) antes de confirmar: a URL base real de produção, o
@@ -56,8 +56,8 @@ class OmegaPaymentsBanco {
             CURLOPT_CUSTOMREQUEST  => $method,
         ];
         if ($body !== null) {
-            // json_encode([]) gera "[]"; mantém o mesmo cuidado do InfopagoBanco pra sempre
-            // mandar objeto ("{}") quando o corpo estiver vazio.
+            // json_encode([]) gera "[]"; garante que sempre manda objeto ("{}") quando o
+            // corpo estiver vazio.
             $options[CURLOPT_POSTFIELDS] = json_encode(empty($body) ? new stdClass() : $body);
         }
         curl_setopt_array($ch, $options);
@@ -102,9 +102,9 @@ class OmegaPaymentsBanco {
      * Monta o payload de cobrança Pix avulsa (POST /gateway/pix/receive).
      *
      * $chave_pix não é usado no payload em si (a OmegaPayments não pede a chave Pix do
-     * recebedor — quem recebe já é definido pelas credenciais da conta, diferente da
-     * InfoPago). O parâmetro continua na assinatura só pra manter o mesmo "contrato" de
-     * provedor usado por webhook.php/cron_verificar_pix.php pra qualquer gateway.
+     * recebedor — quem recebe já é definido pelas credenciais da conta). O parâmetro
+     * continua na assinatura só pra manter o mesmo "contrato" de provedor usado por
+     * webhook.php/cron_verificar_pix.php pra qualquer gateway.
      *
      * $nome_cliente/$documento_cliente: nome do comprador (lead do Telegram) e CPF/CNPJ,
      * já resolvidos por quem chama (webhook.php).

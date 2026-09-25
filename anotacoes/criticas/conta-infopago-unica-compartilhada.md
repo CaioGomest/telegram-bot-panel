@@ -1,4 +1,15 @@
-# 🔴 CRÍTICO — Conta InfoPago única compartilhada por todos os usuários
+# ✅ RESOLVIDO (pela remoção da InfoPago) — Conta InfoPago única compartilhada por todos os usuários
+
+**Atualização 2026-09-25:** a InfoPago foi removida 100% do código (ver
+`anotacoes/pendente/plano-remocao-infopago.md`). O gateway que ficou —
+OmegaPayments — já nasceu com credenciais **por usuário**, não compartilhadas pelo
+admin: é exatamente a mudança de arquitetura descrita na seção "O que mudaria se
+cada usuário tivesse conta própria" mais abaixo. O risco de ponto único de falha,
+volume/compliance numa conta só e a questão legal de reter dinheiro de terceiro
+descritos abaixo não se aplicam mais ao estado atual do sistema. Texto original
+mantido íntegro abaixo como registro histórico da decisão.
+
+---
 
 Nota de referência criada em 2026-09-17, a pedido do Caio, na pasta `anotacoes/criticas/` — itens que **precisam de alinhamento/decisão antes de publicar** a plataforma pra usuários reais. Este é o primeiro item dessa pasta.
 

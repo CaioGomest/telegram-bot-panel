@@ -146,7 +146,6 @@ function executarFluxoContinuacao(string $token, string $id_chat, int $bot_id, s
 }
 
 require_once __DIR__ . '/../funcoes/gateways.php';
-require_once __DIR__ . '/../funcoes/infopago_split.php';
 
 // LIMIT mantém cada rodada rápida e previsível mesmo com muitas vendas pendentes
 // de uma vez — o que sobrar fica pra próxima execução (roda de novo em instantes).
@@ -202,8 +201,8 @@ foreach ($vendas_pendentes as $venda) {
 
         if ($resp['sucesso'] && in_array($status_pagamento, ['CONCLUIDA', 'PAGO', 'LIQUIDADO', 'PAID', 'APPROVED', 'COMPLETED'])) {
             // Transição atômica: só segue quem realmente ganha a corrida contra o
-            // webhook do InfoPago ou o botão manual "Já fiz o pagamento" confirmando
-            // a mesma venda ao mesmo tempo — evita disparar o split duas vezes.
+            // webhook do gateway ou o botão manual "Já fiz o pagamento" confirmando
+            // a mesma venda ao mesmo tempo — evita processar a confirmação duas vezes.
             $pago_em = date('Y-m-d H:i:s');
             $stmt_marca = $pdo->prepare("UPDATE vendas SET status = 'pago', pago_em = ? WHERE id = ? AND status != 'pago'");
             $stmt_marca->execute([$pago_em, $venda['id']]);
@@ -215,9 +214,6 @@ foreach ($vendas_pendentes as $venda) {
             logCron("Venda #{$venda['id']} encontrada como PAGA no gateway $nome_gateway.");
             $pagos_count++;
 
-            if ($nome_gateway === 'infopago') {
-                dispararSplitInfopago((int)$venda['id_dono'], (float)$venda['valor'], (string)$venda['transacao_id'], (int)$venda['id']);
-            }
             dispararWebhooks((int) $venda['id_dono'], 'payment_approved', [
                 'bot_id' => (int) $venda['bot_id'],
                 'id_telegram' => (string) $venda['id_telegram'],
@@ -263,7 +259,7 @@ foreach ($vendas_pendentes as $venda) {
                 // Roda incondicionalmente -- mesmo se a criação do link falhar, a venda já foi
                 // marcada 'pago' e não será reprocessada por nenhum outro caminho, então o
                 // acesso/expiração precisa ser gravado de qualquer forma (mesmo padrão de
-                // webhook.php e webhook_infopago.php::liberarAcessoGrupoInfopago()).
+                // webhook.php e webhook_omegapayments.php::liberarAcessoGrupoOmegapayments()).
                 $pdo->prepare("
                     INSERT INTO membros_grupos
                         (id_telegram, id_grupo_telegram, bot_id, venda_id, data_expiracao, invite_link, status, criado_em)

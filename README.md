@@ -8,7 +8,7 @@ Painel administrativo em PHP para gerenciar bots de venda no Telegram: fluxos de
 - **Banco de dados:** MySQL/MariaDB via PDO
 - **Frontend:** HTML + CSS + JS puro (jQuery em partes específicas, ex. editor de fluxograma)
 - **Hospedagem alvo:** Hostinger (hospedagem compartilhada/VPS)
-- **Integrações:** Telegram Bot API, gateway de pagamento InfoPago (PIX), Facebook Pixel/CAPI, TikTok Pixel, UTMify
+- **Integrações:** Telegram Bot API, gateway de pagamento OmegaPayments (PIX), Facebook Pixel/CAPI, TikTok Pixel, UTMify
 
 ## Estrutura de pastas
 
@@ -29,12 +29,12 @@ Painel administrativo em PHP para gerenciar bots de venda no Telegram: fluxos de
 ├── admin_dashboard.php      # Dashboard administrativo
 ├── admin_transacoes.php     # Relatório de transações (admin)
 ├── webhook.php               # Webhook principal do Telegram
-├── webhook_infopago.php      # Webhook do gateway InfoPago
+├── webhook_omegapayments.php # Webhook do gateway OmegaPayments
 ├── cron/                       # Rotinas agendadas (verificação de PIX, renovação, avisos, remarketing, acessos)
 ├── api.php                    # Endpoints de API interna
 ├── instalacao.php             # Instalador inicial do sistema
 ├── atualiza_banco.php         # Script de migração/atualização de schema
-├── funcoes/                   # Funções auxiliares por domínio (usuario, gateways, infopago, tracking, etc.)
+├── funcoes/                   # Funções auxiliares por domínio (usuario, gateways, omegapayments, tracking, etc.)
 ├── ajax/                      # Endpoints AJAX (CRUD de usuários e splits)
 ├── assets/                    # CSS/JS do painel
 ├── certificados/              # Certificados usados por integrações (gitignored)
@@ -46,7 +46,7 @@ Painel administrativo em PHP para gerenciar bots de venda no Telegram: fluxos de
 
 - Gestão de múltiplos bots do Telegram por usuário
 - Editor visual de fluxo de conversa (fluxograma)
-- Processamento de pagamentos via PIX (InfoPago), com split entre usuários
+- Processamento de pagamentos via PIX (OmegaPayments), com split entre usuários
 - Cron jobs para verificação de pagamento, renovação, avisos de vencimento e remarketing
 - Rastreamento de leads e links de campanha (Facebook, TikTok, UTMify)
 - Painel admin com relatório de transações e status de split

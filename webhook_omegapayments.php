@@ -128,7 +128,6 @@ function executarFluxoOmegapayments(string $token, string $id_chat, int $bot_id,
 
 /**
  * Libera ou renova acesso ao grupo. Estende da expiração atual se ainda ativo.
- * Espelha liberarAcessoGrupoInfopago() de webhook_infopago.php.
  */
 function liberarAcessoGrupoOmegapayments(array $venda, string $token_bot): ?string {
     global $pdo;
@@ -222,7 +221,7 @@ function extrairIdentificadorOmegapayments(array $notificacao): string {
 $entrada = file_get_contents('php://input');
 
 if (empty($entrada)) {
-    // Ping de validação de URL (mesmo padrão já usado pelo webhook InfoPago).
+    // Ping de validação de URL (corpo vazio) -- responde OK sem processar nada.
     logWebhookOmegapayments("Ping de validação recebido.");
     http_response_code(200);
     exit;
@@ -267,7 +266,7 @@ if ($venda['status'] === 'pago') {
 // ── Confirmação direta na API da OmegaPayments ──────────────────────────
 // Nunca confiar só no payload recebido pelo webhook (qualquer um pode forjar um POST
 // pra essa URL) — antes de liberar, consulta a cobrança de verdade na OmegaPayments e
-// só marca como paga se a fonte confirmar. Mesmo padrão já auditado em webhook_infopago.php.
+// só marca como paga se a fonte confirmar.
 $stmt_bot_pre = $pdo->prepare("SELECT token, id_usuario FROM bots WHERE id = ?");
 $stmt_bot_pre->execute([$venda['bot_id']]);
 $bot_data_pre = $stmt_bot_pre->fetch();

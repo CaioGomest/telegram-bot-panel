@@ -197,7 +197,7 @@ $gateways_para_split = listarGatewaysAdmin();
                         <?php endforeach; ?>
                     </div>
                     <?php endif; ?>
-                    <input type="hidden" id="splitGatewayAtivo" value="<?php echo htmlspecialchars($gateways_para_split[0]['nome'] ?? 'infopago'); ?>">
+                    <input type="hidden" id="splitGatewayAtivo" value="<?php echo htmlspecialchars($gateways_para_split[0]['nome'] ?? ''); ?>">
 
                     <div id="splitCarregando" class="texto-suave" style="font-style:italic; display:none;">Carregando splits...</div>
                     <div id="splitLista"></div>

@@ -529,7 +529,7 @@ function exemplosPayloadWebhook(): array
         'status' => 'pending',
         'amount' => 37.9,
         'currency' => 'BRL',
-        'gateway' => 'infopago',
+        'gateway' => 'omegapayments',
         'plan_name' => 'Acesso 30 dias',
         'type' => 'unica',
         'payment_method' => 'pix',

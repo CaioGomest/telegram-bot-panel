@@ -88,7 +88,7 @@ function descriptografarSegredo(?string $valor): string
  */
 function decifrarCamposGateway(array $linha): array
 {
-    foreach (['client_secret', 'cert_password', 'chave_pix', 'cashout_client_secret', 'cashout_cert_password'] as $campo) {
+    foreach (['client_secret', 'cert_password', 'chave_pix'] as $campo) {
         if (array_key_exists($campo, $linha)) {
             $linha[$campo] = descriptografarSegredo($linha[$campo]);
         }

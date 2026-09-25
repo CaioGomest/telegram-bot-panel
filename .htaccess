@@ -40,8 +40,9 @@ Options -Indexes
 # 1. Só redireciona GET. Os formulários do painel dão POST direto no .php (login, gateways,
 #    traqueamento, remarketing) e um 301 em POST faz o navegador descartar o corpo da
 #    requisição -- o login simplesmente pararia de funcionar.
-# 2. webhook.php e webhook_infopago.php ficam de fora: essas URLs com .php estão registradas
-#    no Telegram e na InfoPago, e não dá pra contar que robô de terceiro siga redirect.
+# 2. webhook.php e webhook_omegapayments.php ficam de fora: essas URLs com .php estão
+#    registradas no Telegram e na OmegaPayments, e não dá pra contar que robô de terceiro
+#    siga redirect.
 # 3. api.php e ajax/ ficam de fora: são chamados pelo JS com o .php literal, inclusive em GET
 #    (o $.getJSON de exportar_fluxo), e redirect ali só adiciona ida-e-volta à toa.
 
@@ -51,7 +52,7 @@ Options -Indexes
     # (a) /bots.php -> /bots
     RewriteCond %{REQUEST_METHOD} =GET
     RewriteCond %{THE_REQUEST} \s/+([^?\s]+)\.php[\s?] [NC]
-    RewriteCond %1 !^(webhook|webhook_infopago|api)$ [NC]
+    RewriteCond %1 !^(webhook|webhook_omegapayments|api)$ [NC]
     RewriteCond %1 !^ajax/ [NC]
     RewriteRule ^ /%1 [R=301,L]
 

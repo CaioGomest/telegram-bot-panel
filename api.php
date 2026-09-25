@@ -227,20 +227,11 @@ try {
             break;
 
         case 'gateway_info':
-            // Basta um gateway ativo ser PJ para liberar a opção de recorrente.
-            // Sem linha própria em usuarios_gateways (ex: InfoPago usando credenciais
-            // compartilhadas do admin), tipo_conta é considerado 'pj' por padrão — mesmo
-            // fallback usado em getUserGateways() (funcoes/gateways.php).
-            $stmt = $pdo->prepare("
-                SELECT COUNT(*) FROM gateways g
-                LEFT JOIN usuarios_gateways ug ON ug.id_gateway = g.id AND ug.id_usuario = ?
-                WHERE g.ativo = 1
-                  AND (ug.ativo = 1 OR ug.id IS NULL)
-                  AND COALESCE(ug.tipo_conta, 'pj') = 'pj'
-            ");
-            $stmt->execute([$usuario_id]);
-            $suporta_recorrente = (int)$stmt->fetchColumn() > 0;
-            responder(true, ['suporta_recorrente' => $suporta_recorrente]);
+            // PIX Recorrente era só da InfoPago (PIX Automático) -- nenhum gateway suportado
+            // hoje implementa recorrência (a OmegaPayments não tem esse recurso na v1). Ver
+            // anotacoes/pendente/plano-remocao-infopago.md. Sempre false até algum gateway
+            // futuro trazer esse recurso de volta.
+            responder(true, ['suporta_recorrente' => false]);
             break;
 
         case 'listar_fluxos':

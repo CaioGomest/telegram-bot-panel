@@ -16,7 +16,7 @@ function logLimparStories(string $msg): void {
 
 // Best-effort: a barra de stories já filtra expira_em > NOW() em toda leitura, então este
 // cron não é obrigatório pra "esconder" nada -- só libera espaço em disco. Mesmo padrão de
-// acesso (CLI livre, HTTP exige chave) de cron_ranking.php/cron_retry_split.php.
+// acesso (CLI livre, HTTP exige chave) de cron_ranking.php/cron_verificar_pix.php.
 if (php_sapi_name() !== 'cli') {
     $chave_informada = (string) ($_GET['chave'] ?? '');
     if (!hash_equals(CHAVE_SECRETA_CRON, $chave_informada)) {

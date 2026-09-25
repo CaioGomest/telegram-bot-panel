@@ -74,7 +74,7 @@ Regras para esta fase:
 - **Variáveis: snake_case, em português.** Ex.: `$contagem_usuarios`, `$id_usuario`, `$valor_total`, `let taxa_split`.
 - **Nomes de página (arquivos .php):** sempre em português, simples e claros — o nome tem que deixar óbvio o que a página faz. Ex.: `funcoes_usuarios.php`, `debug_ultima_venda.php`. Evitar prefixo genérico tipo `temp_`, `fix_` sem dizer o que faz.
 - Vale pra PHP e JS (`assets/*.js`), sempre, sem exceção. Nunca traduzir pra inglês.
-- **Exceção: não renomear `webhook*.php`** (fica na raiz). URL cadastrada no Telegram/InfoPago — renomear quebra a integração em produção sem o Caio saber.
+- **Exceção: não renomear `webhook*.php`** (fica na raiz). URL cadastrada no Telegram/OmegaPayments — renomear quebra a integração em produção sem o Caio saber.
 - **`cron_*.php` moraram na raiz e agora ficam em `cron/`** (mesma ideia do `admin/`: `require_once __DIR__ . '/../...'`). Isso muda o caminho que o **crontab da Hostinger** chama — ⚠️ conferir se as entradas de crontab lá já apontam pra `cron/cron_verificar_pix.php` etc. (e não mais pra `cron_verificar_pix.php` na raiz) antes de considerar isso resolvido, senão os crons de produção param de rodar silenciosamente.
 - Antes de renomear qualquer outro arquivo, checar com `grep` se ele é referenciado em algum outro lugar do código (require, link, JS) e atualizar tudo junto.
 
@@ -87,7 +87,7 @@ Segurança é prioridade máxima em toda mudança:
 - Escapar output que vai pro HTML (prevenir XSS).
 - Nunca logar ou expor dados sensíveis (tokens de bot, chaves de gateway, senhas) em logs, mensagens de erro ou respostas de API.
 - Validar autenticação/autorização em toda rota admin e endpoint AJAX (`verificarLogin`/`verificarAdmin` sempre presentes onde deveriam estar).
-- Webhooks (Telegram, InfoPago) devem validar origem/assinatura da requisição quando o gateway suportar.
+- Webhooks (Telegram, OmegaPayments) devem validar origem/assinatura da requisição quando o gateway suportar.
 - Nunca commitar credenciais reais, tokens ou chaves — `config.php` só com placeholder.
 
 ## Comando: "varredura"
