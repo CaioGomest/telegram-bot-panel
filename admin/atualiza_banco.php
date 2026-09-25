@@ -46,6 +46,7 @@ try {
     ";
     $pdo->exec($sql_fluxos);
     try { $pdo->exec("ALTER TABLE fluxos ADD COLUMN link_suporte VARCHAR(255) DEFAULT NULL AFTER descricao"); } catch (PDOException $e) {}
+    try { $pdo->exec("ALTER TABLE fluxos ADD COLUMN modo ENUM('avancado','basico') NOT NULL DEFAULT 'avancado' AFTER link_suporte"); } catch (PDOException $e) {}
     echo "Tabela 'fluxos' OK.<br>";
 
 

@@ -91,6 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             nome VARCHAR(120) NOT NULL,
             descricao VARCHAR(500),
             link_suporte VARCHAR(255) DEFAULT NULL,
+            modo ENUM('avancado','basico') NOT NULL DEFAULT 'avancado',
             dados_fluxograma LONGTEXT,
             criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
             atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

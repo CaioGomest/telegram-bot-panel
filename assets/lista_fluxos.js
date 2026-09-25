@@ -45,18 +45,22 @@
                 }
 
                 fluxos.forEach(function (flow) {
+                    const eh_basico = flow.modo === 'basico';
+                    const pagina_editar = eh_basico ? 'fluxo_basico' : 'fluxo';
+                    const rotulo_modo = eh_basico ? 'Guiado' : 'Editor Visual';
                     $list.append(`
                         <div class="cartao-bot-item cartao-fluxo">
                             <div class="miniatura-fluxo">${miniatura_fluxo}</div>
                             <div class="cartao-cabecalho">
                                 <h3>${escaparHtml(flow.nome || 'Sem nome')}</h3>
+                                <span class="badge-modo-fluxo${eh_basico ? ' basico' : ''}">${rotulo_modo}</span>
                             </div>
                             <div class="cartao-corpo">
                                 <p>${escaparHtml(flow.descricao || 'Sem descrição')}</p>
                                 <p class="texto-suave mono">Atualizado: ${escaparHtml(flow.atualizado_em || '-')}</p>
                             </div>
                             <div class="cartao-acoes">
-                                <a href="fluxo?id=${encodeURIComponent(flow.id)}" class="botao botao-editar-fluxo">Editar fluxo</a>
+                                <a href="${pagina_editar}?id=${encodeURIComponent(flow.id)}" class="botao botao-editar-fluxo">Editar fluxo</a>
                                 <button type="button" class="btn-icon excluir btn-excluir-fluxo" data-id="${escaparHtml(flow.id)}" title="Excluir">${icons.trash}</button>
                             </div>
                         </div>
@@ -92,10 +96,19 @@
 
     $(function() {
         carregarFluxos();
-        
+
         $(document).on('click', '.btn-excluir-fluxo', function() {
             const id = $(this).data('id');
             excluirFluxo(id);
+        });
+
+        $('#btn-abrir-escolha-modo').on('click', function () {
+            $('#modal-escolha-modo').addClass('aberto');
+        });
+        $('#btn-fechar-escolha-modo, #modal-escolha-modo').on('click', function (e) {
+            if (e.target === this) {
+                $('#modal-escolha-modo').removeClass('aberto');
+            }
         });
     });
 

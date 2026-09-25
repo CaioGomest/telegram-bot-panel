@@ -1029,6 +1029,92 @@ function proximoNoConsiderandoTipo(array $dados_fluxo, string $id_atual, array $
  * pontos que já existiam (start, resposta de botão, pagamento confirmado): processa cada
  * bloco e avança, parando em blocos que esperam algo externo (clique, pagamento).
  */
+/**
+ * Motor de execução do modo básico (formulário guiado, sem grafo). Reaproveita
+ * processarEEnviarBloco() montando um "operador" sintético tipo pix -- mesma função que
+ * já resolve gateway/fallback/split/mensagem/insert de venda pro editor de nós, sem
+ * duplicar essa lógica sensível (é dinheiro de verdade). $id_operador vazio é o mesmo
+ * caminho que uma venda gerada fora de qualquer grafo já usa (processarEEnviarBloco trata
+ * como null), então a confirmação de pagamento entrega o acesso normalmente sem tentar
+ * continuar um grafo que não existe.
+ */
+function enviarBoasVindasBasico(string $token, $id_chat, array $boas_vindas): void {
+    $mensagem = trim((string) ($boas_vindas['mensagem'] ?? '')) ?: 'Bem-vindo(a)!';
+    $texto_cta = trim((string) ($boas_vindas['texto_cta'] ?? '')) ?: 'Ver Planos';
+    $teclado = json_encode(['inline_keyboard' => [[['text' => $texto_cta, 'callback_data' => 'basico::ver_planos']]]]);
+    $midia_tipo = $boas_vindas['midia_tipo'] ?? 'none';
+    $midia_path = resolverCaminhoUploadSeguro((string) ($boas_vindas['midia_path'] ?? ''));
+    if ($midia_tipo === 'image' && $midia_path) {
+        requisicaoTelegram($token, 'sendPhoto', ['chat_id' => $id_chat, 'caption' => $mensagem, 'reply_markup' => $teclado], ['photo' => $midia_path]);
+        return;
+    }
+    if ($midia_tipo === 'video' && $midia_path) {
+        requisicaoTelegram($token, 'sendVideo', ['chat_id' => $id_chat, 'caption' => $mensagem, 'reply_markup' => $teclado], ['video' => $midia_path]);
+        return;
+    }
+    requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => $mensagem, 'reply_markup' => $teclado]);
+}
+function enviarListaPlanosBasico(string $token, $id_chat, array $planos): void {
+    if (empty($planos)) {
+        requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Nenhum plano disponível no momento.']);
+        return;
+    }
+    $botoes = [];
+    foreach ($planos as $p) {
+        $rotulo = trim((string) ($p['nome'] ?? 'Plano')) . ' — R$ ' . number_format((float) ($p['valor'] ?? 0), 2, ',', '.');
+        $botoes[] = [['text' => $rotulo, 'callback_data' => 'basico::plano::' . ($p['id'] ?? '')]];
+    }
+    requisicaoTelegram($token, 'sendMessage', [
+        'chat_id' => $id_chat,
+        'text' => 'Escolha um plano:',
+        'reply_markup' => json_encode(['inline_keyboard' => $botoes])
+    ]);
+}
+function executarFluxoBasico(string $token, $id_chat, array $dados_basico, string $texto): void {
+    $boas_vindas = $dados_basico['boas_vindas'] ?? [];
+    $planos = $dados_basico['planos'] ?? [];
+    $pagamentos = $dados_basico['pagamentos'] ?? [];
+
+    if ($texto === '/start') {
+        enviarBoasVindasBasico($token, $id_chat, $boas_vindas);
+        return;
+    }
+    if ($texto === 'basico::ver_planos') {
+        enviarListaPlanosBasico($token, $id_chat, $planos);
+        return;
+    }
+    if (strpos($texto, 'basico::plano::') === 0) {
+        $id_plano_escolhido = substr($texto, strlen('basico::plano::'));
+        $plano_escolhido = null;
+        foreach ($planos as $p) {
+            if ((string) ($p['id'] ?? '') === $id_plano_escolhido) {
+                $plano_escolhido = $p;
+                break;
+            }
+        }
+        if (!$plano_escolhido) {
+            requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Esse plano não existe mais. Toque em "Ver Planos" de novo.']);
+            return;
+        }
+        $propriedades_sinteticas = [
+            'type' => 'pix',
+            'nome' => $plano_escolhido['nome'] ?? 'Produto',
+            'valor' => (float) ($plano_escolhido['valor'] ?? 0),
+            'tipo_cobranca' => 'unica',
+            'expiracao_minutos' => 15,
+            'dias_acesso' => (int) ($plano_escolhido['dias_acesso'] ?? 30),
+            'unidade_acesso' => $plano_escolhido['unidade_acesso'] ?? 'dias',
+            'id_grupo' => $plano_escolhido['id_grupo'] ?? '',
+            'mostrar_copiar' => $pagamentos['mostrar_copiar'] ?? true,
+            'mostrar_qrcode' => false,
+            'mostrar_confirmar' => $pagamentos['mostrar_confirmar'] ?? true,
+            'msg_instrucoes' => $pagamentos['msg_instrucoes'] ?? '',
+            'msg_confirmado' => $pagamentos['msg_confirmado'] ?? '',
+        ];
+        processarEEnviarBloco($token, $id_chat, ['properties' => $propriedades_sinteticas], '');
+        return;
+    }
+}
 function caminharFluxoAPartirDe(string $token, $id_chat, array $dados_fluxo, ?string $id_partida): void {
     $proximo_id = $id_partida;
     while ($proximo_id && isset($dados_fluxo['operators'][$proximo_id])) {
@@ -1052,7 +1138,10 @@ if (!empty($bot['id_fluxo_conectado'])) {
         $stmt = $pdo->prepare("SELECT * FROM fluxos WHERE id = ?");
         $stmt->execute([$bot['id_fluxo_conectado']]);
         $fluxo = $stmt->fetch();
-        if ($fluxo) {
+        if ($fluxo && ($fluxo['modo'] ?? 'avancado') === 'basico') {
+            $dados_basico = json_decode($fluxo['dados_fluxograma'] ?? '{}', true);
+            executarFluxoBasico($token, $id_chat, is_array($dados_basico) ? $dados_basico : [], $texto);
+        } elseif ($fluxo) {
             $dados_fluxo = json_decode($fluxo['dados_fluxograma'] ?? '{}', true);
             $dados_fluxo = is_array($dados_fluxo) ? $dados_fluxo : ['operators' => [], 'links' => []];
             if ($texto === '/start') {

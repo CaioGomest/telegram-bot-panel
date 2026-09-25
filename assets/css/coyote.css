@@ -1046,6 +1046,27 @@ html[data-theme] a.paginacao-link.active { color: #fff; }
 .fechar-modal:hover { color: var(--t); }
 .corpo-modal { padding: 18px 20px 20px; }
 
+.grade-escolha-modo { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 520px) { .grade-escolha-modo { grid-template-columns: 1fr; } }
+.cartao-escolha-modo {
+    display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid var(--bd);
+    border-radius: 12px; background: var(--p2); text-align: left; color: inherit; text-decoration: none;
+    transition: border-color .15s;
+}
+.cartao-escolha-modo:hover { border-color: var(--or); }
+.icone-escolha-modo { width: 34px; height: 34px; color: var(--or); }
+.icone-escolha-modo svg { width: 100%; height: 100%; }
+.badge-modo-fluxo {
+    font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 2px 8px; border-radius: 999px;
+    background: var(--p2); color: var(--m); border: 1px solid var(--bd); margin-left: 8px;
+}
+.badge-modo-fluxo.basico { background: var(--oksoft); color: var(--ok); border-color: transparent; }
+.area-previa-basico {
+    border: 1px dashed var(--bd); border-radius: 10px; padding: 10px; text-align: center;
+    font-size: 12px; color: var(--m); cursor: pointer; background: var(--p2);
+}
+.area-previa-basico:hover { border-color: var(--or); }
+
 .icone-vazio { width: 60px; height: 60px; background: var(--p2); border-radius: 50%; display: grid; place-items: center; margin: 0 auto 14px; color: var(--m); }
 .opcao-ativar-gateway { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; cursor: pointer; }
 .opcao-ativar-gateway input { width: 17px; height: 17px; accent-color: var(--or); cursor: pointer; }

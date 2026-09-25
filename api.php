@@ -124,8 +124,26 @@ function sanitizarTexto(?string $valor, int $tamanho_maximo = 0): string
  * — ver anotacoes/varredura-08-lfi-fluxograma-sessao.md. Caminho fora do padrão é zerado
  * em vez de rejeitar o fluxo inteiro, pra não travar o resto da edição.
  */
+/** Mesma checagem de "só aceita caminho uploads/nome.ext" usada abaixo pro grafo de nós. */
+function caminhoUploadValido(string $valor): bool
+{
+    $prefixo = 'uploads/';
+    return $valor === '' || (
+        strpos($valor, $prefixo) === 0
+        && strpos($valor, '..') === false
+        && basename($valor) === substr($valor, strlen($prefixo))
+    );
+}
+
 function sanitizarCaminhosMidiaFluxo(array $dados_grafico): array
 {
+    // Modo básico: só tem 1 caminho de mídia possível hoje, na Boas-vindas.
+    if (isset($dados_grafico['boas_vindas']) && is_array($dados_grafico['boas_vindas'])) {
+        $midia = (string) ($dados_grafico['boas_vindas']['midia_path'] ?? '');
+        if (!caminhoUploadValido($midia)) {
+            $dados_grafico['boas_vindas']['midia_path'] = '';
+        }
+    }
     if (!isset($dados_grafico['operators']) || !is_array($dados_grafico['operators'])) {
         return $dados_grafico;
     }
@@ -357,8 +375,13 @@ try {
 
                 registrarAtividade($usuario_id, 'sistema', 'Fluxo', "Atualizou o fluxo: $nome");
             } else {
-                $stmt = $pdo->prepare("INSERT INTO fluxos (id_usuario, nome, descricao, link_suporte, dados_fluxograma) VALUES (?, ?, ?, ?, ?)");
-                $stmt->execute([$usuario_id, $nome, $descricao, $link_suporte, $json_grafico]);
+                // "modo" só é aceito na criação -- imutável depois, porque o formato de
+                // dados_fluxograma é completamente diferente entre avancado (grafo de nós)
+                // e basico (seções de formulário); trocar o modo de um fluxo existente
+                // corromperia o conteúdo salvo.
+                $modo = ($entrada['modo'] ?? 'avancado') === 'basico' ? 'basico' : 'avancado';
+                $stmt = $pdo->prepare("INSERT INTO fluxos (id_usuario, nome, descricao, link_suporte, modo, dados_fluxograma) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$usuario_id, $nome, $descricao, $link_suporte, $modo, $json_grafico]);
                 $novo_id = $pdo->lastInsertId();
 
                 $stmt = $pdo->prepare("SELECT * FROM fluxos WHERE id = ? AND id_usuario = ?");
