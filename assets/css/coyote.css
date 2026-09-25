@@ -765,6 +765,13 @@ html[data-theme] a.botao-configurar { color: var(--or); }
 .grade-dashboard-baixo > * { min-width: 0; }
 .area-grafico canvas { max-width: 100%; }
 
+/* Topo do dashboard do cliente: 4 KPIs à esquerda (empilham em .grade-kpi normalmente,
+   2x2 na largura dessa coluna) + "Seu desempenho" à direita, mais largo por ser o
+   conteúdo principal. Mesmo motivo de min-width:0 do .grade-dashboard-baixo acima. */
+.grade-dashboard-topo { display: grid; grid-template-columns: 1fr 1.55fr; gap: 14px; }
+.grade-dashboard-topo > * { min-width: 0; }
+.grade-dashboard-topo .grade-kpi { margin-bottom: 0; }
+
 .area-grafico { position: relative; height: 300px; width: 100%; }
 
 /* max-height, nao height: com a lista vazia a caixa de "nenhum evento" tem 120px e o
@@ -1227,44 +1234,19 @@ html[data-theme] a.botao-configurar { color: var(--or); }
 .login-cabecalho-logo { width: 54px; height: 54px; border-radius: 16px; object-fit: cover; }
 html[data-theme] .login-cabecalho-logo { border: 1px solid var(--bd); }
 
-/* ===== Minha Conta: cartão de perfil + linhas de menu (padrão do protótipo) =====
-   As linhas de "Dados pessoais" e "Alterar senha" são <details>: no mobile abrem ao toque,
-   no desktop o JS da própria página deixa as duas abertas e o CSS esconde o cabeçalho delas,
-   pra não transformar um formulário que sempre coube numa tela em dois cliques. */
-.conta-perfil { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; padding: 26px 20px; border-radius: 16px; margin-bottom: 14px; }
-html[data-theme] .conta-perfil { background: var(--p); border: 1px solid var(--bd); }
-.conta-avatar { width: 76px; height: 76px; border-radius: 22px; display: flex; align-items: center; justify-content: center; font: 700 26px 'Manrope', sans-serif; color: #fff; background: var(--or); margin-bottom: 10px; }
-.conta-perfil-nome { font-size: 16px; font-weight: 700; }
-.conta-perfil-email { font-size: 13px; }
-html[data-theme] .conta-perfil-email { color: var(--m); }
+/* ===== Minha Conta: cartões "Dados pessoais" / "Segurança" + lista de links ===== */
+.conta-avatar { width: 76px; height: 76px; border-radius: 22px; display: flex; align-items: center; justify-content: center; font: 700 26px 'Manrope', sans-serif; color: #fff; background: var(--or); margin-bottom: 16px; }
 
 .conta-lista { display: flex; flex-direction: column; gap: 10px; }
-.conta-item, .conta-secao > summary {
+.conta-item {
     display: flex; align-items: center; gap: 13px;
     padding: 17px 16px; border-radius: 14px; cursor: pointer;
     font: 600 14px 'Manrope', sans-serif; list-style: none;
 }
-.conta-secao > summary::-webkit-details-marker { display: none; }
 html[data-theme] .conta-item { background: var(--p); border: 1px solid var(--bd); color: var(--t); }
-/* O fundo/borda do cartão fica no <details> inteiro, não só no <summary> -- no desktop o
-   summary vira display:none (as seções ficam sempre abertas) e, se o cartão estivesse só
-   nele, o corpo da seção aberta ficava sem nenhum fundo, "flutuando" direto na página. */
-html[data-theme] .conta-secao { background: var(--p); border: 1px solid var(--bd); border-radius: 14px; }
-html[data-theme] .conta-secao > summary { color: var(--t); }
-.conta-item svg, .conta-secao > summary svg { width: 19px; height: 19px; flex-shrink: 0; stroke: var(--or); }
-.conta-item-seta { margin-left: auto; transition: transform .18s; }
-/* Precisa casar a profundidade de .conta-secao > summary svg, senao o laranja do icone
-   da esquerda pinta tambem a seta da direita. */
-.conta-item .conta-item-seta svg,
-.conta-secao > summary .conta-item-seta svg { stroke: var(--m); width: 16px; height: 16px; }
-.conta-secao[open] > summary .conta-item-seta { transform: rotate(90deg); }
-.conta-secao-corpo { padding: 18px 4px 4px; }
-/* Com tudo fechado a lista tem so as 4 linhas, como no prototipo; o Salvar entra quando
-   voce abre uma secao. No desktop as secoes vivem abertas, entao ele esta sempre la. */
-@media (max-width: 860px) {
-    .conta-salvar { display: none; }
-    .conta-lista:has(.conta-secao[open]) .conta-salvar { display: block; }
-}
+.conta-item svg { width: 19px; height: 19px; flex-shrink: 0; stroke: var(--or); }
+.conta-item-seta { margin-left: auto; }
+.conta-item .conta-item-seta svg { stroke: var(--m); width: 16px; height: 16px; }
 
 /* Paginas de texto corrido e publicas (termos de uso). Mesmo tom das telas de login. */
 .pagina-texto { max-width: 720px; margin: 0 auto; padding: 22px 20px 56px; }
@@ -1402,15 +1384,10 @@ html[data-theme] a.login-link-esqueci { color: var(--or); }
 
 /* ===== Responsivo ===== */
 @media (min-width: 861px) {
-    .conta-secao > summary { display: none; }
-    .conta-perfil { display: none; }  /* no desktop o nome/e-mail já estão na barra lateral */
-
-    /* No desktop as seções ficam sempre abertas, então a "lista de cartões" pensada pro
-       mobile (cada bloco com seu próprio fundo/borda, soltos com espaço entre si) foge do
-       padrão do resto do painel, que é sempre UM cartão único (.painel) por página -- ver
-       leads.php, admin/configuracoes.php etc. Aqui o .conta-lista vira esse cartão único,
-       e os itens internos perdem o fundo/borda próprios, ficando separados por uma linha
-       fina em vez de cada um flutuar como uma caixa separada. */
+    /* .conta-lista (Gateways de pagamento / Sair da conta) vira UM cartão único no desktop,
+       igual ao padrão do resto do painel (.painel) -- ver leads.php, admin/configuracoes.php
+       etc. -- e os itens internos perdem o fundo/borda próprios, ficando separados por uma
+       linha fina em vez de cada um flutuar como uma caixa separada. */
     html[data-theme] .conta-lista {
         background: var(--p);
         border: 1px solid var(--bd);
@@ -1418,7 +1395,6 @@ html[data-theme] a.login-link-esqueci { color: var(--or); }
         padding: 22px;
         gap: 0;
     }
-    html[data-theme] .conta-secao,
     html[data-theme] .conta-item {
         background: transparent;
         border: none;
@@ -1437,6 +1413,7 @@ html[data-theme] a.login-link-esqueci { color: var(--or); }
     .grade-kpi { grid-template-columns: repeat(2, 1fr); }
     .cartao-kpi-larga { grid-column: span 2; }
     .grade-dashboard-baixo { grid-template-columns: 1fr; }
+    .grade-dashboard-topo { grid-template-columns: 1fr; }
     .grade-config-bot { grid-template-columns: 1fr; }
     .grade-ranking { grid-template-columns: 1fr; }
 }

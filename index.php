@@ -267,18 +267,6 @@ try {
         }
     }
 
-    // "Leads na base" -- total histórico (nunca filtrado por período, só por
-    // usuário/bot), pro 4º card da grade compacta no mobile.
-    if ($usa_cache_metricas) {
-        $stmt = $pdo->prepare("SELECT SUM(qtd_leads) FROM metricas_horarias_usuario WHERE 1=1 $where_usuario_metricas");
-        $stmt->execute();
-        $leads_na_base = (int) $stmt->fetchColumn();
-    } else {
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM leads l WHERE 1=1 $where_user_leads $where_bot_leads");
-        $stmt->execute();
-        $leads_na_base = (int) $stmt->fetchColumn();
-    }
-
     $grafico_dados = [];
     $grafico_labels = [];
     $texto_grafico = "";
@@ -525,54 +513,45 @@ try {
             </div>
         </div>
 
-        <div class="grade-kpi">
-            <div class="cartao-kpi oculto-mobile">
-                <div class="cartao-kpi-cabecalho">
-                    <div class="icone-kpi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></div>
-                    <span class="rotulo-kpi">Vendas aprovadas</span>
+        <div class="grade-dashboard-topo">
+            <div class="grade-kpi">
+                <div class="cartao-kpi oculto-mobile">
+                    <div class="cartao-kpi-cabecalho">
+                        <div class="icone-kpi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></div>
+                        <span class="rotulo-kpi">Vendas aprovadas</span>
+                    </div>
+                    <div class="valor-kpi">R$ <?php echo number_format($vendas_aprovadas, 2, ',', '.'); ?></div>
+                    <div class="rodape-kpi"><span><?php echo number_format($pix_pagos, 0, ",", "."); ?> aprovações</span></div>
                 </div>
-                <div class="valor-kpi">R$ <?php echo number_format($vendas_aprovadas, 2, ',', '.'); ?></div>
-                <div class="rodape-kpi"><span><?php echo number_format($pix_pagos, 0, ",", "."); ?> aprovações</span></div>
+
+                <div class="cartao-kpi">
+                    <div class="cartao-kpi-cabecalho">
+                        <div class="icone-kpi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg></div>
+                        <span class="rotulo-kpi">Conversão</span>
+                    </div>
+                    <div class="valor-kpi"><?php echo round($taxa_conversao); ?>%</div>
+                    <div class="rodape-kpi"><span><?php echo number_format($pix_pagos, 0, ",", "."); ?> de <?php echo number_format($pix_gerados, 0, ",", "."); ?> PIX</span></div>
+                </div>
+
+                <div class="cartao-kpi">
+                    <div class="cartao-kpi-cabecalho">
+                        <div class="icone-kpi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg></div>
+                        <span class="rotulo-kpi">Total starts</span>
+                    </div>
+                    <div class="valor-kpi"><?php echo number_format($total_starts, 0, ",", "."); ?></div>
+                    <div class="rodape-kpi"><span>Leads iniciaram conversa</span></div>
+                </div>
+
+                <div class="cartao-kpi">
+                    <div class="cartao-kpi-cabecalho">
+                        <div class="icone-kpi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg></div>
+                        <span class="rotulo-kpi">Ticket médio</span>
+                    </div>
+                    <div class="valor-kpi">R$ <?php echo number_format($ticket_medio, 2, ',', '.'); ?></div>
+                    <div class="rodape-kpi"><span><?php echo number_format($pix_gerados, 0, ",", "."); ?> PIX gerados</span></div>
+                </div>
             </div>
 
-            <div class="cartao-kpi">
-                <div class="cartao-kpi-cabecalho">
-                    <div class="icone-kpi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg></div>
-                    <span class="rotulo-kpi">Conversão</span>
-                </div>
-                <div class="valor-kpi"><?php echo round($taxa_conversao); ?>%</div>
-                <div class="rodape-kpi"><span><?php echo number_format($pix_pagos, 0, ",", "."); ?> de <?php echo number_format($pix_gerados, 0, ",", "."); ?> PIX</span></div>
-            </div>
-
-            <div class="cartao-kpi">
-                <div class="cartao-kpi-cabecalho">
-                    <div class="icone-kpi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg></div>
-                    <span class="rotulo-kpi">Total starts</span>
-                </div>
-                <div class="valor-kpi"><?php echo number_format($total_starts, 0, ",", "."); ?></div>
-                <div class="rodape-kpi"><span>Leads iniciaram conversa</span></div>
-            </div>
-
-            <div class="cartao-kpi">
-                <div class="cartao-kpi-cabecalho">
-                    <div class="icone-kpi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg></div>
-                    <span class="rotulo-kpi">Ticket médio</span>
-                </div>
-                <div class="valor-kpi">R$ <?php echo number_format($ticket_medio, 2, ',', '.'); ?></div>
-                <div class="rodape-kpi"><span><?php echo number_format($pix_gerados, 0, ",", "."); ?> PIX gerados</span></div>
-            </div>
-
-            <div class="cartao-kpi">
-                <div class="cartao-kpi-cabecalho">
-                    <div class="icone-kpi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg></div>
-                    <span class="rotulo-kpi">Leads</span>
-                </div>
-                <div class="valor-kpi"><?php echo number_format($leads_na_base, 0, ",", "."); ?></div>
-                <div class="rodape-kpi"><span>na base</span></div>
-            </div>
-        </div>
-
-        <div class="grade-dashboard-baixo">
             <div class="painel">
                 <div class="painel-cabecalho">
                     <h2>Seu desempenho</h2>
@@ -582,15 +561,15 @@ try {
                     <canvas id="performanceChart"></canvas>
                 </div>
             </div>
+        </div>
 
-            <div class="painel">
-                <div class="painel-cabecalho">
-                    <h2>Atividade</h2>
-                </div>
-                <?php echo inicioBlocoPaginado('atividade'); ?>
-                <?php include __DIR__ . '/parciais/lista_atividades.php'; ?>
-                <?php echo fimBlocoPaginado(); ?>
+        <div class="painel" style="margin-top: 14px;">
+            <div class="painel-cabecalho">
+                <h2>Atividade</h2>
             </div>
+            <?php echo inicioBlocoPaginado('atividade'); ?>
+            <?php include __DIR__ . '/parciais/lista_atividades.php'; ?>
+            <?php echo fimBlocoPaginado(); ?>
         </div>
 
         <?php if ($campanha_dash): ?>

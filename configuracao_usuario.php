@@ -81,100 +81,69 @@ $iniciais_conta = mb_strtoupper(mb_substr($partes_nome[0] ?? '?', 0, 1)
                 </div>
             <?php endif; ?>
 
-            <div class="conta-perfil">
-                <div class="conta-avatar"><?php echo htmlspecialchars($iniciais_conta); ?></div>
-                <div class="conta-perfil-nome"><?php echo htmlspecialchars($nome_conta); ?></div>
-                <div class="conta-perfil-email"><?php echo htmlspecialchars($dados_usuario['email'] ?? ''); ?></div>
-            </div>
-
             <form method="POST" action="">
                 <?php echo campoCsrf(); ?>
-                <div class="conta-lista">
-
-                    <details class="conta-secao">
-                        <summary>
-                            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                            Dados pessoais
-                            <span class="conta-item-seta"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></span>
-                        </summary>
-                        <div class="conta-secao-corpo">
-                            <div class="grade grade-compacta">
-                                <div class="campo">
-                                    <label for="nome">Nome completo</label>
-                                    <input type="text" id="nome" name="nome" required
-                                           value="<?php echo htmlspecialchars($dados_usuario['nome'] ?? ''); ?>">
-                                </div>
-                                <div class="campo">
-                                    <label for="email">E-mail</label>
-                                    <input type="email" id="email" name="email" required
-                                           value="<?php echo htmlspecialchars($dados_usuario['email'] ?? ''); ?>">
-                                </div>
-                                <div class="campo">
-                                    <label for="apelido_publico">Apelido no Ranking</label>
-                                    <input type="text" id="apelido_publico" name="apelido_publico" maxlength="40"
-                                           placeholder="Ex: @seuapelido"
-                                           value="<?php echo htmlspecialchars($dados_usuario['apelido_publico'] ?? ''); ?>">
-                                    <span class="texto-ajuda">É esse nome (não seu nome real nem e-mail) que os outros usuários veem no Ranking. Deixe em branco pra aparecer como "Usuário #<?php echo (int) $usuario_id; ?>".</span>
-                                </div>
+                <div class="grade grade-2">
+                    <div class="painel">
+                        <div class="painel-cabecalho"><h2>Dados pessoais</h2></div>
+                        <div class="conta-avatar"><?php echo htmlspecialchars($iniciais_conta); ?></div>
+                        <div class="grade grade-compacta">
+                            <div class="campo">
+                                <label for="nome">Nome completo</label>
+                                <input type="text" id="nome" name="nome" required
+                                       value="<?php echo htmlspecialchars($dados_usuario['nome'] ?? ''); ?>">
+                            </div>
+                            <div class="campo">
+                                <label for="email">E-mail</label>
+                                <input type="email" id="email" name="email" required
+                                       value="<?php echo htmlspecialchars($dados_usuario['email'] ?? ''); ?>">
+                            </div>
+                            <div class="campo">
+                                <label for="apelido_publico">Apelido no Ranking</label>
+                                <input type="text" id="apelido_publico" name="apelido_publico" maxlength="40"
+                                       placeholder="Ex: @seuapelido"
+                                       value="<?php echo htmlspecialchars($dados_usuario['apelido_publico'] ?? ''); ?>">
+                                <span class="texto-ajuda">É esse nome (não seu nome real nem e-mail) que os outros usuários veem no Ranking. Deixe em branco pra aparecer como "Usuário #<?php echo (int) $usuario_id; ?>".</span>
                             </div>
                         </div>
-                    </details>
+                        <button type="submit" class="botao botao-primario" style="margin-top:16px;">Salvar alterações</button>
+                    </div>
 
-                    <details class="conta-secao">
-                        <summary>
-                            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                            Alterar senha
-                            <span class="conta-item-seta"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></span>
-                        </summary>
-                        <div class="conta-secao-corpo">
-                            <div class="grade grade-compacta">
-                                <div class="campo">
-                                    <label for="senha">Nova senha</label>
-                                    <input type="password" id="senha" name="senha" placeholder="Deixe em branco para manter a atual">
-                                    <span class="texto-ajuda">Mínimo de 6 caracteres.</span>
-                                </div>
-                                <div class="campo">
-                                    <label for="confirmar_senha">Confirmar nova senha</label>
-                                    <input type="password" id="confirmar_senha" name="confirmar_senha" placeholder="Repita a nova senha">
-                                </div>
+                    <div class="painel">
+                        <div class="painel-cabecalho"><h2>Segurança</h2></div>
+                        <div class="grade grade-compacta">
+                            <div class="campo">
+                                <label for="senha">Nova senha</label>
+                                <input type="password" id="senha" name="senha" placeholder="Mínimo de 6 caracteres">
+                                <span class="texto-ajuda">Deixe em branco para manter a senha atual.</span>
+                            </div>
+                            <div class="campo">
+                                <label for="confirmar_senha">Confirmar senha</label>
+                                <input type="password" id="confirmar_senha" name="confirmar_senha" placeholder="Repita a nova senha">
                             </div>
                         </div>
-                    </details>
-
-                    <button type="submit" class="botao botao-primario botao-bloco conta-salvar" style="padding:15px;">Salvar alterações</button>
-
-                    <a href="gateways" class="conta-item">
-                        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"></rect><path d="M2 10h20"></path></svg>
-                        Gateways de pagamento
-                        <span class="conta-item-seta"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></span>
-                    </a>
-
-                    <a href="logout" class="conta-item">
-                        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                        Sair da conta
-                        <span class="conta-item-seta"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></span>
-                    </a>
+                        <button type="submit" class="botao botao-secundario" style="margin-top:16px;">Atualizar senha</button>
+                    </div>
                 </div>
             </form>
+
+            <div class="conta-lista" style="margin-top:14px;">
+                <a href="gateways" class="conta-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"></rect><path d="M2 10h20"></path></svg>
+                    Gateways de pagamento
+                    <span class="conta-item-seta"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></span>
+                </a>
+
+                <a href="logout" class="conta-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                    Sair da conta
+                    <span class="conta-item-seta"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></span>
+                </a>
+            </div>
         </div>
     </main>
 </div>
 
 <script src="assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/tema.js'); ?>"></script>
-<script>
-// No desktop as duas seções ficam sempre abertas (o CSS esconde o <summary>), senão um
-// formulário que sempre coube numa tela viraria dois cliques. No mobile começam fechadas,
-// que é o padrão do protótipo.
-(function () {
-    var secoes = document.querySelectorAll('.conta-secao');
-    function ajustar() {
-        if (window.matchMedia('(min-width: 861px)').matches) {
-            secoes.forEach(function (s) { s.open = true; });
-        }
-    }
-    ajustar();
-    window.addEventListener('resize', ajustar);
-})();
-</script>
 </body>
 </html>
