@@ -563,7 +563,7 @@ try {
             </div>
         </div>
 
-        <div class="<?php echo $campanha_dash ? 'grade-dashboard-baixo' : ''; ?>" style="margin-top: 14px;">
+        <div class="<?php echo $campanha_dash ? 'grade-dashboard-baixo grade-igual' : ''; ?>" style="margin-top: 14px;">
             <div class="painel">
                 <div class="painel-cabecalho">
                     <h2>Atividade</h2>

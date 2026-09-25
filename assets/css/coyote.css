@@ -763,6 +763,10 @@ html[data-theme] a.botao-configurar { color: var(--or); }
    Chart.js (que ganha largura fixa em px) empurra a coluna e faz a página inteira estourar
    na horizontal no celular (visto em admin/dashboard.php: painel de 484px num viewport de 393). */
 .grade-dashboard-baixo > * { min-width: 0; }
+/* Modificador pra quando os dois painéis pesam igual (ex.: Atividade + card de campanha no
+   dashboard do cliente) -- sem gráfico de um dos lados, 1.55fr/1fr deixava um lado maior
+   sem motivo. */
+.grade-dashboard-baixo.grade-igual { grid-template-columns: 1fr 1fr; }
 .area-grafico canvas { max-width: 100%; }
 
 /* Topo do dashboard do cliente: 4 KPIs em grade 2x2 à esquerda + "Seu desempenho" à
