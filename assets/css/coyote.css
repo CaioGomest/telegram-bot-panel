@@ -1190,7 +1190,9 @@ html[data-theme] a.botao-configurar { color: var(--or); }
     justify-content: space-between;
     z-index: 3;
 }
-.visualizador-story-nome { color: #fff; font: 700 13.5px 'Manrope', sans-serif; text-shadow: 0 1px 4px rgba(0,0,0,.5); }
+.visualizador-story-info { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.visualizador-story-nome { color: #fff; font: 700 13.5px 'Manrope', sans-serif; text-shadow: 0 1px 4px rgba(0,0,0,.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.visualizador-story-tempo { color: rgba(255,255,255,.75); font: 600 12px 'Manrope', sans-serif; text-shadow: 0 1px 4px rgba(0,0,0,.5); flex-shrink: 0; }
 .visualizador-story-fechar {
     background: rgba(0, 0, 0, .35);
     border: none;

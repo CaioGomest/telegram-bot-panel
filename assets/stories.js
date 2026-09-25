@@ -28,6 +28,7 @@
 
     const elVisualizador = document.getElementById('visualizador-story');
     const elVisNome = document.getElementById('visualizador-story-nome');
+    const elVisTempo = document.getElementById('visualizador-story-tempo');
     const elVisMidia = document.getElementById('visualizador-story-midia');
     const elVisProgresso = document.getElementById('visualizador-story-progresso');
     const elVisFechar = document.getElementById('visualizador-story-fechar');
@@ -245,6 +246,24 @@
         });
     }
 
+    // 'criado_em' vem do banco como "AAAA-MM-DD HH:MM:SS" em horário de Brasília (conexao.php
+    // fixa SET time_zone = '-03:00'), sem informação de fuso -- se só trocasse o espaço por
+    // "T" e deixasse o navegador interpretar, cada visitante fora de -03:00 veria um horário
+    // relativo errado. Fixando o offset aqui, o cálculo fica correto em qualquer fuso.
+    function tempoRelativoStory(criadoEm) {
+        if (!criadoEm) return '';
+        const data = new Date(String(criadoEm).replace(' ', 'T') + '-03:00');
+        if (isNaN(data.getTime())) return '';
+
+        const diffMs = Date.now() - data.getTime();
+        const diffMin = Math.floor(diffMs / 60000);
+        if (diffMin < 1) return 'agora';
+        if (diffMin < 60) return diffMin + 'min';
+        const diffH = Math.floor(diffMin / 60);
+        if (diffH < 24) return diffH + 'h';
+        return Math.floor(diffH / 24) + 'd';
+    }
+
     function exibirStoryAtual() {
         clearTimeout(timerAvanco);
         const grupo = grupos[grupoAtualIndex];
@@ -255,6 +274,7 @@
 
         const story = grupo.stories[storyAtualIndex];
         elVisNome.textContent = grupo.nome || 'Usuário';
+        if (elVisTempo) elVisTempo.textContent = tempoRelativoStory(story.criado_em);
         elVisMidia.innerHTML = '';
 
         const segmentos = elVisProgresso.querySelectorAll('.visualizador-story-segmento');

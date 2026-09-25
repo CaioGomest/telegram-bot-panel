@@ -39,7 +39,10 @@
     <div class="visualizador-story-conteudo">
         <div class="visualizador-story-progresso" id="visualizador-story-progresso"></div>
         <div class="visualizador-story-cabecalho">
-            <span class="visualizador-story-nome" id="visualizador-story-nome"></span>
+            <div class="visualizador-story-info">
+                <span class="visualizador-story-nome" id="visualizador-story-nome"></span>
+                <span class="visualizador-story-tempo" id="visualizador-story-tempo"></span>
+            </div>
             <button type="button" class="visualizador-story-fechar" id="visualizador-story-fechar">&times;</button>
         </div>
         <div class="visualizador-story-midia" id="visualizador-story-midia"></div>
