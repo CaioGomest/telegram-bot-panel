@@ -377,7 +377,9 @@ html[data-theme] *::-webkit-scrollbar-thumb:hover { background: var(--m); }
 }
 .botao-primario:hover { background: var(--or2); border-color: var(--or2); color: #fff; }
 html[data-theme] a.botao-primario,
-html[data-theme] a.botao-primario:hover { color: #fff; }
+html[data-theme] a.botao-primario:hover,
+html[data-theme] button.botao-primario,
+html[data-theme] button.botao-primario:hover { color: #fff; }
 .botao-claro { background: transparent; }
 .botao-secundario { background: transparent; }
 .botao-perigo:hover { border-color: var(--da); color: var(--da); }
