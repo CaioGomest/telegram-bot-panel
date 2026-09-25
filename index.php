@@ -563,17 +563,18 @@ try {
             </div>
         </div>
 
-        <div class="painel" style="margin-top: 14px;">
-            <div class="painel-cabecalho">
-                <h2>Atividade</h2>
+        <div class="<?php echo $campanha_dash ? 'grade-dashboard-baixo' : ''; ?>" style="margin-top: 14px;">
+            <div class="painel">
+                <div class="painel-cabecalho">
+                    <h2>Atividade</h2>
+                </div>
+                <?php echo inicioBlocoPaginado('atividade'); ?>
+                <?php include __DIR__ . '/parciais/lista_atividades.php'; ?>
+                <?php echo fimBlocoPaginado(); ?>
             </div>
-            <?php echo inicioBlocoPaginado('atividade'); ?>
-            <?php include __DIR__ . '/parciais/lista_atividades.php'; ?>
-            <?php echo fimBlocoPaginado(); ?>
-        </div>
 
         <?php if ($campanha_dash): ?>
-        <div class="painel" style="margin-top: 14px;">
+        <div class="painel">
             <div class="painel-cabecalho">
                 <h2><?php echo htmlspecialchars($campanha_dash['titulo']); ?></h2>
                 <span class="texto-suave">
@@ -640,6 +641,7 @@ try {
             </div>
         </div>
         <?php endif; ?>
+        </div>
     </main>
 </div>
 
