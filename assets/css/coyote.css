@@ -784,7 +784,13 @@ html[data-theme] a.botao-configurar { color: var(--or); }
    como .grade-kpi não tem fundo/borda próprios, só os cards individuais são visíveis, e
    qualquer imprecisão no cálculo de altura aparecia como card sobrando ou faltando. */
 .grade-dashboard-topo .grade-kpi { grid-template-columns: repeat(2, 1fr); margin-bottom: 0; align-items: start; }
-.grade-dashboard-topo .painel { display: flex; flex-direction: column; }
+/* .painel tem margin-bottom:14px por padrão (.grade-kpi não) -- como o grid mede a altura
+   da linha pela caixa cheia (conteúdo + margem) de cada item, essa margem sobrando fazia
+   a caixa branca do gráfico "perder" 14px em relação à última linha de cards, mesmo com
+   os dois esticando pra mesma altura de linha. O espaçamento pro que vem depois já é
+   coberto pelo margin-top do bloco "Atividade" em index.php, então zerar aqui não tira
+   respiro nenhum. */
+.grade-dashboard-topo .painel { display: flex; flex-direction: column; margin-bottom: 0; }
 .grade-dashboard-topo .area-grafico { flex: 1; }
 
 .area-grafico { position: relative; height: 300px; width: 100%; }
