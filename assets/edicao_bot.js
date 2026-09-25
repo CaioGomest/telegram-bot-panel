@@ -20,24 +20,38 @@
             .replace(/'/g, '&#039;');
     }
 
+    function atualizarBotaoAbrirTelegram(username) {
+        const $btn = $('#btn-abrir-telegram');
+        if (username) {
+            $btn.attr('href', 'https://t.me/' + username).prop('hidden', false);
+        } else {
+            $btn.prop('hidden', true);
+        }
+    }
+
     function atualizarCardStatus(bot_info, is_online) {
         if (!bot_info) {
             $('#status-avatar-container').html('<div class="avatar-preview-bot-placeholder">?</div>');
+            $('#preview-foto-perfil-bot').html('<div class="avatar-preview-bot-placeholder">?</div>');
             $('#status-nome').text('Novo Bot');
             $('#status-username').text('@...');
             $('#status-badge').removeClass('ligado desligado').html('<span class="ponto-status"></span> <span class="texto-status">Desconhecido</span>');
+            atualizarBotaoAbrirTelegram(null);
             return;
         }
 
         if (bot_info.caminho_foto) {
              $('#status-avatar-container').html(`<img src="${escaparHtml(bot_info.caminho_foto)}?t=${Date.now()}" class="avatar-preview-bot" alt="Bot Avatar">`);
+             $('#preview-foto-perfil-bot').html(`<img src="${escaparHtml(bot_info.caminho_foto)}?t=${Date.now()}" class="avatar-preview-bot" alt="">`);
         } else {
              const inicial = (bot_info.first_name || 'B').charAt(0).toUpperCase();
              $('#status-avatar-container').html(`<div class="avatar-preview-bot-placeholder">${inicial}</div>`);
+             $('#preview-foto-perfil-bot').html(`<div class="avatar-preview-bot-placeholder">${inicial}</div>`);
         }
 
         $('#status-nome').text(bot_info.first_name || 'Sem nome');
         $('#status-username').text(bot_info.username ? `@${bot_info.username}` : 'Sem username');
+        atualizarBotaoAbrirTelegram(bot_info.username || null);
 
         const $badge = $('#status-badge');
         if (is_online) {
@@ -45,6 +59,23 @@
         } else {
             $badge.removeClass('ligado').addClass('desligado').html('<span class="ponto-status"></span> <span class="texto-status">Offline</span>');
         }
+    }
+
+    function atualizarVisibilidadeModo() {
+        const eh_edicao = !!$('#id-bot').val();
+        $('#barra-preview-bot').prop('hidden', !eh_edicao);
+        $('#cartao-criar-automatico').prop('hidden', eh_edicao);
+        $('#linha-preview-criacao').prop('hidden', eh_edicao);
+        $('#painel-perfil-telegram').prop('hidden', !eh_edicao);
+        $('#cartao-tutorial-botfather').prop('hidden', eh_edicao);
+        $('#painel-ferramentas').prop('hidden', !eh_edicao);
+        $('#aviso-token-lateral').prop('hidden', !eh_edicao);
+        $('#aviso-token-principal').prop('hidden', eh_edicao);
+        $('#btn-salvar-bot').text(eh_edicao ? 'Salvar alterações' : 'Criar bot');
+        $('#dica-conexao').text(eh_edicao
+            ? 'Token gerado pelo @BotFather e fluxo que o bot executa.'
+            : 'Cole o token gerado pelo @BotFather. Nome e username são preenchidos automaticamente.');
+        $('#link-fluxo-secundario').text(eh_edicao ? 'Editar fluxo' : 'Novo Fluxo');
     }
 
     function preencherFormularioBot(bot) {
@@ -76,6 +107,7 @@
             username: bot.nome_usuario,
             caminho_foto: bot.caminho_foto
         }, !!bot.url_webhook);
+        atualizarVisibilidadeModo();
     }
 
     function limparFormularioBot() {
@@ -88,7 +120,10 @@
         $('#id-fluxo-conectado').val('');
         $('#photo').val('');
         
+        $('#nome-preview-criacao').val('');
+        $('#username-preview-criacao').val('');
         atualizarCardStatus(null, false);
+        atualizarVisibilidadeModo();
 
         if (window.history.pushState) {
             const new_url = window.location.protocol + "//" + window.location.host + window.location.pathname;
@@ -148,6 +183,8 @@
             }
             const info = response.info_bot || {};
             if (!$('#name').val()) $('#name').val(info.first_name || '');
+            $('#nome-preview-criacao').val(info.first_name || '');
+            $('#username-preview-criacao').val(info.username ? '@' + info.username : '');
 
             atualizarCardStatus({
                 first_name: info.first_name,
@@ -324,6 +361,70 @@
             $btn.prop('disabled', false).html(original_text);
         });
     });
+
+    $('#btn-descartar-perfil').on('click', function () {
+        if (bot_atual) preencherFormularioBot(bot_atual);
+    });
+
+    $('#photo').on('change', function () {
+        const arquivo = this.files && this.files[0];
+        if (!arquivo) return;
+        const leitor = new FileReader();
+        leitor.onload = function (ev) {
+            $('#preview-foto-perfil-bot').html(`<img src="${ev.target.result}" class="avatar-preview-bot" alt="">`);
+        };
+        leitor.readAsDataURL(arquivo);
+    });
+
+    $('#btn-exportar-fluxo-bot').on('click', function () {
+        const id_fluxo = $('#id-fluxo-conectado').val();
+        if (!id_fluxo) {
+            exibirAviso('Selecione um fluxo antes de exportar.', 'erro');
+            return;
+        }
+        $.getJSON(url_api + '?action=exportar_fluxo&id=' + encodeURIComponent(id_fluxo))
+            .done(function (resp) {
+                if (!resp.sucesso || !resp.fluxo) {
+                    exibirAviso(resp.mensagem || 'Erro ao exportar fluxo.', 'erro');
+                    return;
+                }
+                const conteudo = JSON.stringify(resp.fluxo, null, 2);
+                const blob = new Blob([conteudo], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'fluxo_' + id_fluxo + '.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                exibirAviso('Fluxo exportado.');
+            })
+            .fail(function () {
+                exibirAviso('Falha ao exportar fluxo.', 'erro');
+            });
+    });
+
+    $(document).on('click', '.btn-copiar-chip', function () {
+        const texto = $(this).data('copiar');
+        function avisar() { exibirAviso('Copiado!'); }
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(texto).then(avisar).catch(function () {
+                copiarChipFallback(texto, avisar);
+            });
+        } else {
+            copiarChipFallback(texto, avisar);
+        }
+    });
+    function copiarChipFallback(valor, callback) {
+        const tmp = document.createElement('textarea');
+        tmp.value = valor;
+        document.body.appendChild(tmp);
+        tmp.select();
+        document.execCommand('copy');
+        document.body.removeChild(tmp);
+        callback();
+    }
 
     const url_params = new URLSearchParams(window.location.search);
     const bot_id = url_params.get('id');

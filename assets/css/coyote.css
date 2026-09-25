@@ -958,6 +958,59 @@ html[data-theme] a.paginacao-link.active { color: #fff; }
 .ponto-status { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .status-bot.ligado .ponto-status { animation: pulseDot 1.8s infinite; }
 .lista-ferramentas { display: flex; flex-direction: column; gap: 8px; }
+
+.barra-preview-bot {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    margin-bottom: 14px;
+    border-radius: 16px;
+    background: var(--p);
+    border: 1px solid var(--bd);
+}
+.barra-preview-bot #status-avatar-container .avatar-preview-bot,
+.barra-preview-bot #status-avatar-container .avatar-preview-bot-placeholder { width: 52px; height: 52px; border-radius: 15px; font-size: 20px; }
+.preview-bot-identidade { flex: 1; min-width: 0; }
+.linha-preview-bot-nome { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.linha-preview-bot-nome h2 { margin: 0; font-size: 18px; text-transform: none; font-family: 'Manrope', sans-serif; font-weight: 800; }
+
+.cartao-criar-automatico { margin-bottom: 14px; }
+.linha-criar-automatico { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.icone-criar-automatico {
+    width: 40px; height: 40px; flex: none; border-radius: 12px;
+    background: var(--orsoft); color: var(--or);
+    display: grid; place-items: center;
+}
+.texto-criar-automatico { flex: 1; min-width: 220px; }
+.titulo-criar-automatico { display: flex; align-items: center; gap: 8px; font: 800 15px 'Manrope', sans-serif; margin-bottom: 4px; }
+.texto-criar-automatico p { margin: 0; }
+
+.lista-passos-tutorial { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px; }
+.lista-passos-tutorial li { display: flex; gap: 12px; }
+.lista-passos-tutorial strong { display: block; font-size: 13px; margin-bottom: 3px; }
+.lista-passos-tutorial p { margin: 0; line-height: 1.5; }
+.numero-passo {
+    flex: none; width: 24px; height: 24px; border-radius: 50%;
+    background: var(--orsoft); color: var(--or);
+    display: grid; place-items: center;
+    font: 800 12px 'Manrope', sans-serif;
+}
+.chip-codigo {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-top: 8px; padding: 6px 6px 6px 12px;
+    border-radius: 9px; background: var(--p2); border: 1px solid var(--bd);
+}
+.chip-codigo code { font: 700 12px 'JetBrains Mono', monospace; color: var(--t); }
+.btn-copiar-chip {
+    display: grid; place-items: center; width: 24px; height: 24px;
+    border: none; border-radius: 6px; background: var(--p3); color: var(--m); cursor: pointer;
+}
+.btn-copiar-chip:hover { color: var(--or); }
+
+.linha-foto-perfil-bot { display: flex; align-items: center; gap: 14px; }
+.linha-foto-perfil-bot .avatar-preview-bot,
+.linha-foto-perfil-bot .avatar-preview-bot-placeholder { width: 56px; height: 56px; border-radius: 16px; font-size: 22px; }
 .lista-ferramentas .botao { justify-content: flex-start; text-align: left; }
 
 /* ===== Minha conta / alertas ===== */
