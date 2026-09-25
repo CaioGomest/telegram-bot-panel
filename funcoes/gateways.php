@@ -27,11 +27,37 @@ function saveAdminGatewayConfig(int $id, bool $ativo): bool {
     }
 }
 
-function getUserSplits(int $user_id, string $gateway_nome): array {
+/**
+ * Split é uma regra única por gateway (não por usuário) -- todo mundo que usa o mesmo
+ * gateway divide pro mesmo destino, configurado pelo admin direto na tela de gateways.
+ * Retorna null quando não há split configurado (taxa zerada ou sem chave Pix destino),
+ * pra quem chama simplesmente pular o split sem tratar caso especial.
+ */
+function getGatewaySplit(string $gateway_nome): ?array {
     global $pdo;
-    $stmt = $pdo->prepare("SELECT * FROM usuarios_splits WHERE id_usuario = ? AND gateway_nome = ? ORDER BY ordem, id");
-    $stmt->execute([$user_id, $gateway_nome]);
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmt = $pdo->prepare("SELECT taxa_split, tipo_split, chave_pix_split FROM gateways WHERE nome = ?");
+    $stmt->execute([$gateway_nome]);
+    $linha = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$linha || (float)$linha['taxa_split'] <= 0 || empty($linha['chave_pix_split'])) {
+        return null;
+    }
+    return $linha;
+}
+
+function saveGatewaySplit(int $gateway_id, float $taxa_split, string $tipo_split, string $chave_pix_split): bool {
+    global $pdo;
+    $tipo_split = in_array($tipo_split, ['percentual', 'fixo'], true) ? $tipo_split : 'percentual';
+    try {
+        $stmt = $pdo->prepare("UPDATE gateways SET taxa_split = ?, tipo_split = ?, chave_pix_split = ? WHERE id = ?");
+        $sucesso = $stmt->execute([$taxa_split, $tipo_split, $chave_pix_split, $gateway_id]);
+        if ($sucesso && isset($_SESSION['usuario_id'])) {
+            registrarAtividade((int)$_SESSION['usuario_id'], 'admin', 'Gateway Admin', "Atualizou split padrão do gateway ID $gateway_id ($taxa_split% $tipo_split)");
+        }
+        return $sucesso;
+    } catch (PDOException $e) {
+        error_log("Erro ao salvar split do gateway: " . $e->getMessage());
+        return false;
+    }
 }
 
 function getUserGatewayConfig(int $user_id, string $gateway_nome): ?array {
@@ -187,7 +213,9 @@ function listarGatewaysUsuario(int $user_id, int $limite = 20, int $offset = 0):
             'tipo_conta' => $g['tipo_conta'] ?? 'pj',
         ];
 
-        $g['conectado'] = ($g['user_config']['ativo'] && !empty($g['user_config']['client_id']) && !empty($g['user_config']['chave_pix']));
+        // Chave Pix não entra aqui -- alguns gateways (OmegaPayments) nem usam esse campo,
+        // o recebedor é definido pela própria credencial.
+        $g['conectado'] = ($g['user_config']['ativo'] && !empty($g['user_config']['client_id']));
     }
 
     return $gateways;

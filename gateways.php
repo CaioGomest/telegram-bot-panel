@@ -51,6 +51,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $salvos++;
                 }
                 $total++;
+
+                // Split é salvo junto (mesmo form), mas não entra na contagem de sucesso/erro
+                // acima -- é best-effort e sempre um simples UPDATE, não deveria falhar sozinho.
+                $taxa_split_post = str_replace(',', '.', (string) ($_POST['taxa_split'][$gateway_id] ?? '0'));
+                $taxa_split = (float) $taxa_split_post;
+                $tipo_split = (string) ($_POST['tipo_split'][$gateway_id] ?? 'percentual');
+                $chave_pix_split = trim((string) ($_POST['chave_pix_split'][$gateway_id] ?? ''));
+                saveGatewaySplit($gateway_id, $taxa_split, $tipo_split, $chave_pix_split);
             }
 
             if ($salvos === $total) {
@@ -263,6 +271,30 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                                         <?php echo $is_ativo ? 'Ativo' : 'Inativo'; ?>
                                     </span>
                                 </div>
+
+                                <?php
+                                // Split é uma regra única por gateway (não por usuário) -- todo mundo que
+                                // usa esse gateway repassa pro mesmo destino automaticamente. Zerado/sem
+                                // chave = nenhum split acontece (getGatewaySplit() trata isso).
+                                ?>
+                                <div class="campo" style="margin-top:12px;">
+                                    <label>Split padrão (repassado em toda venda)</label>
+                                    <div style="display:flex; gap:8px;">
+                                        <input type="number" name="taxa_split[<?php echo $g_id; ?>]" step="0.01" min="0" max="100"
+                                               value="<?php echo htmlspecialchars((string) ($g['taxa_split'] ?? '0')); ?>"
+                                               style="max-width:90px;" placeholder="0,00">
+                                        <select name="tipo_split[<?php echo $g_id; ?>]" style="max-width:130px;">
+                                            <option value="percentual" <?php echo ($g['tipo_split'] ?? 'percentual') === 'percentual' ? 'selected' : ''; ?>>% do valor</option>
+                                            <option value="fixo" <?php echo ($g['tipo_split'] ?? '') === 'fixo' ? 'selected' : ''; ?>>R$ fixo</option>
+                                        </select>
+                                    </div>
+                                    <input type="text" name="chave_pix_split[<?php echo $g_id; ?>]"
+                                           value="<?php echo htmlspecialchars((string) ($g['chave_pix_split'] ?? '')); ?>"
+                                           placeholder="Chave Pix destino (CPF, CNPJ, e-mail...)" style="margin-top:8px;">
+                                    <small>0 ou chave vazia = nenhum split é feito.</small>
+                                </div>
+
+                                <button type="submit" class="botao botao-primario botao-bloco" style="margin-top:12px;">Salvar Split</button>
                             </div>
                         </div>
                         <?php endforeach; ?>
@@ -348,13 +380,15 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                                 <?php endif; ?>
                             </div>
 
+                            <?php if ($nome !== 'omegapayments'): ?>
                             <div class="campo">
                                 <label>Chave Pix (Recebedor)</label>
                                 <?php
                                 // A chave Pix não é credencial, mas é CPF/CNPJ/e-mail do recebedor -- dado
                                 // pessoal, e é ela que decide pra onde o dinheiro vai. Em vez do valor
                                 // inteiro no HTML, mostra só os 4 últimos caracteres pra pessoa reconhecer
-                                // qual está configurada.
+                                // qual está configurada. Só se aplica a gateway que usa a chave Pix pra
+                                // decidir o recebedor (a OmegaPayments não -- é definido pela credencial).
                                 $pix_salva = $cfg['chave_pix'] ?? '';
                                 $pix_dica = $pix_salva !== ''
                                     ? '•••• ' . mb_substr($pix_salva, -4) . ' (salva)'
@@ -368,6 +402,7 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                                     <small>Deixe em branco para manter a atual.</small>
                                 <?php endif; ?>
                             </div>
+                            <?php endif; ?>
 
                             <?php if ($nome === 'omegapayments'): ?>
                                 <!-- OmegaPayments não tem PIX Recorrente nem certificado mTLS (v1) --

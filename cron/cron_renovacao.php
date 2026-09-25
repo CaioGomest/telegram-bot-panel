@@ -109,13 +109,13 @@ try {
         $expiracao_segundos = 3 * 86400;
 
         $split_data = null;
-        $user_splits = getUserSplits((int)$id_usuario_dono, $nome_gateway);
-        if (!empty($user_splits)) {
-            $split_data = array_map(fn($s) => [
-                'chave' => $s['chave_pix_split'],
-                'valor' => $s['taxa_split'],
-                'tipo'  => $s['tipo_split'] ?? 'percentual'
-            ], $user_splits);
+        $split_gateway = getGatewaySplit($nome_gateway);
+        if ($split_gateway) {
+            $split_data = [[
+                'chave' => $split_gateway['chave_pix_split'],
+                'valor' => $split_gateway['taxa_split'],
+                'tipo'  => $split_gateway['tipo_split'] ?? 'percentual',
+            ]];
         }
 
         $payload = $provedor->montaPayloadCobranca($valor, $chave_pix, $split_data, $expiracao_segundos);

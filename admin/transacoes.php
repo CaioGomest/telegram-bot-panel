@@ -52,11 +52,6 @@ $sql_base = "
     JOIN bots b ON v.bot_id = b.id
     JOIN usuarios u ON b.id_usuario = u.id
     LEFT JOIN gateways g ON v.id_gateway = g.id
-    LEFT JOIN (
-        SELECT id_usuario, gateway_nome, SUM(taxa_split) AS soma_pct
-        FROM usuarios_splits
-        GROUP BY id_usuario, gateway_nome
-    ) us ON us.id_usuario = u.id AND us.gateway_nome = g.nome
     WHERE $where_sql
 ";
 
@@ -91,6 +86,8 @@ if ($where_sql === '1=1') {
 
 $pagina_atual = isset($_GET['pagina']) ? max(1, (int)$_GET['pagina']) : 1;
 $por_pagina = 25;
+$total_paginas = $total_transacoes > 0 ? (int) ceil($total_transacoes / $por_pagina) : 1;
+$pagina_atual = min($pagina_atual, $total_paginas);
 $offset = ($pagina_atual - 1) * $por_pagina;
 
 // Busca só os IDs da página atual primeiro (sem os LEFT JOINs caros de gateway/split),
@@ -120,16 +117,11 @@ if ($ids_pagina) {
             b.id AS id_bot, COALESCE(b.primeiro_nome, b.nome_usuario) AS nome_bot,
             u.id AS id_usuario, u.nome AS nome_usuario,
             g.titulo AS titulo_gateway,
-            us.soma_pct
+            g.taxa_split AS soma_pct
         FROM vendas v
         JOIN bots b ON v.bot_id = b.id
         JOIN usuarios u ON b.id_usuario = u.id
         LEFT JOIN gateways g ON v.id_gateway = g.id
-        LEFT JOIN (
-            SELECT id_usuario, gateway_nome, SUM(taxa_split) AS soma_pct
-            FROM usuarios_splits
-            GROUP BY id_usuario, gateway_nome
-        ) us ON us.id_usuario = u.id AND us.gateway_nome = g.nome
         WHERE v.id IN ($placeholders_ids)
         ORDER BY v.criado_em DESC
     ";

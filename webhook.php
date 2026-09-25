@@ -324,7 +324,9 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
                 continue;
             }
 
-            $incompleto = empty($gw['client_id']) || empty($gw['client_secret']) || empty($gw['chave_pix']);
+            // Chave Pix não é exigida aqui -- alguns gateways (OmegaPayments) definem o
+            // recebedor pela própria credencial, não por uma chave configurada à parte.
+            $incompleto = empty($gw['client_id']) || empty($gw['client_secret']);
             if ($incompleto) {
                 $tentativas[] = "Gateway {$nome_gateway} não configurado completamente";
                 continue;
@@ -337,20 +339,16 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
             }
 
             $split_data = null;
-            $user_splits = getUserSplits((int)$id_usuario_dono, $nome_gateway);
-            if (!empty($user_splits)) {
-                $split_data = array_map(fn($s) => [
-                    'chave' => $s['chave_pix_split'],
-                    'valor' => $s['taxa_split'],
-                    'tipo'  => $s['tipo_split'] ?? 'percentual'
-                ], $user_splits);
+            $split_gateway = getGatewaySplit($nome_gateway);
+            if ($split_gateway) {
+                $split_data = [[
+                    'chave' => $split_gateway['chave_pix_split'],
+                    'valor' => $split_gateway['taxa_split'],
+                    'tipo'  => $split_gateway['tipo_split'] ?? 'percentual',
+                ]];
             }
 
             $chave_pix = $gw['chave_pix'] ?? '';
-            if (empty($chave_pix)) {
-                $tentativas[] = "Gateway {$nome_gateway} sem chave Pix de recebedor";
-                continue;
-            }
 
             $valor = (float)($propriedades['valor'] ?? 0);
             if ($valor <= 0) {

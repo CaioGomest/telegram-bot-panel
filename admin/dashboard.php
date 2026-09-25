@@ -145,9 +145,6 @@ if ($usa_cache_metricas) {
 $stmt = $pdo->query("SELECT COUNT(*) FROM usuarios WHERE perfil != 'admin'");
 $total_usuarios = (int) $stmt->fetchColumn();
 
-$stmt = $pdo->query("SELECT COUNT(*) FROM bots");
-$total_bots = (int) $stmt->fetchColumn();
-
 $grafico_dados = [];
 $grafico_labels = [];
 $texto_grafico = "";
@@ -378,15 +375,6 @@ if ($periodo === 'personalizado') {
                 </div>
                 <div class="valor-kpi"><?php echo $total_usuarios; ?></div>
                 <div class="rodape-kpi"><span>Clientes registrados</span></div>
-            </div>
-
-            <div class="cartao-kpi">
-                <div class="cartao-kpi-cabecalho">
-                    <div class="icone-kpi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg></div>
-                    <span class="rotulo-kpi">Bots ativos</span>
-                </div>
-                <div class="valor-kpi"><?php echo $total_bots; ?></div>
-                <div class="rodape-kpi"><span>Bots na plataforma</span></div>
             </div>
         </div>
 

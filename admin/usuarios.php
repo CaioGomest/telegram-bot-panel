@@ -1,7 +1,6 @@
 <?php declare(strict_types=1);
 require_once __DIR__ . '/../funcoes/usuario.php';
 require_once __DIR__ . '/../funcoes/paginador.php';
-require_once __DIR__ . '/../funcoes/gateways.php';
 verificarAdmin();
 $caminho_base = '../';
 
@@ -12,9 +11,6 @@ $offset = ($pagina_atual - 1) * $por_pagina;
 $total_usuarios = contarTotalUsuarios();
 $usuarios = listarTodosUsuarios($por_pagina, $offset);
 
-// Splits são configurados por gateway (usuarios_splits.gateway_nome) — a lista de abas
-// abaixo é montada a partir dos gateways de fato suportados, não fixa em InfoPago.
-$gateways_para_split = listarGatewaysAdmin();
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -174,36 +170,6 @@ $gateways_para_split = listarGatewaysAdmin();
                     </select>
                 </div>
 
-                <div class="divisor-secao">
-                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
-                        <div>
-                            <div class="rotulo-kpi">Splits de Pagamento</div>
-                            <div class="texto-suave" style="margin-top:2px;">Percentual/valor repassado automaticamente a cada venda</div>
-                        </div>
-                        <button type="button" class="botao" style="font-size:12px; padding:6px 12px;" onclick="adicionarLinhasSplit()">+ Adicionar Split</button>
-                    </div>
-
-                    <?php if (count($gateways_para_split) > 1): ?>
-                    <!-- Cada gateway tem seu próprio conjunto de splits -- aba por gateway em vez de
-                         misturar tudo numa lista só (senão não dava pra saber qual linha era de qual). -->
-                    <div id="splitAbasGateway" class="abas-split-gateway" style="display:flex; gap:6px; margin-bottom:14px;">
-                        <?php foreach ($gateways_para_split as $indice_gw => $gw_split): ?>
-                        <button type="button"
-                                class="aba-split-gateway<?php echo $indice_gw === 0 ? ' ativa' : ''; ?>"
-                                data-gateway-nome="<?php echo htmlspecialchars($gw_split['nome']); ?>"
-                                onclick="trocarAbaSplitGateway('<?php echo htmlspecialchars($gw_split['nome'], ENT_QUOTES); ?>', this)">
-                            <?php echo htmlspecialchars($gw_split['titulo']); ?>
-                        </button>
-                        <?php endforeach; ?>
-                    </div>
-                    <?php endif; ?>
-                    <input type="hidden" id="splitGatewayAtivo" value="<?php echo htmlspecialchars($gateways_para_split[0]['nome'] ?? ''); ?>">
-
-                    <div id="splitCarregando" class="texto-suave" style="font-style:italic; display:none;">Carregando splits...</div>
-                    <div id="splitLista"></div>
-                    <div id="splitVazio" class="texto-suave" style="font-style:italic; display:none;">Nenhum split configurado.</div>
-                </div>
-
                 <div class="linha-acoes" style="margin-top:24px;">
                     <button type="button" class="botao" onclick="fecharModalEditar()">Cancelar</button>
                     <button type="submit" class="botao botao-primario">Salvar</button>
@@ -309,28 +275,8 @@ $gateways_para_split = listarGatewaysAdmin();
         document.getElementById('formEditar').querySelector('[name=senha]').value = '';
         document.getElementById('msgEditar').style.display = 'none';
         document.getElementById('modalEditar').style.display = 'flex';
-
-        // Sempre reabre na primeira aba de gateway (evita ficar "presa" na aba do usuário anterior).
-        const abas = document.querySelectorAll('#splitAbasGateway .aba-split-gateway');
-        abas.forEach((aba, i) => aba.classList.toggle('ativa', i === 0));
-        const gatewayInicial = abas.length ? abas[0].dataset.gatewayNome : document.getElementById('splitGatewayAtivo').value;
-        document.getElementById('splitGatewayAtivo').value = gatewayInicial;
-
-        carregarSplits(id, gatewayInicial);
     }
 
-    /**
-     * Troca a aba de gateway ativa na edição de split. Recarrega a lista pra esse gateway --
-     * qualquer edição não salva na aba anterior é descartada (mesmo comportamento de reabrir
-     * o modal: a lista sempre vem fresca do banco via listar_splits_usuario.php).
-     */
-    function trocarAbaSplitGateway(gatewayNome, btn) {
-        document.querySelectorAll('#splitAbasGateway .aba-split-gateway').forEach(el => el.classList.remove('ativa'));
-        btn.classList.add('ativa');
-        document.getElementById('splitGatewayAtivo').value = gatewayNome;
-        const user_id = document.getElementById('editarId').value;
-        carregarSplits(user_id, gatewayNome);
-    }
     function fecharModalEditar() {
         document.getElementById('modalEditar').style.display = 'none';
     }
@@ -338,15 +284,6 @@ $gateways_para_split = listarGatewaysAdmin();
         e.preventDefault();
         const form = document.getElementById('formEditar');
         const msg  = document.getElementById('msgEditar');
-
-        const somaPercentual = coletarSplits().reduce((soma, s) => soma + (parseFloat(s.taxa_split) || 0), 0);
-        if (somaPercentual > 100) {
-            msg.textContent = `A soma dos percentuais de split não pode passar de 100% (atual: ${somaPercentual.toFixed(2)}%).`;
-            msg.className = 'msg-box msg-erro';
-            msg.style.display = 'block';
-            return;
-        }
-
         const data = new FormData(form);
 
         fetch('../ajax/editar_usuario.php', { method: 'POST', body: data })
@@ -358,110 +295,13 @@ $gateways_para_split = listarGatewaysAdmin();
                     msg.style.display = 'block';
                     return;
                 }
-                const user_id = document.getElementById('editarId').value;
-                const gatewayAtivo = document.getElementById('splitGatewayAtivo').value;
-                const splits = coletarSplits();
-                const fd = new FormData();
-                fd.append('id_usuario', user_id);
-                fd.append('gateway_nome', gatewayAtivo);
-                fd.append('splits', JSON.stringify(splits));
-                fd.append('csrf_token', CSRF_TOKEN);
-                return fetch('../ajax/salvar_splits_usuario.php', { method: 'POST', body: fd })
-                    .then(r => r.json())
-                    .then(rs => {
-                        if (rs.sucesso) {
-                            location.reload();
-                        } else {
-                            msg.textContent = rs.erro || 'Usuário salvo, mas erro ao salvar splits.';
-                            msg.className = 'msg-box msg-erro';
-                            msg.style.display = 'block';
-                        }
-                    });
+                location.reload();
             })
             .catch(() => {
                 msg.textContent = 'Erro de conexão.';
                 msg.className = 'msg-box msg-erro';
                 msg.style.display = 'block';
             });
-    }
-
-    function carregarSplits(user_id, gatewayNome) {
-        const lista    = document.getElementById('splitLista');
-        const vazio    = document.getElementById('splitVazio');
-        const loading  = document.getElementById('splitCarregando');
-        lista.innerHTML = '';
-        vazio.style.display    = 'none';
-        loading.style.display  = 'block';
-
-        fetch('../ajax/listar_splits_usuario.php?id=' + user_id + '&gateway_nome=' + encodeURIComponent(gatewayNome))
-            .then(r => r.json())
-            .then(splits => {
-                loading.style.display = 'none';
-                if (!Array.isArray(splits) || splits.length === 0) {
-                    vazio.style.display = 'block';
-                } else {
-                    splits.forEach(s => adicionarLinhasSplit(s));
-                }
-            })
-            .catch(() => { loading.style.display = 'none'; vazio.style.display = 'block'; });
-    }
-
-    function adicionarLinhasSplit(dados) {
-        const lista = document.getElementById('splitLista');
-        const vazio = document.getElementById('splitVazio');
-        vazio.style.display = 'none';
-
-        const taxa = dados?.taxa_split     || '';
-        const desc  = dados?.descricao      || '';
-        const chave_simples = dados?.chave_pix_split || '';
-
-        const row = document.createElement('div');
-        row.className = 'split-row';
-        row.innerHTML = `
-            <div class="split-row-fields">
-                <div class="split-field split-field-sm">
-                    <label class="split-label">Percentual (%)</label>
-                    <input type="number" step="0.01" min="0" max="100" class="form-input split-taxa" value="${taxa}" placeholder="Ex: 10">
-                </div>
-                <div class="split-field split-field-lg">
-                    <label class="split-label">Chave Pix de destino</label>
-                    <input type="text" class="form-input split-chave-pix" value="${chave_simples}" placeholder="CPF, CNPJ, e-mail, EVP, ou telefone c/ +55 (ex: +5511999999999)">
-                </div>
-                <div class="split-field split-field-desc">
-                    <label class="split-label">Descrição</label>
-                    <input type="text" class="form-input split-desc" value="${desc}" placeholder="Opcional">
-                </div>
-            </div>
-            <button type="button" class="split-remove" onclick="removerLinhasSplit(this)" title="Remover">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-        `;
-        lista.appendChild(row);
-    }
-
-    function removerLinhasSplit(btn) {
-        const row   = btn.closest('.split-row');
-        const lista = document.getElementById('splitLista');
-        row.remove();
-        if (lista.children.length === 0) {
-            document.getElementById('splitVazio').style.display = 'block';
-        }
-    }
-
-    function coletarSplits() {
-        // gateway_nome não vem mais fixo aqui -- salvar_splits_usuario.php recebe o gateway
-        // da aba ativa (campo separado no FormData, ver salvarEdicaoUsuario), não por linha.
-        const rows = document.querySelectorAll('#splitLista .split-row');
-        const result = [];
-        rows.forEach(row => {
-            result.push({
-                tipo_split:      'percentual',
-                taxa_split:      row.querySelector('.split-taxa').value,
-                chave_pix_split: row.querySelector('.split-chave-pix').value,
-                descricao:       row.querySelector('.split-desc').value,
-            });
-        });
-        return result;
     }
 
     function confirmarExcluir(id, nome) {
@@ -621,19 +461,6 @@ $gateways_para_split = listarGatewaysAdmin();
     .log-date { display: block; color: var(--m); font-size: 11px; margin-bottom: 3px; }
     .log-action { display: block; font-weight: 700; font-size: 13px; margin-bottom: 2px; }
     .log-desc { color: var(--m); font-size: 12.5px; line-height: 1.4; }
-
-    .split-row { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 10px; padding: 12px; background: var(--p2); border: 1px solid var(--bd); border-radius: 10px; }
-    .split-row-fields { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; }
-    .split-field { display: flex; flex-direction: column; min-width: 90px; }
-    .split-field-sm { max-width: 88px; }
-    .split-field-lg { flex: 1; min-width: 120px; }
-    .split-field-desc { flex: 1; min-width: 100px; }
-    .split-label { font: 700 10.5px 'Manrope', sans-serif; color: var(--m); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
-    .split-remove { flex-shrink: 0; background: var(--dasoft); border: none; color: var(--da); width: 30px; height: 30px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-    .split-remove:hover { background: var(--da); color: #fff; }
-
-    .aba-split-gateway { padding: 7px 14px; font: 700 12.5px 'Manrope', sans-serif; color: var(--m); background: var(--p2); border: 1px solid var(--bd); border-radius: 8px; cursor: pointer; }
-    .aba-split-gateway.ativa { color: var(--t); background: var(--p3); border-color: var(--or); }
  </style>
 
 <script src="../assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/../assets/js/tema.js'); ?>"></script>
