@@ -775,19 +775,17 @@ html[data-theme] a.botao-configurar { color: var(--or); }
 .grade-dashboard-topo { display: grid; grid-template-columns: 1fr 1.55fr; gap: 14px; }
 .grade-dashboard-topo > * { min-width: 0; }
 /* A coluna de cards é estreita demais pro auto-fit de .grade-kpi (minmax 215px) caber duas
-   por linha -- força 2x2 em vez de empilhar as 4 verticalmente. O bloco em si estica pra
-   bater a altura do painel do gráfico ao lado (align-items:stretch do grid pai, padrão),
-   mas align-items:start aqui dentro mantém cada card com a altura natural do próprio
-   conteúdo -- sem isso cada card virava tão alto quanto o gráfico, com vão vazio embaixo
-   do número. align-content:space-between distribui a sobra de altura como espaço extra
-   entre as duas linhas de card, em vez de dentro de cada card, alinhando a última linha
-   com a base do gráfico. */
-.grade-dashboard-topo .grade-kpi {
-    grid-template-columns: repeat(2, 1fr);
-    margin-bottom: 0;
-    align-items: start;
-    align-content: space-between;
-}
+   por linha -- força 2x2 em vez de empilhar as 4 verticalmente. Quem manda na altura da
+   linha é a coluna de cards (altura natural, 2 linhas de card); o painel do gráfico ao
+   lado é que se adapta pra bater exatamente essa altura (display:flex column + o
+   .area-grafico virando flex:1 em vez de altura fixa) -- responsive:true/
+   maintainAspectRatio:false no Chart.js já deixa o canvas seguir o tamanho do container.
+   Tentar esticar os CARDS pra bater a altura do gráfico (o caminho inverso) dava errado:
+   como .grade-kpi não tem fundo/borda próprios, só os cards individuais são visíveis, e
+   qualquer imprecisão no cálculo de altura aparecia como card sobrando ou faltando. */
+.grade-dashboard-topo .grade-kpi { grid-template-columns: repeat(2, 1fr); margin-bottom: 0; align-items: start; }
+.grade-dashboard-topo .painel { display: flex; flex-direction: column; }
+.grade-dashboard-topo .area-grafico { flex: 1; }
 
 .area-grafico { position: relative; height: 300px; width: 100%; }
 
