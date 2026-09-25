@@ -9,6 +9,27 @@
     let zoom_level = 1;
     let lista_grupos_usuario = [];
     let gateway_suporta_recorrente = false;
+    let ultimo_salvo_em = null;
+
+    function tempoRelativoSalvo() {
+        if (!ultimo_salvo_em) return 'ainda não salvo';
+        const diffMin = Math.floor((Date.now() - ultimo_salvo_em.getTime()) / 60000);
+        if (diffMin < 1) return 'salvo agora';
+        if (diffMin < 60) return 'salvo há ' + diffMin + ' min';
+        const diffH = Math.floor(diffMin / 60);
+        return 'salvo há ' + diffH + 'h';
+    }
+
+    function atualizarCabecalhoFluxo() {
+        const nome = ($('#nome-fluxo').val() || '').trim() || 'Novo fluxo';
+        const data = getChartData();
+        const total_blocos = Math.max(0, Object.keys(data.operators || {}).length - 1); // exclui o Início
+        $('#texto-nome-fluxo-colapsado').text(nome);
+        $('#subtitulo-editor-fluxo').text(nome + ' · ' + total_blocos + ' bloco' + (total_blocos === 1 ? '' : 's') + ' · ' + tempoRelativoSalvo());
+    }
+    setInterval(function () {
+        if ($('#id-fluxo').val()) atualizarCabecalhoFluxo();
+    }, 30000);
 
     function carregarGruposUsuario() {
         return $.getJSON(api_url + '?action=listar_grupos_usuario')
@@ -57,17 +78,17 @@
         start: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>',
         message: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>',
         image: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>',
-        botoes: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>',
-        pix: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>',
-        video: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg>',
+        botoes: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM5 14h8a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2z"></path></svg>',
+        pix: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l10 10-10 10L2 12zM8 12l4-4 4 4-4 4z"></path></svg>',
+        video: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7zM3 5h11a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"></path></svg>',
         audio: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>',
         link: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>',
         grupo: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>',
         delay: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>',
-        randomizer: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"></path><path d="M4 20 21 3"></path><path d="M21 16v5h-5"></path><path d="M15 15l6 6"></path><path d="M4 4l5 5"></path></svg>',
-        upsell: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>',
-        downsell: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline><polyline points="17 18 23 18 23 12"></polyline></svg>',
-        order_bump: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path><line x1="12" y1="7" x2="12" y2="13"></line><line x1="9" y1="10" x2="15" y2="10"></line></svg>'
+        randomizer: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"></path></svg>',
+        upsell: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 7l-8.5 8.5-5-5L2 17M16 7h6v6"></path></svg>',
+        downsell: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 17l-8.5-8.5-5 5L2 7M16 17h6v-6"></path></svg>',
+        order_bump: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM20 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"></path></svg>'
     };
 
     function defaultChartData() {
@@ -370,6 +391,11 @@
                 $esquerda.append(`<span class="texto-titulo" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escaparHtml(titulo_texto)}</span>`);
                 $title.append($esquerda);
 
+                const numero_passo = (operator_id.match(/(\d+)$/) || [])[1];
+                if (numero_passo && tipo !== 'start') {
+                    $title.append(`<span class="passo-bloco">${numero_passo.padStart(2, '0')}</span>`);
+                }
+
                 if (tipo !== 'start') {
                     const $btn_excluir = $('<button type="button" class="btn-excluir" title="Excluir">✕</button>');
                     $title.append($btn_excluir);
@@ -395,6 +421,7 @@
             },
             onAfterChange: function (tipo_mudanca) {
                 syncOperatorIndex();
+                atualizarCabecalhoFluxo();
                 if (tipo_mudanca === 'operator_delete') {
                     atualizaFluxo(true);
                 } else {
@@ -735,6 +762,8 @@
             const new_url = window.location.protocol + "//" + window.location.host + window.location.pathname;
             window.history.pushState({path:new_url},'',new_url);
         }
+        ultimo_salvo_em = null;
+        atualizarCabecalhoFluxo();
         setTimeout(centralizarVisao, 100);
     }
 
@@ -758,6 +787,8 @@
                 }
 
                 setChartData(current_flow.dados_fluxograma || defaultChartData());
+                ultimo_salvo_em = current_flow.atualizado_em ? new Date(String(current_flow.atualizado_em).replace(' ', 'T')) : new Date();
+                atualizarCabecalhoFluxo();
                 setTimeout(centralizarVisao, 100);
             })
             .fail(function () {
@@ -797,6 +828,8 @@
             current_flow = response.fluxo;
             $('#id-fluxo').val(current_flow.id || '');
             fluxo_sujo = false;
+            ultimo_salvo_em = new Date();
+            atualizarCabecalhoFluxo();
             if (!silencioso) {
                 showToast(response.mensagem || 'Fluxo salvo com sucesso.');
             }
@@ -873,6 +906,21 @@
     $(document).off('click', '#btn-zoom-out').on('click', '#btn-zoom-out', function() { setZoom(zoom_level - 0.1); });
     $(document).off('click', '#btn-zoom-reset').on('click', '#btn-zoom-reset', function() { setZoom(1); });
     $(document).off('click', '#btn-zoom-fit').on('click', '#btn-zoom-fit', function() { setZoom(1); centralizarVisao(); });
+
+    $('#btn-toggle-flow-meta').on('click', function () {
+        const $secao = $('#secao-detalhes-fluxo');
+        const abrindo = $secao.attr('hidden') !== undefined;
+        if (abrindo) {
+            $secao.removeAttr('hidden');
+        } else {
+            $secao.attr('hidden', true);
+        }
+        $('#chevron-flow-meta').toggleClass('aberto', abrindo);
+        $('#texto-hint-flow-meta').text(abrindo ? 'Ocultar detalhes' : 'Nome, descrição e link de suporte');
+    });
+    $('#nome-fluxo').on('input', function () {
+        $('#texto-nome-fluxo-colapsado').text($(this).val().trim() || 'Novo fluxo');
+    });
 
     $('#btn-salvar-fluxo').on('click', function () { atualizaFluxo(false); });
     $('#btn-excluir-fluxo').on('click', deleteFlow);

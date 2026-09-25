@@ -25,6 +25,46 @@ html[data-theme] .conteiner-fluxo {
     cursor: grabbing;
 }
 
+.painel-meta-fluxo { padding: 10px 14px; margin-bottom: 12px; }
+.linha-meta-fluxo { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.btn-toggle-meta-fluxo {
+    flex: 1;
+    min-width: 180px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+}
+.texto-nome-fluxo-colapsado {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 19px;
+    text-transform: uppercase;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+html[data-theme] .texto-nome-fluxo-colapsado { color: var(--t); }
+.texto-hint-flow-meta { font: 600 11px 'Manrope', sans-serif; margin-top: 3px; display: block; }
+html[data-theme] .texto-hint-flow-meta { color: var(--m); }
+.chevron-flow-meta { flex: none; display: block; transition: transform .15s; }
+html[data-theme] .chevron-flow-meta { color: var(--m); }
+.chevron-flow-meta.aberto { transform: rotate(180deg); }
+.acoes-flow-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.acoes-flow-meta .botao svg { flex: none; display: block; }
+.secao-detalhes-fluxo {
+    display: grid;
+    gap: 14px;
+    padding: 14px 4px 4px;
+    margin-top: 10px;
+    border-top: 1px solid var(--bd);
+}
+
 .paleta-blocos {
     display: flex;
     align-items: center;
@@ -204,6 +244,18 @@ html[data-theme] .botao.adicionar-no {
 .botao.adicionar-no[data-node-type="grupo"] svg { background: var(--oksoft); color: var(--ok); }
 .botao.adicionar-no[data-node-type="grupo"]:hover { border-color: var(--ok); }
 
+.botao.adicionar-no[data-node-type="randomizer"] svg { background: var(--p3); color: var(--m); }
+.botao.adicionar-no[data-node-type="randomizer"]:hover { border-color: var(--m); }
+
+.botao.adicionar-no[data-node-type="upsell"] svg { background: var(--oksoft); color: var(--ok); }
+.botao.adicionar-no[data-node-type="upsell"]:hover { border-color: var(--ok); }
+
+.botao.adicionar-no[data-node-type="downsell"] svg { background: var(--dasoft); color: var(--da); }
+.botao.adicionar-no[data-node-type="downsell"]:hover { border-color: var(--da); }
+
+.botao.adicionar-no[data-node-type="order_bump"] svg { background: var(--orsoft); color: var(--or); }
+.botao.adicionar-no[data-node-type="order_bump"]:hover { border-color: var(--or); }
+
 html[data-theme] .flowchart-operator-body {
     padding: 11px 12px 13px;
     font-size: 11.5px;
@@ -247,6 +299,12 @@ html[data-theme] .flowchart-operator label {
     width: auto;
     margin: 0;
 }
+
+.passo-bloco {
+    font: 700 10px 'JetBrains Mono', monospace;
+    flex: none;
+}
+html[data-theme] .passo-bloco { color: var(--m); }
 
 html[data-theme] .btn-excluir {
     background: transparent;

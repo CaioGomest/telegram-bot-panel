@@ -22,15 +22,10 @@ bloquearAdmin();
         <div class="cabecalho-pagina">
             <div>
                 <h1>Editor de Fluxos</h1>
-                <p>Monte a conversa do bot arrastando blocos para o canvas.</p>
+                <p id="subtitulo-editor-fluxo">Monte a conversa do bot arrastando blocos para o canvas.</p>
             </div>
             <div class="acoes-cabecalho">
                 <a class="botao" href="fluxos">Voltar</a>
-                <button class="botao" id="btn-excluir-fluxo">Excluir</button>
-                <button class="botao" id="btn-exportar-fluxo">Exportar</button>
-                <button class="botao" id="btn-importar-fluxo">Importar</button>
-                <input type="file" id="arquivo-importar-fluxo" accept="application/json" style="display:none">
-                <button class="botao botao-primario" id="btn-salvar-fluxo">Salvar fluxo</button>
                 <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>
                     Tema
@@ -40,22 +35,44 @@ bloquearAdmin();
 
 
         <div>
-        <div class="painel">
-            <div class="grade grade-2 grade-compacta">
-                <div class="campo">
-                    <label for="nome-fluxo">Nome do fluxo</label>
-                    <input type="text" id="nome-fluxo" placeholder="Ex.: Atendimento inicial">
-                </div>
-                <div class="campo">
-                    <label for="descricao-fluxo">Descrição</label>
-                    <input type="text" id="descricao-fluxo" placeholder="Uso interno do fluxo">
+        <div class="painel painel-meta-fluxo">
+            <div class="linha-meta-fluxo">
+                <button type="button" class="btn-toggle-meta-fluxo" id="btn-toggle-flow-meta">
+                    <span class="texto-nome-fluxo-colapsado" id="texto-nome-fluxo-colapsado">Novo fluxo</span>
+                    <span class="texto-hint-flow-meta" id="texto-hint-flow-meta">Nome, descrição e link de suporte</span>
+                    <svg class="chevron-flow-meta" id="chevron-flow-meta" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"></path></svg>
+                </button>
+                <div class="acoes-flow-meta">
+                    <button class="botao" id="btn-importar-fluxo" title="Importar">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"></path></svg>
+                        Importar
+                    </button>
+                    <input type="file" id="arquivo-importar-fluxo" accept="application/json" style="display:none">
+                    <button class="botao" id="btn-exportar-fluxo" title="Exportar">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"></path></svg>
+                        Exportar
+                    </button>
+                    <button class="btn-icon excluir" id="btn-excluir-fluxo" title="Excluir fluxo">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"></path></svg>
+                    </button>
+                    <button class="botao botao-primario" id="btn-salvar-fluxo">Salvar fluxo</button>
                 </div>
             </div>
-            <div class="grade grade-2 grade-compacta" style="margin-top:12px;">
-                <div class="campo">
-                    <label for="link-suporte-fluxo">Link de Suporte (opcional)</label>
-                    <input type="text" id="link-suporte-fluxo" placeholder="https://t.me/seu_usuario">
-                    <p class="texto-ajuda">Usado nas mensagens automáticas de aviso/expiração de acesso enviadas pelo sistema (fora do fluxo).</p>
+            <div class="secao-detalhes-fluxo" id="secao-detalhes-fluxo" hidden>
+                <div class="grade grade-3 grade-compacta">
+                    <div class="campo">
+                        <label for="nome-fluxo">Nome do fluxo</label>
+                        <input type="text" id="nome-fluxo" placeholder="Ex.: Atendimento inicial">
+                    </div>
+                    <div class="campo">
+                        <label for="descricao-fluxo">Descrição</label>
+                        <input type="text" id="descricao-fluxo" placeholder="Uso interno do fluxo">
+                    </div>
+                    <div class="campo">
+                        <label for="link-suporte-fluxo">Link de Suporte (opcional)</label>
+                        <input type="text" id="link-suporte-fluxo" placeholder="https://t.me/seu_usuario">
+                        <p class="texto-ajuda">Usado nas mensagens automáticas de aviso/expiração de acesso enviadas pelo sistema (fora do fluxo).</p>
+                    </div>
                 </div>
             </div>
             <input type="hidden" id="id-fluxo">
