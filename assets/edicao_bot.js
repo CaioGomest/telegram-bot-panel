@@ -271,10 +271,24 @@
         }).done(function (response) {
             if (response.sucesso) {
                 const info = response.info;
-                let mensagem = `✅ Webhook Ativo!\n\n`;
+                const tem_url = !!info.url;
+                const tem_erro = !!info.last_error_message;
+
+                let titulo = '✅ Webhook ativo, sem erros!';
+                if (!tem_url) titulo = '⚠️ Nenhum webhook registrado no Telegram.';
+                else if (tem_erro) titulo = '⚠️ Webhook registrado, mas com erro na última entrega.';
+
+                let mensagem = titulo + '\n\n';
                 mensagem += `URL: ${info.url || 'Não definida'}\n`;
-                mensagem += `Atualizações Pendentes: ${info.pending_update_count}\n`;
-                
+                mensagem += `Atualizações pendentes: ${info.pending_update_count}\n`;
+                if (tem_erro) {
+                    // last_error_date vem em epoch (segundos) -- Date espera milissegundos.
+                    const data_erro = info.last_error_date
+                        ? new Date(info.last_error_date * 1000).toLocaleString('pt-BR')
+                        : 'data desconhecida';
+                    mensagem += `\nÚltimo erro (${data_erro}):\n${info.last_error_message}`;
+                }
+
                 alert(mensagem);
             } else {
                 exibirAviso('Erro ao obter info.', 'erro');
