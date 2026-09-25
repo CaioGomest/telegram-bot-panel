@@ -25,12 +25,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $apelido_publico = trim($_POST['apelido_publico'] ?? '');
         $senha = $_POST['senha'] ?? '';
         $confirmar_senha = $_POST['confirmar_senha'] ?? '';
+        $senha_atual = $_POST['senha_atual'] ?? '';
 
         if (!empty($senha) && $senha !== $confirmar_senha) {
             $mensagem = 'As senhas não conferem.';
             $tipo_mensagem = 'erro';
+        } elseif (!empty($senha) && $senha_atual === '') {
+            $mensagem = 'Informe a senha atual para definir uma nova.';
+            $tipo_mensagem = 'erro';
         } else {
-            $resultado = atualizarPerfilUsuario($usuario_id, $nome, $email, empty($senha) ? null : $senha, $apelido_publico);
+            $resultado = atualizarPerfilUsuario($usuario_id, $nome, $email, empty($senha) ? null : $senha, $apelido_publico, $senha_atual, true);
             if ($resultado['sucesso']) {
                 $mensagem = 'Perfil atualizado com sucesso!';
                 $tipo_mensagem = 'sucesso';
@@ -99,18 +103,21 @@ $url_foto_conta = urlFotoPerfil($foto_conta);
                             <form method="POST" enctype="multipart/form-data" id="form-foto-perfil">
                                 <?php echo campoCsrf(); ?>
                                 <input type="hidden" name="acao" value="foto">
-                                <label class="conta-avatar" title="Trocar foto">
+                                <label class="conta-avatar" for="input-foto-perfil" title="Trocar foto">
                                     <?php if ($url_foto_conta !== ''): ?>
                                         <img src="<?php echo htmlspecialchars($url_foto_conta); ?>" alt="">
                                     <?php else: ?>
                                         <?php echo htmlspecialchars($iniciais_conta); ?>
                                     <?php endif; ?>
-                                    <input type="file" name="foto" accept="image/jpeg,image/png,image/webp" hidden>
                                 </label>
+                                <input type="file" id="input-foto-perfil" name="foto" accept="image/jpeg,image/png,image/webp" hidden>
                             </form>
                             <div>
                                 <div class="conta-foto-acoes">
-                                    <button type="button" class="botao" id="btn-trocar-foto">Trocar foto</button>
+                                    <!-- <label for="input-foto-perfil"> em vez de <button>+JS pra abrir o seletor de
+                                         arquivo -- é o único jeito 100% nativo (sem depender de .click() via JS,
+                                         que em algum navegador/situação não estava disparando). -->
+                                    <label class="botao" for="input-foto-perfil" id="btn-trocar-foto">Trocar foto</label>
                                     <?php if ($url_foto_conta !== ''): ?>
                                         <button type="submit" class="botao" form="form-remover-foto">Remover</button>
                                     <?php endif; ?>
@@ -150,13 +157,17 @@ $url_foto_conta = urlFotoPerfil($foto_conta);
                         <div class="painel-cabecalho"><h2>Segurança</h2></div>
                         <div class="grade grade-compacta">
                             <div class="campo">
+                                <label for="senha_atual">Senha atual</label>
+                                <input type="password" id="senha_atual" name="senha_atual" autocomplete="current-password" placeholder="Necessária só pra trocar a senha">
+                            </div>
+                            <div class="campo">
                                 <label for="senha">Nova senha</label>
-                                <input type="password" id="senha" name="senha" placeholder="Mínimo de 6 caracteres">
+                                <input type="password" id="senha" name="senha" autocomplete="new-password" placeholder="Mínimo de 6 caracteres">
                                 <span class="texto-ajuda">Deixe em branco para manter a senha atual.</span>
                             </div>
                             <div class="campo">
                                 <label for="confirmar_senha">Confirmar senha</label>
-                                <input type="password" id="confirmar_senha" name="confirmar_senha" placeholder="Repita a nova senha">
+                                <input type="password" id="confirmar_senha" name="confirmar_senha" autocomplete="new-password" placeholder="Repita a nova senha">
                             </div>
                         </div>
                         <button type="submit" class="botao botao-secundario" style="margin-top:16px;">Atualizar senha</button>
@@ -184,11 +195,11 @@ $url_foto_conta = urlFotoPerfil($foto_conta);
 <script src="assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/tema.js'); ?>"></script>
 <script>
 (function () {
+    // Abrir o seletor de arquivo é 100% via <label for="input-foto-perfil"> nativo (avatar e
+    // botão "Trocar foto") -- só falta o auto-submit assim que um arquivo é escolhido.
     var form = document.getElementById('form-foto-perfil');
-    var input = form ? form.querySelector('input[type="file"]') : null;
-    var botao = document.getElementById('btn-trocar-foto');
+    var input = document.getElementById('input-foto-perfil');
     if (!form || !input) return;
-    if (botao) botao.addEventListener('click', function () { input.click(); });
     input.addEventListener('change', function () {
         if (input.files && input.files.length) form.submit();
     });

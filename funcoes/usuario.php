@@ -431,7 +431,14 @@ function listarTodosUsuarios(int $limite = 20, int $offset = 0): array {
     }
 }
 
-function atualizarPerfilUsuario(int $id, string $nome, string $email, ?string $senha = null, ?string $apelido_publico = null): array {
+/**
+ * $exigir_senha_atual/$senha_atual só fazem sentido quando quem está trocando a própria
+ * senha é o dono da conta (configuracao_usuario.php) -- confirma que quem está com a sessão
+ * aberta sabe a senha antes de trocar. O admin resetando a senha de outro usuário
+ * (ajax/editar_usuario.php) não passa isso: ele tem autorização própria (verificarAdmin())
+ * e não tem como saber a senha atual de outra pessoa.
+ */
+function atualizarPerfilUsuario(int $id, string $nome, string $email, ?string $senha = null, ?string $apelido_publico = null, ?string $senha_atual = null, bool $exigir_senha_atual = false): array {
     global $pdo;
 
     if (empty($nome) || empty($email)) {
@@ -453,6 +460,14 @@ function atualizarPerfilUsuario(int $id, string $nome, string $email, ?string $s
         }
 
         if (!empty($senha)) {
+            if ($exigir_senha_atual) {
+                $stmt_hash = $pdo->prepare("SELECT senha FROM usuarios WHERE id = ?");
+                $stmt_hash->execute([$id]);
+                $hash_atual = (string) $stmt_hash->fetchColumn();
+                if ($hash_atual === '' || !password_verify((string) $senha_atual, $hash_atual)) {
+                    return ['sucesso' => false, 'erro' => 'Senha atual incorreta.'];
+                }
+            }
             if (strlen($senha) < 6) {
                 return ['sucesso' => false, 'erro' => 'A senha deve ter pelo menos 6 caracteres.'];
             }
