@@ -25,30 +25,11 @@ if (pedidoDeBloco('atividade')) {
 
 $periodo = $_GET['periodo'] ?? '7dias';
 $where_data_vendas = '';
+// Visão do admin é sempre "todos os bots" (removido o filtro por bot da UI) -- ver
+// anotacoes/testes/plano-de-testes-24-09.md. $where_bot_vendas fica vazio de propósito,
+// só existe pra reaproveitar as mesmas queries de quando o filtro existia.
 $where_bot_vendas = '';
 $bot_id_selecionado = 'todos';
-
-$stmt_bots = $pdo->prepare("
-    SELECT 
-        id,
-        COALESCE(NULLIF(primeiro_nome, ''), NULLIF(nome_usuario, ''), CONCAT('Bot #', id)) AS nome
-    FROM bots
-    ORDER BY nome ASC
-");
-$stmt_bots->execute();
-$bots_filtro = $stmt_bots->fetchAll(PDO::FETCH_ASSOC);
-$mostrar_filtro_bot = count($bots_filtro) > 1;
-$ids_bots_permitidos = array_map(static function (array $bot): int {
-    return (int) $bot['id'];
-}, $bots_filtro);
-
-if (isset($_GET['bot_id']) && $_GET['bot_id'] !== 'todos') {
-    $bot_id_informado = (int) $_GET['bot_id'];
-    if ($bot_id_informado > 0 && in_array($bot_id_informado, $ids_bots_permitidos, true)) {
-        $bot_id_selecionado = (string) $bot_id_informado;
-        $where_bot_vendas = " AND v.bot_id = $bot_id_informado";
-    }
-}
 
 $data_inicio = $_GET['data_inicio'] ?? '';
 $data_fim = $_GET['data_fim'] ?? '';
@@ -120,7 +101,6 @@ function montarUrlFiltroAdminDashboard(array $overrides = []): string
         'periodo' => $_GET['periodo'] ?? '7dias',
         'data_inicio' => $_GET['data_inicio'] ?? '',
         'data_fim' => $_GET['data_fim'] ?? '',
-        'bot_id' => $_GET['bot_id'] ?? 'todos',
     ];
     foreach ($overrides as $chave => $valor) {
         if ($valor === null) {
@@ -353,17 +333,6 @@ if ($periodo === 'personalizado') {
                         <input type="date" name="data_inicio" value="<?php echo htmlspecialchars($data_inicio); ?>" <?php echo ($periodo === 'personalizado' ? '' : 'disabled'); ?>>
                         <input type="date" name="data_fim" value="<?php echo htmlspecialchars($data_fim); ?>" <?php echo ($periodo === 'personalizado' ? '' : 'disabled'); ?>>
                     </div>
-                    <?php if ($mostrar_filtro_bot): ?>
-                        <select name="bot_id">
-                            <option value="todos" <?php echo ($bot_id_selecionado === 'todos' ? 'selected' : ''); ?>>Todos os bots</option>
-                            <?php foreach ($bots_filtro as $bot): ?>
-                                <option value="<?php echo (int) $bot['id']; ?>" <?php echo ($bot_id_selecionado === (string) $bot['id'] ? 'selected' : ''); ?>>
-                                    <?php echo htmlspecialchars($bot['nome']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    <?php endif; ?>
-                    <button type="submit" class="botao">Aplicar</button>
                 </form>
                 <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>

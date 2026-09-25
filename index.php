@@ -486,7 +486,7 @@ try {
                         <input type="date" name="data_fim" value="<?php echo htmlspecialchars($data_fim); ?>" <?php echo ($periodo === 'personalizado' ? '' : 'disabled'); ?>>
                     </div>
                     <?php if ($mostrar_filtro_bot): ?>
-                        <select name="bot_id">
+                        <select name="bot_id" onchange="this.form.submit()">
                             <option value="todos" <?php echo ($bot_id_selecionado === 'todos' ? 'selected' : ''); ?>>Todos os bots</option>
                             <?php foreach ($bots_filtro as $bot): ?>
                                 <option value="<?php echo (int) $bot['id']; ?>" <?php echo ($bot_id_selecionado === (string) $bot['id'] ? 'selected' : ''); ?>>
@@ -495,7 +495,6 @@ try {
                             <?php endforeach; ?>
                         </select>
                     <?php endif; ?>
-                    <button type="submit" class="botao">Aplicar</button>
                 </form>
                 <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>

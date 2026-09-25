@@ -169,6 +169,7 @@ try {
             descricao TEXT,
             icone VARCHAR(50), 
             criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            lido_em DATETIME DEFAULT NULL,
             FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ";
@@ -180,6 +181,22 @@ try {
     // tipo NOT IN (...)) -- sem índice, isso é full table scan. Ver anotacoes/analise-potencia-e-escala.md.
     try { $pdo->exec("ALTER TABLE atividades ADD INDEX idx_atividades_tipo (tipo)"); } catch (PDOException $e) {}
 
+    // Sino de notificações no header: coluna de lido + índice pro contador de não-lidas
+    // (id_usuario + lido_em). Sem backfill, o badge estouraria com o histórico inteiro
+    // de vendas/leads. O UPDATE só roda na primeira vez que a coluna é criada — nas
+    // próximas execuções o ALTER falha e as não-lidas novas ficam intactas.
+    // Ver anotacoes/pendente/plano-recursos-sharkbot.md item 4.
+    $coluna_lido_criada = false;
+    try {
+        $pdo->exec("ALTER TABLE atividades ADD COLUMN lido_em DATETIME DEFAULT NULL");
+        $coluna_lido_criada = true;
+        echo "Coluna 'atividades.lido_em' criada.<br>";
+    } catch (PDOException $e) {}
+    try { $pdo->exec("ALTER TABLE atividades ADD INDEX idx_atividades_notif (id_usuario, lido_em)"); } catch (PDOException $e) {}
+    if ($coluna_lido_criada) {
+        $pdo->exec("UPDATE atividades SET lido_em = criado_em WHERE lido_em IS NULL");
+        echo "Histórico de 'atividades' marcado como lido (sino começa zerado).<br>";
+    }
 
     $sql_grupos = "
         CREATE TABLE IF NOT EXISTS bot_grupos (
@@ -761,6 +778,45 @@ try {
     ";
     $pdo->exec($sql_comunidade);
     echo "Tabela 'comunidade_links' OK.<br>";
+
+    // Webhooks de saída do usuário (lead, PIX gerado, pagamento aprovado).
+    // bot_id NULL = todos os bots daquele usuário. Secret fica legível porque
+    // o envio precisa dele para assinar o corpo. Ver funcoes/webhooks.php.
+    $sql_webhooks = "
+        CREATE TABLE IF NOT EXISTS webhooks (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            id_usuario INT NOT NULL,
+            nome VARCHAR(80) NOT NULL,
+            url VARCHAR(500) NOT NULL,
+            secret VARCHAR(128) DEFAULT NULL,
+            eventos VARCHAR(120) NOT NULL,
+            bot_id INT DEFAULT NULL,
+            ativo TINYINT(1) NOT NULL DEFAULT 1,
+            falhas_consecutivas INT NOT NULL DEFAULT 0,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE,
+            FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ";
+    $pdo->exec($sql_webhooks);
+    try { $pdo->exec("ALTER TABLE webhooks ADD INDEX idx_webhooks_usuario_ativo (id_usuario, ativo)"); } catch (PDOException $e) {}
+    echo "Tabela 'webhooks' OK.<br>";
+
+    $sql_webhooks_envios = "
+        CREATE TABLE IF NOT EXISTS webhooks_envios (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            webhook_id INT NOT NULL,
+            evento VARCHAR(40) NOT NULL,
+            http_status SMALLINT DEFAULT NULL,
+            sucesso TINYINT(1) NOT NULL DEFAULT 0,
+            erro VARCHAR(180) DEFAULT NULL,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (webhook_id) REFERENCES webhooks(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ";
+    $pdo->exec($sql_webhooks_envios);
+    try { $pdo->exec("ALTER TABLE webhooks_envios ADD INDEX idx_webhooks_envios_webhook (webhook_id, criado_em)"); } catch (PDOException $e) {}
+    echo "Tabela 'webhooks_envios' OK.<br>";
 
     $stmt = $pdo->query("SELECT COUNT(*) FROM usuarios");
     $total = $stmt->fetchColumn();

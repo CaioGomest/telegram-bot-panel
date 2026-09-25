@@ -6,9 +6,10 @@ declare(strict_types=1);
 // gravados por instalacao.php e podem ser trocados depois em admin/configuracoes.php.
 
 const CONFIG_SISTEMA_PADRAO = [
-    'nome_sistema' => 'Painel de Bots',
-    'logo'         => 'assets/img/coyote-logo.jpg',
-    'favicon'      => '',
+    'nome_sistema'  => 'Painel de Bots',
+    'logo'          => 'assets/img/coyote-logo.jpg',
+    'favicon'       => '',
+    'cor_primaria'  => '#ff6a1a',
 ];
 
 /**
@@ -70,6 +71,29 @@ function faviconSistema(string $caminho_base = ''): string
 {
     $favicon = configSistema('favicon');
     return $caminho_base . ($favicon !== '' ? $favicon : configSistema('logo'));
+}
+
+function corPrimariaSistema(): string
+{
+    return configSistema('cor_primaria');
+}
+
+/** Clareia um hex #rrggbb interpolando cada canal em direção ao branco. Usada pra derivar
+ *  a variante de hover (--or2) a partir da cor de destaque escolhida no admin. */
+function corClareada(string $hex, float $fator = 0.24): string
+{
+    [$r, $g, $b] = sscanf($hex, '#%02x%02x%02x');
+    $r = (int) round($r + (255 - $r) * $fator);
+    $g = (int) round($g + (255 - $g) * $fator);
+    $b = (int) round($b + (255 - $b) * $fator);
+    return sprintf('#%02x%02x%02x', $r, $g, $b);
+}
+
+/** Versão translúcida de um hex #rrggbb, pra fundo suave (--orsoft). */
+function corSuave(string $hex, float $alpha = 0.13): string
+{
+    [$r, $g, $b] = sscanf($hex, '#%02x%02x%02x');
+    return "rgba($r, $g, $b, $alpha)";
 }
 
 /**

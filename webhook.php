@@ -4,6 +4,7 @@ date_default_timezone_set('America/Sao_Paulo');
 require_once 'conexao.php';
 require_once __DIR__ . '/funcoes/gateways.php';
 require_once __DIR__ . '/funcoes/infopago_split.php';
+require_once __DIR__ . '/funcoes/webhooks.php';
 const DIRETORIO_UPLOADS = __DIR__ . '/uploads';
 /** CNPJ fixo (65.915.116/0001-04) para todas as cobranças PIX recorrentes — apenas dígitos */
 const CNPJ_PIX_RECORRENTE_FIXO = '65915116000104';
@@ -555,6 +556,7 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
                      file_put_contents(__DIR__ . '/logs/vendas_debug.log', "[" . date('Y-m-d H:i:s') . "] ERRO PDO: " . print_r($stmt_venda->errorInfo(), true) . "\n", FILE_APPEND);
                 } else {
                      file_put_contents(__DIR__ . '/logs/vendas_debug.log', "[" . date('Y-m-d H:i:s') . "] VENDA INSERIDA COM SUCESSO!\n", FILE_APPEND);
+                     $id_venda_criada = (int) $pdo->lastInsertId();
                      if ($id_usuario_dono_insert) {
                          require_once __DIR__ . '/funcoes/log.php';
                          $valor_formatado = number_format($valor_insert, 2, ',', '.');
@@ -570,6 +572,14 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
                          ];
                          $user_data = montarUserDataTraqueamento($pdo, $id_chat, $bot['id']);
                          enviarEventosTraqueamento($id_usuario_dono_insert, 'pix_gerado', $dados_evento, $user_data);
+                         dispararWebhooks($id_usuario_dono_insert, 'payment_created', [
+                             'bot_id' => (int) $id_bot_insert,
+                             'id_telegram' => (string) $id_chat,
+                             'venda_id' => $id_venda_criada,
+                             'pix_code' => $pix_copia_cola ?? '',
+                             'plan_name' => $nome_produto ?? '',
+                             'gateway' => $nome_gateway ?? '',
+                         ]);
                      }
                 }
             } catch (Exception $e) {
@@ -775,6 +785,13 @@ if (strpos($texto, 'verificar_pagamento_') === 0) {
                         $user_data_manual = montarUserDataTraqueamento($pdo, $venda['id_telegram'], $venda['bot_id']);
 
                         enviarEventosTraqueamento((int)$id_usuario_dono, 'compra', $dados_evento_manual, $user_data_manual);
+                        dispararWebhooks((int)$id_usuario_dono, 'payment_approved', [
+                            'bot_id' => (int)$venda['bot_id'],
+                            'id_telegram' => (string)$venda['id_telegram'],
+                            'venda_id' => (int)$venda['id'],
+                            'transacao_id' => $txid,
+                            'gateway' => $nome_gw_venda,
+                        ]);
 
                          $msg = "✅ *Pagamento Confirmado!*\n\nObrigado pela sua compra.";
                         if (!empty($venda['id_grupo_telegram'])) {
@@ -950,8 +967,14 @@ if ($texto === '/start') {
             // qual campanha gerou a venda.
             $stmt_insert_lead = $pdo->prepare("INSERT INTO leads (id_telegram, nome, origem_rastreio, bot_id, criado_em) VALUES (?, ?, ?, ?, ?)");
             $stmt_insert_lead->execute([$id_chat, $nome_usuario, $start_param ?: null, $bot['id'], $data_criacao]);
+            $id_lead_novo = (int) $pdo->lastInsertId();
             $stmt_insert_ativ = $pdo->prepare("INSERT INTO atividades (id_usuario, tipo, titulo, descricao, icone, criado_em) VALUES (?, ?, ?, ?, ?, ?)");
             $stmt_insert_ativ->execute([$bot['id_usuario'], 'lead', 'Novo Lead', $nome_usuario . ' iniciou conversa', 'user', $data_criacao]);
+            dispararWebhooks((int) $bot['id_usuario'], 'user_joined', [
+                'bot_id' => (int) $bot['id'],
+                'id_telegram' => (string) $id_chat,
+                'lead_id' => $id_lead_novo,
+            ]);
         }
         // Se veio de um link de rastreamento, incrementa starts (sempre) e leads (só se for novo lead)
         if ($start_param) {

@@ -10,4 +10,19 @@ if (function_exists('faviconSistema')):
 ?>
 <link rel="icon" href="<?php echo htmlspecialchars(urlMarca(faviconSistema($marca_base))); ?>">
 <style>:root { --logo-url: url("<?php echo htmlspecialchars(urlMarca(logoSistema($marca_base))); ?>"); }</style>
+<?php
+// Cor de destaque (white-label): --or/--or2/--orsoft já existem no coyote.css, dentro de
+// html[data-theme="dark"]/[="light"] -- que é carregado DEPOIS deste include no <head>. Com
+// a mesma especificidade, quem vem depois no documento vence, então um :root simples perderia
+// pro coyote.css. html[data-theme]:root tem especificidade maior que os dois blocos de tema,
+// então sobrescreve os dois de uma vez, independente da ordem de carregamento.
+$cor_primaria = corPrimariaSistema();
+?>
+<style>
+html[data-theme]:root {
+    --or: <?php echo htmlspecialchars($cor_primaria); ?>;
+    --or2: <?php echo htmlspecialchars(corClareada($cor_primaria)); ?>;
+    --orsoft: <?php echo htmlspecialchars(corSuave($cor_primaria)); ?>;
+}
+</style>
 <?php endif; ?>

@@ -6,6 +6,7 @@ require_once __DIR__ . '/funcoes/log.php';
 require_once __DIR__ . '/funcoes/infopago_banco.php';
 require_once __DIR__ . '/funcoes/infopago_split.php';
 require_once __DIR__ . '/funcoes/gateways.php';
+require_once __DIR__ . '/funcoes/webhooks.php';
 
 date_default_timezone_set('America/Sao_Paulo');
 
@@ -278,6 +279,14 @@ if (isset($notificacao['cobsr'])) {
             ]);
 
             registrarAtividade($id_dono, 'venda', 'Renovação Automática', "PIX Automático InfoPago renovado para usuário $id_telegram (idRec=$id_rec).");
+            dispararWebhooks($id_dono, 'payment_approved', [
+                'bot_id' => (int) $venda['bot_id'],
+                'id_telegram' => (string) $id_telegram,
+                'venda_id' => (int) $venda['id'],
+                'transacao_id' => $txid_renovacao,
+                'pago_em' => date('Y-m-d H:i:s'),
+                'gateway' => 'infopago',
+            ]);
 
         } elseif (in_array($status, ['REJEITADA', 'CANCELADA', 'EXPIRADA'])) {
             logWebhookInfopago("Cobrança recorrente FALHOU ($status) para idRec=$id_rec. Removendo usuário $id_telegram.");
@@ -425,6 +434,13 @@ foreach ($notificacao['pix'] as $pix) {
             'transacao_id' => $txid,
             'event_id'     => $txid
         ], montarUserDataTraqueamento($pdo, $venda['id_telegram'], $venda['bot_id']));
+        dispararWebhooks($id_dono, 'payment_approved', [
+            'bot_id' => (int) $venda['bot_id'],
+            'id_telegram' => (string) $venda['id_telegram'],
+            'venda_id' => (int) $venda['id'],
+            'transacao_id' => $txid,
+            'gateway' => 'infopago',
+        ]);
     }
 
     if (!$token_bot) {

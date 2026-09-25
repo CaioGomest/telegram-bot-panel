@@ -235,6 +235,94 @@ html[data-theme] *::-webkit-scrollbar-thumb:hover { background: var(--m); }
 .alternador-tema:hover { border-color: var(--bd2); }
 .alternador-tema svg { width: 14px; height: 14px; }
 
+/* Sino de notificações: mesmo botão do tema, badge de não-lidas, dropdown com
+   a mesma lista visual de .item-atividade. JS injeta .sino-notificacoes-wrap
+   ao lado de .alternador-tema em toda página com barra lateral. */
+.sino-notificacoes-wrap { position: relative; }
+.sino-notificacoes {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 12px;
+    background: var(--p2);
+    border: 1px solid var(--bd);
+    border-radius: 10px;
+    color: var(--t);
+    font: 600 12px 'Manrope', sans-serif;
+    cursor: pointer;
+}
+.sino-notificacoes:hover { border-color: var(--bd2); }
+.sino-notificacoes svg { width: 14px; height: 14px; flex-shrink: 0; }
+.sino-notificacoes.tem-nao-lidas { border-color: var(--or); }
+.sino-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 99px;
+    background: var(--or);
+    color: #fff;
+    font: 700 10px 'Manrope', sans-serif;
+    line-height: 16px;
+    text-align: center;
+}
+.sino-painel {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: min(380px, calc(100vw - 32px));
+    background: var(--p);
+    border: 1px solid var(--bd);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    z-index: 40;
+    overflow: hidden;
+}
+.sino-painel-cabecalho {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 14px 16px 10px;
+}
+.sino-painel-cabecalho h3 {
+    margin: 0;
+    font: 700 13px 'Manrope', sans-serif;
+}
+.sino-ao-vivo {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font: 700 11px 'Manrope', sans-serif;
+    color: var(--ok);
+    letter-spacing: .04em;
+}
+.sino-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0 12px 12px;
+    max-height: 360px;
+    overflow-y: auto;
+}
+.sino-lista .item-atividade { margin: 0; }
+.sino-lista .item-atividade.nao-lida { border-color: var(--or); }
+.sino-marcar-todas {
+    display: block;
+    width: 100%;
+    padding: 12px 16px;
+    background: transparent;
+    border: 0;
+    border-top: 1px solid var(--bd);
+    color: var(--or);
+    font: 700 12px 'Manrope', sans-serif;
+    cursor: pointer;
+}
+.sino-marcar-todas:hover { background: var(--p2); }
+
 .seletor-periodo {
     display: flex;
     flex-wrap: wrap;
@@ -316,7 +404,6 @@ html[data-theme] input[type="number"],
 html[data-theme] input[type="date"],
 html[data-theme] input[type="time"],
 html[data-theme] input[type="datetime-local"],
-html[data-theme] input[type="file"],
 html[data-theme] textarea,
 html[data-theme] select {
     width: 100%;
@@ -342,6 +429,51 @@ html[data-theme="dark"] select option { background-color: #1b1f27; color: #f3f2f
 html[data-theme="light"] select option { background-color: #ffffff; color: #15171c; }
 html[data-theme] textarea { resize: vertical; min-height: 100px; }
 html[data-theme] small { display: block; margin-top: 5px; font-size: 11px; color: var(--m); }
+
+/* Input de arquivo: o botão nativo do navegador destoava do resto (cinza, sem
+   cantos arredondados, sem tema). Estiliza o pseudo-elemento do botão pra ficar
+   igual a .botao, e deixa o texto "Nenhum arquivo escolhido" discreto ao lado. */
+html[data-theme] input[type="file"] {
+    width: 100%;
+    padding: 4px 0;
+    border: none;
+    background: transparent;
+    color: var(--m);
+    font: 600 12px 'Manrope', sans-serif;
+    cursor: pointer;
+}
+html[data-theme] input[type="file"]::file-selector-button,
+html[data-theme] input[type="file"]::-webkit-file-upload-button {
+    border: 1px solid var(--bd);
+    border-radius: 10px;
+    background: var(--p2);
+    color: var(--t);
+    padding: 9px 15px;
+    margin-right: 12px;
+    font: 700 12.5px 'Manrope', sans-serif;
+    cursor: pointer;
+    transition: border-color .15s, color .15s;
+}
+html[data-theme] input[type="file"]:hover::file-selector-button,
+html[data-theme] input[type="file"]:hover::-webkit-file-upload-button {
+    border-color: var(--or);
+    color: var(--or);
+}
+
+/* Input de cor: o quadrado nativo já é discreto, só ajusta borda/raio pra combinar com
+   os outros campos em vez do retângulo cru que o navegador desenha por padrão. */
+html[data-theme] input[type="color"] {
+    width: 52px;
+    height: 40px;
+    padding: 3px;
+    border: 1px solid var(--bd);
+    border-radius: 10px;
+    background: var(--p2);
+    cursor: pointer;
+}
+html[data-theme] input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+html[data-theme] input[type="color"]::-webkit-color-swatch { border: none; border-radius: 7px; }
+html[data-theme] input[type="color"]::-moz-color-swatch { border: none; border-radius: 7px; }
 
 /* ===== Painel / card genérico ===== */
 .painel {
@@ -1113,7 +1245,12 @@ html[data-theme] .conta-perfil-email { color: var(--m); }
     font: 600 14px 'Manrope', sans-serif; list-style: none;
 }
 .conta-secao > summary::-webkit-details-marker { display: none; }
-html[data-theme] .conta-item, html[data-theme] .conta-secao > summary { background: var(--p); border: 1px solid var(--bd); color: var(--t); }
+html[data-theme] .conta-item { background: var(--p); border: 1px solid var(--bd); color: var(--t); }
+/* O fundo/borda do cartão fica no <details> inteiro, não só no <summary> -- no desktop o
+   summary vira display:none (as seções ficam sempre abertas) e, se o cartão estivesse só
+   nele, o corpo da seção aberta ficava sem nenhum fundo, "flutuando" direto na página. */
+html[data-theme] .conta-secao { background: var(--p); border: 1px solid var(--bd); border-radius: 14px; }
+html[data-theme] .conta-secao > summary { color: var(--t); }
 .conta-item svg, .conta-secao > summary svg { width: 19px; height: 19px; flex-shrink: 0; stroke: var(--or); }
 .conta-item-seta { margin-left: auto; transition: transform .18s; }
 /* Precisa casar a profundidade de .conta-secao > summary svg, senao o laranja do icone
@@ -1267,6 +1404,33 @@ html[data-theme] a.login-link-esqueci { color: var(--or); }
 @media (min-width: 861px) {
     .conta-secao > summary { display: none; }
     .conta-perfil { display: none; }  /* no desktop o nome/e-mail já estão na barra lateral */
+
+    /* No desktop as seções ficam sempre abertas, então a "lista de cartões" pensada pro
+       mobile (cada bloco com seu próprio fundo/borda, soltos com espaço entre si) foge do
+       padrão do resto do painel, que é sempre UM cartão único (.painel) por página -- ver
+       leads.php, admin/configuracoes.php etc. Aqui o .conta-lista vira esse cartão único,
+       e os itens internos perdem o fundo/borda próprios, ficando separados por uma linha
+       fina em vez de cada um flutuar como uma caixa separada. */
+    html[data-theme] .conta-lista {
+        background: var(--p);
+        border: 1px solid var(--bd);
+        border-radius: 16px;
+        padding: 22px;
+        gap: 0;
+    }
+    html[data-theme] .conta-secao,
+    html[data-theme] .conta-item {
+        background: transparent;
+        border: none;
+        border-radius: 0;
+        padding-left: 0;
+        padding-right: 0;
+    }
+    html[data-theme] .conta-lista > *:not(:first-child) {
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid var(--bd);
+    }
 }
 
 @media (max-width: 900px) {
@@ -1338,7 +1502,7 @@ html[data-theme] a.login-link-esqueci { color: var(--or); }
     /* Quebra de linha forçada logo depois do botão de tema -- só quando a página tem
        alguma ação além dele (filtro de período, "+ Novo Bot"...), pra não sobrar uma
        linha vazia nas telas que só têm o botão de tema. */
-    .cabecalho-pagina:has(.acoes-cabecalho > *:not(.alternador-tema))::after {
+    .cabecalho-pagina:has(.acoes-cabecalho > *:not(.alternador-tema):not(.sino-notificacoes-wrap))::after {
         content: '';
         order: 2;
         flex-basis: 100%;
@@ -1347,9 +1511,14 @@ html[data-theme] a.login-link-esqueci { color: var(--or); }
     /* Os filhos de .acoes-cabecalho viram itens diretos do cabeçalho, pra poder
        separar o botão de tema (linha do título) do resto (linha de baixo). */
     .acoes-cabecalho { display: contents; }
-    .acoes-cabecalho > *:not(.alternador-tema) { order: 3; }
-    .alternador-tema {
+    .acoes-cabecalho > *:not(.alternador-tema):not(.sino-notificacoes-wrap) { order: 3; }
+    .alternador-tema,
+    .sino-notificacoes-wrap {
         order: 2;
+        flex-shrink: 0;
+    }
+    .alternador-tema,
+    .sino-notificacoes {
         width: 40px;
         height: 40px;
         padding: 0;
@@ -1357,9 +1526,10 @@ html[data-theme] a.login-link-esqueci { color: var(--or); }
         border-radius: 50%;
         justify-content: center;
         font-size: 0;
-        flex-shrink: 0;
     }
-    .alternador-tema svg { width: 17px; height: 17px; }
+    .alternador-tema svg,
+    .sino-notificacoes svg { width: 17px; height: 17px; }
+    .sino-painel { right: 0; left: auto; }
 
     /* Filtro de período ocupa a largura toda (igual aos cards), em linha única com
        scroll horizontal em vez de quebrar "Personalizado" pra uma segunda linha. */
@@ -1583,4 +1753,17 @@ a.comunidade-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ors
 }
 .comunidade-icone-opcao:has(input:focus-visible) { box-shadow: 0 0 0 3px var(--orsoft); }
 .comunidade-icone-opcao .comunidade-icone { width: 28px; height: 28px; border-radius: 8px; }
+
+.exemplos-webhook { padding: 0 18px 18px; display: flex; flex-direction: column; gap: 8px; }
+.exemplos-webhook summary { cursor: pointer; font: 700 13px 'Manrope', sans-serif; padding: 8px 0; }
+.exemplo-payload {
+    margin: 0;
+    padding: 12px;
+    overflow: auto;
+    background: var(--p2);
+    border: 1px solid var(--bd);
+    border-radius: 12px;
+    font-size: 12px;
+    line-height: 1.45;
+}
 .tabela-dados .comunidade-icone { width: 36px; height: 36px; border-radius: 10px; }

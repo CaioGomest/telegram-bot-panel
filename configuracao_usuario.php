@@ -74,7 +74,7 @@ $iniciais_conta = mb_strtoupper(mb_substr($partes_nome[0] ?? '?', 0, 1)
             </div>
         </div>
 
-        <div style="max-width: 600px;">
+        <div>
             <?php if ($mensagem): ?>
                 <div class="aviso aviso-<?php echo $tipo_mensagem; ?>" style="margin-bottom:14px;">
                     <?php echo htmlspecialchars($mensagem); ?>

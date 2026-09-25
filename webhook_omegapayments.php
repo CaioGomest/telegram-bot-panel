@@ -5,6 +5,7 @@ require_once __DIR__ . '/conexao.php';
 require_once __DIR__ . '/funcoes/log.php';
 require_once __DIR__ . '/funcoes/omegapayments_banco.php';
 require_once __DIR__ . '/funcoes/gateways.php';
+require_once __DIR__ . '/funcoes/webhooks.php';
 
 date_default_timezone_set('America/Sao_Paulo');
 
@@ -355,6 +356,13 @@ if ($id_dono) {
         'transacao_id' => $txid,
         'event_id'     => $txid
     ], montarUserDataTraqueamento($pdo, $venda['id_telegram'], $venda['bot_id']));
+    dispararWebhooks($id_dono, 'payment_approved', [
+        'bot_id' => (int) $venda['bot_id'],
+        'id_telegram' => (string) $venda['id_telegram'],
+        'venda_id' => (int) $venda['id'],
+        'transacao_id' => $txid,
+        'gateway' => 'omegapayments',
+    ]);
 }
 
 if (!$token_bot) {

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../conexao.php';
 require_once __DIR__ . '/../funcoes/log.php';
+require_once __DIR__ . '/../funcoes/webhooks.php';
 
 date_default_timezone_set('America/Sao_Paulo');
 $log_dir = __DIR__ . '/../logs';
@@ -217,6 +218,14 @@ foreach ($vendas_pendentes as $venda) {
             if ($nome_gateway === 'infopago') {
                 dispararSplitInfopago((int)$venda['id_dono'], (float)$venda['valor'], (string)$venda['transacao_id'], (int)$venda['id']);
             }
+            dispararWebhooks((int) $venda['id_dono'], 'payment_approved', [
+                'bot_id' => (int) $venda['bot_id'],
+                'id_telegram' => (string) $venda['id_telegram'],
+                'venda_id' => (int) $venda['id'],
+                'transacao_id' => (string) $venda['transacao_id'],
+                'pago_em' => $pago_em,
+                'gateway' => (string) $nome_gateway,
+            ]);
 
             $msg = "✅ *Pagamento Confirmado!*\n\nObrigado pela sua compra.";
 

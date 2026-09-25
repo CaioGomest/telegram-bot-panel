@@ -107,6 +107,10 @@ Reportar os achados antes de aplicar qualquer mudança — varredura é análise
 
 Pasta pra guardar lembretes, notas e coisas pra fazer depois (não é código, não afeta a aplicação). Usar arquivos `.md` simples. Exemplos: ideias de melhoria adiadas, débitos técnicos identificados durante a limpeza, pontos pra revisar na etapa de layout, dúvidas pra confirmar com o Caio.
 
+### Pasta /anotacoes/testes
+
+Todo plano de teste e todo resultado/rodada de teste (o que foi testado, o que passou, o que ficou pendente) é registrado em `anotacoes/testes/`, não solto direto em `anotacoes/`. Um mapa por tópico pode ser atualizado conforme os testes acontecem (estado ✅ verificado / 🟡 parcial / ❓ não testado / 🔴 problema conhecido, por tópico); uma rodada de teste específica (data, o que foi feito, achados) vira um arquivo próprio referenciando o mapa. Exemplo já nessa pasta: `plano-de-testes-24-09.md`. `anotacoes/mapa-de-testes-por-topico.md` e `anotacoes/rodada-de-testes-19-09.md` são de antes dessa convenção e continuam soltos na raiz — não precisam ser movidos, mas testes novos a partir de agora vão em `anotacoes/testes/`.
+
 ## O que evitar
 
 - Não introduzir framework, ORM ou dependências pesadas — manter compatível com hospedagem compartilhada Hostinger.

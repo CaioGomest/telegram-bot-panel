@@ -20,6 +20,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'identid
         }
         definirConfigSistema('nome_sistema', mb_substr($nome, 0, 60));
 
+        $cor_primaria = trim($_POST['cor_primaria'] ?? '');
+        if (!preg_match('/^#[0-9a-f]{6}$/i', $cor_primaria)) {
+            throw new RuntimeException('Cor inválida.');
+        }
+        definirConfigSistema('cor_primaria', strtolower($cor_primaria));
+
         if (isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
             definirConfigSistema('logo', salvarArquivoMarca($_FILES['logo'], 'marca_logo'));
         }
@@ -127,6 +133,13 @@ if (isset($_GET['salvo_google'])) {
                     </div>
                     <input type="file" name="favicon" accept=".png,.ico,.jpg,.jpeg,.webp">
                     <small>Ícone da aba do navegador. Sem favicon próprio, o sistema usa a logo.</small>
+                </div>
+
+                <div class="campo" style="margin-top:18px;">
+                    <label for="cor_primaria">Cor de destaque</label>
+                    <input type="color" id="cor_primaria" name="cor_primaria"
+                           value="<?php echo htmlspecialchars(corPrimariaSistema()); ?>">
+                    <small>Cor usada em botões, links e destaques no painel inteiro (claro e escuro).</small>
                 </div>
 
                 <div class="linha-acoes" style="margin-top: 22px;">

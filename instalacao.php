@@ -169,8 +169,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             descricao TEXT,
             icone VARCHAR(50),
             criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            lido_em DATETIME DEFAULT NULL,
             FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE,
-            INDEX idx_atividades_tipo (tipo)
+            INDEX idx_atividades_tipo (tipo),
+            INDEX idx_atividades_notif (id_usuario, lido_em)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
         $pdo->exec("CREATE TABLE IF NOT EXISTS bot_grupos (

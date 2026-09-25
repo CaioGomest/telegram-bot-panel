@@ -54,6 +54,10 @@ function listarAtividades(array $filtros = [], int $limite = 20, int $offset = 0
         }
     }
 
+    if (!empty($filtros['apenas_nao_lidas'])) {
+        $sql .= " AND a.lido_em IS NULL";
+    }
+
     $sql .= " ORDER BY a.id DESC LIMIT " . (int)$limite . " OFFSET " . (int)$offset;
 
     try {
@@ -100,12 +104,65 @@ function contarAtividades(array $filtros = []): int {
         }
     }
 
+    if (!empty($filtros['apenas_nao_lidas'])) {
+        $sql .= " AND a.lido_em IS NULL";
+    }
+
     try {
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         return (int)$stmt->fetchColumn();
     } catch (PDOException $e) {
         error_log("Erro ao contar logs: " . $e->getMessage());
+        return 0;
+    }
+}
+
+/** Tipos que o sino do header mostra — o mesmo recorte do dashboard do usuário. */
+function tiposNotificacao(): array {
+    return ['venda', 'pix_gerado', 'lead'];
+}
+
+function tempoRelativoAtividade(string $criado_em): string {
+    $ts = strtotime($criado_em);
+    if ($ts === false) {
+        return '';
+    }
+    $diff = abs(time() - $ts);
+    if ($diff < 60) {
+        return 'agora';
+    }
+    if ($diff < 3600) {
+        return (string) ((int) floor($diff / 60)) . 'm';
+    }
+    if ($diff < 86400) {
+        return (string) ((int) floor($diff / 3600)) . 'h';
+    }
+    return (string) ((int) floor($diff / 86400)) . 'd';
+}
+
+function marcarAtividadesLidas(int $id_usuario, ?int $id = null): int {
+    global $pdo;
+
+    $tipos = tiposNotificacao();
+    $placeholders = implode(',', array_fill(0, count($tipos), '?'));
+    $sql = "UPDATE atividades SET lido_em = NOW()
+            WHERE id_usuario = ?
+              AND tipo IN ($placeholders)
+              AND lido_em IS NULL";
+    $params = array_merge([$id_usuario], $tipos);
+
+    if ($id !== null && $id > 0) {
+        $sql .= " AND id = ?";
+        $params[] = $id;
+    }
+
+    try {
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->rowCount();
+    } catch (PDOException $e) {
+        error_log("Erro ao marcar notificações: " . $e->getMessage());
         return 0;
     }
 }
