@@ -72,6 +72,10 @@ bloquearAdmin();
             <button class="botao adicionar-no" data-node-type="link">Links</button>
             <button class="botao adicionar-no" data-node-type="grupo">Grupo</button>
             <button class="botao adicionar-no" data-node-type="delay">Delay</button>
+            <button class="botao adicionar-no" data-node-type="randomizer">Randomizer</button>
+            <button class="botao adicionar-no" data-node-type="upsell">Upsell</button>
+            <button class="botao adicionar-no" data-node-type="downsell">Downsell</button>
+            <button class="botao adicionar-no" data-node-type="order_bump">Order Bump</button>
         </div>
 
         <div class="conteiner-fluxo">

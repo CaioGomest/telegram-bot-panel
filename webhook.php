@@ -268,6 +268,35 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
         requisicaoTelegram($token, 'sendMessage', $parametros);
         return;
     }
+    if ($tipo === 'randomizer') {
+        // Não envia nada — o sorteio de caminho acontece em proximoNoConsiderandoTipo(),
+        // no momento de decidir o próximo nó, não aqui.
+        return;
+    }
+    if (in_array($tipo, ['upsell', 'downsell', 'order_bump'], true)) {
+        $mensagem = trim((string) ($propriedades['mensagem'] ?? ''));
+        $texto_aceitar = trim((string) ($propriedades['texto_aceitar'] ?? '')) ?: 'Sim, quero! 🔥';
+        $texto_recusar = trim((string) ($propriedades['texto_recusar'] ?? '')) ?: 'Não, obrigado';
+        if ($mensagem === '') {
+            $mensagem = 'Temos uma oferta especial para você.';
+        }
+        // callback_data carrega o id do próprio bloco + a saída escolhida (formato
+        // "saida::<id_operador>::aceito|recusado") -- resolve direto por id no clique, sem
+        // precisar varrer o grafo procurando texto de botão (diferente do bloco "Botões",
+        // que reaproveita o texto como callback_data por compatibilidade com fluxos antigos).
+        $teclado = [
+            'inline_keyboard' => [[
+                ['text' => $texto_aceitar, 'callback_data' => 'saida::' . $id_operador . '::aceito'],
+                ['text' => $texto_recusar, 'callback_data' => 'saida::' . $id_operador . '::recusado'],
+            ]]
+        ];
+        requisicaoTelegram($token, 'sendMessage', [
+            'chat_id' => $id_chat,
+            'text' => $mensagem,
+            'reply_markup' => json_encode($teclado)
+        ]);
+        return;
+    }
     if ($tipo === 'pix') {
         global $pdo;
         $stmt_bot = $pdo->prepare("SELECT id_usuario FROM bots WHERE token = ?");
@@ -677,6 +706,25 @@ if (preg_match('/^\/start\s+(.+)$/i', $texto, $start_match)) {
     $start_param = trim($start_match[1]);
     $texto = '/start'; // normaliza para o fluxo tratar igual ao /start comum
 }
+if (strpos($texto, 'saida::') === 0) {
+    // Clique em botão de upsell/downsell/order_bump: "saida::<id_operador>::aceito|recusado".
+    [, $id_operador_origem, $saida_escolhida] = array_pad(explode('::', $texto, 3), 3, '');
+    try {
+        $stmt_fluxo_saida = $pdo->prepare("SELECT f.dados_fluxograma FROM bots b JOIN fluxos f ON b.id_fluxo_conectado = f.id WHERE b.id = ?");
+        $stmt_fluxo_saida->execute([$bot['id']]);
+        $dados_json_saida = $stmt_fluxo_saida->fetchColumn();
+        if ($dados_json_saida && $id_operador_origem !== '') {
+            $dados_fluxo_saida = json_decode($dados_json_saida, true);
+            $dados_fluxo_saida = is_array($dados_fluxo_saida) ? $dados_fluxo_saida : ['operators' => [], 'links' => []];
+            $conector = 'output_' . ($saida_escolhida === 'aceito' ? 'aceito' : 'recusado');
+            $proximo_id_saida = obterProximoNoPorConector($dados_fluxo_saida['links'] ?? [], $id_operador_origem, $conector);
+            caminharFluxoAPartirDe($token, $id_chat, $dados_fluxo_saida, $proximo_id_saida);
+        }
+    } catch (Exception $e) {
+        // Ignora erro para não quebrar o webhook
+    }
+    exit;
+}
 if (strpos($texto, 'verificar_pagamento_') === 0) {
     $txid = str_replace('verificar_pagamento_', '', $texto);
     try {
@@ -834,22 +882,8 @@ if (strpos($texto, 'verificar_pagamento_') === 0) {
                              $dados_json = $stmt_fluxo->fetchColumn();
                              if ($dados_json) {
                                  $dados_fluxo = json_decode($dados_json, true);
-                                 $proximo_id = obterProximoNo($dados_fluxo['links'], $venda['id_operador_fluxo']);
-                                 $proximo_id_pago = null;
-                                 foreach ($dados_fluxo['links'] as $link) {
-                                     if (($link['fromOperator'] ?? '') === $venda['id_operador_fluxo'] && ($link['fromConnector'] ?? '') === 'output_pago') {
-                                         $proximo_id_pago = $link['toOperator'] ?? null;
-                                         break;
-                                     }
-                                 }
-                                 if ($proximo_id_pago) {
-                                     while ($proximo_id_pago && isset($dados_fluxo['operators'][$proximo_id_pago])) {
-                                         $operador = $dados_fluxo['operators'][$proximo_id_pago];
-                                         processarEEnviarBloco($token, $id_chat, $operador, $proximo_id_pago);
-                                         if (in_array($operador['properties']['type'] ?? '', ['botoes', 'pix'])) break;
-                                         $proximo_id_pago = obterProximoNo($dados_fluxo['links'], $proximo_id_pago);
-                                     }
-                                 }
+                                 $proximo_id_pago = obterProximoNoPorConector($dados_fluxo['links'], $venda['id_operador_fluxo'], 'output_pago');
+                                 caminharFluxoAPartirDe($token, $id_chat, $dados_fluxo, $proximo_id_pago);
                              }
                         }
                     } else {
@@ -951,6 +985,68 @@ function obterProximoNo(array $links, string $id_atual): ?string {
     }
     return null;
 }
+function obterProximoNoPorConector(array $links, string $id_atual, string $conector): ?string {
+    foreach ($links as $link) {
+        if (($link['fromOperator'] ?? '') === $id_atual && ($link['fromConnector'] ?? '') === $conector) {
+            return $link['toOperator'] ?? null;
+        }
+    }
+    return null;
+}
+/**
+ * Resolve o próximo nó considerando tipos que decidem a saída sozinhos (hoje só o
+ * randomizer, que sorteia por peso em vez de seguir o único link que existe). Os outros
+ * tipos com múltiplas saídas (pix, upsell/downsell/order_bump) não passam por aqui —
+ * eles param a execução (break no loop) e são resolvidos por evento externo (pagamento
+ * confirmado, clique de botão), não pela caminhada sequencial.
+ */
+function proximoNoConsiderandoTipo(array $dados_fluxo, string $id_atual, array $propriedades_atual): ?string {
+    if (($propriedades_atual['type'] ?? '') === 'randomizer') {
+        $caminhos = $propriedades_atual['caminhos'] ?? [];
+        $peso_total = 0.0;
+        foreach ($caminhos as $c) {
+            $peso_total += max(0, (float) ($c['peso'] ?? 0));
+        }
+        if ($peso_total <= 0 || empty($caminhos)) {
+            return obterProximoNo($dados_fluxo['links'] ?? [], $id_atual);
+        }
+        $sorteio = (mt_rand() / mt_getrandmax()) * $peso_total;
+        $acumulado = 0.0;
+        $indice_escolhido = 0;
+        foreach (array_values($caminhos) as $i => $c) {
+            $acumulado += max(0, (float) ($c['peso'] ?? 0));
+            if ($sorteio <= $acumulado) {
+                $indice_escolhido = $i;
+                break;
+            }
+        }
+        return obterProximoNoPorConector($dados_fluxo['links'] ?? [], $id_atual, 'output_path_' . $indice_escolhido);
+    }
+    return obterProximoNo($dados_fluxo['links'] ?? [], $id_atual);
+}
+/**
+ * Continua a caminhada do fluxo a partir de $id_partida, mesma mecânica repetida nos 3
+ * pontos que já existiam (start, resposta de botão, pagamento confirmado): processa cada
+ * bloco e avança, parando em blocos que esperam algo externo (clique, pagamento).
+ */
+function caminharFluxoAPartirDe(string $token, $id_chat, array $dados_fluxo, ?string $id_partida): void {
+    $proximo_id = $id_partida;
+    while ($proximo_id && isset($dados_fluxo['operators'][$proximo_id])) {
+        $operador = $dados_fluxo['operators'][$proximo_id];
+        processarEEnviarBloco($token, $id_chat, $operador, $proximo_id);
+        $tipo_atual = $operador['properties']['type'] ?? '';
+        if (in_array($tipo_atual, ['botoes', 'pix', 'upsell', 'downsell', 'order_bump'], true)) {
+            break;
+        }
+        if ($tipo_atual === 'delay') {
+            $segundos = (int) ($operador['properties']['delay_min'] ?? 0);
+            if ($segundos > 0 && $segundos <= 5) {
+                sleep($segundos);
+            }
+        }
+        $proximo_id = proximoNoConsiderandoTipo($dados_fluxo, $proximo_id, $operador['properties'] ?? []);
+    }
+}
 if (!empty($bot['id_fluxo_conectado'])) {
     try {
         $stmt = $pdo->prepare("SELECT * FROM fluxos WHERE id = ?");
@@ -960,49 +1056,17 @@ if (!empty($bot['id_fluxo_conectado'])) {
             $dados_fluxo = json_decode($fluxo['dados_fluxograma'] ?? '{}', true);
             $dados_fluxo = is_array($dados_fluxo) ? $dados_fluxo : ['operators' => [], 'links' => []];
             if ($texto === '/start') {
-                $proximo_id = buscarProximoDoInicio($dados_fluxo);
-                while ($proximo_id && isset($dados_fluxo['operators'][$proximo_id])) {
-                    $operador = $dados_fluxo['operators'][$proximo_id];
-                    processarEEnviarBloco($token, $id_chat, $operador, $proximo_id);
-                    // Se for Botões, para a execução automática e aguarda interação do usuário
-                    if (($operador['properties']['type'] ?? '') === 'botoes') {
-                        break;
-                    }
-                    // Se for Pix, para a execução (aguarda pagamento)
-                    if (($operador['properties']['type'] ?? '') === 'pix') {
-                        break;
-                    }
-                    if (($operador['properties']['type'] ?? '') === 'delay') {
-                         $segundos = (int)($operador['properties']['delay_min'] ?? 0);
-                         if ($segundos > 0 && $segundos <= 5) sleep($segundos);
-                    }
-                    $proximo_id = obterProximoNo($dados_fluxo['links'], $proximo_id);
-                }
+                caminharFluxoAPartirDe($token, $id_chat, $dados_fluxo, buscarProximoDoInicio($dados_fluxo));
             } else {
                 // Tenta identificar resposta a botões (lógica sem estado)
-                $encontrou = false;
                 foreach ($dados_fluxo['operators'] as $op_id => $op) {
                     if (($op['properties']['type'] ?? '') === 'botoes') {
                          $botoes = $op['properties']['botoes'] ?? [];
                          if (in_array($texto, $botoes)) {
                              $index = array_search($texto, $botoes);
-                             $output_key = 'output_' . $index;
-                             $proximo_id = null;
-                             foreach ($dados_fluxo['links'] as $link) {
-                                 if (($link['fromOperator'] ?? '') === $op_id && ($link['fromConnector'] ?? '') === $output_key) {
-                                     $proximo_id = $link['toOperator'] ?? null;
-                                     break;
-                                 }
-                             }
+                             $proximo_id = obterProximoNoPorConector($dados_fluxo['links'], $op_id, 'output_' . $index);
                              if ($proximo_id) {
-                                $encontrou = true;
-                                while ($proximo_id && isset($dados_fluxo['operators'][$proximo_id])) {
-                                    $operador = $dados_fluxo['operators'][$proximo_id];
-                                    processarEEnviarBloco($token, $id_chat, $operador, $proximo_id);
-                                    if (($operador['properties']['type'] ?? '') === 'botoes') break;
-                                    if (($operador['properties']['type'] ?? '') === 'pix') break;
-                                    $proximo_id = obterProximoNo($dados_fluxo['links'], $proximo_id);
-                                }
+                                caminharFluxoAPartirDe($token, $id_chat, $dados_fluxo, $proximo_id);
                             }
                              break;
                          }

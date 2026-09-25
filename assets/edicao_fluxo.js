@@ -63,7 +63,11 @@
         audio: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>',
         link: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>',
         grupo: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>',
-        delay: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>'
+        delay: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>',
+        randomizer: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"></path><path d="M4 20 21 3"></path><path d="M21 16v5h-5"></path><path d="M15 15l6 6"></path><path d="M4 4l5 5"></path></svg>',
+        upsell: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>',
+        downsell: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline><polyline points="17 18 23 18 23 12"></polyline></svg>',
+        order_bump: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path><line x1="12" y1="7" x2="12" y2="13"></line><line x1="9" y1="10" x2="15" y2="10"></line></svg>'
     };
 
     function defaultChartData() {
@@ -275,6 +279,40 @@
                 '  <input class="campo-grupo-texto" type="text" value="' + escaparHtml(props.texto_botao || '') + '" placeholder="Entrar no Grupo">' +
                 '</div>';
         }
+        if (tipo === 'randomizer') {
+            const caminhos = props.caminhos || [];
+            const soma = caminhos.reduce(function (acc, c) { return acc + (parseFloat(c.peso) || 0); }, 0) || 1;
+            const lista = caminhos.map(function (c, i) {
+                const pct = Math.round(((parseFloat(c.peso) || 0) / soma) * 100);
+                return '' +
+                    '<div class="item-caminho" data-index="' + i + '">' +
+                    '  <span class="rotulo-caminho">Caminho ' + (i + 1) + '</span>' +
+                    '  <input type="number" min="0" class="campo-caminho-peso" value="' + (c.peso != null ? c.peso : 50) + '">' +
+                    '  <span class="pct-caminho">' + pct + '%</span>' +
+                    '  <button type="button" class="remover-caminho" title="Remover">✕</button>' +
+                    '</div>';
+            }).join('');
+            return '' +
+                '<div class="bloco-config bloco-randomizer">' +
+                '  <p style="font-size:10px; color:#666; margin:0 0 6px;">Sorteia um caminho a cada execução, conforme o peso de cada um.</p>' +
+                '  <div class="lista-caminhos">' + lista + '</div>' +
+                '  <button type="button" class="botao botao-claro btn-adicionar-caminho">+ Adicionar caminho</button>' +
+                '</div>';
+        }
+        if (tipo === 'upsell' || tipo === 'downsell' || tipo === 'order_bump') {
+            const rotulo_valor = tipo === 'order_bump' ? 'Valor extra (R$)' : 'Desconto (%)';
+            return '' +
+                '<div class="bloco-config bloco-oferta" data-tipo-oferta="' + tipo + '">' +
+                '  <label>Mensagem da oferta</label>' +
+                '  <textarea class="campo-oferta-mensagem" rows="3" placeholder="Digite a mensagem...">' + escaparHtml(props.mensagem || '') + '</textarea>' +
+                '  <label>' + rotulo_valor + '</label>' +
+                '  <input type="number" step="0.01" min="0" class="campo-oferta-valor" value="' + (props.valor_extra != null ? props.valor_extra : (props.desconto_percentual != null ? props.desconto_percentual : 0)) + '">' +
+                '  <div class="grade grade-2 grade-compacta">' +
+                '    <div class="campo"><label>Texto (aceitar)</label><input type="text" class="campo-oferta-aceitar" value="' + escaparHtml(props.texto_aceitar || '') + '"></div>' +
+                '    <div class="campo"><label>Texto (recusar)</label><input type="text" class="campo-oferta-recusar" value="' + escaparHtml(props.texto_recusar || '') + '"></div>' +
+                '  </div>' +
+                '</div>';
+        }
         // mensagem, pergunta e ação compartilham editor simples
         const conteudo = props.conteudo != null ? props.conteudo : (props.body || '');
         return '' +
@@ -305,7 +343,11 @@
                     'pix': 'no-pix',
                     'delay': 'no-delay',
                     'link': 'no-link',
-                    'grupo': 'no-grupo'
+                    'grupo': 'no-grupo',
+                    'randomizer': 'no-randomizer',
+                    'upsell': 'no-upsell',
+                    'downsell': 'no-downsell',
+                    'order_bump': 'no-order-bump'
                 };
                 const classe_extra = mapa_classes[tipo] || 'no-mensagem';
                 full_element.operator.addClass(classe_extra);
@@ -603,6 +645,29 @@
             base.properties.class = 'no-grupo';
             base.properties.id_grupo = '';
             base.properties.texto_botao = 'Entrar no Grupo';
+        }
+        if (type === 'randomizer') {
+            base.properties.title = 'Randomizer';
+            base.properties.class = 'no-randomizer';
+            base.properties.caminhos = [{ peso: 50 }, { peso: 50 }];
+            base.properties.outputs = {
+                output_path_0: { label: 'Caminho 1' },
+                output_path_1: { label: 'Caminho 2' }
+            };
+        }
+        if (type === 'upsell' || type === 'downsell' || type === 'order_bump') {
+            const rotulos = { upsell: 'Upsell', downsell: 'Downsell', order_bump: 'Order Bump' };
+            base.properties.title = rotulos[type];
+            base.properties.class = 'no-' + type.replace('_', '-');
+            base.properties.mensagem = '';
+            base.properties.desconto_percentual = 0;
+            base.properties.valor_extra = 0;
+            base.properties.texto_aceitar = type === 'order_bump' ? 'Sim, adicionar' : 'Sim, quero! 🔥';
+            base.properties.texto_recusar = 'Não, obrigado';
+            base.properties.outputs = {
+                output_aceito: { label: 'ACEITO' },
+                output_recusado: { label: 'RECUSADO' }
+            };
         }
 
         base.properties.body = renderCorpoDoBloco(base.properties);
@@ -1104,6 +1169,86 @@
         if (!props || props.type !== 'grupo') return;
         props.id_grupo = $op.find('.campo-grupo-id').val();
         props.texto_botao = $op.find('.campo-grupo-texto').val();
+        props.body = renderCorpoDoBloco(props);
+        $flowchart.flowchart('setOperatorBody', id, props.body);
+        setChartData(data);
+        $flowchart.flowchart('selectOperator', id);
+        agendarAutoSalvar();
+    });
+    function sincronizarOutputsCaminhos(props) {
+        props.outputs = {};
+        (props.caminhos || []).forEach(function (c, i) {
+            props.outputs['output_path_' + i] = { label: 'Caminho ' + (i + 1) };
+        });
+    }
+    $flowchart.on('change', '.bloco-randomizer .campo-caminho-peso', function () {
+        const $item = $(this).closest('.item-caminho');
+        const idx = parseInt($item.data('index'), 10);
+        const $op = $(this).closest('.flowchart-operator');
+        const id = $op.data('operator_id');
+        const data = getChartData();
+        const props = data.operators[id] && data.operators[id].properties;
+        if (!props || props.type !== 'randomizer') return;
+        props.caminhos = props.caminhos || [];
+        if (idx >= 0 && idx < props.caminhos.length) {
+            props.caminhos[idx].peso = Math.max(0, parseFloat($(this).val()) || 0);
+        }
+        props.body = renderCorpoDoBloco(props);
+        $flowchart.flowchart('setOperatorBody', id, props.body);
+        setChartData(data);
+        $flowchart.flowchart('selectOperator', id);
+        agendarAutoSalvar();
+    });
+    $flowchart.on('click', '.bloco-randomizer .btn-adicionar-caminho', function () {
+        const $op = $(this).closest('.flowchart-operator');
+        const id = $op.data('operator_id');
+        const data = getChartData();
+        const props = data.operators[id] && data.operators[id].properties;
+        if (!props || props.type !== 'randomizer') return;
+        props.caminhos = props.caminhos || [];
+        props.caminhos.push({ peso: 50 });
+        sincronizarOutputsCaminhos(props);
+        props.body = renderCorpoDoBloco(props);
+        $flowchart.flowchart('setOperatorBody', id, props.body);
+        setChartData(data);
+        $flowchart.flowchart('selectOperator', id);
+        agendarAutoSalvar();
+    });
+    $flowchart.on('click', '.bloco-randomizer .remover-caminho', function () {
+        const $item = $(this).closest('.item-caminho');
+        const idx = parseInt($item.data('index'), 10);
+        const $op = $(this).closest('.flowchart-operator');
+        const id = $op.data('operator_id');
+        const data = getChartData();
+        const props = data.operators[id] && data.operators[id].properties;
+        if (!props || props.type !== 'randomizer') return;
+        if ((props.caminhos || []).length <= 2) {
+            showToast('O randomizer precisa de pelo menos 2 caminhos.', 'erro');
+            return;
+        }
+        props.caminhos = props.caminhos.filter(function (_c, i) { return i !== idx; });
+        sincronizarOutputsCaminhos(props);
+        props.body = renderCorpoDoBloco(props);
+        $flowchart.flowchart('setOperatorBody', id, props.body);
+        setChartData(data);
+        $flowchart.flowchart('selectOperator', id);
+        agendarAutoSalvar();
+    });
+    $flowchart.on('change', '.bloco-oferta .campo-oferta-mensagem, .bloco-oferta .campo-oferta-valor, .bloco-oferta .campo-oferta-aceitar, .bloco-oferta .campo-oferta-recusar', function () {
+        const $op = $(this).closest('.flowchart-operator');
+        const id = $op.data('operator_id');
+        const data = getChartData();
+        const props = data.operators[id] && data.operators[id].properties;
+        if (!props || !['upsell', 'downsell', 'order_bump'].includes(props.type)) return;
+        props.mensagem = $op.find('.campo-oferta-mensagem').val();
+        const valor = Math.max(0, parseFloat($op.find('.campo-oferta-valor').val()) || 0);
+        if (props.type === 'order_bump') {
+            props.valor_extra = valor;
+        } else {
+            props.desconto_percentual = valor;
+        }
+        props.texto_aceitar = $op.find('.campo-oferta-aceitar').val();
+        props.texto_recusar = $op.find('.campo-oferta-recusar').val();
         props.body = renderCorpoDoBloco(props);
         $flowchart.flowchart('setOperatorBody', id, props.body);
         setChartData(data);

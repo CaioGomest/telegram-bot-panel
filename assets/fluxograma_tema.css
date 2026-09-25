@@ -141,6 +141,18 @@ html[data-theme] .flowchart-operator-title {
 .flowchart-operator.no-delay .flowchart-operator-title { background: var(--p3); color: var(--m); }
 .flowchart-operator.no-link .flowchart-operator-title { background: var(--p3); color: var(--m); }
 .flowchart-operator.no-grupo .flowchart-operator-title { background: var(--oksoft); color: var(--ok); }
+.flowchart-operator.no-randomizer .flowchart-operator-title { background: var(--p3); color: var(--m); }
+.flowchart-operator.no-upsell .flowchart-operator-title { background: var(--oksoft); color: var(--ok); }
+.flowchart-operator.no-downsell .flowchart-operator-title { background: var(--dasoft); color: var(--da); }
+.flowchart-operator.no-order-bump .flowchart-operator-title { background: var(--orsoft); color: var(--or); }
+
+.bloco-randomizer .item-caminho,
+.bloco-oferta .grade-2 { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.bloco-randomizer .rotulo-caminho { flex: 1; font-size: 11px; opacity: .8; }
+.bloco-randomizer .campo-caminho-peso { width: 56px; }
+.bloco-randomizer .pct-caminho { font-size: 10px; opacity: .6; min-width: 30px; text-align: right; }
+.bloco-randomizer .remover-caminho { background: none; border: none; cursor: pointer; opacity: .6; }
+.bloco-randomizer .remover-caminho:hover { opacity: 1; }
 
 .botao.adicionar-no {
     display: inline-flex;
