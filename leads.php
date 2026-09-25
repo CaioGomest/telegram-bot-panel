@@ -252,9 +252,8 @@ unset($params_link['pagina']);
                                         $status_badge = '<span class="badge badge-alerta">Gerou Pix</span>';
                                     }
                                     $inicial_lead = mb_strtoupper(mb_substr($lead['nome'] ?: '?', 0, 1), 'UTF-8');
-                                    $busca_lead = mb_strtolower($lead['nome'] . ' ' . $lead['id_telegram'], 'UTF-8');
                                 ?>
-                                <tr data-busca="<?php echo htmlspecialchars($busca_lead); ?>">
+                                <tr>
                                     <td>
                                         <div class="celula-principal">
                                             <span class="avatar-item"><?php echo htmlspecialchars($inicial_lead); ?></span>
@@ -286,12 +285,21 @@ unset($params_link['pagina']);
 
 <script src="assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/tema.js'); ?>"></script>
 <script>
-document.getElementById('busca-lead').addEventListener('input', function () {
-    const termo = this.value.trim().toLowerCase();
-    document.querySelectorAll('#tabela-leads tbody tr[data-busca]').forEach(function (linha) {
-        linha.style.display = linha.dataset.busca.includes(termo) ? '' : 'none';
+(function () {
+    var form = document.querySelector('.campo-busca');
+    var input = document.getElementById('busca-lead');
+    if (!form || !input) return;
+    var inicial = input.value;
+    var timer = null;
+    // A busca é no banco (todas as páginas). O filtro antigo só escondia as linhas
+    // já desenhadas nesta página, então um lead de outra página parecia não existir.
+    input.addEventListener('input', function () {
+        clearTimeout(timer);
+        timer = setTimeout(function () {
+            if (input.value.trim() !== inicial.trim()) form.submit();
+        }, 400);
     });
-});
+})();
 </script>
 </body>
 </html>

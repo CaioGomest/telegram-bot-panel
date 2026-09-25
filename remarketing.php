@@ -134,7 +134,6 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
             </div>
             <?php
             $pagina = max(1, (int)($_GET['pagina'] ?? 1));
-            $offset = ($pagina - 1) * $limite;
             $where = "c.id_usuario = :uid";
             $params = ['uid' => $id_usuario];
             if ($f_bot > 0) { $where .= " AND c.bot_id = :bot"; $params['bot'] = $f_bot; }
@@ -144,6 +143,8 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
             $stmt_total->execute($params);
             $total_reg = (int)$stmt_total->fetchColumn();
             $total_paginas = max(1, (int)ceil($total_reg / $limite));
+            $pagina = min($pagina, $total_paginas);
+            $offset = ($pagina - 1) * $limite;
             ?>
             <?php
             $stmt_list = $pdo->prepare("SELECT c.*, COALESCE(b.primeiro_nome, b.nome_usuario) as nome_bot FROM remarketing_campanhas c JOIN bots b ON c.bot_id = b.id WHERE $where ORDER BY c.criado_em DESC LIMIT :lim OFFSET :off");

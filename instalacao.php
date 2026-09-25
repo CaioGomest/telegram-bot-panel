@@ -76,6 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             id INT AUTO_INCREMENT PRIMARY KEY,
             nome VARCHAR(100) NOT NULL,
             apelido_publico VARCHAR(40) DEFAULT NULL,
+            foto_perfil VARCHAR(255) DEFAULT NULL,
             email VARCHAR(150) NOT NULL UNIQUE,
             google_id VARCHAR(255) DEFAULT NULL UNIQUE,
             senha VARCHAR(255) NOT NULL,

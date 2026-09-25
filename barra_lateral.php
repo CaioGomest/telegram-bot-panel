@@ -116,6 +116,7 @@ function renderizarItemNav(array $item, string $pagina_atual, array $icones, str
 $nome_usuario = $_SESSION['usuario_nome'] ?? 'Usuário';
 $email_usuario = $_SESSION['usuario_email'] ?? '';
 $iniciais = mb_strtoupper(mb_substr($nome_usuario, 0, 1), 'UTF-8');
+$foto_usuario = function_exists('fotoPerfilDaSessao') ? fotoPerfilDaSessao() : '';
 ?>
 <aside class="barra-lateral">
     <div class="barra-lateral-topo">
@@ -155,7 +156,7 @@ $iniciais = mb_strtoupper(mb_substr($nome_usuario, 0, 1), 'UTF-8');
 
     <div class="barra-lateral-rodape">
         <div class="usuario-rodape">
-            <span class="usuario-avatar"><?php echo htmlspecialchars($iniciais); ?></span>
+            <?php echo htmlAvatarUsuario($iniciais, $foto_usuario, 'usuario-avatar', $caminho_base); ?>
             <div class="usuario-info">
                 <span class="usuario-nome"><?php echo htmlspecialchars($nome_usuario); ?></span>
                 <span class="usuario-email"><?php echo htmlspecialchars($email_usuario); ?></span>
@@ -209,7 +210,7 @@ $iniciais = mb_strtoupper(mb_substr($nome_usuario, 0, 1), 'UTF-8');
     <div class="folha-menu-fundo" data-fechar-menu></div>
     <div class="folha-menu-caixa" role="dialog" aria-modal="true" aria-label="Menu">
         <div class="folha-menu-topo">
-            <span class="usuario-avatar"><?php echo htmlspecialchars($iniciais); ?></span>
+            <?php echo htmlAvatarUsuario($iniciais, $foto_usuario, 'usuario-avatar', $caminho_base); ?>
             <div class="usuario-info">
                 <span class="usuario-nome"><?php echo htmlspecialchars($nome_usuario); ?></span>
                 <span class="usuario-email"><?php echo htmlspecialchars($email_usuario); ?></span>

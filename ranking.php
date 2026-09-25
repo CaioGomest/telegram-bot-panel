@@ -97,7 +97,6 @@ if ($ranking) {
         <div class="grade-ranking">
             <div>
                 <div class="hero-ranking">
-                    <div class="hero-ranking-halo"></div>
                     <img src="<?php echo htmlspecialchars(logoSistema()); ?>" alt="" class="hero-ranking-logo">
                     <div class="hero-ranking-conteudo">
                         <div style="display:flex;gap:8px;flex-wrap:wrap;">

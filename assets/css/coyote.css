@@ -176,7 +176,9 @@ html[data-theme] *::-webkit-scrollbar-thumb:hover { background: var(--m); }
     display: grid;
     place-items: center;
     font: 800 13px 'Manrope', sans-serif;
+    overflow: hidden;
 }
+.usuario-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .usuario-info { min-width: 0; display: flex; flex-direction: column; }
 .usuario-nome { font-size: 12.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .usuario-email { font-size: 10.5px; color: var(--m); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -339,7 +341,7 @@ html[data-theme] *::-webkit-scrollbar-thumb:hover { background: var(--m); }
     font: 700 12px 'Manrope', sans-serif;
     cursor: pointer;
 }
-.periodo-item.ativo { background: var(--or); color: #0a0b0e; }
+.periodo-item.ativo { background: var(--or); color: #fff; }
 .form-periodo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .grupo-data-personalizada {
     display: flex;
@@ -370,12 +372,12 @@ html[data-theme] *::-webkit-scrollbar-thumb:hover { background: var(--m); }
 .botao-primario {
     background: var(--or);
     border-color: var(--or);
-    color: #0a0b0e;
+    color: #fff;
     box-shadow: 0 8px 20px -10px var(--or);
 }
-.botao-primario:hover { background: var(--or2); border-color: var(--or2); color: #0a0b0e; }
-html[data-theme="light"] .botao-primario,
-html[data-theme="light"] .botao-primario:hover { color: #fff; }
+.botao-primario:hover { background: var(--or2); border-color: var(--or2); color: #fff; }
+html[data-theme] a.botao-primario,
+html[data-theme] a.botao-primario:hover { color: #fff; }
 .botao-claro { background: transparent; }
 .botao-secundario { background: transparent; }
 .botao-perigo:hover { border-color: var(--da); color: var(--da); }
@@ -655,7 +657,8 @@ html[data-theme] a.botao-configurar { color: var(--or); }
     white-space: nowrap;
 }
 .paginacao-link:hover:not(.disabled) { border-color: var(--or); color: var(--or); }
-.paginacao-link.active { background: var(--or); border-color: var(--or); color: #0a0b0e; }
+.paginacao-link.active { background: var(--or); border-color: var(--or); color: #fff; }
+html[data-theme] a.paginacao-link.active { color: #fff; }
 .paginacao-link.disabled { color: var(--m); cursor: not-allowed; opacity: .6; }
 .paginacao-dots { display: flex; align-items: center; justify-content: center; padding: 0 4px; color: var(--m); height: 32px; }
 
@@ -916,7 +919,7 @@ html[data-theme] a.botao-configurar { color: var(--or); }
     color: var(--or);
     border-color: transparent;
 }
-.botao-editar-fluxo:hover { background: var(--or); color: #0a0b0e; }
+.botao-editar-fluxo:hover { background: var(--or); color: #fff; }
 
 /* ===== Configuração do bot ===== */
 .grade-config-bot { display: grid; grid-template-columns: 1.6fr 1fr; gap: 14px; align-items: start; }
@@ -1012,7 +1015,7 @@ html[data-theme] a.botao-configurar { color: var(--or); }
 
 .cartao-gateway-topo { padding: 14px 16px 12px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .selo-prioridade { display: inline-flex; align-items: center; gap: 5px; background: var(--p3); color: var(--m); font: 700 10.5px 'Manrope', sans-serif; padding: 3px 9px; border-radius: 99px; }
-.selo-prioridade.principal { background: var(--or); color: #0a0b0e; }
+.selo-prioridade.principal { background: var(--or); color: #fff; }
 .selo-metodo { display: inline-flex; align-items: center; gap: 4px; background: var(--oksoft); color: var(--ok); font: 700 10px 'Manrope', sans-serif; padding: 2px 8px; border-radius: 12px; }
 
 .corpo-cartao-gateway { padding: 0 16px 14px; display: flex; flex-direction: column; align-items: center; text-align: center; }
@@ -1105,6 +1108,14 @@ html[data-theme] a.botao-configurar { color: var(--or); }
     font: 700 15px 'Manrope', sans-serif;
     border: 2px solid var(--p);
 }
+.story-avatar-foto {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    display: block;
+    border: 2px solid var(--p);
+}
 .story-icone-mais { font-size: 22px; font-weight: 700; color: var(--m); line-height: 1; }
 
 .story-nome {
@@ -1193,6 +1204,18 @@ html[data-theme] a.botao-configurar { color: var(--or); }
 .visualizador-story-info { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .visualizador-story-nome { color: #fff; font: 700 13.5px 'Manrope', sans-serif; text-shadow: 0 1px 4px rgba(0,0,0,.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .visualizador-story-tempo { color: rgba(255,255,255,.75); font: 600 12px 'Manrope', sans-serif; text-shadow: 0 1px 4px rgba(0,0,0,.5); flex-shrink: 0; }
+.visualizador-story-acoes { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.visualizador-story-excluir {
+    background: rgba(0, 0, 0, .45);
+    border: none;
+    color: #fff;
+    height: 30px;
+    padding: 0 12px;
+    border-radius: 999px;
+    font: 700 12px 'Manrope', sans-serif;
+    cursor: pointer;
+}
+.visualizador-story-excluir[hidden] { display: none; }
 .visualizador-story-fechar {
     background: rgba(0, 0, 0, .35);
     border: none;
@@ -1257,7 +1280,11 @@ html[data-theme] a.botao-configurar { color: var(--or); }
 html[data-theme] .login-cabecalho-logo { border: 1px solid var(--bd); }
 
 /* ===== Minha Conta: cartões "Dados pessoais" / "Segurança" + lista de links ===== */
-.conta-avatar { width: 76px; height: 76px; border-radius: 22px; display: flex; align-items: center; justify-content: center; font: 700 26px 'Manrope', sans-serif; color: #fff; background: var(--or); margin-bottom: 16px; }
+.conta-avatar { width: 76px; height: 76px; border-radius: 22px; display: flex; align-items: center; justify-content: center; font: 700 26px 'Manrope', sans-serif; color: #fff; background: var(--or); margin-bottom: 16px; overflow: hidden; flex-shrink: 0; }
+.conta-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.conta-foto { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+.conta-foto .conta-avatar { margin-bottom: 0; cursor: pointer; }
+.conta-foto-acoes { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 
 .conta-lista { display: flex; flex-direction: column; gap: 10px; }
 .conta-item {
@@ -1305,12 +1332,12 @@ html[data-theme] a.login-link-esqueci { color: var(--or); }
 .grade-ranking { display: grid; grid-template-columns: 1.6fr minmax(260px, 1fr); gap: 14px; align-items: start; }
 .hero-ranking {
     position: relative; overflow: hidden;
-    background: linear-gradient(115deg, #1a1208 0%, var(--p) 55%, var(--p) 100%);
+    background: var(--p);
     border: 1px solid var(--bd); border-radius: 20px; padding: 26px; box-shadow: var(--shadow);
     margin-bottom: 14px;
 }
-.hero-ranking-halo { position: absolute; top: -40px; right: -30px; width: 280px; height: 280px; border-radius: 50%; background: var(--orsoft); filter: blur(10px); }
-.hero-ranking-logo { position: absolute; right: 16px; bottom: -30px; width: 210px; height: 210px; border-radius: 50%; object-fit: cover; opacity: .55; }
+.hero-ranking-halo { display: none; }
+.hero-ranking-logo { position: absolute; right: 16px; bottom: -30px; width: 210px; height: 210px; border-radius: 50%; object-fit: cover; }
 .hero-ranking-conteudo { position: relative; max-width: 30rem; }
 .hero-ranking-eyebrow { font: 800 11px 'Manrope', sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--m); margin-top: 22px; }
 .hero-ranking-titulo { margin: 8px 0 0; font-size: 50px; line-height: .95; }
@@ -1339,32 +1366,37 @@ html[data-theme] a.login-link-esqueci { color: var(--or); }
 
 .faixa-sua-posicao { display: flex; align-items: center; gap: 12px; padding: 14px; border: 1.5px solid var(--or); border-radius: 14px; background: var(--orsoft); margin-top: 22px; }
 .faixa-sua-posicao .linha-ranking-pos { color: var(--or); width: 66px; }
-.faixa-sua-posicao .linha-ranking-avatar { background: var(--or); color: #0a0b0e; }
+.faixa-sua-posicao .linha-ranking-avatar { background: var(--or); color: #fff; }
 
 /* ===== Mini-ranking (widget da dashboard) =====
    Resumo do /ranking em formato de cartão por linha, mesma paleta do pódio (1º em --or,
    os demais em --m/--p2 -- o app não tem tokens de prata/bronze, então segue a mesma
    convenção de estiloPodio() em vez de inventar uma cor nova). */
 .mini-ranking-lista { display: flex; flex-direction: column; gap: 8px; }
-.mini-ranking-item { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--bd); background: var(--p2); }
+.mini-ranking-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--bd); background: var(--p2); }
 .mini-ranking-item.lider { border-color: var(--or); background: var(--orsoft); }
 .mini-ranking-item.voce { border-color: var(--or); border-style: dashed; }
 .mini-ranking-avatar { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font: 800 11px 'Manrope', sans-serif; border: 2px solid var(--m); color: var(--m); background: var(--p3); }
 .mini-ranking-item.lider .mini-ranking-avatar { border-color: var(--or); color: var(--or); }
-.mini-ranking-corpo { flex: 1; min-width: 0; }
+.mini-ranking-corpo { min-width: 0; overflow: hidden; }
 /* min-width:0 é o que deixa o filho .mini-ranking-nome-texto encolher dentro do flex --
    sem isso um nome comprido (o fallback "Usuário #3" já é longo por si só) empurra o sufixo
    "(você)" pra fora da linha e ele some cortado em vez de aparecer inteiro. */
-.mini-ranking-nome { display: flex; align-items: center; gap: 6px; font: 700 12.5px 'Manrope', sans-serif; min-width: 0; }
-.mini-ranking-nome-texto { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.mini-ranking-nome { display: flex; align-items: center; gap: 6px; font: 700 12.5px 'Manrope', sans-serif; min-width: 0; overflow: hidden; }
+.mini-ranking-nome-texto { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .mini-ranking-voce-tag { flex: none; color: var(--or); font-weight: 800; }
 .mini-ranking-pos { flex: none; font: 800 10.5px 'Manrope', sans-serif; padding: 1px 6px; border-radius: 99px; background: var(--p3); color: var(--m); }
-.mini-ranking-item.lider .mini-ranking-pos { background: var(--or); color: #0a0b0e; }
-.mini-ranking-valor { flex: none; font: 700 12.5px 'JetBrains Mono', monospace; padding: 5px 10px; border-radius: 99px; background: var(--p3); color: var(--t); }
+.mini-ranking-item.lider .mini-ranking-pos { background: var(--or); color: #fff; }
+.mini-ranking-valor { font: 700 12.5px 'JetBrains Mono', monospace; padding: 5px 10px; border-radius: 99px; background: var(--p3); color: var(--t); white-space: nowrap; }
 .mini-ranking-item.lider .mini-ranking-valor { background: rgba(255, 106, 26, .16); color: var(--or); }
 .mini-ranking-rodape { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--bd); text-align: center; }
 .mini-ranking-rodape a { font: 700 12px 'Manrope', sans-serif; color: var(--or); }
 .mini-ranking-vazio { padding: 26px 10px; text-align: center; color: var(--m); font-size: 12.5px; }
+@media (max-width: 860px) {
+    .mini-ranking-item { grid-template-columns: auto minmax(0, 1fr); }
+    .mini-ranking-avatar { grid-row: 1 / span 2; align-self: center; }
+    .mini-ranking-valor { grid-column: 2; justify-self: start; }
+}
 
 .cartao-passe-titulo { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .passe-posicao { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 52px; line-height: .9; }
@@ -1448,7 +1480,7 @@ html[data-theme] a.login-link-esqueci { color: var(--or); }
        No desktop nada disso muda: a coluna de marca continua como era. */
     .tela-login { display: block; }
     .login-marca { display: none; }
-    .tela-login > .alternador-tema { display: none; }  /* o absoluto; no mobile vai no cabeçalho */
+    .alternador-tema-flutuante { display: none; }  /* o absoluto do canto; no mobile o tema fica no cabeçalho */
     .login-formulario { padding: 20px 20px 36px; justify-content: flex-start; min-height: 100vh; }
     .login-formulario-conteudo { max-width: none; }
     .login-cabecalho-mobile { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }

@@ -32,6 +32,8 @@
     const elVisMidia = document.getElementById('visualizador-story-midia');
     const elVisProgresso = document.getElementById('visualizador-story-progresso');
     const elVisFechar = document.getElementById('visualizador-story-fechar');
+    const elVisExcluir = document.getElementById('visualizador-story-excluir');
+    const usuarioLogadoId = Number(elBarra.dataset.usuarioId || 0);
     const elVisAnterior = document.getElementById('visualizador-story-anterior');
     const elVisProximo = document.getElementById('visualizador-story-proximo');
 
@@ -84,8 +86,12 @@
             item.type = 'button';
             item.className = 'story-item story-item-usuario';
             item.dataset.grupoIndex = String(index);
+            const foto = String(grupo.foto || '').replace(/[^a-zA-Z0-9._-]/g, '');
+            const avatar = foto
+                ? '<img class="story-avatar-foto" src="uploads/perfis/' + escaparHtml(foto) + '" alt="">'
+                : '<span class="story-avatar-iniciais">' + escaparHtml(iniciaisNome(grupo.nome)) + '</span>';
             item.innerHTML =
-                '<span class="story-anel ' + semVista + '"><span class="story-avatar-iniciais">' + escaparHtml(iniciaisNome(grupo.nome)) + '</span></span>' +
+                '<span class="story-anel ' + semVista + '">' + avatar + '</span>' +
                 '<span class="story-nome">' + escaparHtml(grupo.nome || 'Usuário') + '</span>';
             item.addEventListener('click', () => abrirVisualizador(index));
             elBarra.appendChild(item);
@@ -275,6 +281,7 @@
         const story = grupo.stories[storyAtualIndex];
         elVisNome.textContent = grupo.nome || 'Usuário';
         if (elVisTempo) elVisTempo.textContent = tempoRelativoStory(story.criado_em);
+        if (elVisExcluir) elVisExcluir.hidden = Number(grupo.id_usuario) !== usuarioLogadoId;
         elVisMidia.innerHTML = '';
 
         const segmentos = elVisProgresso.querySelectorAll('.visualizador-story-segmento');
@@ -341,6 +348,50 @@
         }
     }
 
+    function excluirStoryAtual() {
+        const grupo = grupos[grupoAtualIndex];
+        const story = grupo && grupo.stories[storyAtualIndex];
+        if (!story || Number(grupo.id_usuario) !== usuarioLogadoId) return;
+
+        clearTimeout(timerAvanco);
+        if (!window.confirm('Excluir este story?')) {
+            exibirStoryAtual();
+            return;
+        }
+
+        elVisExcluir.disabled = true;
+        fetch(URL_API + '?action=excluir_story', {
+            method: 'POST',
+            headers: cabecalhosFetch({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ id: story.id }),
+        })
+            .then((res) => res.json())
+            .then((res) => {
+                elVisExcluir.disabled = false;
+                if (!res || !res.sucesso) {
+                    window.alert((res && res.mensagem) || 'Não foi possível excluir o story.');
+                    exibirStoryAtual();
+                    return;
+                }
+                grupo.stories.splice(storyAtualIndex, 1);
+                if (grupo.stories.length === 0) {
+                    grupos.splice(grupoAtualIndex, 1);
+                    fecharVisualizador();
+                    return;
+                }
+                if (storyAtualIndex >= grupo.stories.length) {
+                    storyAtualIndex = grupo.stories.length - 1;
+                }
+                montarSegmentosProgresso();
+                exibirStoryAtual();
+            })
+            .catch(() => {
+                elVisExcluir.disabled = false;
+                window.alert('Não foi possível excluir o story.');
+                exibirStoryAtual();
+            });
+    }
+
     function marcarComoVista(storyId) {
         // Fire-and-forget de propósito: não bloqueia a troca de mídia nem trata falha na UI.
         fetch(URL_API + '?action=marcar_story_vista', {
@@ -372,6 +423,12 @@
     });
 
     elVisFechar.addEventListener('click', fecharVisualizador);
+    if (elVisExcluir) {
+        elVisExcluir.addEventListener('click', (evento) => {
+            evento.stopPropagation();
+            excluirStoryAtual();
+        });
+    }
     elVisProximo.addEventListener('click', avancarStory);
     elVisAnterior.addEventListener('click', voltarStory);
 

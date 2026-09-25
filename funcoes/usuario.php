@@ -26,7 +26,13 @@ function usuarioLogado(): bool {
 
 function verificarLogin(): void {
     if (!usuarioLogado()) {
-        header('Location: /login?erro=acesso');
+        // A home (/) não é uma tentativa de login que falhou: quem abre o site
+        // sem sessão só precisa da tela de entrar, sem ?erro=acesso.
+        // Página interna protegida continua avisando que o login é obrigatório.
+        $caminho = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+        $caminho = rtrim((string) $caminho, '/');
+        $eh_entrada = $caminho === '' || $caminho === '/index' || $caminho === '/index.php';
+        header('Location: ' . ($eh_entrada ? '/login' : '/login?erro=acesso'));
         exit;
     }
 }
@@ -146,6 +152,167 @@ function fazerLogin(string $email, string $senha, bool $lembrar = false): bool {
 
 function ehAdmin(): bool {
     return isset($_SESSION['usuario_perfil']) && $_SESSION['usuario_perfil'] === 'admin';
+}
+
+function colunaFotoPerfilDisponivel(bool $recalcular = false): bool {
+    global $pdo;
+    static $disponivel = null;
+    if ($recalcular) {
+        $disponivel = null;
+    }
+    if ($disponivel !== null) {
+        return $disponivel;
+    }
+    try {
+        $pdo->query("SELECT foto_perfil FROM usuarios LIMIT 0");
+        $disponivel = true;
+    } catch (Throwable $e) {
+        $disponivel = false;
+    }
+    return $disponivel;
+}
+
+function garantirColunaFotoPerfil(): void {
+    global $pdo;
+    if (colunaFotoPerfilDisponivel()) {
+        return;
+    }
+    try {
+        $pdo->exec("ALTER TABLE usuarios ADD COLUMN foto_perfil VARCHAR(255) DEFAULT NULL");
+    } catch (Throwable $e) {
+        error_log('[foto_perfil] ' . $e->getMessage());
+    }
+    colunaFotoPerfilDisponivel(true);
+}
+
+function nomeArquivoFotoPerfil(string $arquivo): string {
+    $arquivo = basename($arquivo);
+    return preg_match('/^[a-zA-Z0-9._-]+$/', $arquivo) ? $arquivo : '';
+}
+
+function buscarCaminhoFotoPerfil(int $id): string {
+    global $pdo;
+    if ($id <= 0 || !colunaFotoPerfilDisponivel()) {
+        return '';
+    }
+    try {
+        $stmt = $pdo->prepare("SELECT foto_perfil FROM usuarios WHERE id = ?");
+        $stmt->execute([$id]);
+        return nomeArquivoFotoPerfil((string) $stmt->fetchColumn());
+    } catch (Throwable $e) {
+        return '';
+    }
+}
+
+function fotoPerfilDaSessao(): string {
+    if (!usuarioLogado()) {
+        return '';
+    }
+    if (!array_key_exists('usuario_foto', $_SESSION)) {
+        $_SESSION['usuario_foto'] = buscarCaminhoFotoPerfil((int) $_SESSION['usuario_id']);
+    }
+    return nomeArquivoFotoPerfil((string) $_SESSION['usuario_foto']);
+}
+
+function urlFotoPerfil(string $arquivo, string $caminho_base = ''): string {
+    $arquivo = nomeArquivoFotoPerfil($arquivo);
+    if ($arquivo === '') {
+        return '';
+    }
+    $url = $caminho_base . 'uploads/perfis/' . rawurlencode($arquivo);
+    $disco = __DIR__ . '/../uploads/perfis/' . $arquivo;
+    if (is_file($disco)) {
+        $url .= '?v=' . filemtime($disco);
+    }
+    return $url;
+}
+
+function htmlAvatarUsuario(string $iniciais, string $foto, string $classe, string $caminho_base = ''): string {
+    $url = urlFotoPerfil($foto, $caminho_base);
+    if ($url !== '') {
+        return '<span class="' . htmlspecialchars($classe) . '"><img src="' . htmlspecialchars($url) . '" alt=""></span>';
+    }
+    return '<span class="' . htmlspecialchars($classe) . '">' . htmlspecialchars($iniciais) . '</span>';
+}
+
+function salvarFotoPerfil(int $id, array $arquivo): array {
+    global $pdo;
+    garantirColunaFotoPerfil();
+    if (!colunaFotoPerfilDisponivel()) {
+        return ['sucesso' => false, 'erro' => 'Não foi possível preparar o perfil para a foto.'];
+    }
+
+    if (($arquivo['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || empty($arquivo['tmp_name'])) {
+        return ['sucesso' => false, 'erro' => 'Nenhuma imagem enviada.'];
+    }
+    $tamanho = (int) ($arquivo['size'] ?? 0);
+    if ($tamanho <= 0 || $tamanho > 2 * 1024 * 1024) {
+        return ['sucesso' => false, 'erro' => 'A foto deve ter no máximo 2 MB.'];
+    }
+
+    $info = @getimagesize($arquivo['tmp_name']);
+    $tipos = [IMAGETYPE_JPEG => 'jpg', IMAGETYPE_PNG => 'png', IMAGETYPE_WEBP => 'webp'];
+    $extensao = $tipos[$info[2] ?? 0] ?? '';
+    if ($extensao === '') {
+        return ['sucesso' => false, 'erro' => 'Use uma imagem JPG, PNG ou WebP.'];
+    }
+
+    $diretorio = __DIR__ . '/../uploads/perfis';
+    if (!is_dir($diretorio) && !mkdir($diretorio, 0755, true) && !is_dir($diretorio)) {
+        return ['sucesso' => false, 'erro' => 'Não foi possível salvar a foto.'];
+    }
+
+    $nome = 'perfil_' . $id . '_' . time() . '.' . $extensao;
+    $destino = $diretorio . '/' . $nome;
+    if (!move_uploaded_file($arquivo['tmp_name'], $destino)) {
+        return ['sucesso' => false, 'erro' => 'Não foi possível salvar a foto.'];
+    }
+
+    $anterior = buscarCaminhoFotoPerfil($id);
+    try {
+        $stmt = $pdo->prepare("UPDATE usuarios SET foto_perfil = ? WHERE id = ?");
+        $stmt->execute([$nome, $id]);
+    } catch (Throwable $e) {
+        @unlink($destino);
+        error_log('[foto_perfil] ' . $e->getMessage());
+        return ['sucesso' => false, 'erro' => 'Não foi possível salvar a foto.'];
+    }
+
+    if ($anterior !== '' && $anterior !== $nome) {
+        $velha = $diretorio . '/' . $anterior;
+        if (is_file($velha)) {
+            @unlink($velha);
+        }
+    }
+    if (isset($_SESSION['usuario_id']) && (int) $_SESSION['usuario_id'] === $id) {
+        $_SESSION['usuario_foto'] = $nome;
+    }
+    return ['sucesso' => true];
+}
+
+function removerFotoPerfil(int $id): array {
+    global $pdo;
+    if (!colunaFotoPerfilDisponivel()) {
+        return ['sucesso' => true];
+    }
+    $anterior = buscarCaminhoFotoPerfil($id);
+    try {
+        $stmt = $pdo->prepare("UPDATE usuarios SET foto_perfil = NULL WHERE id = ?");
+        $stmt->execute([$id]);
+    } catch (Throwable $e) {
+        error_log('[foto_perfil] ' . $e->getMessage());
+        return ['sucesso' => false, 'erro' => 'Não foi possível remover a foto.'];
+    }
+    if ($anterior !== '') {
+        $velha = __DIR__ . '/../uploads/perfis/' . $anterior;
+        if (is_file($velha)) {
+            @unlink($velha);
+        }
+    }
+    if (isset($_SESSION['usuario_id']) && (int) $_SESSION['usuario_id'] === $id) {
+        $_SESSION['usuario_foto'] = '';
+    }
+    return ['sucesso' => true];
 }
 
 function verificarAdmin(): void {

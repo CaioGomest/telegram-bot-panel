@@ -605,6 +605,11 @@ try {
         echo "Coluna 'apelido_publico' adicionada em 'usuarios'.<br>";
     } catch (PDOException $e) {}
 
+    try {
+        $pdo->exec("ALTER TABLE usuarios ADD COLUMN foto_perfil VARCHAR(255) DEFAULT NULL AFTER apelido_publico");
+        echo "Coluna 'foto_perfil' adicionada em 'usuarios'.<br>";
+    } catch (PDOException $e) {}
+
     // Login com Google: guarda o "sub" (ID único e permanente do Google pra aquela conta) e
     // usa pra achar o usuário depois -- e-mail sozinho não serve como chave de identidade
     // permanente porque a pessoa pode trocar o e-mail da conta Google. NULL pra quem nunca

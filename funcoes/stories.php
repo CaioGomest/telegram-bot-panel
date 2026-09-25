@@ -25,9 +25,12 @@ function listarBarraStories(int $usuario_id_atual): array {
         // LIMIT é um teto de segurança contra crescimento patológico (não um limite de produto) --
         // a consulta já é enxuta (metadados apenas, indexada por expira_em) e roda só em index.php.
         // apelido_publico (nunca nome real) -- mesmo critério de funcoes/ranking.php::nomeExibicaoRanking.
+        $coluna_foto = function_exists('colunaFotoPerfilDisponivel') && colunaFotoPerfilDisponivel()
+            ? 'u.foto_perfil'
+            : "'' AS foto_perfil";
         $stmt = $pdo->prepare("
             SELECT s.id, s.id_usuario, s.tipo_midia, s.arquivo, s.criado_em,
-                   u.apelido_publico,
+                   u.apelido_publico, $coluna_foto,
                    (sv.story_id IS NOT NULL) AS visto
             FROM stories s
             JOIN usuarios u ON u.id = s.id_usuario
@@ -50,9 +53,13 @@ function listarBarraStories(int $usuario_id_atual): array {
         $id_dono = (int) $linha['id_usuario'];
         if (!isset($agrupado[$id_dono])) {
             $apelido = trim((string) ($linha['apelido_publico'] ?? ''));
+            $foto = function_exists('nomeArquivoFotoPerfil')
+                ? nomeArquivoFotoPerfil((string) ($linha['foto_perfil'] ?? ''))
+                : '';
             $agrupado[$id_dono] = [
                 'id_usuario' => $id_dono,
                 'nome' => $apelido !== '' ? $apelido : ('Usuário #' . $id_dono),
+                'foto' => $foto,
                 'tem_nao_vista' => false,
                 'stories' => [],
             ];

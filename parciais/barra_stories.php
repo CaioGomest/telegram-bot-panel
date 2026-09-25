@@ -4,7 +4,7 @@
 // anotacoes/pendente/plano-recursos-sharkbot.md.
 ?>
 <div class="barra-stories-painel">
-    <div class="barra-stories" id="barra-stories">
+    <div class="barra-stories" id="barra-stories" data-usuario-id="<?php echo (int) ($_SESSION['usuario_id'] ?? 0); ?>">
         <button type="button" class="story-item story-item-criar" id="story-btn-criar">
             <span class="story-anel story-anel-criar"><span class="story-icone-mais">+</span></span>
             <span class="story-nome">Criar</span>
@@ -43,7 +43,10 @@
                 <span class="visualizador-story-nome" id="visualizador-story-nome"></span>
                 <span class="visualizador-story-tempo" id="visualizador-story-tempo"></span>
             </div>
-            <button type="button" class="visualizador-story-fechar" id="visualizador-story-fechar">&times;</button>
+            <div class="visualizador-story-acoes">
+                <button type="button" class="visualizador-story-excluir" id="visualizador-story-excluir" hidden>Excluir</button>
+                <button type="button" class="visualizador-story-fechar" id="visualizador-story-fechar">&times;</button>
+            </div>
         </div>
         <div class="visualizador-story-midia" id="visualizador-story-midia"></div>
         <button type="button" class="visualizador-story-nav visualizador-story-anterior" id="visualizador-story-anterior" aria-label="Anterior">&#8249;</button>

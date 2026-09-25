@@ -10,32 +10,39 @@ $tipo_mensagem = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verificarCsrf();
-    $nome = trim($_POST['nome'] ?? '');
-    $email = trim($_POST['email'] ?? '');
-    $apelido_publico = trim($_POST['apelido_publico'] ?? '');
-    $senha = $_POST['senha'] ?? '';
-    $confirmar_senha = $_POST['confirmar_senha'] ?? '';
-
-    if (!empty($senha) && $senha !== $confirmar_senha) {
-        $mensagem = 'As senhas não conferem.';
-        $tipo_mensagem = 'erro';
+    $acao = $_POST['acao'] ?? 'perfil';
+    if ($acao === 'foto') {
+        $resultado = salvarFotoPerfil($usuario_id, $_FILES['foto'] ?? []);
+        $mensagem = $resultado['sucesso'] ? 'Foto de perfil atualizada.' : $resultado['erro'];
+        $tipo_mensagem = $resultado['sucesso'] ? 'sucesso' : 'erro';
+    } elseif ($acao === 'remover_foto') {
+        $resultado = removerFotoPerfil($usuario_id);
+        $mensagem = $resultado['sucesso'] ? 'Foto de perfil removida.' : $resultado['erro'];
+        $tipo_mensagem = $resultado['sucesso'] ? 'sucesso' : 'erro';
     } else {
-        $resultado = atualizarPerfilUsuario($usuario_id, $nome, $email, empty($senha) ? null : $senha, $apelido_publico);
-        if ($resultado['sucesso']) {
-            $mensagem = 'Perfil atualizado com sucesso!';
-            $tipo_mensagem = 'sucesso';
-            $dados_usuario = obterDetalhesUsuario($usuario_id);
-        } else {
-            $mensagem = $resultado['erro'];
+        $nome = trim($_POST['nome'] ?? '');
+        $email = trim($_POST['email'] ?? '');
+        $apelido_publico = trim($_POST['apelido_publico'] ?? '');
+        $senha = $_POST['senha'] ?? '';
+        $confirmar_senha = $_POST['confirmar_senha'] ?? '';
+
+        if (!empty($senha) && $senha !== $confirmar_senha) {
+            $mensagem = 'As senhas não conferem.';
             $tipo_mensagem = 'erro';
-            // Manter dados antigos em caso de erro, mas talvez o user queira ver o que digitou?
-            // Por simplicidade, recarregamos do banco, o usuário terá que redigitar se errou algo (exceto senha)
-            $dados_usuario = obterDetalhesUsuario($usuario_id);
+        } else {
+            $resultado = atualizarPerfilUsuario($usuario_id, $nome, $email, empty($senha) ? null : $senha, $apelido_publico);
+            if ($resultado['sucesso']) {
+                $mensagem = 'Perfil atualizado com sucesso!';
+                $tipo_mensagem = 'sucesso';
+            } else {
+                $mensagem = $resultado['erro'];
+                $tipo_mensagem = 'erro';
+            }
         }
     }
-} else {
-    $dados_usuario = obterDetalhesUsuario($usuario_id);
 }
+
+$dados_usuario = obterDetalhesUsuario($usuario_id);
 
 if (empty($dados_usuario)) {
     // Caso raro onde o usuário da sessão não existe mais no banco
@@ -46,6 +53,8 @@ $nome_conta = trim($dados_usuario['nome'] ?? '');
 $partes_nome = preg_split('/\s+/', $nome_conta, -1, PREG_SPLIT_NO_EMPTY) ?: [];
 $iniciais_conta = mb_strtoupper(mb_substr($partes_nome[0] ?? '?', 0, 1)
     . (count($partes_nome) > 1 ? mb_substr((string) end($partes_nome), 0, 1) : ''));
+$foto_conta = fotoPerfilDaSessao();
+$url_foto_conta = urlFotoPerfil($foto_conta);
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -86,7 +95,35 @@ $iniciais_conta = mb_strtoupper(mb_substr($partes_nome[0] ?? '?', 0, 1)
                 <div class="grade grade-2">
                     <div class="painel">
                         <div class="painel-cabecalho"><h2>Dados pessoais</h2></div>
-                        <div class="conta-avatar"><?php echo htmlspecialchars($iniciais_conta); ?></div>
+                        <div class="conta-foto">
+                            <form method="POST" enctype="multipart/form-data" id="form-foto-perfil">
+                                <?php echo campoCsrf(); ?>
+                                <input type="hidden" name="acao" value="foto">
+                                <label class="conta-avatar" title="Trocar foto">
+                                    <?php if ($url_foto_conta !== ''): ?>
+                                        <img src="<?php echo htmlspecialchars($url_foto_conta); ?>" alt="">
+                                    <?php else: ?>
+                                        <?php echo htmlspecialchars($iniciais_conta); ?>
+                                    <?php endif; ?>
+                                    <input type="file" name="foto" accept="image/jpeg,image/png,image/webp" hidden>
+                                </label>
+                            </form>
+                            <div>
+                                <div class="conta-foto-acoes">
+                                    <button type="button" class="botao" id="btn-trocar-foto">Trocar foto</button>
+                                    <?php if ($url_foto_conta !== ''): ?>
+                                        <button type="submit" class="botao" form="form-remover-foto">Remover</button>
+                                    <?php endif; ?>
+                                </div>
+                                <span class="texto-ajuda">JPG, PNG ou WebP. Máximo 2 MB.</span>
+                            </div>
+                        </div>
+                        <?php if ($url_foto_conta !== ''): ?>
+                            <form method="POST" id="form-remover-foto" hidden>
+                                <?php echo campoCsrf(); ?>
+                                <input type="hidden" name="acao" value="remover_foto">
+                            </form>
+                        <?php endif; ?>
                         <div class="grade grade-compacta">
                             <div class="campo">
                                 <label for="nome">Nome completo</label>
@@ -145,5 +182,17 @@ $iniciais_conta = mb_strtoupper(mb_substr($partes_nome[0] ?? '?', 0, 1)
 </div>
 
 <script src="assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/tema.js'); ?>"></script>
+<script>
+(function () {
+    var form = document.getElementById('form-foto-perfil');
+    var input = form ? form.querySelector('input[type="file"]') : null;
+    var botao = document.getElementById('btn-trocar-foto');
+    if (!form || !input) return;
+    if (botao) botao.addEventListener('click', function () { input.click(); });
+    input.addEventListener('change', function () {
+        if (input.files && input.files.length) form.submit();
+    });
+})();
+</script>
 </body>
 </html>
