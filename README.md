@@ -51,11 +51,10 @@ Painel administrativo em PHP para gerenciar bots de venda no Telegram: fluxos de
 - Rastreamento de leads e links de campanha (Facebook, TikTok, UTMify)
 - Painel admin com relatório de transações e status de split
 
-## Instalação (dev local)
+## Instalação
 
-1. Configure `config.php` com as credenciais do banco local.
-2. Rode `instalacao.php` para criar o schema inicial, ou `seeds/popular_banco.php` / `admin/atualiza_banco.php` conforme o caso.
-3. Sirva a pasta com PHP embutido ou Apache/Nginx apontando para a raiz do projeto.
+Ver [INSTALACAO.md](INSTALACAO.md) — passo a passo completo (requisitos, rodar
+`instalacao.php`, primeiro login, gateway de pagamento, cron jobs).
 
 ## Hospedagem
 
