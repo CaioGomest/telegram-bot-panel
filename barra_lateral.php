@@ -38,24 +38,29 @@ function iconeNav(string $d, string $viewBox = '0 0 24 24'): string
     return '<svg width="17" height="17" viewBox="' . $viewBox . '" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="' . $d . '"></path></svg>';
 }
 
+// Sincronizado com icons novos telegram/design_handoff_coyote_bot_panel/icons.js (2026-09-24) --
+// mesmas chaves de sempre, paths corrigidos pro traço oficial do design.
 $icones = [
-    'dashboard' => 'M4 13h6V4H4zM14 20h6V11h-6zM4 20h6v-4H4zM14 8h6V4h-6z',
-    'bots' => 'M12 3v3M7 9h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2zM9 14h.01M15 14h.01',
-    'fluxos' => 'M6 4v6a4 4 0 0 0 4 4h8M18 10l3 4-3 4',
-    'leads' => 'M16 19v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9.5 8.5a3 3 0 1 0 0-.1zM19 19v-2a4 4 0 0 0-3-3.8',
-    'ranking' => 'M8 4h8v4a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 3M16 6h3a3 3 0 0 1-3 3M10 12v3h4v-3M8 20h8M12 15v5',
-    'gateways' => 'M3 7h18v11H3zM3 11h18',
-    'conta' => 'M12 15a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM19.4 15a7.5 7.5 0 0 0 .1-1l1.8-1.3-1.9-3.3-2.1.8a7.5 7.5 0 0 0-1.7-1L15.3 6h-3.8l-.3 2.2a7.5 7.5 0 0 0-1.7 1l-2.1-.8-1.9 3.3L7.3 14a7.5 7.5 0 0 0 0 2l-1.8 1.3 1.9 3.3 2.1-.8',
-    'visao_geral' => 'M3 3v18h18M7 15l4-5 3 3 4-6',
-    'transacoes' => 'M4 7h16l-3-3M20 17H4l3 3',
-    'logs' => 'M8 4h9l3 3v13H8zM5 8v12h3M11 12h5M11 16h5',
-    'remarketing' => 'M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M8.5 7a4 4 0 1 0 0 8M17 11l2 2 4-4',
+    'dashboard' => 'M3 3h7v9H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 16h7v5H3z',
+    'bots' => 'M12 8V4H8M6 8h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2zM2 14h2M20 14h2M15 13v2M9 13v2',
+    'fluxos' => 'M3 3h6v6H3zM15 15h6v6h-6zM6 9v3a3 3 0 0 0 3 3h6',
+    'leads' => 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
+    'ranking' => 'M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22M18 2H6v7a6 6 0 0 0 12 0V2z',
+    'gateways' => 'M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM2 10h20',
+    'conta' => 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',
+    'visao_geral' => 'M3 3v18h18M7 14l4-4 4 4 5-5',
+    'transacoes' => 'M8 3L4 7l4 4M4 7h16M16 21l4-4-4-4M20 17H4',
+    'logs' => 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8',
+    'remarketing' => 'M3 11l18-5v12L3 14v-3zM11.6 16.8a3 3 0 1 1-5.8-1.6',
     'traqueamento' => 'M22 12h-4l-3 9L9 3l-3 9H2',
     'links' => 'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71',
-    'comunidade' => 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
-    'webhooks' => 'M4.5 16.5a11 11 0 0 1 15 0M7.5 13.5a6.5 6.5 0 0 1 9 0M12 10.5h.01',
-    'usuarios' => 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
-    'identidade' => 'M3 5h18v14H3zM3 16l5-5 4 4 3-3 6 6M8.5 9.5a1 1 0 1 0 0-.1z',
+    'comunidade' => 'M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z',
+    'webhooks' => 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
+    'usuarios' => 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM16 11l2 2 4-4',
+    'campanhas' => 'M4 22V4a1 1 0 0 1 1-1h13l-2 5 2 5H5',
+    'identidade' => 'M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+    'atualizar_banco' => 'M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5',
+    'consultar_venda' => 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3',
     'debug' => 'M12 8v8M8 12h8M4 4h16v16H4z',
     'sair' => 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
 ];
@@ -82,15 +87,15 @@ if ($is_admin) {
     $grupo_admin[] = ['href' => 'admin/transacoes', 'label' => 'Transações', 'icone' => 'transacoes'];
     $grupo_admin[] = ['href' => 'admin/logs', 'label' => 'Logs', 'icone' => 'logs'];
     $grupo_admin[] = ['href' => 'admin/usuarios', 'label' => 'Usuários', 'icone' => 'usuarios'];
-    $grupo_admin[] = ['href' => 'admin/ranking', 'label' => 'Campanhas de Ranking', 'icone' => 'ranking'];
+    $grupo_admin[] = ['href' => 'admin/ranking', 'label' => 'Campanhas de Ranking', 'icone' => 'campanhas'];
     $grupo_admin[] = ['href' => 'admin/comunidade', 'label' => 'Comunidade', 'icone' => 'comunidade'];
     $grupo_admin[] = ['href' => 'admin/configuracoes', 'label' => 'Configurações', 'icone' => 'identidade'];
 }
 
 $grupo_debug = [];
 if ($is_admin) {
-    $grupo_debug[] = ['href' => 'admin/atualiza_banco', 'label' => 'Atualizar Banco'];
-    $grupo_debug[] = ['href' => 'admin/consultar_venda', 'label' => 'Consultar Venda'];
+    $grupo_debug[] = ['href' => 'admin/atualiza_banco', 'label' => 'Atualizar Banco', 'icone' => 'atualizar_banco'];
+    $grupo_debug[] = ['href' => 'admin/consultar_venda', 'label' => 'Consultar Venda', 'icone' => 'consultar_venda'];
 }
 
 function renderizarItemNav(array $item, string $pagina_atual, array $icones, string $caminho_base): void
