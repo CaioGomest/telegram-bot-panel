@@ -1,6 +1,21 @@
 # Teste de estresse — 25/09/2026
 
-Objetivo: saber quanto o sistema aguenta, pra ajudar na decisão de ir pra uma VPS da
+## 🎯 Resposta direta: quantas vendas/dia aguenta
+
+| | Hoje (compartilhado) | Numa VPS |
+|---|---|---|
+| **Sustentável por anos, sem se preocupar** | **~1.000 vendas/dia** | **~64.800 vendas/dia** |
+| Pico de 1 dia isolado (não sustentado) | Dezenas de milhares — concorrência aguenta, só some cota mais rápido | Mesma coisa, com muito mais folga |
+| O que trava | Cota de banco de 3 GB (fixa, não escala) | Crons que rodam item-por-item, sequencial (código, não infra — ver Seção 3 pra detalhe) |
+| Pra ir além disso | Trocar de plano/VPS | Implementar a paralelização de crons já mapeada em `anotacoes/urgente/HISTORICO-URGENTE-CONSOLIDADO.md` |
+
+Contas completas nas seções abaixo. Concorrência de requisição (quanta gente acessando
+ao mesmo tempo) **não é o gargalo em nenhum dos dois cenários** — testado até 60
+simultâneas sem degradar nada.
+
+---
+
+Objetivo original deste documento: saber quanto o sistema aguenta, pra ajudar na decisão de ir pra uma VPS da
 Hostinger. Testado contra o ambiente atual (hospedagem **compartilhada** Hostinger,
 `telegram.stackcode.com.br`) — os números de tempo de resposta tendem a ficar iguais ou
 melhores numa VPS (CPU/RAM dedicados, sem vizinhos disputando recurso); o que muda de
@@ -62,22 +77,52 @@ Startup vai a 6 GB, e só VPS/Cloudways tira o teto de vez). Isso já **estourou
 verdade uma vez** (18/09), derrubando a escrita do banco por horas.
 
 Com o custo medido por venda (~2,9 KB, contando a venda + ~5 leads que não converteram +
-log de atividade), a cota de 3 GB aguenta:
+log de atividade), os **~2.382 MB livres de hoje** (banco em 690 MB de 3.072 MB, 22,5%
+usado) aguentam **~841.000 vendas** antes de estourar a cota de novo:
 
 | Vendas/dia | Enche em |
 |---|---|
-| 1.000 | ~2 anos |
-| 5.000 | ~5 meses |
-| 10.000 | ~2 meses |
-| 30.000 | ~3 semanas |
-
-Banco hoje está em **690 MB de 3.072 MB** (22,5% usado, ~2,4 GB de folga).
+| 500 | ~4.600 dias (~12,6 anos) |
+| 1.000 | ~841 dias (~2,3 anos) |
+| 5.000 | ~168 dias (~5,5 meses) |
+| 10.000 | ~84 dias (~2,8 meses) |
+| 30.000 | ~28 dias (~4 semanas) |
 
 **Isso é exatamente o que uma VPS resolve.** CPU/concorrência (Seção 2) já está bem,
 sobrando, mesmo na hospedagem compartilhada atual. O que trava o crescimento real não é
 "quantos usuários simultâneos aguenta", é "quantos GB de venda histórica cabem" — e isso
 é só disco, que numa VPS você dimensiona do tamanho que quiser (100 GB, 500 GB, o que
 for), sem teto arbitrário de plano.
+
+## 3.1 Numa VPS, o teto muda de lugar: vai pro processamento em segundo plano
+
+Com o disco resolvido (VPS de 100 GB aguentaria ~36 milhões de vendas de espaço — não é
+mais um fator prático), o próximo teto real não é mais a hospedagem, **é o próprio
+código**: os crons que removem acesso vencido, avisam de vencimento e processam PIX
+pendente rodam **um item de cada vez** (sequencial), não em paralelo. Isso já estava
+medido e documentado em `anotacoes/urgente/HISTORICO-URGENTE-CONSOLIDADO.md` (item 1 das
+"4 mudanças pro motor escalar"): ~40-50 remoções de acesso por minuto.
+
+```
+45/min × 60 min × 24h = 64.800 processamentos por dia (teto do cron, no código de hoje)
+```
+
+Isso não é literalmente "64.800 vendas/dia" — é "64.800 remoções/avisos de acesso por
+dia". Mas como a maioria dos planos é assinatura (acesso expira e some dessa fila
+depois de ~30 dias), em regime permanente o volume de "vencimentos por dia" tende a
+acompanhar o volume de "vendas novas por dia" — então esse número vira, na prática, o
+teto de vendas/dia sustentável **a longo prazo**, mesmo numa VPS gigante, **enquanto o
+código dos crons não for paralelizado**. O próprio projeto já tem o padrão certo pra
+copiar (`cron_remarketing.php` já usa `curl_multi` + processamento paralelo) — é
+replicar esse padrão nos outros crons, não reescrever do zero.
+
+**Não incluído nesta conta:** o tempo de chamada externa pro gateway de pagamento
+(OmegaPayments) ao gerar cada PIX. Não testei isso sob carga de propósito — bombardear a
+API real de um gateway de pagamento de verdade com tráfego sintético não é algo que eu
+devo fazer sem necessidade (risco de gerar cobrança de verdade, disparar antifraude do
+gateway, ou violar os termos de uso deles). Pela concorrência que o servidor já mostrou
+aguentar (60+ simultâneas só no processamento local), não parece que isso vá ser o
+gargalo — mas é a peça que ficou sem medir de verdade.
 
 ## 4. Recomendação de VPS
 
