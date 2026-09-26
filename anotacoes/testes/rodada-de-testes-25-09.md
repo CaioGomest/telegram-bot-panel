@@ -293,7 +293,7 @@ API interna). Tudo apagado no fim.
   Telegram) e conferi a entrega real no endpoint de captura. **Chegou**, em tempo real,
   com o evento certo (`user_joined`) e os dados do bot/lead certos.
 
-### 🔴 Achado real — webhook de saída manda `customer.username` sempre vazio
+### ✅ CORRIGIDO — webhook de saída manda `customer.username` sempre vazio
 
 **Onde:** `funcoes/webhooks.php` (linhas 325-326, monta o payload) e `webhook.php`
 (linha 952, cria o lead).
@@ -320,6 +320,13 @@ recebe o registro do lead sem o `@username` do Telegram — que na prática é o
 `telegram_id` numérico sozinho não abre chat em lugar nenhum). Pra corrigir de verdade
 precisaria de uma coluna nova em `leads` (ex. `nome_usuario_telegram`) + salvar ela no
 INSERT do `/start` + usar ela no payload — não é 1 linha, mas também não é grande.
+
+**Status: corrigido, migração rodada e no ar.** Coluna `leads.nome_usuario_telegram`
+criada, `webhook.php` passou a capturar no `/start` (lead novo grava direto; lead que já
+existia atualiza se o username mudou ou nunca tinha sido capturado). Reconfirmado ao
+vivo com um bot/webhook de teste novo: `/start` simulado com `username: "novo_cliente_ok"`
+→ payload chegou no endpoint de captura com `"username":"novo_cliente_ok"` (antes vinha
+sempre `null`). Dados de teste já apagados.
 
 ### 🟡 Nota — falta a "faixa de totais" do admin/transações
 
