@@ -103,10 +103,11 @@ function googleTrocarCodigoPorToken(string $code): ?array
     curl_setopt($ch, CURLOPT_TIMEOUT, 10);
     $resposta = curl_exec($ch);
     $codigo_http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $erro_curl = curl_error($ch);
     curl_close($ch);
 
     if ($resposta === false || $codigo_http !== 200) {
-        error_log('[google_auth] falha ao trocar code por token (http=' . $codigo_http . '): ' . ($resposta ?: curl_error($ch)));
+        error_log('[google_auth] falha ao trocar code por token (http=' . $codigo_http . '): ' . ($resposta ?: $erro_curl));
         return null;
     }
     $dados = json_decode($resposta, true);
