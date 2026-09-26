@@ -23,6 +23,51 @@ Legenda (mesmo padrão de `mapa-de-testes-por-topico.md`):
 
 ## 🔴 Achados (por prioridade)
 
+### 0. GRAVE — XSS armazenado em `admin/usuarios.php` via nome de exibição (qualquer usuário compromete a sessão do admin)
+
+**Onde:** `admin/usuarios.php`, linhas 84-85.
+
+**Reproduzido de verdade:** criei uma conta de teste via autocadastro (o próprio
+`cadastro.php`, aberto pra qualquer visitante) com o nome
+`X');alert(document.cookie);//`. Sem fazer mais nada, só abri `admin/usuarios.php`
+logado como admin — o payload executa. Confirmado no HTML devolvido pelo servidor:
+
+```html
+<button ... onclick="abrirModalEditar(16, 'X&#039;);alert(document.cookie);//', '...', 'usuario')" ...>
+```
+
+**Causa raiz:** o código é `addslashes(htmlspecialchars($u['nome']))` — nessa ordem.
+`htmlspecialchars()` roda primeiro e já transforma o `'` em `&#039;`; quando
+`addslashes()` roda depois, não sobra nenhuma aspas de verdade pra ele escapar (é um
+no-op ali). O navegador, ao interpretar o atributo `onclick="..."`, decodifica
+`&#039;` de volta pra `'` **antes** de entregar o conteúdo pro motor de JavaScript —
+essa aspas decodificada fecha a string do JS mais cedo do que devia, e o que vem depois
+vira código JavaScript de verdade (o `//` no fim vira comentário, escondendo o resto do
+`onclick` original). `addslashes(htmlspecialchars(x))` protege HTML; não protege JS
+dentro de atributo HTML — a ordem certa seria escapar pra JS primeiro (ou nem usar
+`onclick` inline com dado de usuário, e sim `data-*` + `addEventListener`).
+
+**Impacto:** **qualquer pessoa** consegue criar uma conta (autocadastro está aberto,
+sem aprovação) com um nome desse tipo — sem precisar de nenhum privilégio — e o
+JavaScript dela roda **na sessão do admin** assim que ele abrir a tela de usuários pra
+gerenciar qualquer conta (rotina normal do admin). O cookie de sessão tem `HttpOnly`
+(confirmado na Rodada 2), então `document.cookie` sozinho não vaza o PHPSESSID — mas
+isso não limita o estrago: o script malicioso roda dentro da página já autenticada como
+admin, então ele pode fazer qualquer chamada que o admin conseguiria fazer (`fetch()`
+com `window.CSRF_TOKEN`, que também está acessível via JS) — criar outro admin, mudar
+qualquer configuração, apagar dado, etc., tudo silenciosamente, sem precisar roubar
+cookie nenhum.
+
+**Mesmo padrão, mesma linha, no campo e-mail** (linha 84) — na prática menos explorável
+porque `criarUsuario()` valida formato de e-mail antes de salvar, então dificilmente dá
+pra colocar aspas ali. O nome não tem essa restrição.
+
+**Escopo do problema:** só encontrei esse padrão exato (`addslashes(htmlspecialchars(`)
+nessas 2 linhas — não é um problema espalhado pelo projeto, é pontual.
+
+**Conta de teste já apagada.** Nenhum dano real foi causado (o `alert()` só mostra uma
+caixinha; não fiz nada além de confirmar que o JS roda).
+
 ### 1. Erro de token de bot aparece em inglês ("Unauthorized") em vez de português
 
 **Onde:** `api.php`, ações `testar_bot` (linha ~506) e `salvar_bot` (linha ~523).
@@ -180,6 +225,28 @@ teste junto). Nenhum dado de usuário real foi tocado.
 - `ajax/editar_usuario.php` (admin editando outro usuário) — não tentei escalonar
   privilégio nem trocar `perfil` de forma indevida.
 - Reuso/expiração de token CSRF entre sessões.
+
+---
+
+## Rodada 3 — continuando (mesmo dia)
+
+Foco: XSS em mais pontos onde nome/texto de usuário é ecoado, principalmente em telas
+que o **admin** vê (maior impacto), e o começo de testar abuso de regra de negócio.
+
+### 🔴 Achado grave — ver seção "0" no topo do documento
+
+Testando exatamente esse ponto (nome de usuário ecoado em `admin/usuarios.php`) achei o
+XSS armazenado documentado na seção 0 — subi pro topo do arquivo por ser o achado mais
+sério desta rodada toda (compromete sessão de admin, sem precisar de privilégio nenhum).
+
+### ❓ Ainda não testado (continua pra próxima rodada, se pedir)
+
+- Abuso de regra de negócio (valor de plano negativo, split acima de 100%, datas de
+  campanha invertidas).
+- Rate limit da recuperação de senha.
+- Escalonamento de privilégio via `ajax/editar_usuario.php`.
+- Outros pontos de eco de nome/texto de usuário fora de `admin/usuarios.php` (ex.: se
+  algum outro lugar do admin também usa nome do usuário dentro de `onclick=`).
 
 ## Notas relacionadas
 
