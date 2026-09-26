@@ -938,19 +938,23 @@ if ($texto === '/start') {
         $is_novo_lead = false;
         $stmt_lead = $pdo->prepare("SELECT id FROM leads WHERE id_telegram = ? AND bot_id = ?");
         $stmt_lead->execute([$id_chat, $bot['id']]);
+        // /start pode chegar como mensagem de texto OU clique num botão (callback_query,
+        // ex: botão "Recomeçar" do aviso de renovação) — o campo "from" mora em lugares diferentes.
+        $dados_remetente = $atualizacao['message']['from'] ?? $atualizacao['callback_query']['from'] ?? [];
+        // Username do Telegram é opcional (pessoa pode nao ter) -- fica NULL nesse caso,
+        // nao string vazia, pra distinguir "nunca capturado" de "sabidamente sem username".
+        $username_remetente = trim((string) ($dados_remetente['username'] ?? ''));
+        $username_remetente = $username_remetente !== '' ? $username_remetente : null;
         if (!$stmt_lead->fetch()) {
             $is_novo_lead = true;
-            // /start pode chegar como mensagem de texto OU clique num botão (callback_query,
-            // ex: botão "Recomeçar" do aviso de renovação) — o campo "from" mora em lugares diferentes.
-            $dados_remetente = $atualizacao['message']['from'] ?? $atualizacao['callback_query']['from'] ?? [];
             $nome_usuario = trim(($dados_remetente['first_name'] ?? '') . ' ' . ($dados_remetente['last_name'] ?? ''));
             if ($nome_usuario === '') $nome_usuario = 'Usuário ' . $id_chat;
             $data_criacao = date('Y-m-d H:i:s');
             // origem_rastreio guarda de qual link o lead veio. Antes o $start_param so
             // incrementava contador e era descartado -- sem ele nao da pra dizer depois
             // qual campanha gerou a venda.
-            $stmt_insert_lead = $pdo->prepare("INSERT INTO leads (id_telegram, nome, origem_rastreio, bot_id, criado_em) VALUES (?, ?, ?, ?, ?)");
-            $stmt_insert_lead->execute([$id_chat, $nome_usuario, $start_param ?: null, $bot['id'], $data_criacao]);
+            $stmt_insert_lead = $pdo->prepare("INSERT INTO leads (id_telegram, nome, nome_usuario_telegram, origem_rastreio, bot_id, criado_em) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt_insert_lead->execute([$id_chat, $nome_usuario, $username_remetente, $start_param ?: null, $bot['id'], $data_criacao]);
             $id_lead_novo = (int) $pdo->lastInsertId();
             $stmt_insert_ativ = $pdo->prepare("INSERT INTO atividades (id_usuario, tipo, titulo, descricao, icone, criado_em) VALUES (?, ?, ?, ?, ?, ?)");
             $stmt_insert_ativ->execute([$bot['id_usuario'], 'lead', 'Novo Lead', $nome_usuario . ' iniciou conversa', 'user', $data_criacao]);
@@ -959,6 +963,12 @@ if ($texto === '/start') {
                 'id_telegram' => (string) $id_chat,
                 'lead_id' => $id_lead_novo,
             ]);
+        } elseif ($username_remetente !== null) {
+            // Lead que já existia: mantém o @username em dia (pode ter sido capturado
+            // como NULL antes desta coluna existir, ou a pessoa pode ter trocado de
+            // username desde o primeiro /start).
+            $pdo->prepare("UPDATE leads SET nome_usuario_telegram = ? WHERE id_telegram = ? AND bot_id = ? AND (nome_usuario_telegram IS NULL OR nome_usuario_telegram != ?)")
+                ->execute([$username_remetente, $id_chat, $bot['id'], $username_remetente]);
         }
         // Se veio de um link de rastreamento, incrementa starts (sempre) e leads (só se for novo lead)
         if ($start_param) {

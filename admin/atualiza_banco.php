@@ -101,6 +101,12 @@ try {
     ";
     $pdo->exec($sql_leads);
     try { $pdo->exec("ALTER TABLE leads ADD COLUMN telefone VARCHAR(30) DEFAULT NULL AFTER nome"); } catch (PDOException $e) {}
+    // Telegram manda o @username em todo /start (message.from.username), mas até aqui
+    // nunca era salvo em lugar nenhum -- webhook de saída sempre mandava customer.username
+    // = null pra quem integra (achado em rodada de teste, ver
+    // anotacoes/testes/rodada-de-testes-25-09.md). Username do Telegram tem no máximo
+    // 32 caracteres.
+    try { $pdo->exec("ALTER TABLE leads ADD COLUMN nome_usuario_telegram VARCHAR(32) DEFAULT NULL AFTER telefone"); } catch (PDOException $e) {}
     echo "Tabela 'leads' OK.<br>";
 
 

@@ -288,12 +288,12 @@ function montarPayloadWebhook(PDO $pdo, string $evento, array $contexto): ?array
 
     $lead = null;
     if (!empty($contexto['lead_id'])) {
-        $stmt = $pdo->prepare('SELECT id, id_telegram, nome, telefone, origem_rastreio, criado_em FROM leads WHERE id = ? AND bot_id = ? LIMIT 1');
+        $stmt = $pdo->prepare('SELECT id, id_telegram, nome, telefone, nome_usuario_telegram, origem_rastreio, criado_em FROM leads WHERE id = ? AND bot_id = ? LIMIT 1');
         $stmt->execute([(int) $contexto['lead_id'], $bot_id]);
         $lead = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
     if (!$lead && $id_telegram !== '') {
-        $stmt = $pdo->prepare('SELECT id, id_telegram, nome, telefone, origem_rastreio, criado_em FROM leads WHERE id_telegram = ? AND bot_id = ? LIMIT 1');
+        $stmt = $pdo->prepare('SELECT id, id_telegram, nome, telefone, nome_usuario_telegram, origem_rastreio, criado_em FROM leads WHERE id_telegram = ? AND bot_id = ? LIMIT 1');
         $stmt->execute([$id_telegram, $bot_id]);
         $lead = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
@@ -310,6 +310,7 @@ function montarPayloadWebhook(PDO $pdo, string $evento, array $contexto): ?array
     $origem = $origem !== '' ? $origem : null;
     $nome_lead = trim((string) ($lead['nome'] ?? ''));
     $telefone = trim((string) ($lead['telefone'] ?? ''));
+    $username_lead = trim((string) ($lead['nome_usuario_telegram'] ?? ''));
     $nome_bot = trim((string) ($bot['primeiro_nome'] ?? ''));
     if ($nome_bot === '') {
         $nome_bot = trim((string) ($bot['nome_usuario'] ?? ''));
@@ -323,7 +324,7 @@ function montarPayloadWebhook(PDO $pdo, string $evento, array $contexto): ?array
             'telegram_id' => $telegram !== '' ? $telegram : null,
             'first_name' => $nome_lead !== '' ? $nome_lead : null,
             'last_name' => null,
-            'username' => null,
+            'username' => $username_lead !== '' ? $username_lead : null,
             'phone' => $telefone !== '' ? $telefone : null,
             'email' => null,
             'is_vip' => $is_vip,
@@ -513,7 +514,7 @@ function exemplosPayloadWebhook(): array
             'telegram_id' => '123456789',
             'first_name' => 'Maria',
             'last_name' => null,
-            'username' => null,
+            'username' => 'maria_silva',
             'phone' => null,
             'email' => null,
             'is_vip' => false,
