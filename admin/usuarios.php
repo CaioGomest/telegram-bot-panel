@@ -81,8 +81,23 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
                                     <button class="btn-icon" onclick="abrirDetalhes(<?php echo $u['id']; ?>)" title="Ver Detalhes">
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                                     </button>
-                                    <button class="btn-icon editar" onclick="abrirModalEditar(<?php echo $u['id']; ?>, '<?php echo addslashes(htmlspecialchars($u['nome'])); ?>', '<?php echo addslashes(htmlspecialchars($u['email'])); ?>', '<?php echo $u['perfil']; ?>')" title="Editar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
-                                    <button class="btn-icon excluir" onclick="confirmarExcluir(<?php echo $u['id']; ?>, '<?php echo addslashes(htmlspecialchars($u['nome'])); ?>')" title="Excluir"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>
+                                    <?php
+                                        // json_encode() produz um literal JS com aspas e barras já escapadas
+                                        // certo pra contexto de string JS; htmlspecialchars(ENT_QUOTES) por cima
+                                        // protege o atributo onclick="..." em si. addslashes(htmlspecialchars())
+                                        // (como estava antes) NÃO protege esse caso: htmlspecialchars roda
+                                        // primeiro e já vira a aspas em &#039;, então addslashes depois não acha
+                                        // mais nenhuma aspas de verdade pra escapar -- o navegador decodifica
+                                        // &#039; de volta pra ' ao ler o atributo, antes de entregar pro motor
+                                        // JS, e essa aspas fecha a string mais cedo do que devia (achado numa
+                                        // rodada de teste: nome de usuário tipo `X');alert(1);//` rodava JS
+                                        // arbitrário na sessão do admin ao abrir esta tela).
+                                        $nome_js = htmlspecialchars(json_encode($u['nome']), ENT_QUOTES);
+                                        $email_js = htmlspecialchars(json_encode($u['email']), ENT_QUOTES);
+                                        $perfil_js = htmlspecialchars(json_encode($u['perfil']), ENT_QUOTES);
+                                    ?>
+                                    <button class="btn-icon editar" onclick="abrirModalEditar(<?php echo $u['id']; ?>, <?php echo $nome_js; ?>, <?php echo $email_js; ?>, <?php echo $perfil_js; ?>)" title="Editar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                    <button class="btn-icon excluir" onclick="confirmarExcluir(<?php echo $u['id']; ?>, <?php echo $nome_js; ?>)" title="Excluir"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>
                                 </div>
                             </td>
                         </tr>
