@@ -259,6 +259,76 @@ sério desta rodada toda (compromete sessão de admin, sem precisar de privilég
 - Outros pontos de eco de nome/texto de usuário fora de `admin/usuarios.php` (ex.: se
   algum outro lugar do admin também usa nome do usuário dentro de `onclick=`).
 
+---
+
+## Rodada 4 — jornada real de usuário (dado de verdade, não só "não quebrou")
+
+As rodadas anteriores testaram muita coisa pontual (segurança, casos-limite). O pedido
+aqui foi diferente: **coisas grandes que um usuário de verdade encontra** — filtro que
+não filtra, página quebrada, integração que não manda o dado certo. Pra isso, criei uma
+conta de teste com **dado real de verdade** (não só conta vazia): um bot de teste, 30
+leads espalhados em datas diferentes, 8 vendas pagas e 3 pendentes — e simulei uma
+mensagem `/start` de verdade chegando pelo Telegram (webhook.php de verdade, não só a
+API interna). Tudo apagado no fim.
+
+### ✅ Verificado funcionando de verdade (não só "não deu erro")
+
+- **Busca de leads:** procurei por um nome específico entre os 30 — achou exatamente os
+  3 leads certos, nenhum a mais.
+- **Filtro de status pago/não pago:** `status=pago` trouxe exatamente as 8 vendas que
+  marquei como pagas; `status=nao_pago` trouxe exatamente as outras 22 leads, sem
+  misturar.
+- **Paginação de leads:** 30 leads, 25 por página — página 1 trouxe 25, página 2 trouxe
+  os 5 restantes, certinho.
+- **Exportação CSV:** as 30 linhas exportadas batem exatamente com os dados inseridos.
+- **Filtros do admin/transações:** status, busca por TXID e intervalo de data —
+  testei os três contra os dados reais, todos trouxeram exatamente o que deviam.
+  (Nota: o filtro de data pareceu errado numa primeira tentativa — na real era o
+  relógio da minha própria máquina de teste, 1 dia atrasado do servidor. Conferi o
+  `NOW()` real do servidor antes de concluir qualquer coisa, e o filtro estava certo o
+  tempo todo.)
+- **Webhook de saída, de ponta a ponta, de verdade:** cadastrei um webhook apontando pra
+  um endpoint de captura real (webhook.site), simulei um `/start` de um "cliente" novo
+  batendo direto no `webhook.php` (o mesmo arquivo que recebe update de verdade do
+  Telegram) e conferi a entrega real no endpoint de captura. **Chegou**, em tempo real,
+  com o evento certo (`user_joined`) e os dados do bot/lead certos.
+
+### 🔴 Achado real — webhook de saída manda `customer.username` sempre vazio
+
+**Onde:** `funcoes/webhooks.php` (linhas 325-326, monta o payload) e `webhook.php`
+(linha 952, cria o lead).
+
+**Reproduzido:** no teste acima, mandei um `/start` simulado com
+`"username": "cliente_webhook_teste"` (campo que o Telegram manda de verdade em todo
+`message.from`). O payload que chegou no endpoint de captura veio assim:
+
+```json
+"customer": {"id":7092396,"telegram_id":"8888888888","first_name":"Cliente Webhook Teste","last_name":null,"username":null,"phone":null,"email":null,"is_vip":false}
+```
+
+`username` (e `last_name`) sempre `null` — não é bug de "esqueceu de colocar no
+payload", é mais fundo: a tabela `leads` **nunca teve coluna pra isso**. O
+`INSERT INTO leads` em `webhook.php:952` só grava `id_telegram, nome,
+origem_rastreio, bot_id, criado_em` — o `username` que o Telegram manda em todo
+`/start` é descartado ali mesmo, na entrada, nunca chega a ser salvo em lugar nenhum.
+`last_name` é um pouco diferente: ele é somado dentro de `nome` (nome completo junto),
+não é bug, é simplificação de propósito.
+
+**Por que importa:** quem integra via webhook (CRM externo, automação de marketing)
+recebe o registro do lead sem o `@username` do Telegram — que na prática é o dado mais
+útil pra alguém conseguir abrir uma conversa direta com aquele lead fora do bot (o
+`telegram_id` numérico sozinho não abre chat em lugar nenhum). Pra corrigir de verdade
+precisaria de uma coluna nova em `leads` (ex. `nome_usuario_telegram`) + salvar ela no
+INSERT do `/start` + usar ela no payload — não é 1 linha, mas também não é grande.
+
+### 🟡 Nota — falta a "faixa de totais" do admin/transações
+
+O design de referência (`design_handoff_coyote_bot_panel/README.md`, seção "Admin ·
+Transações") descreve uma faixa de totais (Volume filtrado, Pagos, Expirados, Split
+pendente) acima da tabela — não encontrei isso implementado na tela hoje. Não testei
+mais fundo se é falta de implementação ou eu não encontrei; registrando pra conferir
+depois. Não é urgente (informação de resumo, não afeta os filtros em si, que funcionam).
+
 ## Notas relacionadas
 
 - `anotacoes/pendente/plano-expansao-editor-fluxo.md` — blocos novos do editor de nós.
