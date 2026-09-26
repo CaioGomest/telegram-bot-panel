@@ -123,6 +123,64 @@ todas 200, zero erro de PHP visível.
 - **Pagamento real via OmegaPayments** — já documentado como bloqueado em
   `anotacoes/pendente/pendencias-sandbox-omegapayments.md`, continua bloqueado.
 
+---
+
+## Rodada 2 — segurança (mesmo dia, sessão separada)
+
+Foco em segurança de verdade: 2 contas de teste descartáveis (A e B) pra testar acesso
+cruzado entre contas, tentativas de XSS/SQLi/upload malicioso, força bruta de login e
+controle de acesso. As duas contas foram apagadas no fim (cascata apaga os dados de
+teste junto). Nenhum dado de usuário real foi tocado.
+
+### ✅ Verificado seguro — nenhum problema novo encontrado
+
+- **IDOR em fluxos:** criei um fluxo com a conta A, tentei ler/editar/excluir/exportar
+  com a conta B (`obter_fluxo`, `salvar_fluxo`, `excluir_fluxo`, `exportar_fluxo`) — as
+  4 tentativas voltaram `"Fluxo não encontrado."` (404). Toda query já é escopada por
+  `id_usuario`, como devia ser.
+- **IDOR em bots:** `obter_bot` com ID de bot que não é da conta logada também devolve
+  "não encontrado", mesmo padrão.
+- **Upload de imagem disfarçada de outra coisa:** subi um `.php` com payload
+  (`system($_GET['c'])`) fingindo ser `.jpg` no upload de imagem do fluxo — rejeitado
+  (`"Arquivo de imagem inválido."`, 422). Conferido no código
+  (`api.php:738-757`): usa `getimagesize()` de verdade (não confia no Content-Type
+  enviado) **e** força a extensão salva pra `jpg/jpeg/png` mesmo que o nome original
+  seja outro — dois níveis de proteção, não só um.
+- **SQL Injection:** payload clássico (`' OR '1'='1`, `' UNION SELECT 1-- -`) na busca
+  de leads e no filtro de TXID do admin — sem erro de SQL vazando, sem comportamento
+  anômalo. Bate com o padrão do projeto de sempre usar PDO com prepared statements.
+- **Autenticação:** `api.php` sem nenhuma sessão devolve 401 limpo. Usuário comum
+  tentando abrir página de admin é redirecionado (`index?erro=sem_permissao`), não vê
+  nada da tela.
+- **Cookie de sessão:** `Set-Cookie` já vem com `secure; HttpOnly; SameSite=Lax`.
+- **Força bruta de login:** 6 tentativas erradas seguidas contra `admin@admin.com` —
+  bloqueou na 6ª ("Muitas tentativas"), confirmando o limite de 5 já documentado. Nota:
+  isso deixou `admin@admin.com` temporariamente bloqueado por até 15 min (efeito
+  colateral do teste, some sozinho — sessão de admin já aberta não foi afetada,
+  confirmei que continuou funcionando normalmente).
+- **Senha fraca no cadastro:** senha de 1 caractere foi rejeitada com mensagem clara.
+- **`webhook.php` com entrada hostil:** corpo vazio, JSON malformado e requisição sem
+  token na URL — nenhum dos três derruba o script; todos respondem 200 com "token
+  ausente" (correto pro Telegram não ficar reenviando pra sempre).
+- **Página "Comunidade":** ao testar achei que fosse pública (like um Linktree
+  compartilhável) e não é — sem login, `comunidade.php` redireciona pra `/login`.
+  Testando o código, isso bate com a descrição original da feature ("conteúdo
+  institucional da plataforma", pros usuários da plataforma, não pros clientes finais
+  deles) — **não é bug, era suposição errada minha**, registrando só pra não repetir a
+  dúvida depois. Admin acessando a mesma URL é corretamente redirecionado pro próprio
+  dashboard (não vê a versão pública).
+
+### ❓ Não testado nesta rodada (fica pra próxima, se quiser continuar)
+
+- XSS em outros pontos que ainda não conferi diretamente (ex.: `admin/logs.php`,
+  descrição de campanha de ranking, bio/descrição de bot no perfil do Telegram).
+- Rate limit especificamente no fluxo de recuperação de senha (só testei o de login).
+- Abuso de regra de negócio (ex.: valor de plano negativo, split acima de 100%, datas
+  de campanha invertidas) — não tentei quebrar validação numérica/lógica ainda.
+- `ajax/editar_usuario.php` (admin editando outro usuário) — não tentei escalonar
+  privilégio nem trocar `perfil` de forma indevida.
+- Reuso/expiração de token CSRF entre sessões.
+
 ## Notas relacionadas
 
 - `anotacoes/pendente/plano-expansao-editor-fluxo.md` — blocos novos do editor de nós.
