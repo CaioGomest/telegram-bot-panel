@@ -73,7 +73,7 @@ nessas 2 linhas — não é um problema espalhado pelo projeto, é pontual.
 **Conta de teste já apagada.** Nenhum dano real foi causado (o `alert()` só mostra uma
 caixinha; não fiz nada além de confirmar que o JS roda).
 
-### 1. Erro de token de bot aparece em inglês ("Unauthorized") em vez de português
+### 1. ✅ CORRIGIDO — Erro de token de bot aparece em inglês ("Unauthorized") em vez de português
 
 **Onde:** `api.php`, ações `testar_bot` (linha ~506) e `salvar_bot` (linha ~523).
 
@@ -87,11 +87,13 @@ rejeitado (`getMe` retorna `{"ok":false,"error_code":401,"description":"Unauthor
 então o fallback em português nunca dispara na prática. É o caso mais comum de erro
 nessa tela (usuário cola token errado ou incompleto) sempre aparecendo em inglês.
 
-**Sugestão pra quando for corrigir:** mapear os `description` mais comuns do Telegram
-(`Unauthorized` → "Token inválido ou revogado.", `Not Found` → "Bot não encontrado.")
-antes de usar o texto cru, mantendo o cru só como último recurso.
+**Status: corrigido e no ar.** Adicionada `traduzirErroTelegramBot()` em `api.php`,
+mapeando `Unauthorized`/`Not Found` pra mensagem em português; qualquer descrição não
+mapeada cai num fallback em português (nunca mais no texto cru). Reconfirmado ao vivo
+com token inválido de verdade: `"Token inválido ou revogado. Confira se copiou certo no
+@BotFather."`.
 
-### 2. "+0,0%" no dashboard aparece destacado como se fosse alta (verde)
+### 2. ✅ CORRIGIDO — "+0,0%" no dashboard aparece destacado como se fosse alta (verde)
 
 **Onde:** `index.php`, linha ~507: `$variacao_percentual >= 0 ? 'selo-variacao-positivo'
 : 'selo-variacao-negativo'`.
@@ -102,6 +104,10 @@ quando na real não houve variação nenhuma (não tem dado nos dois períodos p
 
 **Impacto:** baixo, cosmético — mas destacar "+0,0%" em verde é visualmente enganoso.
 Um estado neutro (cinza, sem sinal de +) faria mais sentido pra exatamente 0%.
+
+**Status: corrigido e no ar.** Adicionada `.selo-variacao-neutro` (cinza) no CSS;
+condição virou 3 vias (`> 0` verde, `< 0` vermelho, `= 0` neutro). Reconfirmado ao vivo
+com conta nova: o selo agora sai com a classe `selo-variacao-neutro`.
 
 ---
 
