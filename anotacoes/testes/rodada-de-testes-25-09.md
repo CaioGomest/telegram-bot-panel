@@ -23,7 +23,12 @@ Legenda (mesmo padrão de `mapa-de-testes-por-topico.md`):
 
 ## 🔴 Achados (por prioridade)
 
-### 0. GRAVE — XSS armazenado em `admin/usuarios.php` via nome de exibição (qualquer usuário compromete a sessão do admin)
+### 0. ✅ CORRIGIDO — XSS armazenado em `admin/usuarios.php` via nome de exibição (qualquer usuário compromete a sessão do admin)
+
+**Status: corrigido e no ar** (commit `73c6cb5`, mesmo dia). Reconfirmado ao vivo com o
+mesmo payload depois do deploy — não quebra mais (`&quot;X&#039;);alert(...)...&quot;`
+vem como uma única string JS segura). Detalhe do achado original mantido abaixo pra
+histórico.
 
 **Onde:** `admin/usuarios.php`, linhas 84-85.
 
