@@ -47,6 +47,13 @@ html[data-theme="light"] {
 
 /* ===== Reset / base ===== */
 html[data-theme] * { box-sizing: border-box; }
+/* [hidden] tem a mesma especificidade que uma classe (.grade, .flex, etc.) -- quando as
+   duas caem no mesmo elemento, quem ganha é a ordem de declaração, não a prioridade do
+   atributo. Sem isto, qualquer <div hidden class="grade"> (ou outra classe com display:
+   flex/grid) ignora o hidden e aparece na tela mesmo assim -- já tinha acontecido em
+   bot.php (campos de nome/username vazavam na edição) e sido remendado item a item
+   (.visualizador-story-excluir[hidden], .folha-menu[hidden]); isto resolve pra sempre. */
+[hidden] { display: none !important; }
 html[data-theme] body {
     margin: 0;
     background: var(--bg);

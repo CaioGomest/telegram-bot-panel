@@ -60,7 +60,7 @@ if ($ranking) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ranking</title>
+    <title>Ranking - <?php echo htmlspecialchars(nomeSistema()); ?></title>
     <?php include 'tema_inline.php'; ?>
     <link rel="stylesheet" href="assets/css/coyote.css?v=<?php echo @filemtime(__DIR__.'/assets/css/coyote.css'); ?>">
 </head>
@@ -115,7 +115,7 @@ if ($ranking) {
                         <?php endif; ?>
                         <div class="hero-ranking-meta">
                             <span><?php echo date('d/m/Y', strtotime($campanha['data_inicio'])); ?> — <?php echo date('d/m/Y', strtotime($campanha['data_fim'])); ?></span>
-                            <?php if ($ranking): ?><span><?php echo number_format($ranking['total_participantes'], 0, ',', '.'); ?> participantes</span><?php endif; ?>
+                            <?php if ($ranking): ?><span><?php echo number_format($ranking['total_participantes'], 0, ',', '.'); ?> participante<?php echo ((int) $ranking['total_participantes'] === 1) ? '' : 's'; ?></span><?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -201,7 +201,7 @@ if ($ranking) {
                         </div>
                         <div>
                             <div class="linha-ranking-valor"><?php echo htmlspecialchars(formatarReaisResumido((float) $ranking['sua_posicao']['faturamento'])); ?></div>
-                            <?php if ($meu_gap_top5 !== null): ?>
+                            <?php if ($meu_gap_top5 !== null && $progresso_top5_pct < 100): ?>
                                 <div class="linha-ranking-gap"><?php echo htmlspecialchars(formatarReaisResumido($meu_gap_top5)); ?> do Top 5</div>
                             <?php endif; ?>
                         </div>

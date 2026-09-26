@@ -75,7 +75,7 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remarketing - Gerenciamento de Bots</title>
+    <title>Remarketing - <?php echo htmlspecialchars(nomeSistema()); ?></title>
     <?php include 'tema_inline.php'; ?>
     <link rel="stylesheet" href="assets/css/coyote.css?v=<?php echo @filemtime(__DIR__.'/assets/css/coyote.css'); ?>">
 </head>
