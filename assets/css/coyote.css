@@ -716,6 +716,7 @@ html[data-theme] a.paginacao-link.active { color: #fff; }
     color: var(--ok);
 }
 .selo-variacao-negativo { background: var(--dasoft); color: var(--da); }
+.selo-variacao-neutro { background: var(--p3); color: var(--m); }
 .selo-variacao .texto-suave { font-weight: 500; color: inherit; opacity: .75; }
 .mini-grafico-destaque { position: relative; height: 70px; width: 100%; margin-top: 14px; }
 .cartao-kpi-cabecalho { display: flex; align-items: center; gap: 9px; }

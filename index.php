@@ -503,9 +503,16 @@ try {
         <div class="cartao-destaque oculto-desktop">
             <span class="rotulo-destaque">APROVADO · <?php echo $rotulo_periodo_destaque; ?></span>
             <div class="valor-destaque">R$ <?php echo number_format($vendas_aprovadas, 2, ',', '.'); ?></div>
-            <?php if ($variacao_percentual !== null): ?>
-                <span class="selo-variacao <?php echo $variacao_percentual >= 0 ? 'selo-variacao-positivo' : 'selo-variacao-negativo'; ?>">
-                    <?php echo $variacao_percentual >= 0 ? '+' : ''; ?><?php echo number_format($variacao_percentual, 1, ',', '.'); ?>% <span class="texto-suave">vs período anterior</span>
+            <?php if ($variacao_percentual !== null):
+                // 0,0% não é "alta" nem "queda" -- não houve variação nenhuma pra
+                // comparar (ex.: conta nova, ou mesmo valor nos dois períodos). Estilo
+                // neutro pra esse caso, verde só quando é realmente positivo.
+                if ($variacao_percentual > 0) { $classe_variacao = 'selo-variacao-positivo'; $prefixo_variacao = '+'; }
+                elseif ($variacao_percentual < 0) { $classe_variacao = 'selo-variacao-negativo'; $prefixo_variacao = ''; }
+                else { $classe_variacao = 'selo-variacao-neutro'; $prefixo_variacao = ''; }
+            ?>
+                <span class="selo-variacao <?php echo $classe_variacao; ?>">
+                    <?php echo $prefixo_variacao; ?><?php echo number_format($variacao_percentual, 1, ',', '.'); ?>% <span class="texto-suave">vs período anterior</span>
                 </span>
             <?php endif; ?>
             <div class="mini-grafico-destaque">

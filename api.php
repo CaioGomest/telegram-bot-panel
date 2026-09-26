@@ -193,6 +193,21 @@ function gerarOuObterSegredoWebhook(int $id_bot): string
     }
 }
 
+/**
+ * Traduz os erros mais comuns que o getMe da API do Telegram devolve pra um token
+ * inválido -- sem isso, a mensagem crua (ex. "Unauthorized") aparecia em inglês pro
+ * usuário, no meio de uma interface toda em português (achado em rodada de teste).
+ * Qualquer descrição não mapeada cai no $fallback em português, nunca no texto cru.
+ */
+function traduzirErroTelegramBot(string $description, string $fallback): string
+{
+    $mapa = [
+        'Unauthorized' => 'Token inválido ou revogado. Confira se copiou certo no @BotFather.',
+        'Not Found' => 'Bot não encontrado. Confira se o token está completo.',
+    ];
+    return $mapa[$description] ?? $fallback;
+}
+
 function obterBotComInfoLive(string $token): array
 {
     $eu = requisicaoTelegram($token, 'getMe');
@@ -503,7 +518,7 @@ try {
 
             $vivo = obterBotComInfoLive($token);
             if (!($vivo['ok'] ?? false)) {
-                responder(false, ['mensagem' => $vivo['description'] ?? 'Não foi possível validar o token.'], 400);
+                responder(false, ['mensagem' => traduzirErroTelegramBot($vivo['description'] ?? '', 'Não foi possível validar o token.')], 400);
             }
 
             responder(true, ['mensagem' => 'Bot conectado com sucesso.', 'info_bot' => $vivo['result']]);
@@ -520,7 +535,7 @@ try {
 
             $vivo = obterBotComInfoLive($token);
             if (!($vivo['ok'] ?? false)) {
-                responder(false, ['mensagem' => $vivo['description'] ?? 'Token inválido.'], 400);
+                responder(false, ['mensagem' => traduzirErroTelegramBot($vivo['description'] ?? '', 'Token inválido.')], 400);
             }
 
             $bot_existente = null;
