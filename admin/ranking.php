@@ -126,7 +126,7 @@ function campoPremio(int $posicao, array $premios_edicao): array
                 <p>Crie e gerencie as campanhas que alimentam a tela de Ranking.</p>
             </div>
             <div class="acoes-cabecalho">
-                <a href="ranking.php" class="botao">Nova campanha</a>
+                <a href="ranking" class="botao">Nova campanha</a>
                 <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>
                     Tema
@@ -141,7 +141,7 @@ function campoPremio(int $posicao, array $premios_edicao): array
             <div class="painel"><div class="aviso aviso-erro"><?php echo htmlspecialchars($erro); ?></div></div>
         <?php endif; ?>
 
-        <div class="painel">
+        <div class="painel" id="form-campanha">
             <div class="painel-cabecalho"><h2><?php echo $campanha_edicao ? 'Editar campanha' : 'Nova campanha'; ?></h2></div>
             <form method="POST">
                 <?php echo campoCsrf(); ?>
@@ -203,7 +203,7 @@ function campoPremio(int $posicao, array $premios_edicao): array
                 </div>
 
                 <div class="linha-acoes" style="margin-top:20px;">
-                    <?php if ($campanha_edicao): ?><a href="ranking.php" class="botao">Cancelar edição</a><?php endif; ?>
+                    <?php if ($campanha_edicao): ?><a href="ranking" class="botao">Cancelar edição</a><?php endif; ?>
                     <button type="submit" class="botao botao-primario"><?php echo $campanha_edicao ? 'Salvar alterações' : 'Criar campanha'; ?></button>
                 </div>
             </form>

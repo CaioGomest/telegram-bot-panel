@@ -70,7 +70,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
                             <td class="texto-suave"><?php echo htmlspecialchars($u['email']); ?></td>
                             <td>
                                 <span class="badge <?php echo $u['perfil'] === 'admin' ? 'badge-sucesso' : 'badge-neutro'; ?>">
-                                    <?php echo ucfirst($u['perfil']); ?>
+                                    <?php echo $u['perfil'] === 'admin' ? 'Admin' : 'Usuário'; ?>
                                 </span>
                             </td>
                             <td><?php echo $u['total_bots']; ?></td>

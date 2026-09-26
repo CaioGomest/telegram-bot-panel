@@ -87,7 +87,9 @@
                 const bots = res.bots || [];
                 bots.forEach(function (bot) {
                     const selecionado = bot_id_selecionado && parseInt(bot.id) === parseInt(bot_id_selecionado) ? 'selected' : '';
-                    $select.append(`<option value="${escaparHtml(bot.id)}" ${selecionado}>@${escaparHtml(bot.nome_usuario || bot.primeiro_nome || 'sem_nome')}</option>`);
+                    const nomeBot = bot.primeiro_nome || bot.nome_usuario || 'Bot';
+                    const usuarioBot = bot.nome_usuario ? ' (@' + bot.nome_usuario + ')' : '';
+                    $select.append(`<option value="${escaparHtml(bot.id)}" ${selecionado}>${escaparHtml(nomeBot + usuarioBot)}</option>`);
                 });
             })
             .fail(function () {
@@ -97,7 +99,7 @@
 
     function abrirModalNovo() {
         modo_edicao = false;
-        $('#modal-titulo-texto').text('Crie um link trackeado');
+        $('#modal-titulo-texto').text('Crie um link de rastreamento');
         $('#btn-salvar-link').text('Gerar link');
         $('#link-id').val('');
         $('#link-titulo').val('');
@@ -116,7 +118,7 @@
                 }
                 modo_edicao = true;
                 const link = res.link;
-                $('#modal-titulo-texto').text('Editar link trackeado');
+                $('#modal-titulo-texto').text('Editar link de rastreamento');
                 $('#btn-salvar-link').text('Salvar alterações');
                 $('#link-id').val(link.id);
                 $('#link-titulo').val(link.titulo);

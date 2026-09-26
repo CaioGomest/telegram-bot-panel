@@ -109,9 +109,10 @@ switch ($periodo) {
         $where_data_metricas = "AND data >= CURDATE() - INTERVAL 7 DAY";
         break;
     case '30dias':
-        $where_data_vendas = "AND v.criado_em >= CURDATE() - INTERVAL 30 DAY";
-        $where_data_leads = "AND l.criado_em >= CURDATE() - INTERVAL 30 DAY";
-        $where_data_metricas = "AND data >= CURDATE() - INTERVAL 30 DAY";
+        // 30 dias corridos, igual ao gráfico (hoje + 29 pra trás).
+        $where_data_vendas = "AND v.criado_em >= CURDATE() - INTERVAL 29 DAY";
+        $where_data_leads = "AND l.criado_em >= CURDATE() - INTERVAL 29 DAY";
+        $where_data_metricas = "AND data >= CURDATE() - INTERVAL 29 DAY";
         break;
     case 'total':
         $where_data_vendas = "";
@@ -320,7 +321,7 @@ try {
             $grafico_dados[] = (float) ($por_dia[$data] ?? 0);
         }
     } elseif ($periodo == 'total') {
-        $texto_grafico = "HISTÓRICO TOTAL (ÚLTIMOS 12 MESES)";
+        $texto_grafico = "VENDAS NOS ÚLTIMOS 12 MESES";
 
         $meses_data = [];
         for ($i = 11; $i >= 0; $i--) {
@@ -448,6 +449,9 @@ try {
     <?php include 'barra_lateral.php'; ?>
 
     <main class="conteudo-principal">
+        <?php if (($_GET['erro'] ?? '') === 'sem_permissao'): ?>
+            <div class="aviso aviso-erro" style="margin-top:20px;">Você não tem acesso à área de administração.</div>
+        <?php endif; ?>
         <div class="cabecalho-pagina">
             <div>
                 <h1>Dashboard</h1>
@@ -460,18 +464,17 @@ try {
                     <a href="<?php echo htmlspecialchars(montarUrlFiltroDashboard(['periodo' => '7dias'])); ?>" class="periodo-item<?php echo ($periodo == '7dias' ? ' ativo' : ''); ?>">8 dias</a>
                     <a href="<?php echo htmlspecialchars(montarUrlFiltroDashboard(['periodo' => '30dias'])); ?>" class="periodo-item<?php echo ($periodo == '30dias' ? ' ativo' : ''); ?>">30 dias</a>
                     <a href="<?php echo htmlspecialchars(montarUrlFiltroDashboard(['periodo' => 'total'])); ?>" class="periodo-item<?php echo ($periodo == 'total' ? ' ativo' : ''); ?>">Total</a>
-                    <?php // "Personalizado" fora da barra por enquanto (2026-09-17) -- o protótipo só tem os 5
-                          // períodos fixos. Pra trazer de volta é só reativar o if abaixo; o período em si
-                          // continua funcionando por URL (?periodo=personalizado&data_inicio=...&data_fim=...). ?>
-                    <?php if (false): ?>
-                    <a href="<?php echo htmlspecialchars(montarUrlFiltroDashboard(['periodo' => 'personalizado'])); ?>" class="periodo-item<?php echo ($periodo == 'personalizado' ? ' ativo' : ''); ?>">Personalizado</a>
+                    <?php if ($periodo === 'personalizado'): ?>
+                    <a href="<?php echo htmlspecialchars(montarUrlFiltroDashboard(['periodo' => 'personalizado', 'data_inicio' => $data_inicio, 'data_fim' => $data_fim])); ?>" class="periodo-item ativo">Personalizado</a>
                     <?php endif; ?>
                 </div>
                 <form method="GET" class="form-periodo">
                     <input type="hidden" name="periodo" value="<?php echo htmlspecialchars($periodo); ?>">
                     <div class="grupo-data-personalizada<?php echo ($periodo === 'personalizado' ? ' ativo' : ''); ?>">
-                        <input type="date" name="data_inicio" value="<?php echo htmlspecialchars($data_inicio); ?>" <?php echo ($periodo === 'personalizado' ? '' : 'disabled'); ?>>
-                        <input type="date" name="data_fim" value="<?php echo htmlspecialchars($data_fim); ?>" <?php echo ($periodo === 'personalizado' ? '' : 'disabled'); ?>>
+                        <label for="data_inicio">De</label>
+                        <input type="date" id="data_inicio" name="data_inicio" aria-label="Data inicial" value="<?php echo htmlspecialchars($data_inicio); ?>" <?php echo ($periodo === 'personalizado' ? '' : 'disabled'); ?>>
+                        <label for="data_fim">Até</label>
+                        <input type="date" id="data_fim" name="data_fim" aria-label="Data final" value="<?php echo htmlspecialchars($data_fim); ?>" <?php echo ($periodo === 'personalizado' ? '' : 'disabled'); ?>>
                     </div>
                     <?php if ($mostrar_filtro_bot): ?>
                         <select name="bot_id" onchange="this.form.submit()">
@@ -586,7 +589,7 @@ try {
                 <h2><?php echo htmlspecialchars($campanha_dash['titulo']); ?></h2>
                 <span class="texto-suave">
                     <?php
-                    echo $campanha_dash['estado'] === 'ativa' ? 'Em disputa'
+                    echo $campanha_dash['estado'] === 'ativa' ? 'Em andamento'
                        : ($campanha_dash['estado'] === 'encerrada' ? 'Encerrada' : 'Começa em breve');
                     ?>
                 </span>

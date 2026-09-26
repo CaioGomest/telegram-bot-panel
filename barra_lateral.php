@@ -71,9 +71,9 @@ if (!$is_admin) {
     $grupo_operacao[] = ['href' => 'bots', 'label' => 'Meus Bots', 'icone' => 'bots', 'badge' => $badge_bots];
     $grupo_operacao[] = ['href' => 'fluxos', 'label' => 'Fluxos', 'icone' => 'fluxos'];
     $grupo_operacao[] = ['href' => 'leads', 'label' => 'Leads', 'icone' => 'leads', 'badge' => $badge_leads];
-    $grupo_operacao[] = ['href' => 'ranking', 'label' => 'Ranking', 'icone' => 'ranking', 'badge_texto' => 'NOVO'];
+    $grupo_operacao[] = ['href' => 'ranking', 'label' => 'Ranking', 'icone' => 'ranking'];
     $grupo_operacao[] = ['href' => 'remarketing', 'label' => 'Remarketing', 'icone' => 'remarketing'];
-    $grupo_operacao[] = ['href' => 'traqueamento', 'label' => 'Traqueamento', 'icone' => 'traqueamento'];
+    $grupo_operacao[] = ['href' => 'traqueamento', 'label' => 'Rastreamento', 'icone' => 'traqueamento'];
     $grupo_operacao[] = ['href' => 'links_rastreamento', 'label' => 'Links de Rastreamento', 'icone' => 'links'];
     $grupo_operacao[] = ['href' => 'webhooks', 'label' => 'Webhooks', 'icone' => 'webhooks'];
     $grupo_operacao[] = ['href' => 'comunidade', 'label' => 'Comunidade', 'icone' => 'comunidade'];
@@ -87,7 +87,7 @@ if ($is_admin) {
     $grupo_admin[] = ['href' => 'admin/transacoes', 'label' => 'Transações', 'icone' => 'transacoes'];
     $grupo_admin[] = ['href' => 'admin/logs', 'label' => 'Logs', 'icone' => 'logs'];
     $grupo_admin[] = ['href' => 'admin/usuarios', 'label' => 'Usuários', 'icone' => 'usuarios'];
-    $grupo_admin[] = ['href' => 'admin/ranking', 'label' => 'Campanhas de Ranking', 'icone' => 'campanhas'];
+    $grupo_admin[] = ['href' => 'admin/ranking', 'label' => 'Campanhas', 'icone' => 'campanhas'];
     $grupo_admin[] = ['href' => 'admin/comunidade', 'label' => 'Comunidade', 'icone' => 'comunidade'];
     $grupo_admin[] = ['href' => 'admin/configuracoes', 'label' => 'Configurações', 'icone' => 'identidade'];
 }
@@ -98,9 +98,22 @@ if ($is_admin) {
     $grupo_debug[] = ['href' => 'admin/consultar_venda', 'label' => 'Consultar Venda', 'icone' => 'consultar_venda'];
 }
 
+function itemNavAtivo(string $href, string $pagina_atual): bool
+{
+    $base = basename($href);
+    if ($base === $pagina_atual) {
+        return true;
+    }
+    $filhas = [
+        'bots' => ['bot'],
+        'fluxos' => ['fluxo', 'fluxo_basico'],
+    ];
+    return in_array($pagina_atual, $filhas[$base] ?? [], true);
+}
+
 function renderizarItemNav(array $item, string $pagina_atual, array $icones, string $caminho_base): void
 {
-    $ativo = basename($item['href']) === $pagina_atual;
+    $ativo = itemNavAtivo($item['href'], $pagina_atual);
     $icone_svg = isset($item['icone']) ? iconeNav($icones[$item['icone']]) : iconeNav($icones['debug']);
     echo '<a href="' . $caminho_base . htmlspecialchars($item['href']) . '" class="nav-item' . ($ativo ? ' ativo' : '') . '">';
     echo '<span class="nav-icone">' . $icone_svg . '</span>';
@@ -189,7 +202,7 @@ $foto_usuario = function_exists('fotoPerfilDaSessao') ? fotoPerfilDaSessao() : '
         ['href' => 'configuracao_usuario', 'label' => 'Conta',   'icone' => 'conta'],
     ];
     foreach ($itens_mobile as $item):
-        $ativo = basename($item['href']) === $pagina_atual;
+        $ativo = itemNavAtivo($item['href'], $pagina_atual);
     ?>
         <a href="<?php echo $caminho_base . htmlspecialchars($item['href']); ?>" class="mobile-item<?php echo $ativo ? ' ativo' : ''; ?>">
             <span class="mobile-icone"><?php echo iconeNav($icones[$item['icone']]); ?></span>

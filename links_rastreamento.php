@@ -66,13 +66,13 @@ bloquearAdmin();
     <div class="modal-gateway">
         <div class="cabecalho-modal">
             <div>
-                <div class="titulo-modal" id="modal-titulo-texto">Crie um link trackeado</div>
+                <div class="titulo-modal" id="modal-titulo-texto">Crie um link de rastreamento</div>
                 <p class="texto-suave" style="margin:4px 0 0;">Gere um link personalizado e acompanhe o desempenho dele em tempo real</p>
             </div>
             <button class="fechar-modal" id="btn-fechar-modal">✕</button>
         </div>
         <div class="corpo-modal">
-            <p class="rotulo-kpi" style="margin:0 0 14px;">Preencha as informações da sua conta</p>
+            <p class="rotulo-kpi" style="margin:0 0 14px;">Preencha os dados do link</p>
 
             <form id="form-link" autocomplete="off">
                 <input type="hidden" id="link-id" value="">

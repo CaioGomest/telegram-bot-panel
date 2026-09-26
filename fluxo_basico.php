@@ -96,7 +96,7 @@ bloquearAdmin();
 
             <div class="painel">
                 <div class="painel-cabecalho"><h2>Bots vinculados</h2></div>
-                <p class="texto-ajuda">Salve o fluxo primeiro. Depois, vá em <a href="bots">Meus Bots</a> → editar o bot → campo "Fluxo Conectado" → selecione este fluxo.</p>
+                <p class="texto-ajuda">Salve o fluxo primeiro. Depois, vá em <a href="bots">Meus Bots</a> → Configurar → campo "Fluxo de conversa" → selecione este fluxo.</p>
             </div>
         </div>
     </main>

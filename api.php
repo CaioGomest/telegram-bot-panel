@@ -475,14 +475,13 @@ try {
             break;
 
         case 'listar_bots':
-            // Traz junto o nome do fluxo conectado e os leads dos últimos 7 dias -- é o que os
-            // cards da lista mostram (antes o card exibia o ID cru do fluxo, ex. "Fluxo: 2").
-            // A contagem usa idx_leads_bot_criado_em (bot_id, criado_em), então é barata.
+            // Traz junto o nome do fluxo conectado e os leads da mesma janela de 8 dias
+            // do dashboard (hoje + 7 pra trás). A contagem usa idx_leads_bot_criado_em.
             $stmt = $pdo->prepare("
                 SELECT b.*,
                        f.nome AS nome_fluxo,
                        (SELECT COUNT(*) FROM leads l
-                         WHERE l.bot_id = b.id AND l.criado_em >= NOW() - INTERVAL 7 DAY) AS leads_7d
+                         WHERE l.bot_id = b.id AND l.criado_em >= CURDATE() - INTERVAL 7 DAY) AS leads_7d
                 FROM bots b
                 LEFT JOIN fluxos f ON f.id = b.id_fluxo_conectado
                 WHERE b.id_usuario = ?

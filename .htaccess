@@ -61,4 +61,9 @@ Options -Indexes
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{DOCUMENT_ROOT}/$1.php -f
     RewriteRule ^(.+?)/?$ /$1.php [L]
+
+    # O que não é arquivo nem página cai na 404 do painel, em português.
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule . /404.php [L]
 </IfModule>

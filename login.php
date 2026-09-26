@@ -54,11 +54,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'login')
         <img src="<?php echo htmlspecialchars(logoSistema()); ?>" alt="<?php echo htmlspecialchars(nomeSistema()); ?>" class="login-logo">
         <h1 class="login-titulo">Seus bots vendendo no automático</h1>
         <p class="login-descricao">Fluxos, PIX, remarketing e leads em um só painel. Entre para continuar de onde parou.</p>
-        <div class="login-metricas">
-            <div><div class="login-metrica-valor">1.482</div><div class="login-metrica-rotulo">Leads</div></div>
-            <div><div class="login-metrica-valor">4</div><div class="login-metrica-rotulo">Bots ativos</div></div>
-            <div><div class="login-metrica-valor">14,7%</div><div class="login-metrica-rotulo">Conversão</div></div>
-        </div>
     </div>
 
     <div class="login-formulario">

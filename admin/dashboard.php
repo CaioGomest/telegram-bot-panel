@@ -72,8 +72,10 @@ switch ($periodo) {
         $where_data_metricas = "AND data >= CURDATE() - INTERVAL 7 DAY";
         break;
     case '30dias':
-        $where_data_vendas = "AND v.criado_em >= CURDATE() - INTERVAL 30 DAY";
-        $where_data_metricas = "AND data >= CURDATE() - INTERVAL 30 DAY";
+        // 30 dias corridos, igual ao gráfico (hoje + 29 pra trás). INTERVAL 30 DAY
+        // contava 31 datas e o card não batia com o desenho.
+        $where_data_vendas = "AND v.criado_em >= CURDATE() - INTERVAL 29 DAY";
+        $where_data_metricas = "AND data >= CURDATE() - INTERVAL 29 DAY";
         break;
     case 'total':
         $where_data_vendas = "";
@@ -200,7 +202,7 @@ if ($periodo == 'hoje') {
         $grafico_dados[] = (float) ($por_dia[$data] ?? 0);
     }
 } elseif ($periodo == 'total') {
-    $texto_grafico = "HISTÓRICO TOTAL (ÚLTIMOS 12 MESES)";
+    $texto_grafico = "COMISSÃO NOS ÚLTIMOS 12 MESES";
 
     $meses_data = [];
     for ($i = 11; $i >= 0; $i--) {
@@ -318,17 +320,17 @@ if ($periodo === 'personalizado') {
                     <a href="<?php echo htmlspecialchars(montarUrlFiltroAdminDashboard(['periodo' => '7dias'])); ?>" class="periodo-item<?php echo ($periodo == '7dias' ? ' ativo' : ''); ?>">8 dias</a>
                     <a href="<?php echo htmlspecialchars(montarUrlFiltroAdminDashboard(['periodo' => '30dias'])); ?>" class="periodo-item<?php echo ($periodo == '30dias' ? ' ativo' : ''); ?>">30 dias</a>
                     <a href="<?php echo htmlspecialchars(montarUrlFiltroAdminDashboard(['periodo' => 'total'])); ?>" class="periodo-item<?php echo ($periodo == 'total' ? ' ativo' : ''); ?>">Total</a>
-                    <?php // "Personalizado" fora da barra por enquanto (2026-09-17) -- mesma decisão de index.php:
-                          // o protótipo só tem os 5 períodos fixos. Continua acessível por URL. ?>
-                    <?php if (false): ?>
-                    <a href="<?php echo htmlspecialchars(montarUrlFiltroAdminDashboard(['periodo' => 'personalizado'])); ?>" class="periodo-item<?php echo ($periodo == 'personalizado' ? ' ativo' : ''); ?>">Personalizado</a>
+                    <?php if ($periodo === 'personalizado'): ?>
+                    <a href="<?php echo htmlspecialchars(montarUrlFiltroAdminDashboard(['periodo' => 'personalizado', 'data_inicio' => $data_inicio, 'data_fim' => $data_fim])); ?>" class="periodo-item ativo">Personalizado</a>
                     <?php endif; ?>
                 </div>
                 <form method="GET" class="form-periodo">
                     <input type="hidden" name="periodo" value="<?php echo htmlspecialchars($periodo); ?>">
                     <div class="grupo-data-personalizada<?php echo ($periodo === 'personalizado' ? ' ativo' : ''); ?>">
-                        <input type="date" name="data_inicio" value="<?php echo htmlspecialchars($data_inicio); ?>" <?php echo ($periodo === 'personalizado' ? '' : 'disabled'); ?>>
-                        <input type="date" name="data_fim" value="<?php echo htmlspecialchars($data_fim); ?>" <?php echo ($periodo === 'personalizado' ? '' : 'disabled'); ?>>
+                        <label for="data_inicio">De</label>
+                        <input type="date" id="data_inicio" name="data_inicio" aria-label="Data inicial" value="<?php echo htmlspecialchars($data_inicio); ?>" <?php echo ($periodo === 'personalizado' ? '' : 'disabled'); ?>>
+                        <label for="data_fim">Até</label>
+                        <input type="date" id="data_fim" name="data_fim" aria-label="Data final" value="<?php echo htmlspecialchars($data_fim); ?>" <?php echo ($periodo === 'personalizado' ? '' : 'disabled'); ?>>
                     </div>
                 </form>
                 <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
@@ -355,7 +357,7 @@ if ($periodo === 'personalizado') {
                     <div class="icone-kpi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg></div>
                     <span class="rotulo-kpi">Qtd. vendas</span>
                 </div>
-                <div class="valor-kpi"><?php echo $total_vendas; ?></div>
+                <div class="valor-kpi"><?php echo number_format($total_vendas, 0, ',', '.'); ?></div>
                 <div class="rodape-kpi"><span>Vendas aprovadas</span></div>
             </div>
 
@@ -365,7 +367,16 @@ if ($periodo === 'personalizado') {
                     <span class="rotulo-kpi">Receita líquida</span>
                 </div>
                 <div class="valor-kpi" style="color: var(--or);">R$ <?php echo number_format($receita_admin, 2, ',', '.'); ?></div>
-                <div class="rodape-kpi"><span>Sua comissão acumulada</span></div>
+                <div class="rodape-kpi"><span><?php
+                    $rotulos_comissao = [
+                        'hoje' => 'Comissão de hoje',
+                        'ontem' => 'Comissão de ontem',
+                        '7dias' => 'Comissão nos 8 dias',
+                        '30dias' => 'Comissão nos 30 dias',
+                        'personalizado' => 'Comissão no período',
+                    ];
+                    echo $rotulos_comissao[$periodo] ?? 'Comissão no período total';
+                ?></span></div>
             </div>
 
             <div class="cartao-kpi">
@@ -373,7 +384,7 @@ if ($periodo === 'personalizado') {
                     <div class="icone-kpi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg></div>
                     <span class="rotulo-kpi">Usuários</span>
                 </div>
-                <div class="valor-kpi"><?php echo $total_usuarios; ?></div>
+                <div class="valor-kpi"><?php echo number_format($total_usuarios, 0, ',', '.'); ?></div>
                 <div class="rodape-kpi"><span>Clientes registrados</span></div>
             </div>
         </div>

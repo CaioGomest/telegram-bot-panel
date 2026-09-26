@@ -19,16 +19,16 @@ function processarCampanha(array $input, PDO $pdo, int $id_usuario): array {
     if ($bot_id <= 0 || $mensagem === '') {
         return ['sucesso' => false, 'mensagem' => 'Informe bot e mensagem.'];
     }
+    if ($agendado_str === '' || strtotime($agendado_str) === false) {
+        return ['sucesso' => false, 'mensagem' => 'Informe a data e a hora do envio.'];
+    }
     // Sempre agenda via cron — nunca envia inline para não travar a requisição
-    $agendado_em = $agendado_str !== '' ? date('Y-m-d H:i:s', strtotime($agendado_str)) : date('Y-m-d H:i:s');
+    $agendado_em = date('Y-m-d H:i:s', strtotime($agendado_str));
     $pdo->prepare("INSERT INTO remarketing_campanhas (id_usuario, bot_id, audiencia, mensagem, agendado_em, status, criado_em) VALUES (?, ?, ?, ?, ?, 'pendente', NOW())")
         ->execute([$id_usuario, $bot_id, $audiencia, $mensagem, $agendado_em]);
     $campanha_id = (int)$pdo->lastInsertId();
 
-    if ($agendado_str !== '') {
-        return ['sucesso' => true, 'mensagem' => 'Campanha agendada para ' . date('d/m/Y H:i', strtotime($agendado_em)) . '.', 'campanha_id' => $campanha_id];
-    }
-    return ['sucesso' => true, 'mensagem' => 'Campanha criada! O envio será processado em instantes pelo cron.', 'campanha_id' => $campanha_id];
+    return ['sucesso' => true, 'mensagem' => 'Campanha agendada para ' . date('d/m/Y H:i', strtotime($agendado_em)) . '.', 'campanha_id' => $campanha_id];
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -115,8 +115,8 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                     </select>
                     <select name="audiencia" id="audiencia">
                         <option value="">Todas as audiências</option>
-                        <option value="nao_comprou" <?php echo $f_aud === 'nao_comprou' ? 'selected' : ''; ?>>Não comprou</option>
-                        <option value="comprou" <?php echo $f_aud === 'comprou' ? 'selected' : ''; ?>>Comprou</option>
+                        <option value="nao_comprou" <?php echo $f_aud === 'nao_comprou' ? 'selected' : ''; ?>>Acessou e não comprou</option>
+                        <option value="comprou" <?php echo $f_aud === 'comprou' ? 'selected' : ''; ?>>Acessou e comprou</option>
                     </select>
                     <select name="status" id="status">
                         <option value="">Todos os status</option>
@@ -281,11 +281,11 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                         <div class="campo" style="margin-top:12px;">
                             <label>Agendar envio</label>
                             <div style="display:flex;gap:8px;">
-                                <input type="date" id="modal-data" placeholder="dd/mm/aaaa">
-                                <input type="time" id="modal-hora" placeholder="--:--">
+                                <input type="date" id="modal-data" aria-label="Data do envio" required>
+                                <input type="time" id="modal-hora" aria-label="Hora do envio" required>
                             </div>
                             <input type="hidden" id="modal-agendado_em" name="agendado_em">
-                            <small>Se vazio, envia imediatamente.</small>
+                            <small>Obrigatório. A campanha só é enviada nessa data e hora.</small>
                         </div>
                         <div class="campo" style="margin-top:12px;">
                             <small id="contador-destinatarios" style="display:none;"></small>
@@ -296,7 +296,7 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                             <small><span id="contador-mensagem">0</span>/4096 caracteres</small>
                         </div>
                         <div class="linha-acoes" style="margin-top:16px;">
-                            <button type="submit" class="botao botao-primario">Salvar/Enviar</button>
+                            <button type="submit" class="botao botao-primario">Agendar</button>
                             <button type="button" class="botao" id="btn-cancelar-campanha">Cancelar</button>
                         </div>
                     </form>

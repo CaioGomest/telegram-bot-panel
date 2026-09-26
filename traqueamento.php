@@ -91,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Traqueamento - <?php echo htmlspecialchars(nomeSistema()); ?></title>
+    <title>Rastreamento - <?php echo htmlspecialchars(nomeSistema()); ?></title>
     <?php include 'tema_inline.php'; ?>
     <link rel="stylesheet" href="assets/css/coyote.css?v=<?php echo @filemtime(__DIR__.'/assets/css/coyote.css'); ?>">
     <style>
@@ -124,7 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <main class="conteudo-principal">
         <div class="cabecalho-pagina">
             <div>
-                <h1>Traqueamento</h1>
+                <h1>Rastreamento</h1>
                 <p>Configure seus pixels e APIs de conversão para rastrear vendas.</p>
             </div>
             <div class="acoes-cabecalho">
@@ -152,7 +152,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             Facebook Ads (Meta)
                         </div>
                         <label class="chave-gateway">
-                            <input type="checkbox" id="facebook_ativo" name="facebook_ativo" <?php echo !empty($config['facebook_ativo']) ? 'checked' : ''; ?>>
+                            <input type="checkbox" id="facebook_ativo" name="facebook_ativo" aria-label="Ativar Facebook Ads" <?php echo !empty($config['facebook_ativo']) ? 'checked' : ''; ?>>
                             <span class="chave-gateway-trilho"></span>
                         </label>
                     </div>
@@ -213,7 +213,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             UTMfy
                         </div>
                         <label class="chave-gateway">
-                            <input type="checkbox" id="utmfy_ativo" name="utmfy_ativo" <?php echo !empty($config['utmfy_ativo']) ? 'checked' : ''; ?>>
+                            <input type="checkbox" id="utmfy_ativo" name="utmfy_ativo" aria-label="Ativar UTMfy" <?php echo !empty($config['utmfy_ativo']) ? 'checked' : ''; ?>>
                             <span class="chave-gateway-trilho"></span>
                         </label>
                     </div>

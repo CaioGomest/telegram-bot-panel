@@ -73,7 +73,7 @@
                                     <span class="bot-metrica-valor">${escaparHtml(nome_fluxo)}</span>
                                 </div>
                                 <div class="bot-metrica">
-                                    <span class="bot-metrica-rotulo">Leads 7d</span>
+                                    <span class="bot-metrica-rotulo">Leads 8 dias</span>
                                     <span class="bot-metrica-valor">${leads_7d}</span>
                                 </div>
                             </div>

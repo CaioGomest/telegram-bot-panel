@@ -74,8 +74,8 @@ if ($ranking) {
                 <h1>Ranking</h1>
                 <p><?php
                     echo $estado === 'encerrada' ? 'Campanha encerrada — veja o resultado final abaixo.'
-                       : ($estado === 'agendada' ? 'A próxima campanha oficial de faturamento já tem data.'
-                       : 'Campanha oficial de faturamento — acompanhe sua posição em tempo real.');
+                       : ($estado === 'agendada' ? 'A próxima campanha de faturamento já tem data.'
+                       : 'Acompanhe sua posição na campanha de faturamento.');
                 ?></p>
             </div>
             <div class="acoes-cabecalho">
@@ -100,9 +100,8 @@ if ($ranking) {
                     <img src="<?php echo htmlspecialchars(logoSistema()); ?>" alt="" class="hero-ranking-logo">
                     <div class="hero-ranking-conteudo">
                         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                            <span class="pill-campanha" style="background:var(--orsoft);color:var(--or);">Campanha oficial</span>
                             <?php if ($estado === 'ativa'): ?>
-                                <span class="pill-campanha" style="background:var(--oksoft);color:var(--ok);"><span class="ponto-vivo"></span>Em disputa</span>
+                                <span class="pill-campanha" style="background:var(--oksoft);color:var(--ok);"><span class="ponto-vivo"></span>Em andamento</span>
                             <?php elseif ($estado === 'encerrada'): ?>
                                 <span class="pill-campanha" style="background:var(--p3);color:var(--m);">Encerrada em <?php echo date('d/m/Y', strtotime($campanha['data_fim'])); ?></span>
                             <?php else: ?>
@@ -122,20 +121,14 @@ if ($ranking) {
 
                 <?php if (!$ranking): ?>
                 <div class="painel">
-                    <span class="rotulo-kpi">Classificação oficial</span>
+                    <span class="rotulo-kpi">Classificação</span>
                     <h2 style="margin:6px 0 10px;font-size:28px;">A disputa ainda não começou</h2>
                     <p class="texto-suave" style="margin:0;line-height:1.55;">O placar aparece aqui quando a campanha abrir, em <?php echo date('d/m/Y \à\s H:i', strtotime($campanha['data_inicio'])); ?>. Vale o faturamento aprovado a partir dessa data.</p>
                 </div>
                 <?php else: ?>
                 <div class="painel">
-                    <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
-                        <span class="rotulo-kpi">Classificação oficial</span>
-                        <div style="flex:1;"></div>
-                        <?php if ($estado === 'ativa'): ?>
-                            <span style="display:flex;align-items:center;gap:7px;font:700 11px 'Manrope',sans-serif;color:var(--ok);"><span class="ponto-vivo"></span>Atualiza a cada 60s</span>
-                        <?php endif; ?>
-                    </div>
-                    <h2 style="margin:6px 0 0;font-size:28px;"><?php echo $estado === 'encerrada' ? 'Resultado final' : 'Placar ao vivo'; ?></h2>
+                    <span class="rotulo-kpi">Classificação</span>
+                    <h2 style="margin:6px 0 0;font-size:28px;"><?php echo $estado === 'encerrada' ? 'Resultado final' : 'Placar'; ?></h2>
 
                     <?php if (empty($ranking['top3'])): ?>
                         <div class="estado-vazio" style="margin-top:16px;">Ninguém pontuou nesta campanha ainda.</div>
@@ -163,7 +156,7 @@ if ($ranking) {
                         </div>
                         <?php foreach ($ranking['linhas'] as $r):
                             $nome_exib = nomeExibicaoRanking($r['apelido_publico'], (int) $r['id_usuario']);
-                            $zona = (int) $r['posicao'] <= 5 ? 'Zona de embarque' : 'Em disputa';
+                            $zona = (int) $r['posicao'] <= 5 ? 'Zona de embarque' : 'Fora do Top 5';
                             $zona_cor = (int) $r['posicao'] <= 5 ? 'var(--ok)' : 'var(--m)';
                             $gap = $ranking['faturamento_lider'] !== null ? $ranking['faturamento_lider'] - (float) $r['faturamento'] : null;
                         ?>
@@ -200,7 +193,7 @@ if ($ranking) {
                             <div class="linha-ranking-zona texto-suave">Sua conta</div>
                         </div>
                         <div>
-                            <div class="linha-ranking-valor"><?php echo htmlspecialchars(formatarReaisResumido((float) $ranking['sua_posicao']['faturamento'])); ?></div>
+                            <div class="linha-ranking-valor">R$ <?php echo number_format((float) $ranking['sua_posicao']['faturamento'], 2, ',', '.'); ?></div>
                             <?php if ($meu_gap_top5 !== null && $progresso_top5_pct < 100): ?>
                                 <div class="linha-ranking-gap"><?php echo htmlspecialchars(formatarReaisResumido($meu_gap_top5)); ?> do Top 5</div>
                             <?php endif; ?>

@@ -1,5 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
 
+/* O atributo hidden tem que ganhar de .grade { display:grid } e de display:flex.
+   Sem isto, prévia de bot novo, campos da criação e outros blocos "escondidos" aparecem. */
+[hidden] { display: none !important; }
+
 /* ===== Tokens ===== */
 html[data-theme="dark"] {
     color-scheme: dark;
@@ -47,13 +51,6 @@ html[data-theme="light"] {
 
 /* ===== Reset / base ===== */
 html[data-theme] * { box-sizing: border-box; }
-/* [hidden] tem a mesma especificidade que uma classe (.grade, .flex, etc.) -- quando as
-   duas caem no mesmo elemento, quem ganha é a ordem de declaração, não a prioridade do
-   atributo. Sem isto, qualquer <div hidden class="grade"> (ou outra classe com display:
-   flex/grid) ignora o hidden e aparece na tela mesmo assim -- já tinha acontecido em
-   bot.php (campos de nome/username vazavam na edição) e sido remendado item a item
-   (.visualizador-story-excluir[hidden], .folha-menu[hidden]); isto resolve pra sempre. */
-[hidden] { display: none !important; }
 html[data-theme] body {
     margin: 0;
     background: var(--bg);
@@ -351,14 +348,12 @@ html[data-theme] *::-webkit-scrollbar-thumb:hover { background: var(--m); }
 .periodo-item.ativo { background: var(--or); color: #fff; }
 .form-periodo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .grupo-data-personalizada {
-    display: flex;
+    display: none;
     gap: 8px;
-    max-width: 0;
-    opacity: 0;
-    overflow: hidden;
-    transition: all .2s ease;
+    align-items: center;
 }
-.grupo-data-personalizada.ativo { max-width: 1000px; opacity: 1; overflow: visible; }
+.grupo-data-personalizada.ativo { display: flex; }
+.grupo-data-personalizada label { font-size: 12px; color: var(--m); font-weight: 700; }
 
 /* ===== Botões ===== */
 .botao {
@@ -1589,8 +1584,8 @@ html[data-theme] a.login-link-esqueci { color: var(--or); }
     }
 
     .barra-lateral { display: none; }
-    .layout-painel { flex-direction: column; padding-bottom: 64px; }
-    .conteudo-principal { padding: 0 16px 24px; }
+    .layout-painel { flex-direction: column; padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
+    .conteudo-principal { padding: 0 16px 32px; }
     .cabecalho-pagina h1 { font-size: 22px; }
     .grade-kpi { grid-template-columns: repeat(2, 1fr); }
     .cartao-kpi-larga { grid-column: span 2; }
@@ -1673,8 +1668,8 @@ html[data-theme] a.login-link-esqueci { color: var(--or); }
        só sobra quando a conta tem mais de um bot (aí o seletor de bot é útil).
        O form continua no DOM (display:none não impede submit()), que é como o JS
        troca de período -- ver script no fim da página. */
-    .grupo-data-personalizada { display: none; }
-    .form-periodo:not(:has(select)) { display: none; }
+    .grupo-data-personalizada:not(.ativo) { display: none; }
+    .form-periodo:not(:has(select)):not(:has(.grupo-data-personalizada.ativo)) { display: none; }
     .form-periodo { width: 100%; }
     .form-periodo > select { flex: 1; min-width: 0; }
 

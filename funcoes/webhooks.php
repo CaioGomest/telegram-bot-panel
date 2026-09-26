@@ -515,7 +515,7 @@ function exemplosPayloadWebhook(): array
             'first_name' => 'Maria',
             'last_name' => null,
             'username' => 'maria_silva',
-            'phone' => null,
+            'phone' => '5511999990000',
             'email' => null,
             'is_vip' => false,
         ],

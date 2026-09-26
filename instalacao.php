@@ -31,9 +31,10 @@ function instaladorJaTemAdmin(): bool {
     }
 }
 
-// Se já existe admin cadastrado, o instalador só pode ser reaberto por um
-// admin já logado (evita que qualquer visitante recrie/reconfigure o banco).
-if (instaladorJaTemAdmin()) {
+// Se já existe admin, a tela só abre para quem é admin e não oferece
+// reinstalar: o POST reescrevia o config.php. Visitante cai no login.
+$ja_instalado = instaladorJaTemAdmin();
+if ($ja_instalado) {
     require_once __DIR__ . '/funcoes/usuario.php';
     verificarAdmin();
 } elseif (session_status() === PHP_SESSION_NONE) {
@@ -48,7 +49,10 @@ require_once __DIR__ . '/funcoes/configuracoes.php';
 $mensagem = '';
 $tipo_mensagem = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ja_instalado) {
+    $mensagem = 'O painel já está instalado. Esta tela não recria o banco.';
+    $tipo_mensagem = 'erro';
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verificarCsrf();
     $banco_host = $_POST['banco_host'] ?? 'localhost';
     $usuario_banco = $_POST['usuario_banco'] ?? 'root';
@@ -539,6 +543,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="aviso aviso-<?= $tipo_mensagem ?>"><?= $mensagem ?></div>
         <?php endif; ?>
 
+        <?php if ($ja_instalado): ?>
+            <p>O painel já está instalado. Alterações de banco não passam por esta tela.</p>
+            <a href="admin/dashboard" class="botao botao-primario botao-bloco" style="margin-top:16px;">Ir para o painel</a>
+        <?php else: ?>
         <form method="POST" enctype="multipart/form-data">
             <?php echo campoCsrf(); ?>
             <div class="campo">
@@ -576,6 +584,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <button type="submit" class="botao botao-primario botao-bloco" style="margin-top:20px;">Instalar e Criar Banco</button>
         </form>
+        <?php endif; ?>
     </div>
 </body>
 </html>

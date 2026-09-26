@@ -9,6 +9,15 @@
         window.__toastTimeout = setTimeout(() => $toast.removeClass('visivel'), 3000);
     }
 
+    function formatarDataFluxo(valor) {
+        if (!valor) return '-';
+        const data = new Date(String(valor).replace(' ', 'T'));
+        if (Number.isNaN(data.getTime())) return String(valor);
+        const p = function (n) { return String(n).padStart(2, '0'); };
+        return p(data.getDate()) + '/' + p(data.getMonth() + 1) + '/' + data.getFullYear()
+            + ' ' + p(data.getHours()) + ':' + p(data.getMinutes());
+    }
+
     function escaparHtml(value) {
         return String(value || '')
             .replace(/&/g, '&amp;')
@@ -57,7 +66,7 @@
                             </div>
                             <div class="cartao-corpo">
                                 <p>${escaparHtml(flow.descricao || 'Sem descrição')}</p>
-                                <p class="texto-suave mono">Atualizado: ${escaparHtml(flow.atualizado_em || '-')}</p>
+                                <p class="texto-suave mono">Atualizado: ${escaparHtml(formatarDataFluxo(flow.atualizado_em))}</p>
                             </div>
                             <div class="cartao-acoes">
                                 <a href="${pagina_editar}?id=${encodeURIComponent(flow.id)}" class="botao botao-editar-fluxo">Editar fluxo</a>

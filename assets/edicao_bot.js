@@ -313,6 +313,12 @@
     }
 
     $('#btn-testar-token').on('click', testarConexaoBot);
+    $('#btn-mostrar-token').on('click', function () {
+        const $token = $('#token');
+        const mostrar = $token.attr('type') === 'password';
+        $token.attr('type', mostrar ? 'text' : 'password');
+        $(this).text(mostrar ? 'Ocultar' : 'Mostrar').attr('aria-label', mostrar ? 'Ocultar token' : 'Mostrar token');
+    });
     $('#btn-salvar-bot').on('click', salvarConfiguracoes);
 
     $('#formulario-perfil').on('submit', atualizarPerfilTelegram);

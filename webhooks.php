@@ -274,7 +274,7 @@ function nomeBotWebhook(array $bot): string
                 <h2>Exemplo de payload</h2>
             </div>
             <div class="exemplos-webhook">
-                <p class="texto-suave">E-mail, sobrenome, usuário do Telegram e IP não existem neste painel — esses campos vão null. O código Pix só aparece em pagamento criado.</p>
+                <p class="texto-suave">E-mail, sobrenome, usuário do Telegram e IP não existem neste painel — esses campos vão null. O telefone entra quando o lead tem número. O código Pix só aparece em pagamento criado.</p>
                 <?php foreach (exemplosPayloadWebhook() as $codigo => $exemplo): ?>
                     <details>
                         <summary><?php echo htmlspecialchars($eventos_catalogo[$codigo] ?? $codigo); ?></summary>

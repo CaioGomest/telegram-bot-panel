@@ -4,6 +4,7 @@
     let current_flow = null;
     let operator_index = 1;
     let fluxo_sujo = false;
+    let suprimir_auto_salvar = false;
     let timer_auto_salvar = null;
     let intervalo_backup = null;
     let zoom_level = 1;
@@ -422,6 +423,9 @@
             onAfterChange: function (tipo_mudanca) {
                 syncOperatorIndex();
                 atualizarCabecalhoFluxo();
+                // setData() ao abrir o fluxo dispara change. Sem este freio, só
+                // entrar na página gravava de novo e enchia o log.
+                if (suprimir_auto_salvar) return;
                 if (tipo_mudanca === 'operator_delete') {
                     atualizaFluxo(true);
                 } else {
@@ -436,7 +440,8 @@
         return $flowchart.flowchart('getData');
     }
 
-    function setChartData(data) {
+    function setChartData(data, agendar) {
+        if (agendar === undefined) agendar = true;
         const d = data || defaultChartData();
         const ops = d.operators || {};
         const links = d.links || {};
@@ -469,9 +474,19 @@
             ops[id].properties = props;
         });
         
-        $flowchart.flowchart('setData', d);
+        suprimir_auto_salvar = true;
+        try {
+            $flowchart.flowchart('setData', d);
+        } finally {
+            suprimir_auto_salvar = false;
+        }
         syncOperatorIndex();
-        agendarAutoSalvar();
+        if (agendar) {
+            agendarAutoSalvar();
+        } else {
+            fluxo_sujo = false;
+            clearTimeout(timer_auto_salvar);
+        }
     }
 
     const $btn_delete_link = $('<div class="btn-delete-link-hover">✕</div>').appendTo('body');
@@ -674,7 +689,7 @@
             base.properties.texto_botao = 'Entrar no Grupo';
         }
         if (type === 'randomizer') {
-            base.properties.title = 'Randomizer';
+            base.properties.title = 'Sorteio';
             base.properties.class = 'no-randomizer';
             base.properties.caminhos = [{ peso: 50 }, { peso: 50 }];
             base.properties.outputs = {
@@ -683,7 +698,7 @@
             };
         }
         if (type === 'upsell' || type === 'downsell' || type === 'order_bump') {
-            const rotulos = { upsell: 'Upsell', downsell: 'Downsell', order_bump: 'Order Bump' };
+            const rotulos = { upsell: 'Oferta extra', downsell: 'Oferta menor', order_bump: 'Extra no pagamento' };
             base.properties.title = rotulos[type];
             base.properties.class = 'no-' + type.replace('_', '-');
             base.properties.mensagem = '';
@@ -757,7 +772,7 @@
         $('#nome-fluxo').val('Novo fluxo');
         $('#descricao-fluxo').val('');
         $('#link-suporte-fluxo').val('');
-        setChartData(defaultChartData());
+        setChartData(defaultChartData(), false);
         if (window.history.pushState) {
             const new_url = window.location.protocol + "//" + window.location.host + window.location.pathname;
             window.history.pushState({path:new_url},'',new_url);
@@ -786,7 +801,7 @@
                     window.history.pushState({path:new_url},'',new_url);
                 }
 
-                setChartData(current_flow.dados_fluxograma || defaultChartData());
+                setChartData(current_flow.dados_fluxograma || defaultChartData(), false);
                 ultimo_salvo_em = current_flow.atualizado_em ? new Date(String(current_flow.atualizado_em).replace(' ', 'T')) : new Date();
                 atualizarCabecalhoFluxo();
                 setTimeout(centralizarVisao, 100);
@@ -987,7 +1002,7 @@
                 $('#nome-fluxo').val(current_flow.nome || '');
                 $('#descricao-fluxo').val(current_flow.descricao || '');
                 $('#link-suporte-fluxo').val(current_flow.link_suporte || '');
-                setChartData(current_flow.dados_fluxograma || defaultChartData());
+                setChartData(current_flow.dados_fluxograma || defaultChartData(), false);
                 showToast('Fluxo importado com sucesso.');
                 if (window.history.pushState && current_flow.id) {
                     const new_url = window.location.pathname + '?id=' + current_flow.id;

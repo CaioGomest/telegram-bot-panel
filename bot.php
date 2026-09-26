@@ -8,7 +8,7 @@ $eh_edicao = isset($_GET['id']) && $_GET['id'] !== '';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Configurar Bot - <?php echo htmlspecialchars(nomeSistema()); ?></title>
+    <title><?php echo $eh_edicao ? 'Configurar Bot' : 'Novo Bot'; ?> - <?php echo htmlspecialchars(nomeSistema()); ?></title>
     <?php include 'tema_inline.php'; ?>
     <link rel="stylesheet" href="assets/css/coyote.css?v=<?php echo @filemtime(__DIR__.'/assets/css/coyote.css'); ?>">
 </head>
@@ -18,7 +18,7 @@ $eh_edicao = isset($_GET['id']) && $_GET['id'] !== '';
     <main class="conteudo-principal">
         <div class="cabecalho-pagina">
             <div>
-                <h1>Configuração do Bot</h1>
+                <h1><?php echo $eh_edicao ? 'Configuração do Bot' : 'Novo Bot'; ?></h1>
                 <p>Conexão, fluxo padrão e perfil público no Telegram.</p>
             </div>
             <div class="acoes-cabecalho">
@@ -83,7 +83,8 @@ $eh_edicao = isset($_GET['id']) && $_GET['id'] !== '';
                             <div class="campo">
                                 <label for="token">Token do Bot</label>
                                 <div class="campo-com-acao">
-                                    <input type="text" id="token" name="token" class="mono" placeholder="123456789:AAH-xxxxxxxxxxxxxxxxxxxx">
+                                    <input type="password" id="token" name="token" class="mono" autocomplete="off" placeholder="123456789:AAH-xxxxxxxxxxxxxxxxxxxx">
+                                    <button type="button" class="botao botao-claro" id="btn-mostrar-token" aria-label="Mostrar token">Mostrar</button>
                                     <button type="button" class="botao botao-claro" id="btn-testar-token">Testar</button>
                                 </div>
                                 <p class="texto-ajuda">Obtenha este token com o @BotFather no Telegram.</p>
@@ -101,7 +102,7 @@ $eh_edicao = isset($_GET['id']) && $_GET['id'] !== '';
                             </div>
 
                             <div class="campo">
-                                <label for="id-fluxo-conectado">Fluxo <?php echo $eh_edicao ? 'de conversa' : 'padrão'; ?></label>
+                                <label for="id-fluxo-conectado">Fluxo de conversa</label>
                                 <div class="campo-com-acao">
                                     <select id="id-fluxo-conectado" name="connected_flow_id">
                                         <option value="">Selecione um fluxo...</option>

@@ -84,11 +84,18 @@ if ($where_sql === '1=1') {
     $total_transacoes = (int)$stmt_total->fetchColumn();
 }
 
-$pagina_atual = isset($_GET['pagina']) ? max(1, (int)$_GET['pagina']) : 1;
 $por_pagina = 25;
-$total_paginas = $total_transacoes > 0 ? (int) ceil($total_transacoes / $por_pagina) : 1;
-$pagina_atual = min($pagina_atual, $total_paginas);
+$pagina_atual = isset($_GET['pagina']) ? max(1, (int)$_GET['pagina']) : 1;
+$visao_padrao = ($where_sql === '1=1');
+// Sem filtro o total vem da estimativa do InnoDB, que costuma ser menor que a
+// tabela de verdade e cortava o fim da lista. Não trava a página nesse número:
+// busca uma linha a mais e, se ela existir, libera a página seguinte.
+if (!$visao_padrao) {
+    $total_paginas = $total_transacoes > 0 ? (int) ceil($total_transacoes / $por_pagina) : 1;
+    $pagina_atual = min($pagina_atual, $total_paginas);
+}
 $offset = ($pagina_atual - 1) * $por_pagina;
+$limite_ids = $visao_padrao ? $por_pagina + 1 : $por_pagina;
 
 // Busca só os IDs da página atual primeiro (sem os LEFT JOINs caros de gateway/split),
 // usando o índice em criado_em -- e só faz o JOIN pesado pras poucas linhas que
@@ -102,11 +109,20 @@ $sql_ids = "
     JOIN usuarios u ON b.id_usuario = u.id
     WHERE $where_sql
     ORDER BY v.criado_em DESC
-    LIMIT $por_pagina OFFSET $offset
+    LIMIT $limite_ids OFFSET $offset
 ";
 $stmt_ids = $pdo->prepare($sql_ids);
 $stmt_ids->execute($params);
 $ids_pagina = $stmt_ids->fetchAll(PDO::FETCH_COLUMN);
+if ($visao_padrao) {
+    $tem_mais = count($ids_pagina) > $por_pagina;
+    if ($tem_mais) {
+        array_pop($ids_pagina);
+        $total_transacoes = max($total_transacoes, $offset + $por_pagina + 1);
+    } else {
+        $total_transacoes = $offset + count($ids_pagina);
+    }
+}
 
 if ($ids_pagina) {
     $placeholders_ids = implode(',', array_fill(0, count($ids_pagina), '?'));
@@ -117,7 +133,8 @@ if ($ids_pagina) {
             b.id AS id_bot, COALESCE(b.primeiro_nome, b.nome_usuario) AS nome_bot,
             u.id AS id_usuario, u.nome AS nome_usuario,
             g.titulo AS titulo_gateway,
-            g.taxa_split AS soma_pct
+            g.taxa_split AS soma_pct,
+            g.chave_pix_split AS chave_pix_split
         FROM vendas v
         JOIN bots b ON v.bot_id = b.id
         JOIN usuarios u ON b.id_usuario = u.id
@@ -147,7 +164,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename=transacoes.csv');
     $output = fopen('php://output', 'w');
-    fputcsv($output, ['Data', 'Usuário', 'Bot', 'Valor', 'Status', 'Gateway', 'TXID', 'Status do Split', 'Detalhe do Split']);
+    fputcsv($output, ['ID', 'Data', 'Usuário', 'Bot', 'Valor', 'Status', 'Gateway', 'TXID', 'Status do Split', 'Detalhe do Split']);
 
     $sql_export = "
         SELECT
@@ -155,6 +172,8 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             b.id AS id_bot, COALESCE(b.primeiro_nome, b.nome_usuario) AS nome_bot,
             u.nome AS nome_usuario,
             g.titulo AS titulo_gateway,
+            g.taxa_split,
+            g.chave_pix_split,
             v.split_status
         $sql_base
         ORDER BY v.criado_em DESC
@@ -184,7 +203,13 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             $detalhe_split = implode(' | ', $partes);
         }
 
+        $status_split = $linha['split_status'];
+        if ($status_split === null) {
+            $tem_split = (float) ($linha['taxa_split'] ?? 0) > 0 && trim((string) ($linha['chave_pix_split'] ?? '')) !== '';
+            $status_split = $tem_split ? 'pendente' : 'sem_split';
+        }
         fputcsv($output, [
+            $linha['id'],
             date('d/m/Y H:i', strtotime($linha['criado_em'])),
             $linha['nome_usuario'],
             $linha['nome_bot'],
@@ -192,7 +217,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             $linha['status'],
             $linha['titulo_gateway'] ?? '-',
             $linha['transacao_id'] ?? '-',
-            $linha['split_status'] ?? 'pendente',
+            $status_split,
             $detalhe_split,
         ]);
     }
@@ -200,7 +225,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     exit;
 }
 
-$usuarios_filtro = $pdo->query('SELECT id, nome FROM usuarios ORDER BY nome')->fetchAll(PDO::FETCH_ASSOC);
+$usuarios_filtro = $pdo->query('SELECT id, nome, email FROM usuarios ORDER BY nome')->fetchAll(PDO::FETCH_ASSOC);
 
 function badgeStatusVenda(string $status): string {
     $mapa = [
@@ -219,6 +244,11 @@ function celulaSplit(array $venda, array $linhas_split): string {
     }
 
     if ($venda['split_status'] === null) {
+        $taxa = (float) ($venda['soma_pct'] ?? 0);
+        $chave = trim((string) ($venda['chave_pix_split'] ?? ''));
+        if ($taxa <= 0 || $chave === '') {
+            return '<span class="badge badge-neutro">Sem split</span>';
+        }
         $html = '<span class="badge badge-alerta">Pendente</span>';
         if ($venda['soma_pct'] !== null) {
             $valor_esperado = round((float)$venda['valor'] * ((float)$venda['soma_pct'] / 100), 2);
@@ -288,7 +318,7 @@ function celulaSplit(array $venda, array $linhas_split): string {
                         <option value="">Todos os usuários</option>
                         <?php foreach ($usuarios_filtro as $u): ?>
                             <option value="<?php echo $u['id']; ?>" <?php echo $usuario_id === (int)$u['id'] ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($u['nome']); ?>
+                                <?php echo htmlspecialchars($u['nome'] . ' — ' . $u['email']); ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
@@ -308,11 +338,11 @@ function celulaSplit(array $venda, array $linhas_split): string {
                         <option value="sem_split" <?php echo $split_status === 'sem_split' ? 'selected' : ''; ?>>Sem split configurado</option>
                         <option value="sem_credenciais" <?php echo $split_status === 'sem_credenciais' ? 'selected' : ''; ?>>Sem credenciais de Cash-Out</option>
                     </select>
-                    <input type="date" name="data_inicio" id="data_inicio" value="<?php echo htmlspecialchars($data_inicio); ?>" style="width:150px;">
-                    <input type="date" name="data_fim" id="data_fim" value="<?php echo htmlspecialchars($data_fim); ?>" style="width:150px;">
+                    <input type="date" name="data_inicio" id="data_inicio" aria-label="Data inicial" value="<?php echo htmlspecialchars($data_inicio); ?>" style="width:150px;">
+                    <input type="date" name="data_fim" id="data_fim" aria-label="Data final" value="<?php echo htmlspecialchars($data_fim); ?>" style="width:150px;">
                     <input type="text" name="busca" id="busca" placeholder="TXID ou ID do Telegram" value="<?php echo htmlspecialchars($busca); ?>" style="min-width:180px;">
                     <button type="submit" class="botao botao-primario">Filtrar</button>
-                    <a href="transacoes.php" class="botao">Limpar</a>
+                    <a href="transacoes" class="botao">Limpar</a>
                 </form>
             </div>
 
@@ -320,6 +350,7 @@ function celulaSplit(array $venda, array $linhas_split): string {
                 <table>
                     <thead>
                         <tr>
+                            <th>ID</th>
                             <th>Data</th>
                             <th>Usuário / Bot</th>
                             <th>Valor</th>
@@ -332,6 +363,7 @@ function celulaSplit(array $venda, array $linhas_split): string {
                     <tbody>
                         <?php foreach ($transacoes as $t): ?>
                         <tr>
+                            <td class="mono"><?php echo (int) $t['id']; ?></td>
                             <td class="mono texto-suave"><?php echo date('d/m/Y H:i', strtotime($t['criado_em'])); ?></td>
                             <td>
                                 <div><?php echo htmlspecialchars($t['nome_usuario']); ?></div>
@@ -347,7 +379,7 @@ function celulaSplit(array $venda, array $linhas_split): string {
 
                         <?php if (empty($transacoes)): ?>
                         <tr>
-                            <td colspan="7" style="text-align: center; padding: 40px; color: var(--m);">Nenhuma transação encontrada.</td>
+                            <td colspan="8" style="text-align: center; padding: 40px; color: var(--m);">Nenhuma transação encontrada.</td>
                         </tr>
                         <?php endif; ?>
                     </tbody>
