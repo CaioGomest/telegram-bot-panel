@@ -638,6 +638,10 @@ html[data-theme] a.botao-configurar { color: var(--or); }
     transition: .25s ease;
     z-index: 9999;
     font: 700 12.5px 'Manrope', sans-serif;
+    /* sem clique nenhum (só timeout de 3s), mas fixed + z-index alto continuava
+       capturando toque mesmo com opacity:0 -- no mobile isso caía bem em cima do
+       botao "Mais" da barra inferior e bloqueava o toque nele */
+    pointer-events: none;
 }
 #toast.visivel { opacity: 1; transform: translateY(0); }
 #toast.sucesso { border-color: var(--ok); color: var(--ok); }

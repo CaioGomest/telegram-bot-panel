@@ -93,9 +93,11 @@
         if ($select_fluxo.find('option').length <= 1) {
             setTimeout(() => {
                 $select_fluxo.val(bot.id_fluxo_conectado || '');
+                atualizarLinkFluxo();
             }, 1000);
         } else {
             $select_fluxo.val(bot.id_fluxo_conectado || '');
+            atualizarLinkFluxo();
         }
 
         $('#name').val(bot.primeiro_nome || '');
@@ -118,6 +120,7 @@
         $('#description').val('');
         $('#descricao-curta').val('');
         $('#id-fluxo-conectado').val('');
+        atualizarLinkFluxo();
         $('#photo').val('');
         
         $('#nome-preview-criacao').val('');
@@ -139,10 +142,28 @@
                 const current_value = $select.val();
                 $select.html('<option value="">Selecione um fluxo...</option>');
                 (response.fluxos || []).forEach(function (flow) {
-                    $select.append(`<option value="${escaparHtml(flow.id)}">${escaparHtml(flow.nome)}</option>`);
+                    $select.append(`<option value="${escaparHtml(flow.id)}" data-modo="${escaparHtml(flow.modo)}">${escaparHtml(flow.nome)}</option>`);
                 });
                 if (current_value) $select.val(current_value);
+                atualizarLinkFluxo();
             });
+    }
+
+    // O link ao lado do select ficava sempre em "fluxo" (sem id), então "Editar fluxo"
+    // nunca abria o fluxo de verdade, sempre criava um novo em branco -- ver item 13
+    // do relatório de homologação de 25/09. Precisa saber o modo (básico/avançado)
+    // porque cada um abre num editor de página diferente (fluxo_basico / fluxo).
+    function atualizarLinkFluxo() {
+        const $select = $('#id-fluxo-conectado');
+        const id = $select.val();
+        const $link = $('#link-fluxo-secundario');
+        if (id) {
+            const modo = $select.find('option:selected').data('modo');
+            const pagina = modo === 'basico' ? 'fluxo_basico' : 'fluxo';
+            $link.attr('href', pagina + '?id=' + encodeURIComponent(id));
+        } else {
+            $link.attr('href', 'fluxo');
+        }
     }
 
     function carregarBotPeloId(id) {
@@ -425,6 +446,8 @@
         document.body.removeChild(tmp);
         callback();
     }
+
+    $(document).on('change', '#id-fluxo-conectado', atualizarLinkFluxo);
 
     const url_params = new URLSearchParams(window.location.search);
     const bot_id = url_params.get('id');

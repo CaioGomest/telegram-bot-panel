@@ -136,7 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'login')
                         <span class="chave-gateway-trilho"></span>
                     </label>
                     <span class="texto-suave" style="margin-right:auto;margin-left:8px;">Lembrar</span>
-                    <span class="login-link-esqueci" onclick="abrirEsqueciSenha()">Esqueci a senha</span>
+                    <a href="#" class="login-link-esqueci" onclick="abrirEsqueciSenha(); return false;">Esqueci a senha</a>
                 </div>
 
                 <button type="submit" class="botao botao-primario botao-bloco" style="margin-top:20px;padding:15px;">Entrar</button>
