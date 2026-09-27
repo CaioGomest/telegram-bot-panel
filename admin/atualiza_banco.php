@@ -622,6 +622,13 @@ try {
         echo "Coluna 'tipo' removida de 'campanhas_ranking'.<br>";
     } catch (PDOException $e) {}
 
+    // Banner opcional exibido no topo da tela pública de Ranking (ranking.php). Sem ele, a
+    // tela cai no logo geral do sistema, como já fazia antes.
+    try {
+        $pdo->exec("ALTER TABLE campanhas_ranking ADD COLUMN imagem_banner VARCHAR(255) DEFAULT NULL AFTER subtitulo");
+        echo "Coluna 'imagem_banner' adicionada em 'campanhas_ranking'.<br>";
+    } catch (PDOException $e) {}
+
     try {
         $pdo->exec("ALTER TABLE usuarios ADD COLUMN apelido_publico VARCHAR(40) DEFAULT NULL AFTER nome");
         echo "Coluna 'apelido_publico' adicionada em 'usuarios'.<br>";

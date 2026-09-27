@@ -34,7 +34,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $data_fim = trim($_POST['data_fim'] ?? '');
         $ativa = isset($_POST['ativa']) ? 1 : 0;
 
-        if ($slug === '' || $titulo === '' || $data_inicio === '' || $data_fim === '') {
+        // Banner é opcional: sem upload novo, mantém o que já estava salvo (edição) ou fica
+        // vazio (campanha nova) — igual ao padrão já usado pra foto de bot em api.php.
+        $imagem_banner = null;
+        if ($id) {
+            $stmt_atual = $pdo->prepare("SELECT imagem_banner FROM campanhas_ranking WHERE id = ?");
+            $stmt_atual->execute([$id]);
+            $imagem_banner = $stmt_atual->fetchColumn() ?: null;
+        }
+        if (!empty($_FILES['imagem_banner']['tmp_name'])) {
+            $tmp = $_FILES['imagem_banner']['tmp_name'];
+            $tamanho = (int) ($_FILES['imagem_banner']['size'] ?? 0);
+            if ($tamanho <= 0 || $tamanho > 5 * 1024 * 1024 || !@getimagesize($tmp)) {
+                $erro = 'Banner: arquivo inválido, vazio ou maior que 5MB.';
+            } else {
+                $extensao = strtolower(pathinfo($_FILES['imagem_banner']['name'] ?? 'banner.jpg', PATHINFO_EXTENSION));
+                if (!in_array($extensao, ['jpg', 'jpeg', 'png', 'webp'], true)) {
+                    $extensao = 'jpg';
+                }
+                $diretorio_uploads = __DIR__ . '/../uploads';
+                if (!is_dir($diretorio_uploads)) {
+                    mkdir($diretorio_uploads, 0777, true);
+                }
+                $caminho_local = $diretorio_uploads . '/' . uniqid('campanha_banner_', true) . '.' . $extensao;
+                if (!move_uploaded_file($tmp, $caminho_local) || !file_exists($caminho_local)) {
+                    $erro = 'Banner: falha ao salvar o arquivo.';
+                } else {
+                    $imagem_banner = 'uploads/' . basename($caminho_local);
+                }
+            }
+        }
+
+        if ($erro !== '') {
+            // já setado acima (upload inválido) — cai direto pro formulário
+        } elseif ($slug === '' || $titulo === '' || $data_inicio === '' || $data_fim === '') {
             $erro = 'Preencha slug, título e as duas datas.';
         } elseif (strtotime($data_inicio) === false || strtotime($data_fim) === false) {
             $erro = 'Datas inválidas.';
@@ -45,17 +78,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($id) {
                     $stmt = $pdo->prepare("
                         UPDATE campanhas_ranking
-                        SET slug = ?, titulo = ?, subtitulo = ?, data_inicio = ?, data_fim = ?, ativa = ?
+                        SET slug = ?, titulo = ?, subtitulo = ?, imagem_banner = ?, data_inicio = ?, data_fim = ?, ativa = ?
                         WHERE id = ?
                     ");
-                    $stmt->execute([$slug, $titulo, $subtitulo ?: null, $data_inicio, $data_fim, $ativa, $id]);
+                    $stmt->execute([$slug, $titulo, $subtitulo ?: null, $imagem_banner, $data_inicio, $data_fim, $ativa, $id]);
                     $campanha_id = $id;
                 } else {
                     $stmt = $pdo->prepare("
-                        INSERT INTO campanhas_ranking (slug, titulo, subtitulo, data_inicio, data_fim, ativa)
+                        INSERT INTO campanhas_ranking (slug, titulo, subtitulo, imagem_banner, data_inicio, data_fim, ativa)
                         VALUES (?, ?, ?, ?, ?, ?, ?)
                     ");
-                    $stmt->execute([$slug, $titulo, $subtitulo ?: null, $data_inicio, $data_fim, $ativa]);
+                    $stmt->execute([$slug, $titulo, $subtitulo ?: null, $imagem_banner, $data_inicio, $data_fim, $ativa]);
                     $campanha_id = (int) $pdo->lastInsertId();
                 }
 
@@ -143,7 +176,7 @@ function campoPremio(int $posicao, array $premios_edicao): array
 
         <div class="painel" id="form-campanha">
             <div class="painel-cabecalho"><h2><?php echo $campanha_edicao ? 'Editar campanha' : 'Nova campanha'; ?></h2></div>
-            <form method="POST">
+            <form method="POST" enctype="multipart/form-data">
                 <?php echo campoCsrf(); ?>
                 <input type="hidden" name="acao" value="salvar_campanha">
                 <?php if ($campanha_edicao): ?><input type="hidden" name="id" value="<?php echo (int) $campanha_edicao['id']; ?>"><?php endif; ?>
@@ -163,6 +196,14 @@ function campoPremio(int $posicao, array $premios_edicao): array
                         <label for="subtitulo">Subtítulo (opcional)</label>
                         <input type="text" id="subtitulo" name="subtitulo" maxlength="255" placeholder="Cinco posições, cinco passaportes..."
                                value="<?php echo htmlspecialchars($campanha_edicao['subtitulo'] ?? ''); ?>">
+                    </div>
+                    <div class="campo completo">
+                        <label for="imagem_banner">Banner (opcional)</label>
+                        <?php if (!empty($campanha_edicao['imagem_banner'])): ?>
+                            <img src="../<?php echo htmlspecialchars($campanha_edicao['imagem_banner']); ?>" alt="" style="max-width:100%;border-radius:10px;margin-bottom:8px;display:block;">
+                        <?php endif; ?>
+                        <input type="file" id="imagem_banner" name="imagem_banner" accept="image/jpeg,image/png,image/webp">
+                        <p class="texto-ajuda">Aparece no topo da tela pública de Ranking. Sem banner, usa o logo geral do sistema.</p>
                     </div>
                     <div class="campo">
                         <label for="data_inicio">Início</label>

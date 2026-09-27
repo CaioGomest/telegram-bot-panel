@@ -96,6 +96,11 @@ if ($ranking) {
 
         <div class="grade-ranking">
             <div>
+                <?php if (!empty($campanha['imagem_banner'])): ?>
+                <div class="painel" style="padding:0;overflow:hidden;margin-bottom:14px;">
+                    <img src="<?php echo htmlspecialchars($campanha['imagem_banner']); ?>" alt="" style="width:100%;display:block;">
+                </div>
+                <?php endif; ?>
                 <div class="hero-ranking">
                     <img src="<?php echo htmlspecialchars(logoSistema()); ?>" alt="" class="hero-ranking-logo">
                     <div class="hero-ranking-conteudo">

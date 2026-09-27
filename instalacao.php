@@ -428,6 +428,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ja_instalado) {
             slug VARCHAR(60) NOT NULL UNIQUE,
             titulo VARCHAR(100) NOT NULL,
             subtitulo VARCHAR(255) DEFAULT NULL,
+            imagem_banner VARCHAR(255) DEFAULT NULL,
             data_inicio DATETIME NOT NULL,
             data_fim DATETIME NOT NULL,
             ativa TINYINT(1) DEFAULT 1,
