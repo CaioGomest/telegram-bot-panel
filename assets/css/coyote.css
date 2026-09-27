@@ -1422,8 +1422,21 @@ html[data-theme] a.login-link-esqueci { color: var(--or); }
     margin-bottom: 14px;
 }
 .hero-ranking-halo { display: none; }
-.hero-ranking-logo { position: absolute; right: 16px; bottom: -30px; width: 210px; height: 210px; border-radius: 50%; object-fit: cover; }
-.hero-ranking-conteudo { position: relative; max-width: 30rem; }
+.hero-ranking-logo { position: absolute; right: 16px; bottom: -30px; width: 210px; height: 210px; border-radius: 50%; object-fit: cover; z-index: 1; }
+/* Capa da campanha: preenche o card inteiro (cover) e esmaece num gradiente até a cor
+   do painel, pra qualquer imagem enviada continuar legível com o texto por cima --
+   sem isso, uma foto clara por trás do título quebraria o contraste. Funciona nos dois
+   temas porque a base do gradiente é var(--p), não uma cor fixa. */
+.hero-ranking-capa {
+    position: absolute; inset: 0; z-index: 0;
+    background-size: cover; background-position: center;
+}
+.hero-ranking-capa::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(100deg, var(--p) 0%, var(--p) 34%, transparent 92%);
+}
+.hero-ranking.tem-capa .hero-ranking-conteudo { max-width: 26rem; }
+.hero-ranking-conteudo { position: relative; z-index: 1; max-width: 30rem; }
 .hero-ranking-eyebrow { font: 800 11px 'Manrope', sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--m); margin-top: 22px; }
 .hero-ranking-titulo { margin: 8px 0 0; font-size: 50px; line-height: .95; }
 .hero-ranking-desc { margin: 14px 0 0; font-size: 14px; color: var(--m); line-height: 1.6; max-width: 42ch; }

@@ -32,10 +32,25 @@ Pedido do Caio: colocar um banner promocional no topo da tela pública de Rankin
   próprio no topo, acima do card de "Sua posição/Placar" que já existia. Sem banner
   configurado, continua exatamente como antes (logo geral do sistema no lugar de sempre).
 
-## Pendente
+SSH voltou (era o toggle de acesso desativado no hPanel — o Caio reativou). Deploy feito,
+migração rodada, testado ao vivo: criar campanha nova funciona, banner sobe e aparece na
+tela pública. Contas/campanha descartáveis do teste já apagadas.
 
-- **SSH pro servidor continua fora do ar** (mesmo erro `/sbin/nologin`) — código
-  commitado e no GitHub, mas nada disso está no servidor ainda. Por isso não consegui
-  configurar o banner de verdade na campanha "Teste titulo" ao vivo.
-- Gerado um banner de exemplo (1200×400, PNG, via GD) pra testar/usar assim que o deploy
-  for possível: `anotacoes/testes/banner-ranking-vendas-exemplo.png`.
+## 3. ✅ CORRIGIDO — Banner ficava desarmônico e não escalava no mobile
+
+O Caio testou ao vivo e reportou: o primeiro formato (card de banner separado, com
+título/subtítulo/CTA **desenhados dentro do PNG**) ficava duplicado — o card de baixo já
+mostra o título/data/selo reais da campanha, então apareciam dois "cabeçalhos"
+empilhados dizendo coisas parecidas. E por ser uma imagem raster de tamanho fixo com
+texto embutido, encolhia inteira no mobile (o texto do PNG ficava ilegível, diferente do
+texto de verdade da página, que é HTML e se adapta).
+
+**Fix:** o banner não é mais um bloco separado — vira o **plano de fundo do próprio
+card** (`.hero-ranking-capa`, `assets/css/coyote.css`), com um gradiente que esmaece pra
+cor do painel do lado esquerdo (onde fica o texto real) e mostra a imagem cheia do lado
+direito. Sem texto embutido na imagem — o título, selo e datas continuam sendo o HTML de
+sempre, por cima, então escalam normal em qualquer largura de tela. Quando tem banner, o
+logo pequeno do sistema (que ficava no canto) some, pra não competir com a imagem de
+fundo. Texto de ajuda do campo de upload atualizado avisando pra não colocar texto na
+imagem. Gerado um novo exemplo sem texto (`anotacoes/testes/capa-ranking-exemplo.png`) e
+reenviado na campanha "Teste titulo" em produção.

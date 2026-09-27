@@ -96,13 +96,12 @@ if ($ranking) {
 
         <div class="grade-ranking">
             <div>
-                <?php if (!empty($campanha['imagem_banner'])): ?>
-                <div class="painel" style="padding:0;overflow:hidden;margin-bottom:14px;">
-                    <img src="<?php echo htmlspecialchars($campanha['imagem_banner']); ?>" alt="" style="width:100%;display:block;">
-                </div>
-                <?php endif; ?>
-                <div class="hero-ranking">
-                    <img src="<?php echo htmlspecialchars(logoSistema()); ?>" alt="" class="hero-ranking-logo">
+                <div class="hero-ranking<?php echo !empty($campanha['imagem_banner']) ? ' tem-capa' : ''; ?>">
+                    <?php if (!empty($campanha['imagem_banner'])): ?>
+                        <div class="hero-ranking-capa" style="background-image:url('<?php echo htmlspecialchars($campanha['imagem_banner']); ?>');"></div>
+                    <?php else: ?>
+                        <img src="<?php echo htmlspecialchars(logoSistema()); ?>" alt="" class="hero-ranking-logo">
+                    <?php endif; ?>
                     <div class="hero-ranking-conteudo">
                         <div style="display:flex;gap:8px;flex-wrap:wrap;">
                             <?php if ($estado === 'ativa'): ?>

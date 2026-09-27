@@ -203,7 +203,7 @@ function campoPremio(int $posicao, array $premios_edicao): array
                             <img src="../<?php echo htmlspecialchars($campanha_edicao['imagem_banner']); ?>" alt="" style="max-width:100%;border-radius:10px;margin-bottom:8px;display:block;">
                         <?php endif; ?>
                         <input type="file" id="imagem_banner" name="imagem_banner" accept="image/jpeg,image/png,image/webp">
-                        <p class="texto-ajuda">Aparece no topo da tela pública de Ranking. Sem banner, usa o logo geral do sistema.</p>
+                        <p class="texto-ajuda">Vira o plano de fundo do card no topo da tela pública de Ranking (com uma camada escura por cima pra manter o texto legível) — evite imagem com texto, o título e as datas já aparecem sobrepostos automaticamente. Sem banner, usa o logo geral do sistema.</p>
                     </div>
                     <div class="campo">
                         <label for="data_inicio">Início</label>
