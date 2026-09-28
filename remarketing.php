@@ -325,7 +325,7 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                 // Falha é o que realmente importa debugar -- sucesso já está resumido no
                 // contador da campanha. Sem esse padrão default, uma campanha de milhares
                 // de sucesso enterra as poucas falhas que valeria a pena olhar.
-                $det_resultado = in_array($_GET['det_resultado'] ?? '', ['sucesso', 'falha'], true) ? $_GET['det_resultado'] : 'falha';
+                $det_resultado = in_array($_GET['det_resultado'] ?? '', ['sucesso', 'falha', 'todos'], true) ? $_GET['det_resultado'] : 'falha';
                 $det_pagina = max(1, (int)($_GET['det_pagina'] ?? 1));
                 $det_por_pagina = 50;
 
