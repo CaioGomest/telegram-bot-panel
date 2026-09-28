@@ -308,23 +308,73 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
             </div>
 
             <?php
-            if (isset($_GET['detalhes'])) {
+            if (isset($_GET['detalhes'])):
                 $det_id = (int)$_GET['detalhes'];
-                $stmt_det = $pdo->prepare("SELECT e.* FROM remarketing_envios e WHERE e.campanha_id = ? ORDER BY e.enviado_em DESC");
-                $stmt_det->execute([$det_id]);
-                $envios = $stmt_det->fetchAll(PDO::FETCH_ASSOC);
-                echo '<h2 style="margin:20px 0 0;font-size:18px;">Detalhes da Campanha #' . $det_id . '</h2>';
-                echo '<div class="tabela-dados" style="margin-top:12px;"><table><thead><tr><th>ID Telegram</th><th>Resultado</th><th>Enviado Em</th></tr></thead><tbody>';
-                if (empty($envios)) {
-                    echo '<tr><td colspan="3" style="text-align:center; padding: 10px;" class="texto-suave">Sem envios registrados.</td></tr>';
-                } else {
-                    foreach ($envios as $e) {
-                        echo '<tr><td>' . htmlspecialchars($e['id_telegram']) . '</td><td>' . htmlspecialchars($e['resultado']) . '</td><td class="mono">' . date('d/m/Y H:i', strtotime($e['enviado_em'])) . '</td></tr>';
-                    }
+                // Falha é o que realmente importa debugar -- sucesso já está resumido no
+                // contador da campanha. Sem esse padrão default, uma campanha de milhares
+                // de sucesso enterra as poucas falhas que valeria a pena olhar.
+                $det_resultado = in_array($_GET['det_resultado'] ?? '', ['sucesso', 'falha'], true) ? $_GET['det_resultado'] : 'falha';
+                $det_pagina = max(1, (int)($_GET['det_pagina'] ?? 1));
+                $det_por_pagina = 50;
+
+                $det_where = "campanha_id = ?";
+                $det_params = [$det_id];
+                if ($det_resultado !== 'todos') {
+                    $det_where .= " AND resultado = ?";
+                    $det_params[] = $det_resultado;
                 }
-                echo '</tbody></table></div>';
-            }
+
+                $stmt_det_total = $pdo->prepare("SELECT COUNT(*) FROM remarketing_envios WHERE $det_where");
+                $stmt_det_total->execute($det_params);
+                $det_total = (int)$stmt_det_total->fetchColumn();
+                $det_total_paginas = max(1, (int)ceil($det_total / $det_por_pagina));
+                $det_pagina = min($det_pagina, $det_total_paginas);
+                $det_offset = ($det_pagina - 1) * $det_por_pagina;
+
+                $stmt_det = $pdo->prepare("SELECT * FROM remarketing_envios WHERE $det_where ORDER BY enviado_em DESC LIMIT $det_por_pagina OFFSET $det_offset");
+                $stmt_det->execute($det_params);
+                $envios = $stmt_det->fetchAll(PDO::FETCH_ASSOC);
+
+                function urlDetalhesRemarketing(int $det_id, string $resultado, int $pagina): string
+                {
+                    return '?detalhes=' . $det_id . '&det_resultado=' . urlencode($resultado) . '&det_pagina=' . $pagina;
+                }
             ?>
+                <h2 style="margin:20px 0 0;font-size:18px;">Detalhes da Campanha #<?php echo $det_id; ?></h2>
+                <div class="seletor-periodo" style="margin-top:10px;">
+                    <a href="<?php echo urlDetalhesRemarketing($det_id, 'falha', 1); ?>" class="periodo-item<?php echo $det_resultado === 'falha' ? ' ativo' : ''; ?>">Falhas</a>
+                    <a href="<?php echo urlDetalhesRemarketing($det_id, 'sucesso', 1); ?>" class="periodo-item<?php echo $det_resultado === 'sucesso' ? ' ativo' : ''; ?>">Sucessos</a>
+                    <a href="<?php echo urlDetalhesRemarketing($det_id, 'todos', 1); ?>" class="periodo-item<?php echo $det_resultado === 'todos' ? ' ativo' : ''; ?>">Todos</a>
+                </div>
+                <div class="tabela-dados" style="margin-top:12px;">
+                    <table>
+                        <thead><tr><th>ID Telegram</th><th>Resultado</th><th>Resposta</th><th>Enviado Em</th></tr></thead>
+                        <tbody>
+                        <?php if (empty($envios)): ?>
+                            <tr><td colspan="4" style="text-align:center;padding:10px;" class="texto-suave">Nenhum envio com esse filtro.</td></tr>
+                        <?php else: foreach ($envios as $e): ?>
+                            <tr>
+                                <td class="mono"><?php echo htmlspecialchars($e['id_telegram']); ?></td>
+                                <td><span class="badge <?php echo $e['resultado'] === 'sucesso' ? 'badge-sucesso' : 'badge-perigo'; ?>"><?php echo htmlspecialchars($e['resultado']); ?></span></td>
+                                <td class="texto-suave mono" title="<?php echo htmlspecialchars($e['resposta']); ?>"><?php echo htmlspecialchars(mb_strimwidth((string) $e['resposta'], 0, 60, '...')); ?></td>
+                                <td class="mono"><?php echo date('d/m/Y H:i', strtotime($e['enviado_em'])); ?></td>
+                            </tr>
+                        <?php endforeach; endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <?php if ($det_total > 0): ?>
+                <div style="margin-top:14px; display:flex;justify-content:center; gap:8px; align-items:center;">
+                    <a class="btn-icon" href="<?php echo urlDetalhesRemarketing($det_id, $det_resultado, max(1, $det_pagina - 1)); ?>" aria-label="Página anterior">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
+                    </a>
+                    <span class="texto-suave">Página <?php echo $det_pagina; ?> de <?php echo $det_total_paginas; ?> · <?php echo $det_total; ?> envio<?php echo $det_total === 1 ? '' : 's'; ?></span>
+                    <a class="btn-icon" href="<?php echo urlDetalhesRemarketing($det_id, $det_resultado, min($det_total_paginas, $det_pagina + 1)); ?>" aria-label="Próxima página">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg>
+                    </a>
+                </div>
+                <?php endif; ?>
+            <?php endif; ?>
         </div>
         <div id="modal-nova-campanha" class="sobreposicao-modal">
             <div class="modal-gateway" style="max-width: 720px;">
