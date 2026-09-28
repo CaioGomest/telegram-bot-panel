@@ -7,6 +7,16 @@ const MAX_CAMPANHAS = 20;    // campanhas simultâneas por rodada
 const BOT_DELAY_US  = 40000; // 40ms entre ticks por bot = ~25 msg/s (limite: 30/s)
 const CURL_TIMEOUT  = 8;
 const MAX_EXEC_SEC  = 240;   // 4 min de margem (Hostinger permite ~5 min no cron)
+// Teto pra UM tick do curl_multi (não pro script todo). O MAX_EXEC_SEC só é conferido
+// ENTRE ticks -- se um tick nunca voltar $active a 0 (travou de verdade, achado ao vivo:
+// 28/09, campanha com mídia ficou presa ~3h, precisou matar o processo manualmente), o
+// script inteiro fica preso, ignorando o limite de 4min. Isso força saída do tick mesmo
+// se algum handle nunca terminar.
+const MAX_TICK_SEC  = 40;
+// Depois de N falhas seguidas pro MESMO bot sem nenhum sucesso, para de insistir --
+// sintoma de bot com token inválido/revogado (ex.: bot de demonstração com token falso),
+// não tem por que tentar todos os milhares de destinatários pra só depois descobrir isso.
+const MAX_FALHAS_SEGUIDAS_BOT = 10;
 
 $lock_file = sys_get_temp_dir() . '/remarketing_cron.lock';
 $lock = fopen($lock_file, 'c');
@@ -197,6 +207,8 @@ foreach ($campanhas as $c) {
         'midia_caminho' => $c['midia_caminho'],
         'midia_tipo'    => $c['midia_tipo'],
         'midia_file_id' => $c['midia_file_id'],
+        'falhas_seguidas' => 0,
+        'bot_bloqueado' => false,
     ];
 }
 
@@ -252,10 +264,21 @@ while (true) {
     if (empty($handles)) break;
 
     $tick_start = microtime(true);
+    $tick_travado = false;
     do {
         curl_multi_exec($mh, $active);
         if ($active > 0) curl_multi_select($mh, 0.005); // poll a cada 5ms
+        if ($active > 0 && (microtime(true) - $tick_start) >= MAX_TICK_SEC) {
+            // Nunca deveria acontecer (CURLOPT_TIMEOUT já limita cada request), mas se
+            // acontecer o script inteiro travaria pra sempre sem isso -- MAX_EXEC_SEC só é
+            // conferido ENTRE ticks, nunca dentro de um. Encerra a rodada aqui: o progresso
+            // já feito fica salvo (offset_envio) e o cron tenta de novo na próxima chamada.
+            echo "Tick travado (>" . MAX_TICK_SEC . "s, algum request nunca terminou) -- encerrando a rodada." . PHP_EOL;
+            $tick_travado = true;
+            break;
+        }
     } while ($active > 0);
+    if ($tick_travado) break;
 
     $rate_hit = 0;
     while ($info = curl_multi_info_read($mh)) {
@@ -296,7 +319,25 @@ while (true) {
         }
 
         $stmt_log->execute([$cid, $chat_id, $ok ? 'sucesso' : 'falha', substr($res, 0, 500)]);
-        if ($ok) { $filas[$cid]['sucesso']++; } else { $filas[$cid]['falhas']++; }
+        if ($ok) {
+            $filas[$cid]['sucesso']++;
+            $filas[$cid]['falhas_seguidas'] = 0;
+        } else {
+            $filas[$cid]['falhas']++;
+            $filas[$cid]['falhas_seguidas']++;
+            // N falhas seguidas sem nenhum sucesso no meio = sintoma de bot com token
+            // inválido/revogado (achado ao vivo: bot de demonstração com token falso
+            // derrubou 536 tentativas seguidas, todas com o mesmo erro estrutural do
+            // Telegram, antes do processo travar). Não faz sentido insistir pros
+            // milhares de destinatários restantes -- esvazia a fila e para com essa
+            // campanha nesta rodada.
+            if ($filas[$cid]['falhas_seguidas'] >= MAX_FALHAS_SEGUIDAS_BOT && !$filas[$cid]['bot_bloqueado']) {
+                $filas[$cid]['bot_bloqueado'] = true;
+                $descartados = count($filas[$cid]['fila']);
+                $filas[$cid]['fila'] = [];
+                echo "Campanha #$cid: $descartados destinatário(s) restantes descartados após " . MAX_FALHAS_SEGUIDAS_BOT . " falhas seguidas (bot provavelmente com token inválido). Último erro: " . substr($res, 0, 200) . PHP_EOL;
+            }
+        }
 
         curl_multi_remove_handle($mh, $ch);
         unset($handles[$key]);
@@ -318,8 +359,11 @@ curl_multi_close($mh);
 
 foreach ($filas as $cid => $f) {
     $new_offset  = $f['offset'] + $f['enviados_batch'];
-    // Concluída: processou menos que BATCH_SIZE (último batch) e fila vazia
-    $concluida  = empty($f['fila']) && $f['enviados_batch'] < BATCH_SIZE;
+    // Concluída: processou menos que BATCH_SIZE (último batch) e fila vazia -- mas só
+    // conta como concluída de verdade se a fila esvaziou por ter processado todo mundo,
+    // não porque o circuit breaker descartou o resto (aí é falha, não sucesso).
+    $concluida  = !$f['bot_bloqueado'] && empty($f['fila']) && $f['enviados_batch'] < BATCH_SIZE;
+    $status = $f['bot_bloqueado'] ? 'falha' : ($concluida ? 'concluida' : 'processando');
 
     $pdo->prepare("
         UPDATE remarketing_campanhas
@@ -332,13 +376,13 @@ foreach ($filas as $cid => $f) {
         $f['sucesso'] + $f['falhas'],
         $f['sucesso'],
         $f['falhas'],
-        $concluida ? 'concluida' : 'processando',
-        $concluida ? 1 : 0,
+        $status,
+        ($concluida || $f['bot_bloqueado']) ? 1 : 0,
         $cid,
     ]);
 
     $pct = $f['total'] > 0 ? round($new_offset / $f['total'] * 100) . '%' : '?';
-    $label = $concluida ? 'Concluída' : "Parcial ($pct)";
+    $label = $f['bot_bloqueado'] ? 'Bloqueada (bot com falha)' : ($concluida ? 'Concluída' : "Parcial ($pct)");
     echo "$label  campanha #$cid | offset=$new_offset ok={$f['sucesso']} falhas={$f['falhas']}" . PHP_EOL;
 }
 
