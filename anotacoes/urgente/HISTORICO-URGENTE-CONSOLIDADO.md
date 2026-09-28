@@ -18,9 +18,32 @@ Substitui os 8 arquivos que estavam soltos nesta pasta. Igual ao
    de raiz, não a A).
 2. **As 4 mudanças pro motor escalar (nenhuma feita ainda):**
    - **Crons de acesso/aviso/renovação rodam item a item** (~1,5s cada, sequencial) —
-     capacidade de ~40-50 remoções/min. Solução já existe no próprio projeto:
+     capacidade de ~40-50 remoções/min (~64.800/dia, teto detalhado em
+     `anotacoes/capacidade.md`). Solução já existe no próprio projeto:
      `cron_remarketing.php` já usa `curl_multi` + `FOR UPDATE SKIP LOCKED`, é só
      replicar o padrão pros outros 3 crons.
+
+     **Mecanismo (referência técnica pra quando for implementar):** o gargalo é
+     `telegramRequest()` em `cron_verificar_acessos.php` usando `curl_exec()` —
+     bloqueante, uma chamada de cada vez, e cada membro vencido faz até 4 chamadas
+     sequenciais (revogar link → banir → desbanir → avisar). Trocar por `curl_multi`
+     igual `cron_remarketing.php` (linhas 130-219): monta vários handles com
+     `curl_multi_add_handle()`, processa juntos com `curl_multi_exec()` +
+     `curl_multi_select()`, e `curl_multi_info_read()` vai devolvendo cada resposta
+     conforme chega — sem esperar a mais lenta pra processar a mais rápida. O limite de
+     ~30 msg/s por bot do Telegram já sai de graça reaproveitando o `$bot_em_uso` (só
+     uma chamada em voo por bot por vez; bots diferentes disparam em paralelo à vontade).
+     Diferença pro remarketing: lá cada item da fila é uma mensagem solta (dispara e
+     esquece); aqui cada item é um **membro com uma sequência de passos dependentes**
+     (só banir depois de confirmar a revogação, por exemplo) — a fila vira uma lista de
+     membros guardando em que passo cada um está, avançando um passo a cada resposta que
+     chega, em vez de uma lista de mensagens soltas.
+
+     **Prioridade: baixa, não fazer agora.** Só passa a importar em volume de dezenas de
+     milhares de vendas/dia (perto do teto de 64.800, ver `anotacoes/capacidade.md`) —
+     hoje, mesmo numa VPS, ninguém está perto disso. Implementar agora seria otimização
+     prematura (mais código pra manter/testar sem ninguém sentindo o ganho). Revisitar
+     quando o volume real de algum cliente começar a chegar perto desse teto.
    - **Varreduras sem `LIMIT`** em `cron_aviso_vencimento.php`,
      `cron_verificar_acessos.php`, `cron_renovacao.php` e na 2ª query de
      `cron_verificar_pix.php` (expiração de cobrança) — sem limite superior, não
