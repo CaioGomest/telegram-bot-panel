@@ -310,6 +310,18 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
             <?php
             if (isset($_GET['detalhes'])):
                 $det_id = (int)$_GET['detalhes'];
+                // A query de detalhes nunca conferia se a campanha era do usuário logado --
+                // qualquer um autenticado podia ver o log de envio (IDs de Telegram reais)
+                // de campanha de outra conta só trocando o ?detalhes= na URL. Achado ao
+                // testar esta tela com conta descartável antes de liberar a paginação nova.
+                $stmt_dona = $pdo->prepare("SELECT 1 FROM remarketing_campanhas WHERE id = ? AND id_usuario = ?");
+                $stmt_dona->execute([$det_id, $id_usuario]);
+                $det_eh_dono = (bool) $stmt_dona->fetchColumn();
+            ?>
+            <?php if (!$det_eh_dono): ?>
+                <div class="aviso aviso-erro" style="margin-top:20px;">Campanha não encontrada.</div>
+            <?php else: ?>
+            <?php
                 // Falha é o que realmente importa debugar -- sucesso já está resumido no
                 // contador da campanha. Sem esse padrão default, uma campanha de milhares
                 // de sucesso enterra as poucas falhas que valeria a pena olhar.
@@ -374,6 +386,7 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                     </a>
                 </div>
                 <?php endif; ?>
+            <?php endif; ?>
             <?php endif; ?>
         </div>
         <div id="modal-nova-campanha" class="sobreposicao-modal">
