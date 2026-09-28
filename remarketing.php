@@ -130,10 +130,10 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
         <div class="cabecalho-pagina">
             <div>
                 <h1>Remarketing</h1>
-                <p>Crie campanhas para recuperar quem não comprou ou engajar quem comprou.</p>
+                <p>Campanhas para recuperar quem não comprou ou engajar quem comprou.</p>
             </div>
             <div class="acoes-cabecalho">
-                <button class="botao botao-primario" id="btn-nova-campanha">+ Nova Campanha</button>
+                <button class="botao botao-primario" id="btn-nova-campanha">+ Nova campanha</button>
                 <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>
                     Tema
@@ -141,39 +141,66 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
             </div>
         </div>
         <div class="painel">
-            <div class="barra-filtros">
-                <form method="GET" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;flex:1;">
-                <?php
-                    $f_bot = isset($_GET['bot_id']) ? (int)$_GET['bot_id'] : 0;
-                    $f_aud = $_GET['audiencia'] ?? '';
-                    $f_status = $_GET['status'] ?? '';
-                    $limite = max(5, min(50, (int)($_GET['limite'] ?? 10)));
-                ?>
-                    <select name="bot_id" id="bot_id">
-                        <option value="">Todos os bots</option>
-                        <?php foreach ($meus_bots as $b): ?>
-                            <option value="<?php echo $b['id']; ?>" <?php echo $f_bot == $b['id'] ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($b['nome']); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                    <select name="audiencia" id="audiencia">
-                        <option value="">Todas as audiências</option>
-                        <option value="nao_comprou" <?php echo $f_aud === 'nao_comprou' ? 'selected' : ''; ?>>Acessou e não comprou</option>
-                        <option value="comprou" <?php echo $f_aud === 'comprou' ? 'selected' : ''; ?>>Acessou e comprou</option>
-                    </select>
-                    <select name="status" id="status">
-                        <option value="">Todos os status</option>
-                        <option value="pendente" <?php echo $f_status === 'pendente' ? 'selected' : ''; ?>>Pendente</option>
-                        <option value="processando" <?php echo $f_status === 'processando' ? 'selected' : ''; ?>>Processando</option>
-                        <option value="concluida" <?php echo $f_status === 'concluida' ? 'selected' : ''; ?>>Concluída</option>
-                    </select>
-                    <select name="limite" id="limite">
+            <?php
+                $f_bot = isset($_GET['bot_id']) ? (int)$_GET['bot_id'] : 0;
+                $f_aud = $_GET['audiencia'] ?? '';
+                $f_status = $_GET['status'] ?? '';
+                $limite = max(5, min(50, (int)($_GET['limite'] ?? 10)));
+
+                function montarUrlFiltroRemarketing(array $overrides, int $f_bot, string $f_aud, string $f_status, int $limite): string
+                {
+                    $params = array_filter([
+                        'bot_id'    => $f_bot ?: null,
+                        'audiencia' => $f_aud ?: null,
+                        'status'    => $f_status ?: null,
+                        'limite'    => $limite,
+                    ], fn($v) => $v !== null && $v !== '');
+                    $params = array_merge($params, $overrides);
+                    $params = array_filter($params, fn($v) => $v !== null && $v !== '');
+                    return 'remarketing?' . http_build_query($params);
+                }
+            ?>
+            <div class="barra-filtros" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;">
+                <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+                    <form method="GET" id="form-filtro-bot">
+                        <input type="hidden" name="audiencia" value="<?php echo htmlspecialchars($f_aud); ?>">
+                        <input type="hidden" name="status" value="<?php echo htmlspecialchars($f_status); ?>">
+                        <input type="hidden" name="limite" value="<?php echo $limite; ?>">
+                        <select name="bot_id" onchange="this.form.submit()">
+                            <option value="">Todos os bots</option>
+                            <?php foreach ($meus_bots as $b): ?>
+                                <option value="<?php echo $b['id']; ?>" <?php echo $f_bot == $b['id'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($b['nome']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </form>
+                    <form method="GET" id="form-filtro-audiencia">
+                        <input type="hidden" name="bot_id" value="<?php echo $f_bot; ?>">
+                        <input type="hidden" name="status" value="<?php echo htmlspecialchars($f_status); ?>">
+                        <input type="hidden" name="limite" value="<?php echo $limite; ?>">
+                        <select name="audiencia" onchange="this.form.submit()">
+                            <option value="">Todas as audiências</option>
+                            <option value="nao_comprou" <?php echo $f_aud === 'nao_comprou' ? 'selected' : ''; ?>>Acessou e não comprou</option>
+                            <option value="comprou" <?php echo $f_aud === 'comprou' ? 'selected' : ''; ?>>Acessou e comprou</option>
+                        </select>
+                    </form>
+                    <div class="seletor-periodo">
+                        <a href="<?php echo htmlspecialchars(montarUrlFiltroRemarketing(['status' => ''], $f_bot, $f_aud, $f_status, $limite)); ?>" class="periodo-item<?php echo $f_status === '' ? ' ativo' : ''; ?>">Todos</a>
+                        <a href="<?php echo htmlspecialchars(montarUrlFiltroRemarketing(['status' => 'pendente'], $f_bot, $f_aud, $f_status, $limite)); ?>" class="periodo-item<?php echo $f_status === 'pendente' ? ' ativo' : ''; ?>">Pendente</a>
+                        <a href="<?php echo htmlspecialchars(montarUrlFiltroRemarketing(['status' => 'processando'], $f_bot, $f_aud, $f_status, $limite)); ?>" class="periodo-item<?php echo $f_status === 'processando' ? ' ativo' : ''; ?>">Processando</a>
+                        <a href="<?php echo htmlspecialchars(montarUrlFiltroRemarketing(['status' => 'concluida'], $f_bot, $f_aud, $f_status, $limite)); ?>" class="periodo-item<?php echo $f_status === 'concluida' ? ' ativo' : ''; ?>">Concluída</a>
+                    </div>
+                </div>
+                <form method="GET" id="form-filtro-limite">
+                    <input type="hidden" name="bot_id" value="<?php echo $f_bot; ?>">
+                    <input type="hidden" name="audiencia" value="<?php echo htmlspecialchars($f_aud); ?>">
+                    <input type="hidden" name="status" value="<?php echo htmlspecialchars($f_status); ?>">
+                    <select name="limite" onchange="this.form.submit()">
                         <?php foreach ([10,20,30,50] as $opt): ?>
                             <option value="<?php echo $opt; ?>" <?php echo $limite === $opt ? 'selected' : ''; ?>><?php echo $opt; ?> por página</option>
                         <?php endforeach; ?>
                     </select>
-                    <button type="submit" class="botao botao-primario">Filtrar</button>
                 </form>
             </div>
             <?php
@@ -212,14 +239,13 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                             <th>Dest.</th>
                             <th>Sucesso</th>
                             <th>Falhas</th>
-                            <th>Processado</th>
                             <th>Ações</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($campanhas)): ?>
                             <tr>
-                                <td colspan="10">
+                                <td colspan="9">
                                     <div class="estado-vazio">
                                         <div style="margin-bottom:10px; font-weight:600;">Nenhuma campanha criada</div>
                                         <div>Crie sua primeira campanha de remarketing para engajar sua audiência.</div>
@@ -239,19 +265,20 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                                 <td>
                                     <?php
                                         $status = $c['status'];
+                                        $rotulos_status = ['pendente' => 'Pendente', 'processando' => 'Processando', 'concluida' => 'Concluída', 'falha' => 'Falha'];
                                         $classe_status = 'badge-neutro';
                                         if ($status === 'pendente') { $classe_status = 'badge-alerta'; }
-                                        if ($status === 'processando') { $classe_status = 'badge-neutro'; }
+                                        if ($status === 'processando') { $classe_status = 'badge-alerta'; }
                                         if ($status === 'concluida') { $classe_status = 'badge-sucesso'; }
+                                        if ($status === 'falha') { $classe_status = 'badge-perigo'; }
                                     ?>
-                                    <span class="badge <?php echo $classe_status; ?>"><?php echo htmlspecialchars($status); ?></span>
+                                    <span class="badge <?php echo $classe_status; ?>"><?php echo htmlspecialchars($rotulos_status[$status] ?? $status); ?></span>
                                 </td>
                                 <td><?php echo (int)$c['total_destinatarios']; ?></td>
                                 <td><?php echo (int)$c['entregues']; ?></td>
                                 <td><?php echo (int)$c['falhas']; ?></td>
-                                <td class="texto-suave"><?php echo $c['processado_em'] ? date('d/m/Y H:i', strtotime($c['processado_em'])) : '-'; ?></td>
                                 <td>
-                                    <a class="botao" href="?detalhes=<?php echo (int)$c['id']; ?>">Ver</a>
+                                    <a class="botao" href="?detalhes=<?php echo (int)$c['id']; ?>">Detalhes</a>
                                 </td>
                             </tr>
                         <?php endforeach; endif; ?>
@@ -267,13 +294,17 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                     'limite' => $limite
                 ];
                 $qs = array_filter($qs, function($v){ return $v !== null && $v !== ''; });
-                $base = 'remarketing.php?' . http_build_query($qs) . '&pagina=';
+                $base = 'remarketing?' . http_build_query($qs) . '&pagina=';
                 $prev = max(1, $pagina - 1);
                 $next = min($total_paginas, $pagina + 1);
                 ?>
-                <a class="botao" href="<?php echo $base . $prev; ?>">&laquo;</a>
-                <span class="texto-suave">Página <?php echo $pagina; ?> de <?php echo $total_paginas; ?> (<?php echo $total_reg; ?> campanhas)</span>
-                <a class="botao" href="<?php echo $base . $next; ?>">&raquo;</a>
+                <a class="btn-icon" href="<?php echo $base . $prev; ?>" aria-label="Página anterior">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
+                </a>
+                <span class="texto-suave">Página <?php echo $pagina; ?> de <?php echo $total_paginas; ?> · <?php echo $total_reg; ?> campanha<?php echo $total_reg === 1 ? '' : 's'; ?></span>
+                <a class="btn-icon" href="<?php echo $base . $next; ?>" aria-label="Próxima página">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg>
+                </a>
             </div>
 
             <?php
