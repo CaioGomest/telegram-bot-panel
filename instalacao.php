@@ -279,6 +279,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ja_instalado) {
             id INT AUTO_INCREMENT PRIMARY KEY,
             id_usuario INT NOT NULL,
             bot_id INT NOT NULL,
+            nome VARCHAR(100) DEFAULT NULL,
             audiencia ENUM('nao_comprou','comprou') NOT NULL,
             mensagem TEXT NOT NULL,
             midia_caminho VARCHAR(255) DEFAULT NULL,

@@ -465,6 +465,10 @@ try {
         $pdo->exec("ALTER TABLE remarketing_campanhas ADD COLUMN midia_file_id VARCHAR(255) DEFAULT NULL AFTER midia_tipo");
         echo "Coluna 'midia_file_id' adicionada em 'remarketing_campanhas'.<br>";
     } catch (PDOException $e) {}
+    try {
+        $pdo->exec("ALTER TABLE remarketing_campanhas ADD COLUMN nome VARCHAR(100) DEFAULT NULL AFTER bot_id");
+        echo "Coluna 'nome' adicionada em 'remarketing_campanhas'.<br>";
+    } catch (PDOException $e) {}
     echo "Tabela 'remarketing_campanhas' OK.<br>";
 
     $sql_remarketing_envios = "

@@ -107,6 +107,7 @@ function itemNavAtivo(string $href, string $pagina_atual): bool
     $filhas = [
         'bots' => ['bot'],
         'fluxos' => ['fluxo', 'fluxo_basico'],
+        'remarketing' => ['remarketing_detalhes'],
     ];
     return in_array($pagina_atual, $filhas[$base] ?? [], true);
 }

@@ -35,6 +35,7 @@ function resolverCaminhoUploadSeguroRemarketing(string $caminho): ?string
 
 function processarCampanha(array $input, PDO $pdo, int $id_usuario): array {
     $bot_id = isset($input['bot_id']) ? (int)$input['bot_id'] : 0;
+    $nome = isset($input['nome']) ? mb_substr(trim((string)$input['nome']), 0, 100) : '';
     $audiencia = isset($input['audiencia']) ? $input['audiencia'] : '';
     $mensagem = isset($input['mensagem']) ? trim((string)$input['mensagem']) : '';
     $agendado_str = isset($input['agendado_em']) ? trim((string)$input['agendado_em']) : '';
@@ -68,8 +69,8 @@ function processarCampanha(array $input, PDO $pdo, int $id_usuario): array {
 
     // Sempre agenda via cron — nunca envia inline para não travar a requisição
     $agendado_em = date('Y-m-d H:i:s', strtotime($agendado_str));
-    $pdo->prepare("INSERT INTO remarketing_campanhas (id_usuario, bot_id, audiencia, mensagem, midia_caminho, midia_tipo, agendado_em, status, criado_em) VALUES (?, ?, ?, ?, ?, ?, ?, 'pendente', NOW())")
-        ->execute([$id_usuario, $bot_id, $audiencia, $mensagem, $midia_caminho, $midia_tipo, $agendado_em]);
+    $pdo->prepare("INSERT INTO remarketing_campanhas (id_usuario, bot_id, nome, audiencia, mensagem, midia_caminho, midia_tipo, agendado_em, status, criado_em) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pendente', NOW())")
+        ->execute([$id_usuario, $bot_id, $nome ?: null, $audiencia, $mensagem, $midia_caminho, $midia_tipo, $agendado_em]);
     $campanha_id = (int)$pdo->lastInsertId();
 
     return ['sucesso' => true, 'mensagem' => 'Campanha agendada para ' . date('d/m/Y H:i', strtotime($agendado_em)) . '.', 'campanha_id' => $campanha_id];
@@ -231,6 +232,7 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                 <table>
                     <thead>
                         <tr>
+                            <th>Nome</th>
                             <th>Bot</th>
                             <th>Aud.</th>
                             <th>Mensagem</th>
@@ -245,7 +247,7 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                     <tbody>
                         <?php if (empty($campanhas)): ?>
                             <tr>
-                                <td colspan="9">
+                                <td colspan="10">
                                     <div class="estado-vazio">
                                         <div style="margin-bottom:10px; font-weight:600;">Nenhuma campanha criada</div>
                                         <div>Crie sua primeira campanha de remarketing para engajar sua audiência.</div>
@@ -254,6 +256,7 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                             </tr>
                         <?php else: foreach ($campanhas as $c): ?>
                             <tr>
+                                <td><?php echo htmlspecialchars($c['nome'] ?: ('Campanha #' . $c['id'])); ?></td>
                                 <td><?php echo htmlspecialchars($c['nome_bot']); ?></td>
                                 <td>
                                     <span class="badge badge-neutro"><?php echo $c['audiencia'] === 'nao_comprou' ? 'Não comprou' : 'Comprou'; ?></span>
@@ -278,7 +281,7 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                                 <td><?php echo (int)$c['entregues']; ?></td>
                                 <td><?php echo (int)$c['falhas']; ?></td>
                                 <td>
-                                    <a class="botao" href="?detalhes=<?php echo (int)$c['id']; ?>">Detalhes</a>
+                                    <a class="botao" href="remarketing_detalhes?campanha=<?php echo (int)$c['id']; ?>">Detalhes</a>
                                 </td>
                             </tr>
                         <?php endforeach; endif; ?>
@@ -306,88 +309,6 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg>
                 </a>
             </div>
-
-            <?php
-            if (isset($_GET['detalhes'])):
-                $det_id = (int)$_GET['detalhes'];
-                // A query de detalhes nunca conferia se a campanha era do usuário logado --
-                // qualquer um autenticado podia ver o log de envio (IDs de Telegram reais)
-                // de campanha de outra conta só trocando o ?detalhes= na URL. Achado ao
-                // testar esta tela com conta descartável antes de liberar a paginação nova.
-                $stmt_dona = $pdo->prepare("SELECT 1 FROM remarketing_campanhas WHERE id = ? AND id_usuario = ?");
-                $stmt_dona->execute([$det_id, $id_usuario]);
-                $det_eh_dono = (bool) $stmt_dona->fetchColumn();
-            ?>
-            <?php if (!$det_eh_dono): ?>
-                <div class="aviso aviso-erro" style="margin-top:20px;">Campanha não encontrada.</div>
-            <?php else: ?>
-            <?php
-                // Falha é o que realmente importa debugar -- sucesso já está resumido no
-                // contador da campanha. Sem esse padrão default, uma campanha de milhares
-                // de sucesso enterra as poucas falhas que valeria a pena olhar.
-                $det_resultado = in_array($_GET['det_resultado'] ?? '', ['sucesso', 'falha', 'todos'], true) ? $_GET['det_resultado'] : 'falha';
-                $det_pagina = max(1, (int)($_GET['det_pagina'] ?? 1));
-                $det_por_pagina = 50;
-
-                $det_where = "campanha_id = ?";
-                $det_params = [$det_id];
-                if ($det_resultado !== 'todos') {
-                    $det_where .= " AND resultado = ?";
-                    $det_params[] = $det_resultado;
-                }
-
-                $stmt_det_total = $pdo->prepare("SELECT COUNT(*) FROM remarketing_envios WHERE $det_where");
-                $stmt_det_total->execute($det_params);
-                $det_total = (int)$stmt_det_total->fetchColumn();
-                $det_total_paginas = max(1, (int)ceil($det_total / $det_por_pagina));
-                $det_pagina = min($det_pagina, $det_total_paginas);
-                $det_offset = ($det_pagina - 1) * $det_por_pagina;
-
-                $stmt_det = $pdo->prepare("SELECT * FROM remarketing_envios WHERE $det_where ORDER BY enviado_em DESC LIMIT $det_por_pagina OFFSET $det_offset");
-                $stmt_det->execute($det_params);
-                $envios = $stmt_det->fetchAll(PDO::FETCH_ASSOC);
-
-                function urlDetalhesRemarketing(int $det_id, string $resultado, int $pagina): string
-                {
-                    return '?detalhes=' . $det_id . '&det_resultado=' . urlencode($resultado) . '&det_pagina=' . $pagina;
-                }
-            ?>
-                <h2 style="margin:20px 0 0;font-size:18px;">Detalhes da Campanha #<?php echo $det_id; ?></h2>
-                <div class="seletor-periodo" style="margin-top:10px;">
-                    <a href="<?php echo urlDetalhesRemarketing($det_id, 'falha', 1); ?>" class="periodo-item<?php echo $det_resultado === 'falha' ? ' ativo' : ''; ?>">Falhas</a>
-                    <a href="<?php echo urlDetalhesRemarketing($det_id, 'sucesso', 1); ?>" class="periodo-item<?php echo $det_resultado === 'sucesso' ? ' ativo' : ''; ?>">Sucessos</a>
-                    <a href="<?php echo urlDetalhesRemarketing($det_id, 'todos', 1); ?>" class="periodo-item<?php echo $det_resultado === 'todos' ? ' ativo' : ''; ?>">Todos</a>
-                </div>
-                <div class="tabela-dados" style="margin-top:12px;">
-                    <table>
-                        <thead><tr><th>ID Telegram</th><th>Resultado</th><th>Resposta</th><th>Enviado Em</th></tr></thead>
-                        <tbody>
-                        <?php if (empty($envios)): ?>
-                            <tr><td colspan="4" style="text-align:center;padding:10px;" class="texto-suave">Nenhum envio com esse filtro.</td></tr>
-                        <?php else: foreach ($envios as $e): ?>
-                            <tr>
-                                <td class="mono"><?php echo htmlspecialchars($e['id_telegram']); ?></td>
-                                <td><span class="badge <?php echo $e['resultado'] === 'sucesso' ? 'badge-sucesso' : 'badge-perigo'; ?>"><?php echo htmlspecialchars($e['resultado']); ?></span></td>
-                                <td class="texto-suave mono" title="<?php echo htmlspecialchars($e['resposta']); ?>"><?php echo htmlspecialchars(mb_strimwidth((string) $e['resposta'], 0, 60, '...')); ?></td>
-                                <td class="mono"><?php echo date('d/m/Y H:i', strtotime($e['enviado_em'])); ?></td>
-                            </tr>
-                        <?php endforeach; endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-                <?php if ($det_total > 0): ?>
-                <div style="margin-top:14px; display:flex;justify-content:center; gap:8px; align-items:center;">
-                    <a class="btn-icon" href="<?php echo urlDetalhesRemarketing($det_id, $det_resultado, max(1, $det_pagina - 1)); ?>" aria-label="Página anterior">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
-                    </a>
-                    <span class="texto-suave">Página <?php echo $det_pagina; ?> de <?php echo $det_total_paginas; ?> · <?php echo $det_total; ?> envio<?php echo $det_total === 1 ? '' : 's'; ?></span>
-                    <a class="btn-icon" href="<?php echo urlDetalhesRemarketing($det_id, $det_resultado, min($det_total_paginas, $det_pagina + 1)); ?>" aria-label="Próxima página">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg>
-                    </a>
-                </div>
-                <?php endif; ?>
-            <?php endif; ?>
-            <?php endif; ?>
         </div>
         <div id="modal-nova-campanha" class="sobreposicao-modal">
             <div class="modal-gateway" style="max-width: 720px;">
@@ -398,7 +319,11 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                 <div class="corpo-modal">
                     <form id="form-campanha">
                         <?php echo campoCsrf(); ?>
-                        <div class="grade grade-2 grade-compacta">
+                        <div class="campo">
+                            <label for="modal-nome">Nome da campanha (opcional)</label>
+                            <input type="text" id="modal-nome" name="nome" maxlength="100" placeholder="Ex.: Recuperação carrinho — setembro">
+                        </div>
+                        <div class="grade grade-2 grade-compacta" style="margin-top:12px;">
                             <div class="campo">
                                 <label for="modal-bot_id">Bot</label>
                                 <select id="modal-bot_id" name="bot_id" required>
