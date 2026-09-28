@@ -24,7 +24,7 @@ function audienciaFiltro(string $audiencia): string
         : " AND EXISTS    (SELECT 1 FROM vendas v WHERE v.id_telegram = l.id_telegram AND v.bot_id = l.bot_id AND v.status = 'pago')";
 }
 
-function makeCurlHandle(string $token, string $chat_id, string $text): CurlHandle
+function curlSendMessage(string $token, string $chat_id, string $text): CurlHandle
 {
     $ch = curl_init('https://api.telegram.org/bot' . $token . '/sendMessage');
     curl_setopt_array($ch, [
@@ -41,11 +41,87 @@ function makeCurlHandle(string $token, string $chat_id, string $text): CurlHandl
     return $ch;
 }
 
+/**
+ * Mesma proteção de webhook.php::resolverCaminhoUploadSeguro(), copiada localmente --
+ * este cron não inclui webhook.php. Garante que só caminho de verdade dentro de
+ * uploads/ é aceito antes de montar o upload multipart.
+ */
+function resolverCaminhoUploadSeguroRemarketing(string $caminho): ?string
+{
+    if ($caminho === '' || strpos($caminho, 'uploads/') !== 0) {
+        return null;
+    }
+    $base_real = realpath(__DIR__ . '/../uploads');
+    if ($base_real === false) {
+        return null;
+    }
+    $real = realpath(__DIR__ . '/../' . $caminho);
+    if ($real === false) {
+        return null;
+    }
+    if ($real !== $base_real && strpos($real, $base_real . DIRECTORY_SEPARATOR) !== 0) {
+        return null;
+    }
+    return $real;
+}
+
+/**
+ * Monta o handle certo pra este destinatário: texto puro (sem mídia), mídia via file_id
+ * já conhecido (barato, igual texto) ou mídia via upload multipart (só acontece uma vez
+ * por campanha -- a resposta traz o file_id, cacheado depois no loop que lê as respostas).
+ */
+function makeCurlHandle(array $f, string $chat_id): CurlHandle
+{
+    $token = (string) $f['token'];
+    $texto = (string) $f['mensagem'];
+
+    if (empty($f['midia_caminho'])) {
+        return curlSendMessage($token, $chat_id, $texto);
+    }
+
+    $campo = $f['midia_tipo'] === 'video' ? 'video' : 'photo';
+    $metodo = $f['midia_tipo'] === 'video' ? 'sendVideo' : 'sendPhoto';
+    $parametros = ['chat_id' => $chat_id, 'caption' => $texto, 'parse_mode' => 'HTML'];
+
+    if (!empty($f['midia_file_id'])) {
+        $parametros[$campo] = $f['midia_file_id'];
+        $ch = curl_init('https://api.telegram.org/bot' . $token . '/' . $metodo);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => http_build_query($parametros),
+            CURLOPT_TIMEOUT        => CURL_TIMEOUT,
+            CURLOPT_CONNECTTIMEOUT => 5,
+        ]);
+        return $ch;
+    }
+
+    $caminho_absoluto = resolverCaminhoUploadSeguroRemarketing((string) $f['midia_caminho']);
+    if ($caminho_absoluto === null) {
+        // Caminho salvo não resolve dentro de uploads/ -- não trava o envio, cai pra
+        // texto puro em vez de quebrar a campanha inteira.
+        return curlSendMessage($token, $chat_id, $texto);
+    }
+
+    $mime = function_exists('mime_content_type') ? (mime_content_type($caminho_absoluto) ?: 'application/octet-stream') : 'application/octet-stream';
+    $parametros[$campo] = new CURLFile($caminho_absoluto, $mime, basename($caminho_absoluto));
+    $ch = curl_init('https://api.telegram.org/bot' . $token . '/' . $metodo);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $parametros,
+        CURLOPT_TIMEOUT        => 30, // upload de mídia precisa de mais tempo que texto
+        CURLOPT_CONNECTTIMEOUT => 5,
+    ]);
+    return $ch;
+}
+
 try {
     $pdo->beginTransaction();
     $campanhas = $pdo->query("
         SELECT c.id, c.bot_id, c.audiencia, c.mensagem, c.offset_envio,
-               c.entregues, c.falhas, c.total_destinatarios, b.token
+               c.entregues, c.falhas, c.total_destinatarios, b.token,
+               c.midia_caminho, c.midia_tipo, c.midia_file_id
         FROM remarketing_campanhas c
         JOIN bots b ON c.bot_id = b.id
         WHERE c.status IN ('pendente','processando')
@@ -79,6 +155,7 @@ if (empty($campanhas)) {
 $stmt_log = $pdo->prepare(
     "INSERT INTO remarketing_envios (campanha_id, id_telegram, resultado, resposta) VALUES (?, ?, ?, ?)"
 );
+$stmt_file_id = $pdo->prepare("UPDATE remarketing_campanhas SET midia_file_id = ? WHERE id = ?");
 
 // $filas[campanha_id] = ['token', 'mensagem', 'bot_id', 'offset', 'sucesso', 'falhas', 'total', 'fila' => [...leads...]]
 $filas = [];
@@ -117,6 +194,9 @@ foreach ($campanhas as $c) {
         'total'   => $total,
         'fila'    => $s->fetchAll(PDO::FETCH_COLUMN), // array de id_telegram
         'enviados_batch' => 0,
+        'midia_caminho' => $c['midia_caminho'],
+        'midia_tipo'    => $c['midia_tipo'],
+        'midia_file_id' => $c['midia_file_id'],
     ];
 }
 
@@ -145,7 +225,7 @@ $despachar = function () use (&$filas, &$handles, &$bot_em_uso, $mh): int {
         $f['enviados_batch']++;
         $bot_em_uso[$f['bot_id']] = true;
 
-        $ch = makeCurlHandle($f['token'], (string)$chat_id, (string)$f['mensagem']);
+        $ch = makeCurlHandle($f, (string)$chat_id);
         curl_multi_add_handle($mh, $ch);
         $handles[(int)$ch] = ['campanha_id' => $cid, 'chatId' => $chat_id];
         $despachados++;
@@ -197,6 +277,22 @@ while (true) {
         // Tratamento de rate limit (429): registra para pausar após este tick
         if (!$ok && isset($json['parameters']['retry_after'])) {
             $rate_hit = max($rate_hit, (int)$json['parameters']['retry_after']);
+        }
+
+        // Primeiro envio bem-sucedido de campanha com mídia ainda sem file_id: cacheia
+        // pra não reenviar o arquivo pros próximos destinatários (mesma rodada e
+        // rodadas futuras, já que fica salvo no banco).
+        if ($ok && !empty($filas[$cid]['midia_caminho']) && empty($filas[$cid]['midia_file_id'])) {
+            $file_id = null;
+            if (!empty($json['result']['photo']) && is_array($json['result']['photo'])) {
+                $file_id = end($json['result']['photo'])['file_id'] ?? null; // Telegram lista do menor pro maior
+            } elseif (!empty($json['result']['video']['file_id'])) {
+                $file_id = $json['result']['video']['file_id'];
+            }
+            if ($file_id) {
+                $filas[$cid]['midia_file_id'] = $file_id;
+                $stmt_file_id->execute([$file_id, $cid]);
+            }
         }
 
         $stmt_log->execute([$cid, $chat_id, $ok ? 'sucesso' : 'falha', substr($res, 0, 500)]);

@@ -449,6 +449,22 @@ try {
     $pdo->exec($sql_remarketing_campanhas);
     try { $pdo->exec("ALTER TABLE remarketing_campanhas ADD COLUMN offset_envio INT DEFAULT 0 AFTER falhas"); } catch (PDOException $e) {}
     try { $pdo->exec("ALTER TABLE remarketing_campanhas ADD INDEX idx_status_agendado (status, agendado_em)"); } catch (PDOException $e) {}
+    // Foto/vídeo opcional na campanha -- "mandar só msg não vinga muito" (pedido direto
+    // de cliente). midia_file_id cacheia o file_id que o Telegram devolve no primeiro
+    // envio bem-sucedido: os envios seguintes da mesma campanha reusam esse ID em vez de
+    // reenviar o arquivo (ver cron_remarketing.php).
+    try {
+        $pdo->exec("ALTER TABLE remarketing_campanhas ADD COLUMN midia_caminho VARCHAR(255) DEFAULT NULL AFTER mensagem");
+        echo "Coluna 'midia_caminho' adicionada em 'remarketing_campanhas'.<br>";
+    } catch (PDOException $e) {}
+    try {
+        $pdo->exec("ALTER TABLE remarketing_campanhas ADD COLUMN midia_tipo ENUM('foto','video') DEFAULT NULL AFTER midia_caminho");
+        echo "Coluna 'midia_tipo' adicionada em 'remarketing_campanhas'.<br>";
+    } catch (PDOException $e) {}
+    try {
+        $pdo->exec("ALTER TABLE remarketing_campanhas ADD COLUMN midia_file_id VARCHAR(255) DEFAULT NULL AFTER midia_tipo");
+        echo "Coluna 'midia_file_id' adicionada em 'remarketing_campanhas'.<br>";
+    } catch (PDOException $e) {}
     echo "Tabela 'remarketing_campanhas' OK.<br>";
 
     $sql_remarketing_envios = "

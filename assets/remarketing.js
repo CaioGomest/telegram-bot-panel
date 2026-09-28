@@ -8,6 +8,8 @@ $(function() {
   function openModal() {
     $feedback.hide().text('');
     $form.get(0).reset();
+    $('#modal-midia-caminho, #modal-midia-tipo').val('');
+    atualizarLimiteMensagem();
     $modal.css('display', 'flex');
   }
   function closeModal() {
@@ -23,12 +25,9 @@ $(function() {
     if ($modal.is(':visible') && e.key === 'Escape') closeModal();
   });
 
-  $form.on('submit', function(e) {
-    e.preventDefault();
+  function enviarCampanha($submit) {
     syncAgendamento();
     const dados = $form.serialize();
-    const $submit = $form.find('button[type=submit]');
-    $submit.prop('disabled', true).text('Enviando...');
     $.ajax({
       url: 'remarketing.php',
       method: 'POST',
@@ -48,8 +47,46 @@ $(function() {
       const msg = (xhr.responseJSON && xhr.responseJSON.mensagem) || 'Erro ao criar campanha.';
       $feedback.text(msg).show();
     }).always(function() {
-      $submit.prop('disabled', false).text('Salvar/Enviar');
+      $submit.prop('disabled', false).text('Agendar');
     });
+  }
+
+  $form.on('submit', function(e) {
+    e.preventDefault();
+    const $submit = $form.find('button[type=submit]');
+    const arquivo = ($('#modal-midia').get(0) || {}).files;
+
+    $feedback.hide().text('');
+    $submit.prop('disabled', true).text('Enviando...');
+
+    if (arquivo && arquivo.length > 0) {
+      const dadosArquivo = new FormData();
+      dadosArquivo.append('midia', arquivo[0]);
+      $submit.text('Enviando mídia...');
+      $.ajax({
+        url: 'api.php?action=upload_midia_remarketing',
+        method: 'POST',
+        data: dadosArquivo,
+        processData: false,
+        contentType: false
+      }).done(function(resp) {
+        if (!resp || !resp.sucesso) {
+          $feedback.text((resp && resp.mensagem) || 'Falha ao enviar o arquivo.').show();
+          $submit.prop('disabled', false).text('Agendar');
+          return;
+        }
+        $('#modal-midia-caminho').val(resp.caminho);
+        $('#modal-midia-tipo').val(resp.tipo);
+        $submit.text('Enviando...');
+        enviarCampanha($submit);
+      }).fail(function(xhr) {
+        const msg = (xhr.responseJSON && xhr.responseJSON.mensagem) || 'Falha ao enviar o arquivo.';
+        $feedback.text(msg).show();
+        $submit.prop('disabled', false).text('Agendar');
+      });
+    } else {
+      enviarCampanha($submit);
+    }
   });
 
   function atualizarContagem() {
@@ -94,9 +131,22 @@ $(function() {
     const len = ($('#modal-mensagem').val() || '').length;
     $('#contador-mensagem').text(len);
   }
+  function atualizarLimiteMensagem() {
+    const temMidia = (($('#modal-midia').get(0) || {}).files || []).length > 0;
+    $('#limite-mensagem').text(temMidia ? '1024' : '4096');
+  }
   $('#modal-mensagem').on('input', function() {
     atualizarContadorMensagem();
   });
+  $('#modal-midia').on('change', function() {
+    // Arquivo trocado/removido depois de já ter subido um -- limpa o caminho salvo,
+    // senão o submit usaria uma mídia diferente da que aparece selecionada no campo.
+    $('#modal-midia-caminho, #modal-midia-tipo').val('');
+    atualizarLimiteMensagem();
+  });
   // Inicializa quando abre
-  $btn_open.on('click', atualizarContadorMensagem);
+  $btn_open.on('click', function() {
+    atualizarContadorMensagem();
+    atualizarLimiteMensagem();
+  });
 });

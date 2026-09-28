@@ -828,6 +828,45 @@ try {
             responder(true, ['caminho' => $relativo]);
             break;
 
+        case 'upload_midia_remarketing':
+            if (empty($_FILES['midia']['tmp_name'])) {
+                responder(false, ['mensagem' => 'Nenhum arquivo enviado.'], 422);
+            }
+            $tmp = $_FILES['midia']['tmp_name'];
+            $tamanho = (int) ($_FILES['midia']['size'] ?? 0);
+            $extensao = strtolower(pathinfo($_FILES['midia']['name'] ?? '', PATHINFO_EXTENSION));
+            $eh_imagem = in_array($extensao, ['jpg', 'jpeg', 'png'], true);
+            $eh_video = in_array($extensao, ['mp4', 'mov', 'mkv', 'webm'], true);
+
+            if ($eh_imagem) {
+                if ($tamanho <= 0 || $tamanho > 5 * 1024 * 1024 || !@getimagesize($tmp)) {
+                    responder(false, ['mensagem' => 'Imagem inválida, vazia ou maior que 5MB.'], 422);
+                }
+                $tipo = 'foto';
+                $prefixo = 'remarketing_foto_';
+            } elseif ($eh_video) {
+                if ($tamanho <= 0 || $tamanho > 20 * 1024 * 1024) {
+                    responder(false, ['mensagem' => 'Vídeo inválido, vazio ou maior que 20MB.'], 422);
+                }
+                // Mesmo raciocínio de upload_video_fluxo: extensão sozinha não garante
+                // conteúdo -- confirma o mime real antes de aceitar.
+                $mime_video = function_exists('mime_content_type') ? (mime_content_type($tmp) ?: '') : '';
+                if ($mime_video !== '' && strpos($mime_video, 'video/') !== 0) {
+                    responder(false, ['mensagem' => 'O arquivo não parece ser um vídeo de verdade.'], 422);
+                }
+                $tipo = 'video';
+                $prefixo = 'remarketing_video_';
+            } else {
+                responder(false, ['mensagem' => 'Formato não suportado (use jpg, png, mp4, mov, mkv ou webm).'], 422);
+            }
+
+            $caminho_local = DIRETORIO_UPLOADS . '/' . uniqid($prefixo, true) . '.' . $extensao;
+            if (!move_uploaded_file($tmp, $caminho_local) || !file_exists($caminho_local)) {
+                responder(false, ['mensagem' => 'Falha ao salvar o arquivo.'], 500);
+            }
+            responder(true, ['caminho' => 'uploads/' . basename($caminho_local), 'tipo' => $tipo]);
+            break;
+
         case 'enviar_imagem_teste':
             $token = sanitizarTexto($entrada['token'] ?? '');
             $chat_id = sanitizarTexto($entrada['chat_id'] ?? '');

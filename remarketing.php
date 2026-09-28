@@ -8,11 +8,39 @@ $stmt_bots = $pdo->prepare("SELECT id, COALESCE(primeiro_nome, nome_usuario) as 
 $stmt_bots->execute([$id_usuario]);
 $meus_bots = $stmt_bots->fetchAll(PDO::FETCH_ASSOC);
 
+/**
+ * Confere que o caminho vindo do cliente (já devolvido pelo próprio endpoint de upload,
+ * mas nunca é bom confiar cegamente num campo de formulário) fica de fato dentro de
+ * uploads/ -- mesma proteção de webhook.php::resolverCaminhoUploadSeguro(), copiada
+ * localmente porque remarketing.php não inclui webhook.php.
+ */
+function resolverCaminhoUploadSeguroRemarketing(string $caminho): ?string
+{
+    if ($caminho === '' || strpos($caminho, 'uploads/') !== 0) {
+        return null;
+    }
+    $base_real = realpath(__DIR__ . '/uploads');
+    if ($base_real === false) {
+        return null;
+    }
+    $real = realpath(__DIR__ . '/' . $caminho);
+    if ($real === false) {
+        return null;
+    }
+    if ($real !== $base_real && strpos($real, $base_real . DIRECTORY_SEPARATOR) !== 0) {
+        return null;
+    }
+    return $real;
+}
+
 function processarCampanha(array $input, PDO $pdo, int $id_usuario): array {
     $bot_id = isset($input['bot_id']) ? (int)$input['bot_id'] : 0;
     $audiencia = isset($input['audiencia']) ? $input['audiencia'] : '';
     $mensagem = isset($input['mensagem']) ? trim((string)$input['mensagem']) : '';
     $agendado_str = isset($input['agendado_em']) ? trim((string)$input['agendado_em']) : '';
+    $midia_caminho = isset($input['midia_caminho']) ? trim((string)$input['midia_caminho']) : '';
+    $midia_tipo = isset($input['midia_tipo']) ? trim((string)$input['midia_tipo']) : '';
+
     if (!in_array($audiencia, ['nao_comprou', 'comprou'], true)) {
         return ['sucesso' => false, 'mensagem' => 'Audiência inválida.'];
     }
@@ -22,10 +50,26 @@ function processarCampanha(array $input, PDO $pdo, int $id_usuario): array {
     if ($agendado_str === '' || strtotime($agendado_str) === false) {
         return ['sucesso' => false, 'mensagem' => 'Informe a data e a hora do envio.'];
     }
+
+    if ($midia_caminho !== '') {
+        if (!in_array($midia_tipo, ['foto', 'video'], true) || !resolverCaminhoUploadSeguroRemarketing($midia_caminho)) {
+            return ['sucesso' => false, 'mensagem' => 'Mídia inválida. Envie o arquivo de novo.'];
+        }
+        // Legenda de foto/vídeo no Telegram tem teto de 1024 caracteres -- bem menor que
+        // os 4096 de uma mensagem solta. Sem essa checagem, campanha grande falharia por
+        // destinatário lá no cron, sem aviso nenhum aqui na hora de criar.
+        if (mb_strlen($mensagem) > 1024) {
+            return ['sucesso' => false, 'mensagem' => 'Com foto/vídeo, a mensagem tem limite de 1024 caracteres (é a legenda, o Telegram não aceita mais que isso).'];
+        }
+    } else {
+        $midia_tipo = null;
+        $midia_caminho = null;
+    }
+
     // Sempre agenda via cron — nunca envia inline para não travar a requisição
     $agendado_em = date('Y-m-d H:i:s', strtotime($agendado_str));
-    $pdo->prepare("INSERT INTO remarketing_campanhas (id_usuario, bot_id, audiencia, mensagem, agendado_em, status, criado_em) VALUES (?, ?, ?, ?, ?, 'pendente', NOW())")
-        ->execute([$id_usuario, $bot_id, $audiencia, $mensagem, $agendado_em]);
+    $pdo->prepare("INSERT INTO remarketing_campanhas (id_usuario, bot_id, audiencia, mensagem, midia_caminho, midia_tipo, agendado_em, status, criado_em) VALUES (?, ?, ?, ?, ?, ?, ?, 'pendente', NOW())")
+        ->execute([$id_usuario, $bot_id, $audiencia, $mensagem, $midia_caminho, $midia_tipo, $agendado_em]);
     $campanha_id = (int)$pdo->lastInsertId();
 
     return ['sucesso' => true, 'mensagem' => 'Campanha agendada para ' . date('d/m/Y H:i', strtotime($agendado_em)) . '.', 'campanha_id' => $campanha_id];
@@ -293,7 +337,14 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                         <div class="campo" style="margin-top:12px;">
                             <label for="modal-mensagem">Mensagem</label>
                             <textarea id="modal-mensagem" name="mensagem" rows="5" placeholder="Digite a mensagem da campanha..." required></textarea>
-                            <small><span id="contador-mensagem">0</span>/4096 caracteres</small>
+                            <small><span id="contador-mensagem">0</span>/<span id="limite-mensagem">4096</span> caracteres</small>
+                        </div>
+                        <div class="campo" style="margin-top:12px;">
+                            <label for="modal-midia">Foto ou vídeo (opcional)</label>
+                            <input type="file" id="modal-midia" accept="image/jpeg,image/png,video/mp4,video/quicktime,video/x-matroska,video/webm">
+                            <input type="hidden" id="modal-midia-caminho" name="midia_caminho">
+                            <input type="hidden" id="modal-midia-tipo" name="midia_tipo">
+                            <small>Foto até 5MB (jpg/png) ou vídeo até 20MB (mp4/mov/mkv/webm). Com mídia, a mensagem vira legenda e o limite cai pra 1024 caracteres.</small>
                         </div>
                         <div class="linha-acoes" style="margin-top:16px;">
                             <button type="submit" class="botao botao-primario">Agendar</button>
