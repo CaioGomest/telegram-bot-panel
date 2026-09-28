@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/funcoes/usuario.php';
+require_once __DIR__ . '/funcoes/paginador.php';
 bloquearAdmin();
 $id_usuario = $_SESSION['usuario_id'];
 $stmt_bots = $pdo->prepare("SELECT id, COALESCE(primeiro_nome, nome_usuario) as nome FROM bots WHERE id_usuario = ?");
@@ -288,27 +289,7 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                     </tbody>
                 </table>
             </div>
-            <div style="margin-top:14px; display:flex;justify-content: center; gap:8px; align-items:center;">
-                <?php
-                $qs = [
-                    'bot_id' => $f_bot ?: null,
-                    'audiencia' => $f_aud ?: null,
-                    'status' => $f_status ?: null,
-                    'limite' => $limite
-                ];
-                $qs = array_filter($qs, function($v){ return $v !== null && $v !== ''; });
-                $base = 'remarketing?' . http_build_query($qs) . '&pagina=';
-                $prev = max(1, $pagina - 1);
-                $next = min($total_paginas, $pagina + 1);
-                ?>
-                <a class="btn-icon" href="<?php echo $base . $prev; ?>" aria-label="Página anterior">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
-                </a>
-                <span class="texto-suave">Página <?php echo $pagina; ?> de <?php echo $total_paginas; ?> · <?php echo $total_reg; ?> campanha<?php echo $total_reg === 1 ? '' : 's'; ?></span>
-                <a class="btn-icon" href="<?php echo $base . $next; ?>" aria-label="Próxima página">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg>
-                </a>
-            </div>
+            <?php echo paginador($total_reg, $limite); ?>
         </div>
         <div id="modal-nova-campanha" class="sobreposicao-modal">
             <div class="modal-gateway" style="max-width: 720px;">

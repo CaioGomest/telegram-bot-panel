@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/funcoes/usuario.php';
+require_once __DIR__ . '/funcoes/paginador.php';
 bloquearAdmin();
 $id_usuario = $_SESSION['usuario_id'];
 
@@ -122,17 +123,7 @@ if ($campanha) {
                         </tbody>
                     </table>
                 </div>
-                <?php if ($total > 0): ?>
-                <div style="margin-top:14px; display:flex;justify-content:center; gap:8px; align-items:center;">
-                    <a class="btn-icon" href="<?php echo urlDetalhesRemarketing($campanha_id, $resultado, max(1, $pagina - 1)); ?>" aria-label="Página anterior">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
-                    </a>
-                    <span class="texto-suave">Página <?php echo $pagina; ?> de <?php echo $total_paginas; ?> · <?php echo $total; ?> envio<?php echo $total === 1 ? '' : 's'; ?></span>
-                    <a class="btn-icon" href="<?php echo urlDetalhesRemarketing($campanha_id, $resultado, min($total_paginas, $pagina + 1)); ?>" aria-label="Próxima página">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg>
-                    </a>
-                </div>
-                <?php endif; ?>
+                <?php echo paginador($total, $por_pagina); ?>
             </div>
         <?php endif; ?>
     </main>
