@@ -62,6 +62,10 @@ $(function() {
     if (arquivo && arquivo.length > 0) {
       const dadosArquivo = new FormData();
       dadosArquivo.append('midia', arquivo[0]);
+      // Este form não usa $.ajaxSetup global de CSRF (o form principal manda o token
+      // como campo escondido via serialize()) -- FormData é um POST separado, então
+      // precisa levar o token explicitamente, senão cai em 403 (verificarCsrf()).
+      dadosArquivo.append('csrf_token', $form.find('input[name=csrf_token]').val());
       $submit.text('Enviando mídia...');
       $.ajax({
         url: 'api.php?action=upload_midia_remarketing',
