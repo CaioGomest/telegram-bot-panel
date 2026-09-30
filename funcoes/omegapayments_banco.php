@@ -9,12 +9,12 @@ declare(strict_types=1);
  *
  * Cada dono de bot usa as próprias credenciais aqui (não é conta compartilhada entre usuários).
  *
- * [A CONFIRMAR EM SANDBOX] A documentação pública (app.omegapayments.com.br/docs/v1) bloqueou
- * o levantamento com bot-detection (403) antes de confirmar: a URL base real de produção, o
+ * URL base confirmada direto na doc pública (app.omegapayments.com.br/docs/v1, seção de
+ * autenticação) em 28/09/2026. A documentação tem bot-detection agressivo (403) na maior
+ * parte das páginas, então outros pontos ainda não confirmados continuam como palpite: o
  * path exato do endpoint de consulta de transação, e o schema completo de cada item do array
- * `splits[]`. Os valores usados abaixo são o melhor palpite com base no que foi confirmado
- * (endpoint de criação de cobrança e formato da resposta) — ver anotações em
- * `anotacoes/pendencias-sandbox-omegapayments.md` antes de considerar isso pronto pra produção.
+ * `splits[]`. Ver `anotacoes/HISTORICO-CONSOLIDADO.md` antes de considerar
+ * isso 100% pronto pra produção.
  */
 class OmegaPaymentsBanco {
     private string $client_id;
@@ -24,9 +24,10 @@ class OmegaPaymentsBanco {
     public function __construct(string $client_id, string $client_secret) {
         $this->client_id = $client_id;
         $this->client_secret = $client_secret;
-        // [A CONFIRMAR] URL base real não confirmada — ajustar aqui assim que confirmado com o
-        // suporte da OmegaPayments ou testando em sandbox real.
-        $this->base_url = 'https://api.omegapayments.com.br';
+        // Confirmado direto na doc (app.omegapayments.com.br/docs/v1, seção de autenticação):
+        // "adicione a todas as suas requisições: https://app.omegapayments.com.br/api/v1".
+        // O palpite anterior (api.omegapayments.com.br) nem resolvia no DNS.
+        $this->base_url = 'https://app.omegapayments.com.br/api/v1';
     }
 
     private function writeLog(string $msg): void {
@@ -40,6 +41,13 @@ class OmegaPaymentsBanco {
      * chave pública/secreta em toda chamada.
      */
     private function sendRequest(string $method, string $uri, ?array $body = null): array {
+        // A API bloqueia polling (HTTP 429 + retryAfterSeconds) e pede pra usar o webhook.
+        // Enquanto o bloqueio vale, nem tenta: martelar só estende o bloqueio.
+        $arquivo_bloqueio = __DIR__ . '/../storage/omegapayments_429_' . md5($this->client_id) . '.txt';
+        if ($method === 'GET' && is_file($arquivo_bloqueio) && (int)@file_get_contents($arquivo_bloqueio) > time()) {
+            return ['sucesso' => false, 'erro' => 'Consulta temporariamente bloqueada pela OmegaPayments (limite de requisições).', 'codigo_http' => 429];
+        }
+
         $endpoint = $this->base_url . $uri;
         $headers = [
             'x-public-key: ' . $this->client_id,
@@ -79,6 +87,11 @@ class OmegaPaymentsBanco {
 
         if ($http_code >= 200 && $http_code < 300) {
             return ['sucesso' => true, 'dados' => $data, 'codigo_http' => $http_code];
+        }
+
+        if ($http_code === 429) {
+            $espera = (int)($data['error']['retryAfterSeconds'] ?? 300);
+            @file_put_contents($arquivo_bloqueio, (string)(time() + max(30, $espera)));
         }
 
         $this->writeLog("Requisição falhou | $method $uri | HTTP $http_code | " . json_encode($data));
@@ -123,7 +136,13 @@ class OmegaPaymentsBanco {
         string $nome_cliente = 'Cliente Telegram',
         string $documento_cliente = ''
     ): array {
-        $documento_limpo = preg_replace('/\D/', '', $documento_cliente) ?: '00000000000';
+        // Nenhum ponto do fluxo hoje coleta CPF/CNPJ do comprador antes de gerar um Pix
+        // avulso (documento_cliente sempre chega vazio). Confirmado via erro real da API,
+        // em duas tentativas: mandar zeros dá "Documento inválido.", omitir o campo dá
+        // "Required document." -- é obrigatório e precisa passar validação de formato.
+        // Mesmo CNPJ fixo já usado como fallback pro Pix recorrente (CNPJ_PIX_RECORRENTE_FIXO,
+        // webhook.php), aplicado aqui também pra manter consistência.
+        $documento_limpo = preg_replace('/\D/', '', $documento_cliente) ?: '65915116000104';
 
         $payload = [
             'identifier'  => bin2hex(random_bytes(16)),
@@ -136,14 +155,23 @@ class OmegaPaymentsBanco {
             ],
             // [A CONFIRMAR] schema de products[] não confirmado — um único item genérico
             // cobrindo o valor total da cobrança, padrão comum em gateways Pix com split.
+            // 'id' obrigatório (confirmado via erro real da API: "invalid_type... path
+            // products,0,id" quando ausente) -- não temos SKU de produto real aqui, então
+            // geramos um id sintético só pra satisfazer o schema.
             'products'    => [
                 [
+                    'id'       => bin2hex(random_bytes(8)),
                     'name'     => 'Produto Digital',
                     'quantity' => 1,
                     'price'    => round($valor, 2),
                 ],
             ],
-            'dueDate'     => date('Y-m-d', time() + max($expiracao_segundos, 60)),
+            // Formato confirmado via erro real da API: mandar só "Y-m-d" fazia a API
+            // recusar com "The due date must be greater than the current date" mesmo
+            // pra uma data futura -- ela espera datetime ISO 8601 completo em UTC, não
+            // só a data (erro típico de validação Zod, que por padrão exige
+            // "YYYY-MM-DDTHH:mm:ss.sssZ").
+            'dueDate'     => gmdate('Y-m-d\TH:i:s.000\Z', time() + max($expiracao_segundos, 60)),
             'callbackUrl' => $this->montaCallbackUrl(),
             'metadata'    => ['origem' => 'telegram-bot-panel'],
         ];
@@ -185,13 +213,94 @@ class OmegaPaymentsBanco {
     }
 
     /**
+     * Traduz a periodicidade usada no bloco Pix do editor de fluxo (mensal/trimestral/
+     * semestral/anual/semanal) pro par periodicityType+periodicity que a API espera.
+     * Confirmado 28/09 direto na doc do endpoint de assinatura: a API aceita WEEKS, então
+     * a restrição de "semanal indisponível" que existia em webhook.php era desnecessária
+     * -- removida junto com essa implementação.
+     */
+    private function mapeiaPeriodicidade(string $periodicidade): array {
+        return match ($periodicidade) {
+            'semanal'    => ['periodicityType' => 'WEEKS', 'periodicity' => 1],
+            'trimestral' => ['periodicityType' => 'MONTHS', 'periodicity' => 3],
+            'semestral'  => ['periodicityType' => 'MONTHS', 'periodicity' => 6],
+            'anual'      => ['periodicityType' => 'YEARS', 'periodicity' => 1],
+            default      => ['periodicityType' => 'MONTHS', 'periodicity' => 1], // mensal
+        };
+    }
+
+    /**
+     * Monta o payload de assinatura Pix recorrente (POST /gateway/pix/subscription).
+     * Endpoint achado e confirmado em 28/09 (não estava nos itens já mapeados nas
+     * pendências) -- diferente do Pix avulso, o campo client.document aqui é OPCIONAL
+     * na doc, mas mantemos o mesmo CNPJ fixo de fallback por consistência (nenhum ponto
+     * do fluxo coleta documento real do comprador, igual ao avulso).
+     */
+    public function montaPayloadAssinatura(
+        float $valor,
+        string $periodicidade,
+        string $id_produto,
+        string $nome_produto,
+        string $nome_cliente = 'Cliente Telegram',
+        string $documento_cliente = ''
+    ): array {
+        $documento_limpo = preg_replace('/\D/', '', $documento_cliente) ?: '65915116000104';
+        $periodo = $this->mapeiaPeriodicidade($periodicidade);
+
+        return [
+            'identifier' => bin2hex(random_bytes(16)),
+            'amount'     => round($valor, 2),
+            'product'    => [
+                'id'    => $id_produto,
+                'name'  => substr($nome_produto !== '' ? $nome_produto : 'Produto', 0, 200),
+                'price' => round($valor, 2),
+            ],
+            'subscription' => [
+                'periodicityType' => $periodo['periodicityType'],
+                'periodicity'     => $periodo['periodicity'],
+            ],
+            'client' => [
+                'name'     => substr($nome_cliente !== '' ? $nome_cliente : 'Cliente Telegram', 0, 200),
+                'email'    => "cliente+{$documento_limpo}@telegrambot.local",
+                'phone'    => '11999999999',
+                'document' => $documento_limpo,
+            ],
+            'callbackUrl' => $this->montaCallbackUrl(),
+        ];
+    }
+
+    /**
+     * Cria uma assinatura Pix recorrente (POST /gateway/pix/subscription). Igual ao Pix
+     * avulso, a resposta já traz o pixCopiaECola da PRIMEIRA cobrança pronta (sem passo
+     * extra) -- as cobranças seguintes do ciclo são geradas automaticamente pela
+     * OmegaPayments, não por chamada nossa.
+     */
+    public function criarAssinatura(array $payload): array {
+        $resp = $this->sendRequest('POST', '/gateway/pix/subscription', $payload);
+
+        if (!($resp['sucesso'] ?? false)) {
+            $this->writeLog("criarAssinatura FALHOU | identifier=" . ($payload['identifier'] ?? '') . " | erro=" . json_encode($resp['erro'] ?? ''));
+            return $resp;
+        }
+
+        $resp['dados']['pixCopiaECola']  = $resp['dados']['pix']['code'] ?? '';
+        $resp['dados']['txid']           = $resp['dados']['transactionId'] ?? ($payload['identifier'] ?? '');
+        $resp['dados']['subscriptionId'] = $resp['dados']['subscription']['id'] ?? '';
+
+        $this->writeLog("criarAssinatura OK | txid=" . $resp['dados']['txid'] . " | subscriptionId=" . $resp['dados']['subscriptionId']);
+        return $resp;
+    }
+
+    /**
      * Consulta o status de uma cobrança já criada.
-     * [A CONFIRMAR EM SANDBOX] path exato do endpoint "Buscar transação" — a doc bloqueou
-     * com 403 antes de confirmar. Palpite abaixo segue o mesmo padrão REST do endpoint de
-     * criação (`/gateway/pix/receive`), ajustar assim que confirmado.
+     * [CONFIRMADO 28/09] Achado na doc real ("Buscar transações", apiPath
+     * "/gateway/transactions", method GET): não é rota por path (`/gateway/pix/{id}`,
+     * palpite anterior, dava 404) -- é busca por query string em `/gateway/transactions`,
+     * com o id da transação no parâmetro `id`. Enum de status confirmado na mesma doc:
+     * PENDING, COMPLETED, FAILED, REFUNDED, CHARGED_BACK, EXPIRED.
      */
     public function consultarCobranca(string $txid): array {
-        $resp = $this->sendRequest('GET', '/gateway/pix/' . urlencode($txid));
+        $resp = $this->sendRequest('GET', '/gateway/transactions?id=' . urlencode($txid));
 
         if ($resp['sucesso'] ?? false) {
             $resp['dados']['status'] = $resp['dados']['status'] ?? ($resp['dados']['statusCob'] ?? '');
