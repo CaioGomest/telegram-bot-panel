@@ -4,6 +4,8 @@
     let planos = [];
     let midia_tipo_atual = 'none';
     let midia_path_atual = '';
+    let carregando = false;
+    const oferta_tipos = ['upsell', 'downsell', 'order_bump'];
 
     function escaparHtml(value) {
         return String(value || '')
@@ -95,14 +97,176 @@
         }
     }
 
+    function marcarSujo() {
+        if (carregando) return;
+        $('#status-salvo').addClass('sujo').text('Alterações não salvas');
+    }
+
+    function marcarLimpo() {
+        $('#status-salvo').removeClass('sujo').text('Tudo salvo');
+    }
+
+    function trocarSecao(nome) {
+        sincronizarPlanosDoDom();
+        atualizarSelectsOfertas();
+        $('.basico-nav-item').removeClass('ativo').filter('[data-secao="' + nome + '"]').addClass('ativo');
+        $('.basico-secao').removeClass('ativa').filter('[data-secao="' + nome + '"]').addClass('ativa');
+    }
+
+    function $painelOferta(tipo) {
+        return $('.painel[data-oferta="' + tipo + '"]');
+    }
+
+    function atualizarSelectsOfertas() {
+        ['upsell', 'downsell'].forEach(function (tipo) {
+            const $sel = $painelOferta(tipo).find('.of-plano');
+            const atual = $sel.data('valor') != null ? String($sel.data('valor')) : String($sel.val() || '');
+            let html = '<option value="">Escolha um plano</option>';
+            planos.forEach(function (p) {
+                html += '<option value="' + escaparHtml(p.id) + '"' + (String(p.id) === atual ? ' selected' : '') + '>' +
+                    escaparHtml((p.nome || 'Plano sem nome') + ' — R$ ' + (Number(p.valor) || 0).toFixed(2).replace('.', ',')) + '</option>';
+            });
+            $sel.html(html).removeData('valor');
+        });
+    }
+
+    function coletarOferta(tipo) {
+        const $p = $painelOferta(tipo);
+        const oferta = {
+            ativo: $p.find('.of-ativo').is(':checked'),
+            mensagem: $p.find('.of-mensagem').val().trim(),
+            texto_aceitar: $p.find('.of-aceitar').val().trim(),
+            texto_recusar: $p.find('.of-recusar').val().trim()
+        };
+        if (tipo === 'order_bump') {
+            oferta.nome = $p.find('.of-nome').val().trim();
+            oferta.valor_extra = parseFloat($p.find('.of-valor-extra').val()) || 0;
+        } else {
+            oferta.id_plano_destino = $p.find('.of-plano').val() || '';
+            oferta.desconto_percentual = Math.min(100, Math.max(0, parseFloat($p.find('.of-desconto').val()) || 0));
+        }
+        return oferta;
+    }
+
+    function preencherOferta(tipo, oferta) {
+        oferta = oferta || {};
+        const $p = $painelOferta(tipo);
+        $p.find('.of-ativo').prop('checked', !!oferta.ativo);
+        $p.find('.of-mensagem').val(oferta.mensagem || '');
+        $p.find('.of-aceitar').val(oferta.texto_aceitar || '');
+        $p.find('.of-recusar').val(oferta.texto_recusar || '');
+        if (tipo === 'order_bump') {
+            $p.find('.of-nome').val(oferta.nome || '');
+            $p.find('.of-valor-extra').val(oferta.valor_extra != null ? oferta.valor_extra : 0);
+        } else {
+            $p.find('.of-plano').data('valor', oferta.id_plano_destino || '');
+            $p.find('.of-desconto').val(oferta.desconto_percentual != null ? oferta.desconto_percentual : 0);
+        }
+    }
+
+    function validarDados(dados) {
+        const d = dados.dados_fluxograma;
+        if (!d.planos.length) return 'Adicione pelo menos 1 plano antes de salvar.';
+        for (let i = 0; i < d.planos.length; i++) {
+            if (!d.planos[i].nome) return 'O plano ' + (i + 1) + ' está sem nome.';
+            if (!(d.planos[i].valor > 0)) return 'O plano "' + d.planos[i].nome + '" precisa ter valor maior que zero.';
+        }
+        const usuario_suporte = d.suporte.replace(/^@/, '').replace(/^(https?:\/\/)?(t\.me|telegram\.me)\//i, '');
+        if (d.suporte && !/^[A-Za-z0-9_]{4,32}$/.test(usuario_suporte)) {
+            return 'Usuário de suporte inválido. Use algo como @seususuario (4 a 32 letras, números ou _).';
+        }
+        for (const tipo of ['upsell', 'downsell']) {
+            const o = d.ofertas[tipo];
+            if (o.ativo && !o.id_plano_destino) return 'Escolha o plano oferecido no ' + (tipo === 'upsell' ? 'Upsell' : 'Downsell') + ' ou desative-o.';
+        }
+        if (d.ofertas.order_bump.ativo && !(d.ofertas.order_bump.valor_extra > 0)) return 'Informe o valor extra do Order Bump ou desative-o.';
+        return '';
+    }
+
+    function formatarMoeda(v) {
+        return 'R$ ' + (Number(v) || 0).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    }
+
+    function carregarBots() {
+        const id = $('#id-fluxo').val();
+        if (!id) {
+            $('#bots-aviso-salvar').show();
+            $('#area-vincular').prop('hidden', true);
+            $('#lista-bots-vinculados').empty();
+            return;
+        }
+        $('#bots-aviso-salvar').hide();
+        $.getJSON(api_url + '?action=bots_do_fluxo&id=' + encodeURIComponent(id)).done(function (resp) {
+            if (!resp.sucesso) return;
+            let html = '';
+            (resp.vinculados || []).forEach(function (b) {
+                html += '<div class="basico-bot"><span>' + escaparHtml(b.primeiro_nome || b.nome_usuario || ('Bot #' + b.id)) +
+                    (b.nome_usuario ? ' <small>@' + escaparHtml(b.nome_usuario) + '</small>' : '') + '</span>' +
+                    '<button type="button" class="botao botao-claro desvincular-bot" data-id="' + b.id + '">Desvincular</button></div>';
+            });
+            $('#lista-bots-vinculados').html(html || '<p class="texto-ajuda">Nenhum bot vinculado a este fluxo ainda.</p>');
+            let opts = '';
+            (resp.disponiveis || []).forEach(function (b) {
+                const nome = (b.primeiro_nome || b.nome_usuario || ('Bot #' + b.id)) + (b.nome_fluxo ? ' (hoje em: ' + b.nome_fluxo + ')' : '');
+                opts += '<option value="' + b.id + '">' + escaparHtml(nome) + '</option>';
+            });
+            $('#select-bot-vincular').html(opts);
+            $('#area-vincular').prop('hidden', !opts);
+        });
+        $.getJSON(api_url + '?action=resumo_fluxo&id=' + encodeURIComponent(id)).done(function (resp) {
+            if (!resp.sucesso) return;
+            $('#resumo-leads').text((resp.resumo.leads || 0).toLocaleString('pt-BR'));
+            $('#resumo-vips').text((resp.resumo.vips || 0).toLocaleString('pt-BR'));
+            $('#resumo-receita').text(formatarMoeda(resp.resumo.receita));
+        });
+    }
+
+    function vincularBot(id_bot, id_fluxo) {
+        $.ajax({
+            url: api_url + '?action=vincular_bot_fluxo',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ id_bot: id_bot, id_fluxo: id_fluxo })
+        }).done(function (resp) {
+            exibirAviso(resp.mensagem || 'Feito.', resp.sucesso ? 'sucesso' : 'erro');
+            carregarBots();
+        }).fail(function (xhr) {
+            exibirAviso((xhr.responseJSON && xhr.responseJSON.mensagem) || 'Erro ao vincular bot.', 'erro');
+        });
+    }
+
+    function atualizarRotuloAtivo() {
+        $('#fluxo-ativo-rotulo').text($('#fluxo-ativo').is(':checked') ? 'Ativo' : 'Desligado');
+    }
+
+    function coletarCoresBotoes() {
+        const cores = {};
+        $('.cor-botao').each(function () { cores[$(this).data('papel')] = $(this).val() || ''; });
+        return cores;
+    }
+
+    function preencherCoresBotoes(cores) {
+        cores = cores || {};
+        $('.cor-botao').each(function () { $(this).val(cores[$(this).data('papel')] || ''); });
+    }
+
     function coletarDados() {
         sincronizarPlanosDoDom();
+        atualizarSelectsOfertas();
         return {
             id: $('#id-fluxo').val(),
             nome: $('#nome-fluxo').val().trim() || 'Novo fluxo',
             descricao: $('#descricao-fluxo').val().trim(),
             modo: 'basico',
             dados_fluxograma: {
+                ativo: $('#fluxo-ativo').is(':checked'),
+                suporte: $('#suporte-usuario').val().trim(),
+                botoes: coletarCoresBotoes(),
+                ofertas: {
+                    upsell: coletarOferta('upsell'),
+                    downsell: coletarOferta('downsell'),
+                    order_bump: coletarOferta('order_bump')
+                },
                 boas_vindas: {
                     mensagem: $('#bv-mensagem').val(),
                     midia_tipo: midia_tipo_atual,
@@ -122,6 +286,7 @@
     }
 
     function preencherForm(fluxo) {
+        carregando = true;
         $('#id-fluxo').val(fluxo.id || '');
         $('#nome-fluxo').val(fluxo.nome || '');
         $('#descricao-fluxo').val(fluxo.descricao || '');
@@ -142,9 +307,20 @@
         $('#pg-mostrar-copiar').prop('checked', pg.mostrar_copiar !== false);
         $('#pg-mostrar-confirmar').prop('checked', pg.mostrar_confirmar !== false);
 
+        $('#fluxo-ativo').prop('checked', dados.ativo !== false);
+        atualizarRotuloAtivo();
+        $('#suporte-usuario').val(dados.suporte || '');
+        preencherCoresBotoes(dados.botoes);
+        const ofertas = dados.ofertas || {};
+        oferta_tipos.forEach(function (tipo) { preencherOferta(tipo, ofertas[tipo]); });
+        atualizarSelectsOfertas();
+
         if (fluxo.id) {
             $('#btn-excluir-fluxo-basico').show();
         }
+        carregarBots();
+        carregando = false;
+        marcarLimpo();
     }
 
     function abrirFluxo(id) {
@@ -168,8 +344,9 @@
 
     function salvarFluxo() {
         const dados = coletarDados();
-        if (!(dados.dados_fluxograma.planos || []).length) {
-            exibirAviso('Adicione pelo menos 1 plano antes de salvar.', 'erro');
+        const erro_validacao = validarDados(dados);
+        if (erro_validacao) {
+            exibirAviso(erro_validacao, 'erro');
             return;
         }
         $.ajax({
@@ -184,6 +361,8 @@
             }
             $('#id-fluxo').val(resp.fluxo.id || '');
             $('#btn-excluir-fluxo-basico').show();
+            marcarLimpo();
+            carregarBots();
             exibirAviso(resp.mensagem || 'Fluxo salvo com sucesso.');
             if (window.history.pushState && resp.fluxo && resp.fluxo.id) {
                 const new_url = window.location.pathname + '?id=' + resp.fluxo.id;
@@ -208,6 +387,7 @@
                 exibirAviso(resp.mensagem || 'Erro ao excluir fluxo.', 'erro');
                 return;
             }
+            marcarLimpo();
             window.location.href = 'fluxos';
         }).fail(function (xhr) {
             exibirAviso((xhr.responseJSON && xhr.responseJSON.mensagem) || 'Erro ao excluir fluxo.', 'erro');
@@ -222,7 +402,25 @@
                 abrirFluxo(flow_id);
             } else {
                 renderPlanos();
+                atualizarSelectsOfertas();
+                carregarBots();
             }
+        });
+
+        $('#basico-nav').on('click', '.basico-nav-item', function () {
+            trocarSecao($(this).data('secao'));
+        });
+        $('#basico-conteudo').on('input change', 'input, select, textarea', marcarSujo);
+        $('#fluxo-ativo').on('change', function () { atualizarRotuloAtivo(); marcarSujo(); });
+        $('#btn-vincular-bot').on('click', function () {
+            const id_bot = parseInt($('#select-bot-vincular').val(), 10);
+            if (id_bot) vincularBot(id_bot, parseInt($('#id-fluxo').val(), 10));
+        });
+        $(document).on('click', '.desvincular-bot', function () {
+            vincularBot(parseInt($(this).data('id'), 10), 0);
+        });
+        $(window).on('beforeunload', function (e) {
+            if ($('#status-salvo').hasClass('sujo')) { e.preventDefault(); return ''; }
         });
 
         $('#btn-salvar-fluxo-basico').on('click', salvarFluxo);
@@ -232,12 +430,14 @@
             sincronizarPlanosDoDom();
             planos.push({ id: 'plano_' + Date.now(), nome: '', valor: 0, dias_acesso: 30, unidade_acesso: 'dias', id_grupo: '' });
             renderPlanos();
+            marcarSujo();
         });
         $(document).on('click', '.remover-plano', function () {
             sincronizarPlanosDoDom();
             const idx = parseInt($(this).closest('.painel-plano').data('index'), 10);
             planos.splice(idx, 1);
             renderPlanos();
+            marcarSujo();
         });
 
         $('#bv-midia-previa').on('click', function () {
@@ -264,6 +464,7 @@
                 midia_path_atual = resp.caminho || '';
                 midia_tipo_atual = eh_video ? 'video' : 'image';
                 atualizarPreviaMidia();
+                marcarSujo();
                 exibirAviso('Mídia anexada.');
             }).fail(function (xhr) {
                 exibirAviso((xhr.responseJSON && xhr.responseJSON.mensagem) || 'Erro ao enviar mídia.', 'erro');

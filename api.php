@@ -121,7 +121,7 @@ function sanitizarTexto(?string $valor, int $tamanho_maximo = 0): string
  * subpasta nem "..") antes de gravar no banco. Sem essa checagem, dava pra gravar um
  * caminho arbitrário (ex. "config.php" ou "certificados/cert_5_1.pem") direto via API,
  * pulando a tela do editor, e o bot reenviaria esse arquivo quando o bloco fosse executado
- * — ver anotacoes/varredura-08-lfi-fluxograma-sessao.md. Caminho fora do padrão é zerado
+ * — ver anotacoes/HISTORICO-CONSOLIDADO.md. Caminho fora do padrão é zerado
  * em vez de rejeitar o fluxo inteiro, pra não travar o resto da edição.
  */
 /** Mesma checagem de "só aceita caminho uploads/nome.ext" usada abaixo pro grafo de nós. */
@@ -262,7 +262,7 @@ try {
         case 'gateway_info':
             // PIX Recorrente era só da InfoPago (PIX Automático) -- nenhum gateway suportado
             // hoje implementa recorrência (a OmegaPayments não tem esse recurso na v1). Ver
-            // anotacoes/pendente/plano-remocao-infopago.md. Sempre false até algum gateway
+            // anotacoes/HISTORICO-CONSOLIDADO.md. Sempre false até algum gateway
             // futuro trazer esse recurso de volta.
             responder(true, ['suporta_recorrente' => false]);
             break;
@@ -492,6 +492,74 @@ try {
             responder(true, ['bots' => $bots]);
             break;
 
+        case 'bots_do_fluxo':
+            $id_fluxo_consulta = (int) ($_GET['id'] ?? 0);
+            if ($id_fluxo_consulta <= 0) {
+                responder(false, ['mensagem' => 'ID do fluxo inválido.'], 422);
+            }
+            $stmt = $pdo->prepare("SELECT b.id, b.nome_usuario, b.primeiro_nome, b.id_fluxo_conectado, f.nome AS nome_fluxo
+                                   FROM bots b LEFT JOIN fluxos f ON f.id = b.id_fluxo_conectado
+                                   WHERE b.id_usuario = ? ORDER BY b.atualizado_em DESC");
+            $stmt->execute([$usuario_id]);
+            $vinculados = [];
+            $disponiveis = [];
+            foreach ($stmt->fetchAll() as $bot_linha) {
+                if ((int) $bot_linha['id_fluxo_conectado'] === $id_fluxo_consulta) {
+                    $vinculados[] = $bot_linha;
+                } else {
+                    $disponiveis[] = $bot_linha;
+                }
+            }
+            responder(true, ['vinculados' => $vinculados, 'disponiveis' => $disponiveis]);
+            break;
+
+        case 'vincular_bot_fluxo':
+            // id_fluxo = 0 desvincula o bot. Os dois lados precisam ser do usuário logado.
+            $id_bot_vinculo = (int) ($entrada['id_bot'] ?? 0);
+            $id_fluxo_vinculo = (int) ($entrada['id_fluxo'] ?? 0);
+            if ($id_bot_vinculo <= 0) {
+                responder(false, ['mensagem' => 'Bot inválido.'], 422);
+            }
+            if ($id_fluxo_vinculo > 0) {
+                $stmt = $pdo->prepare("SELECT id FROM fluxos WHERE id = ? AND id_usuario = ?");
+                $stmt->execute([$id_fluxo_vinculo, $usuario_id]);
+                if (!$stmt->fetchColumn()) {
+                    responder(false, ['mensagem' => 'Fluxo não encontrado.'], 404);
+                }
+            }
+            $stmt = $pdo->prepare("UPDATE bots SET id_fluxo_conectado = ? WHERE id = ? AND id_usuario = ?");
+            $stmt->execute([$id_fluxo_vinculo > 0 ? $id_fluxo_vinculo : null, $id_bot_vinculo, $usuario_id]);
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM bots WHERE id = ? AND id_usuario = ?");
+            $stmt->execute([$id_bot_vinculo, $usuario_id]);
+            if ((int) $stmt->fetchColumn() === 0) {
+                responder(false, ['mensagem' => 'Bot não encontrado.'], 404);
+            }
+            responder(true, ['mensagem' => $id_fluxo_vinculo > 0 ? 'Bot vinculado ao fluxo.' : 'Bot desvinculado do fluxo.']);
+            break;
+
+        case 'resumo_fluxo':
+            $id_fluxo_resumo = (int) ($_GET['id'] ?? 0);
+            if ($id_fluxo_resumo <= 0) {
+                responder(false, ['mensagem' => 'ID do fluxo inválido.'], 422);
+            }
+            $stmt = $pdo->prepare("SELECT id FROM bots WHERE id_fluxo_conectado = ? AND id_usuario = ?");
+            $stmt->execute([$id_fluxo_resumo, $usuario_id]);
+            $ids_bots_resumo = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+            $resumo = ['leads' => 0, 'vips' => 0, 'receita' => 0.0];
+            if ($ids_bots_resumo) {
+                $marcadores = implode(',', array_fill(0, count($ids_bots_resumo), '?'));
+                $stmt = $pdo->prepare("SELECT COUNT(*) FROM leads WHERE bot_id IN ($marcadores)");
+                $stmt->execute($ids_bots_resumo);
+                $resumo['leads'] = (int) $stmt->fetchColumn();
+                $stmt = $pdo->prepare("SELECT COUNT(DISTINCT id_telegram), COALESCE(SUM(valor), 0) FROM vendas WHERE status = 'pago' AND bot_id IN ($marcadores)");
+                $stmt->execute($ids_bots_resumo);
+                $linha_resumo = $stmt->fetch(PDO::FETCH_NUM);
+                $resumo['vips'] = (int) ($linha_resumo[0] ?? 0);
+                $resumo['receita'] = (float) ($linha_resumo[1] ?? 0);
+            }
+            responder(true, ['resumo' => $resumo]);
+            break;
+
         case 'obter_bot':
             $id = (int) ($_GET['id'] ?? 0);
             if ($id <= 0) {
@@ -690,26 +758,11 @@ try {
                 $passos[] = 'Descrição Curta';
             }
 
+            // Não dá pra trocar a foto do bot por API (Telegram só permite via @BotFather,
+            // comando /setuserpic) -- a plataforma não oferece mais upload de foto pra não
+            // sugerir que isso troca a foto real do bot no Telegram. caminho_foto só é
+            // mantido aqui pra não apagar um valor legado de antes dessa remoção.
             $caminho_foto = $bot['caminho_foto'];
-            if (!empty($_FILES['photo']['tmp_name'])) {
-                $tmp = $_FILES['photo']['tmp_name'];
-                $tamanho = (int)($_FILES['photo']['size'] ?? 0);
-                if ($tamanho <= 0 || !@getimagesize($tmp)) {
-                    $erros[] = 'Foto: Arquivo inválido ou vazio.';
-                } else {
-                    $extensao = strtolower(pathinfo($_FILES['photo']['name'] ?? 'photo.jpg', PATHINFO_EXTENSION));
-                    if (!in_array($extensao, ['jpg', 'jpeg', 'png'], true)) {
-                        $extensao = 'jpg';
-                    }
-                    $caminho_local = DIRETORIO_UPLOADS . '/' . uniqid('bot_photo_', true) . '.' . $extensao;
-                    if (!move_uploaded_file($tmp, $caminho_local) || !file_exists($caminho_local)) {
-                        $erros[] = 'Foto: Falha ao salvar arquivo local.';
-                    } else {
-                        $caminho_foto = 'uploads/' . basename($caminho_local);
-                        $passos[] = 'Foto (local)';
-                    }
-                }
-            }
 
             // Atualiza o DB com os valores do formulário mesmo se alguma chamada ao Telegram tiver falhado
             // acima: assim o usuário não perde o que digitou (fica só desincronizado até tentar de novo).
@@ -1085,6 +1138,68 @@ try {
             }
             $resultado = excluirLinkRastreamento($usuario_id, $id);
             responder($resultado['sucesso'], $resultado, $resultado['sucesso'] ? 200 : 404);
+            break;
+
+        case 'opcoes_redirecionamento':
+            require_once __DIR__ . '/funcoes/redirecionadores.php';
+            garantirTabelasRedirecionamento();
+            responder(true, opcoesRedirecionamento($usuario_id));
+            break;
+
+        case 'listar_redirecionadores':
+            require_once __DIR__ . '/funcoes/redirecionadores.php';
+            if (!garantirTabelasRedirecionamento()) {
+                responder(false, ['mensagem' => 'Não foi possível preparar o banco. Rode "Atualizar Banco" no admin.'], 500);
+            }
+            responder(true, ['links' => listarRedirecionadores($usuario_id)]);
+            break;
+
+        case 'obter_redirecionador':
+            require_once __DIR__ . '/funcoes/redirecionadores.php';
+            garantirTabelasRedirecionamento();
+            $id = (int) ($_GET['id'] ?? 0);
+            $link = $id > 0 ? obterRedirecionador($usuario_id, $id) : false;
+            if (!$link) {
+                responder(false, ['mensagem' => 'Link não encontrado.'], 404);
+            }
+            responder(true, ['link' => $link]);
+            break;
+
+        case 'salvar_redirecionador':
+            require_once __DIR__ . '/funcoes/redirecionadores.php';
+            garantirTabelasRedirecionamento();
+            $resultado = salvarRedirecionador($usuario_id, $entrada);
+            responder($resultado['sucesso'], $resultado, $resultado['sucesso'] ? 200 : 422);
+            break;
+
+        case 'alternar_redirecionador':
+            require_once __DIR__ . '/funcoes/redirecionadores.php';
+            $id = (int) ($entrada['id'] ?? 0);
+            if ($id <= 0) {
+                responder(false, ['mensagem' => 'ID inválido.'], 422);
+            }
+            $resultado = alternarRedirecionador($usuario_id, $id, !empty($entrada['ativo']));
+            responder($resultado['sucesso'], $resultado, $resultado['sucesso'] ? 200 : 422);
+            break;
+
+        case 'excluir_redirecionador':
+            require_once __DIR__ . '/funcoes/redirecionadores.php';
+            $id = (int) ($entrada['id'] ?? 0);
+            if ($id <= 0) {
+                responder(false, ['mensagem' => 'ID inválido.'], 422);
+            }
+            $resultado = excluirRedirecionador($usuario_id, $id);
+            responder($resultado['sucesso'], $resultado, $resultado['sucesso'] ? 200 : 404);
+            break;
+
+        case 'campanhas_redirecionador':
+            require_once __DIR__ . '/funcoes/redirecionadores.php';
+            $id = (int) ($_GET['id'] ?? 0);
+            $campanhas = $id > 0 ? campanhasRedirecionador($usuario_id, $id) : false;
+            if ($campanhas === false) {
+                responder(false, ['mensagem' => 'Link não encontrado.'], 404);
+            }
+            responder(true, ['campanhas' => $campanhas]);
             break;
 
         case 'listar_stories':
