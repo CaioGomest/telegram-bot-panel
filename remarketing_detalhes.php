@@ -22,7 +22,7 @@ $stmt_campanha->execute([$campanha_id, $id_usuario]);
 $campanha = $stmt_campanha->fetch(PDO::FETCH_ASSOC);
 
 if ($campanha) {
-    $resultado = in_array($_GET['resultado'] ?? '', ['sucesso', 'falha', 'todos'], true) ? $_GET['resultado'] : 'falha';
+    $resultado = in_array($_GET['resultado'] ?? '', ['sucesso', 'falha', 'todos'], true) ? $_GET['resultado'] : 'todos';
     $pagina = max(1, (int) ($_GET['pagina'] ?? 1));
     $por_pagina = 50;
 

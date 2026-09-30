@@ -52,6 +52,13 @@ function processarCampanha(array $input, PDO $pdo, int $id_usuario): array {
     if ($agendado_str === '' || strtotime($agendado_str) === false) {
         return ['sucesso' => false, 'mensagem' => 'Informe a data e a hora do envio.'];
     }
+    // Tolerância de 1 min pro tempo entre o usuário escolher "agora" e o POST chegar --
+    // sem isso, cron_remarketing.php pega qualquer agendado_em <= NOW() e dispara na
+    // rodada seguinte, então um horário já passado "funcionava" silenciosamente em vez
+    // de avisar que não era isso que o usuário escolheu.
+    if (strtotime($agendado_str) < time() - 60) {
+        return ['sucesso' => false, 'mensagem' => 'Esse horário já passou. Escolha uma data e hora futuras.'];
+    }
 
     if ($midia_caminho !== '') {
         if (!in_array($midia_tipo, ['foto', 'video'], true) || !resolverCaminhoUploadSeguroRemarketing($midia_caminho)) {
