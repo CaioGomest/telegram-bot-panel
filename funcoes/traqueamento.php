@@ -2,6 +2,7 @@
 require_once __DIR__ . '/facebook.php';
 require_once __DIR__ . '/tiktok.php';
 require_once __DIR__ . '/utmfy.php';
+require_once __DIR__ . '/criptografia.php';
 require_once __DIR__ . '/../conexao.php';
 
 function logTraqueamento($plataforma, $evento, $payload, $resposta, $codigo_http) {
@@ -31,6 +32,15 @@ function enviarEventosTraqueamento($id_usuario, $evento, $dados, $user_data = []
     if (!$config) {
         return ['sucesso' => false, 'erro' => 'Configuração não encontrada'];
     }
+
+    // facebook_access_token/tiktok_access_token/utmfy_token são salvos cifrados
+    // (criptografarSegredo(), mesmo mecanismo do client_secret dos gateways) desde que
+    // traqueamento.php passou a mascará-los na tela -- descriptografarSegredo() também
+    // devolve de volta, sem alteração, qualquer valor legado salvo em texto puro antes
+    // dessa mudança.
+    $config['facebook_access_token'] = descriptografarSegredo($config['facebook_access_token'] ?? '');
+    $config['tiktok_access_token'] = descriptografarSegredo($config['tiktok_access_token'] ?? '');
+    $config['utmfy_token'] = descriptografarSegredo($config['utmfy_token'] ?? '');
 
     $resultados = [];
 

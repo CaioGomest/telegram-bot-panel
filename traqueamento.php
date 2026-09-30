@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once 'conexao.php';
 require_once __DIR__ . '/funcoes/usuario.php';
+require_once __DIR__ . '/funcoes/criptografia.php';
 
 bloquearAdmin();
 
@@ -30,15 +31,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verificarCsrf();
     $fb_ativo = isset($_POST['facebook_ativo']) ? 1 : 0;
     $fb_pixel = trim($_POST['facebook_pixel_id'] ?? '');
-    $fb_token = trim($_POST['facebook_access_token'] ?? '');
-    
+    // Campo em branco = mantém o token já salvo (cifrado ou legado em texto puro, tanto
+    // faz -- não precisa descriptografar aqui pra isso). Só cifra de novo quando a pessoa
+    // realmente digitou um valor novo. Mesmo padrão de gateways.php pro client_secret.
+    $fb_token_novo = trim($_POST['facebook_access_token'] ?? '');
+    $fb_token = $fb_token_novo !== '' ? criptografarSegredo($fb_token_novo) : (string) ($config['facebook_access_token'] ?? '');
+
     $utmfy_ativo = isset($_POST['utmfy_ativo']) ? 1 : 0;
-    $utmfy = trim($_POST['utmfy_token'] ?? '');
-    
+    $utmfy_novo = trim($_POST['utmfy_token'] ?? '');
+    $utmfy = $utmfy_novo !== '' ? criptografarSegredo($utmfy_novo) : (string) ($config['utmfy_token'] ?? '');
+
     $tt_ativo = isset($_POST['tiktok_ativo']) ? 1 : 0;
     $tt_pixel = trim($_POST['tiktok_pixel_id'] ?? '');
-    $tt_token = trim($_POST['tiktok_access_token'] ?? '');
-    
+    $tt_token_novo = trim($_POST['tiktok_access_token'] ?? '');
+    $tt_token = $tt_token_novo !== '' ? criptografarSegredo($tt_token_novo) : (string) ($config['tiktok_access_token'] ?? '');
+
     try {
         $check = $pdo->prepare("SELECT id FROM usuarios_traqueamento WHERE id_usuario = ?");
         $check->execute([$usuario_id]);
@@ -165,9 +172,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                         <div class="campo">
                             <label for="facebook_access_token">Access Token (Conversions API)</label>
-                            <input type="text" id="facebook_access_token" name="facebook_access_token"
-                                   value="<?php echo htmlspecialchars($config['facebook_access_token'] ?? ''); ?>" placeholder="Token longo da API de Conversões">
-                            <small>Necessário para enviar eventos do servidor (pix gerado/pago). Gere no Gerenciador de Eventos &gt; Configurações &gt; API de Conversões.</small>
+                            <?php /* Sem value: type=password mascara na tela, mas o valor ainda ia inteiro
+                                 no HTML e aparecia em "ver código-fonte" -- mesma correção já aplicada em
+                                 gateways.php pro client_secret. */ ?>
+                            <input type="password" id="facebook_access_token" name="facebook_access_token"
+                                   autocomplete="new-password" data-lpignore="true" data-1p-ignore
+                                   placeholder="<?php echo !empty($config['facebook_access_token']) ? '•••••••• (salvo)' : 'Token longo da API de Conversões'; ?>">
+                            <small>Necessário para enviar eventos do servidor (pix gerado/pago). Gere no Gerenciador de Eventos &gt; Configurações &gt; API de Conversões.<?php echo !empty($config['facebook_access_token']) ? ' Deixe em branco para manter o atual.' : ''; ?></small>
                         </div>
                     </div>
                 </div>
@@ -197,9 +208,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                         <div class="campo">
                             <label for="tiktok_access_token">Access Token (Events API)</label>
-                            <input type="text" id="tiktok_access_token" name="tiktok_access_token"
-                                   value="<?php echo htmlspecialchars($config['tiktok_access_token'] ?? ''); ?>" placeholder="Token da API de Eventos">
-                            <small>Gere no TikTok Ads Manager &gt; Assets &gt; Events &gt; Web Events &gt; Settings &gt; Generate Access Token.</small>
+                            <input type="password" id="tiktok_access_token" name="tiktok_access_token"
+                                   autocomplete="new-password" data-lpignore="true" data-1p-ignore
+                                   placeholder="<?php echo !empty($config['tiktok_access_token']) ? '•••••••• (salvo)' : 'Token da API de Eventos'; ?>">
+                            <small>Gere no TikTok Ads Manager &gt; Assets &gt; Events &gt; Web Events &gt; Settings &gt; Generate Access Token.<?php echo !empty($config['tiktok_access_token']) ? ' Deixe em branco para manter o atual.' : ''; ?></small>
                         </div>
                     </div>
                 </div>
@@ -221,9 +233,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="campos-plataforma grade grade-compacta">
                         <div class="campo">
                             <label for="utmfy_token">Token ou URL de Postback</label>
-                            <input type="text" id="utmfy_token" name="utmfy_token"
-                                   value="<?php echo htmlspecialchars($config['utmfy_token'] ?? ''); ?>" placeholder="Ex: https://api.utmify.com.br/v1/postback/SEU_TOKEN">
-                            <small>Cole a URL de Postback fornecida pela UTMfy para integração.</small>
+                            <input type="password" id="utmfy_token" name="utmfy_token"
+                                   autocomplete="new-password" data-lpignore="true" data-1p-ignore
+                                   placeholder="<?php echo !empty($config['utmfy_token']) ? '•••••••• (salvo)' : 'Ex: https://api.utmify.com.br/v1/postback/SEU_TOKEN'; ?>">
+                            <small>Cole a URL de Postback fornecida pela UTMfy para integração.<?php echo !empty($config['utmfy_token']) ? ' Deixe em branco para manter o atual.' : ''; ?></small>
                         </div>
                     </div>
                 </div>

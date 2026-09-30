@@ -495,12 +495,12 @@ try {
             id_usuario INT NOT NULL,
             facebook_ativo TINYINT(1) DEFAULT 0,
             facebook_pixel_id VARCHAR(255) DEFAULT NULL,
-            facebook_access_token VARCHAR(255) DEFAULT NULL,
+            facebook_access_token TEXT DEFAULT NULL,
             tiktok_ativo TINYINT(1) DEFAULT 0,
             tiktok_pixel_id VARCHAR(255) DEFAULT NULL,
-            tiktok_access_token VARCHAR(255) DEFAULT NULL,
+            tiktok_access_token TEXT DEFAULT NULL,
             utmfy_ativo TINYINT(1) DEFAULT 0,
-            utmfy_token VARCHAR(255) DEFAULT NULL,
+            utmfy_token TEXT DEFAULT NULL,
             criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
             atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             UNIQUE KEY unique_user (id_usuario),
@@ -512,6 +512,14 @@ try {
     try { $pdo->exec("ALTER TABLE usuarios_traqueamento ADD COLUMN facebook_ativo TINYINT(1) DEFAULT 0 AFTER id_usuario"); } catch (PDOException $e) {}
     try { $pdo->exec("ALTER TABLE usuarios_traqueamento ADD COLUMN tiktok_ativo TINYINT(1) DEFAULT 0 AFTER facebook_access_token"); } catch (PDOException $e) {}
     try { $pdo->exec("ALTER TABLE usuarios_traqueamento ADD COLUMN utmfy_ativo TINYINT(1) DEFAULT 0 AFTER tiktok_access_token"); } catch (PDOException $e) {}
+
+    // facebook_access_token/tiktok_access_token/utmfy_token passam a ser cifrados
+    // (criptografarSegredo(), mesmo mecanismo do client_secret dos gateways) -- o formato
+    // cifrado ("enc:v1:" + base64(iv+texto)) de um token de ~250 caracteres passa de 255,
+    // então a coluna precisa virar TEXT antes do próximo salvamento truncar o valor.
+    try { $pdo->exec("ALTER TABLE usuarios_traqueamento MODIFY COLUMN facebook_access_token TEXT DEFAULT NULL"); } catch (PDOException $e) {}
+    try { $pdo->exec("ALTER TABLE usuarios_traqueamento MODIFY COLUMN tiktok_access_token TEXT DEFAULT NULL"); } catch (PDOException $e) {}
+    try { $pdo->exec("ALTER TABLE usuarios_traqueamento MODIFY COLUMN utmfy_token TEXT DEFAULT NULL"); } catch (PDOException $e) {}
     
     echo "Tabela 'usuarios_traqueamento' OK.<br>";
 
