@@ -131,14 +131,6 @@
             painel.hidden = false;
             botao.setAttribute('aria-expanded', 'true');
             posicionarPainel();
-            if (ultimoNaoLidas > 0) {
-                marcarLidas().then(function () {
-                    atualizarBadge(0);
-                    lista.querySelectorAll('.item-atividade.nao-lida').forEach(function (el) {
-                        el.classList.remove('nao-lida');
-                    });
-                });
-            }
         }
 
         function fechar() {
