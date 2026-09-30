@@ -91,9 +91,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rastreamento - <?php echo htmlspecialchars(nomeSistema()); ?></title>
+    <title>Traqueamento - <?php echo htmlspecialchars(nomeSistema()); ?></title>
     <?php include 'tema_inline.php'; ?>
-    <link rel="stylesheet" href="assets/css/coyote.css?v=<?php echo @filemtime(__DIR__.'/assets/css/coyote.css'); ?>">
+    <link rel="stylesheet" href="assets/css/painel.css?v=<?php echo @filemtime(__DIR__.'/assets/css/painel.css'); ?>">
     <style>
         .secao-plataforma { margin-bottom: 28px; padding-bottom: 24px; border-bottom: 1px solid var(--bd); }
         .secao-plataforma:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
@@ -124,7 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <main class="conteudo-principal">
         <div class="cabecalho-pagina">
             <div>
-                <h1>Rastreamento</h1>
+                <h1>Traqueamento</h1>
                 <p>Configure seus pixels e APIs de conversão para rastrear vendas.</p>
             </div>
             <div class="acoes-cabecalho">
@@ -184,7 +184,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             TikTok Ads
                         </div>
                         <label class="chave-gateway">
-                            <input type="checkbox" id="tiktok_ativo" name="tiktok_ativo" <?php echo !empty($config['tiktok_ativo']) ? 'checked' : ''; ?>>
+                            <input type="checkbox" id="tiktok_ativo" name="tiktok_ativo" aria-label="Ativar TikTok Ads" <?php echo !empty($config['tiktok_ativo']) ? 'checked' : ''; ?>>
                             <span class="chave-gateway-trilho"></span>
                         </label>
                     </div>
