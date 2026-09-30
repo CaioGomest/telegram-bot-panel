@@ -111,7 +111,7 @@ bloquearAdmin();
                             <div class="campo">
                                 <label for="bv-cta-cor">Cor do botão</label>
                                 <select id="bv-cta-cor">
-                                    <option value="">Padrão do Telegram</option>
+                                    <option value="">Padrão</option>
                                     <option value="primary">Azul</option>
                                     <option value="success">Verde</option>
                                     <option value="danger">Vermelho</option>
@@ -144,7 +144,7 @@ bloquearAdmin();
                             <div class="campo"><label>Botão aceitar</label><input type="text" class="of-aceitar" placeholder="Sim, quero!"></div>
                             <div class="campo"><label>Cor do botão aceitar</label>
                                 <select class="of-aceitar-cor">
-                                    <option value="">Padrão do Telegram</option>
+                                    <option value="">Padrão</option>
                                     <option value="primary">Azul</option>
                                     <option value="success">Verde</option>
                                     <option value="danger">Vermelho</option>
@@ -153,7 +153,7 @@ bloquearAdmin();
                             <div class="campo"><label>Botão recusar</label><input type="text" class="of-recusar" placeholder="Não, obrigado"></div>
                             <div class="campo"><label>Cor do botão recusar</label>
                                 <select class="of-recusar-cor">
-                                    <option value="">Padrão do Telegram</option>
+                                    <option value="">Padrão</option>
                                     <option value="primary">Azul</option>
                                     <option value="success">Verde</option>
                                     <option value="danger">Vermelho</option>
@@ -177,7 +177,7 @@ bloquearAdmin();
                             <div class="campo"><label>Botão aceitar</label><input type="text" class="of-aceitar" placeholder="Sim, quero!"></div>
                             <div class="campo"><label>Cor do botão aceitar</label>
                                 <select class="of-aceitar-cor">
-                                    <option value="">Padrão do Telegram</option>
+                                    <option value="">Padrão</option>
                                     <option value="primary">Azul</option>
                                     <option value="success">Verde</option>
                                     <option value="danger">Vermelho</option>
@@ -186,7 +186,7 @@ bloquearAdmin();
                             <div class="campo"><label>Botão recusar</label><input type="text" class="of-recusar" placeholder="Não, obrigado"></div>
                             <div class="campo"><label>Cor do botão recusar</label>
                                 <select class="of-recusar-cor">
-                                    <option value="">Padrão do Telegram</option>
+                                    <option value="">Padrão</option>
                                     <option value="primary">Azul</option>
                                     <option value="success">Verde</option>
                                     <option value="danger">Vermelho</option>
@@ -210,7 +210,7 @@ bloquearAdmin();
                             <div class="campo"><label>Botão aceitar</label><input type="text" class="of-aceitar" placeholder="Sim, quero!"></div>
                             <div class="campo"><label>Cor do botão aceitar</label>
                                 <select class="of-aceitar-cor">
-                                    <option value="">Padrão do Telegram</option>
+                                    <option value="">Padrão</option>
                                     <option value="primary">Azul</option>
                                     <option value="success">Verde</option>
                                     <option value="danger">Vermelho</option>
@@ -219,7 +219,7 @@ bloquearAdmin();
                             <div class="campo"><label>Botão recusar</label><input type="text" class="of-recusar" placeholder="Não, obrigado"></div>
                             <div class="campo"><label>Cor do botão recusar</label>
                                 <select class="of-recusar-cor">
-                                    <option value="">Padrão do Telegram</option>
+                                    <option value="">Padrão</option>
                                     <option value="primary">Azul</option>
                                     <option value="success">Verde</option>
                                     <option value="danger">Vermelho</option>
@@ -263,7 +263,7 @@ bloquearAdmin();
                             <div class="campo">
                                 <label for="suporte-cor">Cor do botão</label>
                                 <select id="suporte-cor">
-                                    <option value="">Padrão do Telegram</option>
+                                    <option value="">Padrão</option>
                                     <option value="primary">Azul</option>
                                     <option value="success">Verde</option>
                                     <option value="danger">Vermelho</option>

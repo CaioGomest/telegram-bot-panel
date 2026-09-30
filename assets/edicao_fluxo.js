@@ -87,7 +87,7 @@
         valorAtual = valorAtual || '';
         return '' +
             '<select class="' + classe + '">' +
-            '  <option value=""' + (valorAtual === '' ? ' selected' : '') + '>Padrão do Telegram</option>' +
+            '  <option value=""' + (valorAtual === '' ? ' selected' : '') + '>Padrão</option>' +
             '  <option value="primary"' + (valorAtual === 'primary' ? ' selected' : '') + '>Azul</option>' +
             '  <option value="success"' + (valorAtual === 'success' ? ' selected' : '') + '>Verde</option>' +
             '  <option value="danger"' + (valorAtual === 'danger' ? ' selected' : '') + '>Vermelho</option>' +

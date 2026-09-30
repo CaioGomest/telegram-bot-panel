@@ -71,7 +71,7 @@
                 '  <div class="grade grade-2 grade-compacta" style="margin-top:8px;">' +
                 '    <div class="campo"><label>Cor do botão</label>' +
                 '      <select class="campo-plano-cor">' +
-                '        <option value=""' + (!p.cor ? ' selected' : '') + '>Padrão do Telegram</option>' +
+                '        <option value=""' + (!p.cor ? ' selected' : '') + '>Padrão</option>' +
                 '        <option value="primary"' + (p.cor === 'primary' ? ' selected' : '') + '>Azul</option>' +
                 '        <option value="success"' + (p.cor === 'success' ? ' selected' : '') + '>Verde</option>' +
                 '        <option value="danger"' + (p.cor === 'danger' ? ' selected' : '') + '>Vermelho</option>' +
