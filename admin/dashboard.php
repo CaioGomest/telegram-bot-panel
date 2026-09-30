@@ -26,7 +26,7 @@ if (pedidoDeBloco('atividade')) {
 $periodo = $_GET['periodo'] ?? '7dias';
 $where_data_vendas = '';
 // Visão do admin é sempre "todos os bots" (removido o filtro por bot da UI) -- ver
-// anotacoes/testes/plano-de-testes-24-09.md. $where_bot_vendas fica vazio de propósito,
+// anotacoes/HISTORICO-CONSOLIDADO.md. $where_bot_vendas fica vazio de propósito,
 // só existe pra reaproveitar as mesmas queries de quando o filtro existia.
 $where_bot_vendas = '';
 $bot_id_selecionado = 'todos';
@@ -67,7 +67,7 @@ switch ($periodo) {
     case '7dias':
         // Chave interna ficou "7dias", mas o pedido original do Caio foi "8d" -- INTERVAL
         // 7 DAY já cobre 8 dias corridos (hoje + 7 pra trás). Ver
-        // anotacoes/pedido-filtro-periodo-dashboard.md.
+        // anotacoes/HISTORICO-CONSOLIDADO.md.
         $where_data_vendas = "AND v.criado_em >= CURDATE() - INTERVAL 7 DAY";
         $where_data_metricas = "AND data >= CURDATE() - INTERVAL 7 DAY";
         break;
@@ -120,7 +120,7 @@ function montarUrlFiltroAdminDashboard(array $overrides = []): string
  * inteira pode ter dezenas de milhões de linhas em 'vendas', mas essa tabela de
  * cache fica sempre pequena (~24 linhas/dia). Com um bot específico selecionado,
  * o volume já é naturalmente pequeno (só as vendas daquele bot), então continua
- * direto em 'vendas' sem precisar de cache. Ver anotacoes/analise-potencia-e-escala.md.
+ * direto em 'vendas' sem precisar de cache. Ver anotacoes/HISTORICO-CONSOLIDADO.md.
  */
 $usa_cache_metricas = ($bot_id_selecionado === 'todos');
 
@@ -300,7 +300,7 @@ if ($periodo === 'personalizado') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Painel Admin - <?php echo htmlspecialchars(nomeSistema()); ?></title>
     <?php include __DIR__ . '/../tema_inline.php'; ?>
-    <link rel="stylesheet" href="../assets/css/coyote.css?v=<?php echo @filemtime(__DIR__.'/../assets/css/coyote.css'); ?>">
+    <link rel="stylesheet" href="../assets/css/painel.css?v=<?php echo @filemtime(__DIR__.'/../assets/css/painel.css'); ?>">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>

@@ -3,7 +3,7 @@
 
     // Feature isolada do dashboard (navbar de stories) -- vanilla JS de propósito, sem
     // depender de jQuery (que o index.php não carrega) e sem tocar em nada relacionado a
-    // venda/pagamento. Ver funcoes/stories.php e anotacoes/pendente/plano-recursos-sharkbot.md.
+    // venda/pagamento. Ver funcoes/stories.php e anotacoes/REFERENCIA-SHARKBOT.md.
 
     const URL_API = 'api.php';
     const DURACAO_FOTO_MS = 5000;

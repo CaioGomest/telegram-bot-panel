@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 const CONFIG_SISTEMA_PADRAO = [
     'nome_sistema'  => 'Painel de Bots',
-    'logo'          => 'assets/img/coyote-logo.jpg',
+    'logo'          => 'assets/img/logo-padrao.svg',
     'favicon'       => '',
     'cor_primaria'  => '#ff6a1a',
 ];
@@ -145,8 +145,8 @@ function salvarArquivoMarca(array $arquivo, string $nome_base): string
  *
  * Existe por causa do `url()` dentro de custom property: o navegador resolve esse url()
  * contra a folha de estilo que CONSOME a variável, não contra a página que a declarou.
- * Como --logo-url é declarada num <style> inline mas usada no coyote.css, o Chrome pedia
- * /assets/css/assets/img/coyote-logo.jpg e dava 404. Com caminho absoluto isso não importa.
+ * Como --logo-url é declarada num <style> inline mas usada no painel.css, o Chrome pedia
+ * /assets/css/assets/img/logo-padrao.svg e dava 404. Com caminho absoluto isso não importa.
  *
  * Funciona em subdiretório (o projeto roda em /telegram-bot-panel/ no XAMPP local e na
  * raiz em produção), porque parte do diretório do próprio script.

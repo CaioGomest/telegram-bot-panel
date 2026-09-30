@@ -16,7 +16,7 @@ $busca = trim($_GET['busca'] ?? '');
 // por "l.bot_id IN (...)", em vez de "JOIN bots b WHERE b.id_usuario = ?". Testado:
 // com o filtro no JOIN, o MySQL não usava o índice (bot_id, criado_em) de leads e
 // fazia table scan completo + filesort mesmo só pra pegar 25 linhas (ver
-// anotacoes/analise-potencia-e-escala.md) -- filtrando direto em l.bot_id, o índice
+// anotacoes/HISTORICO-CONSOLIDADO.md) -- filtrando direto em l.bot_id, o índice
 // passa a ser usado de verdade.
 $stmt_ids_bots = $pdo->prepare('SELECT id FROM bots WHERE id_usuario = ?');
 $stmt_ids_bots->execute([$id_usuario]);
@@ -171,7 +171,7 @@ unset($params_link['pagina']);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Leads - <?php echo htmlspecialchars(nomeSistema()); ?></title>
     <?php include 'tema_inline.php'; ?>
-    <link rel="stylesheet" href="assets/css/coyote.css?v=<?php echo @filemtime(__DIR__.'/assets/css/coyote.css'); ?>">
+    <link rel="stylesheet" href="assets/css/painel.css?v=<?php echo @filemtime(__DIR__.'/assets/css/painel.css'); ?>">
 </head>
 <body>
 <div class="layout-painel">

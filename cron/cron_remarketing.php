@@ -320,7 +320,7 @@ while (true) {
 
         // Resposta completa só tem valor real quando falha (é o que ajuda a entender por
         // quê); pra sucesso o contador agregado já basta, guardar o JSON inteiro é gasto de
-        // banco à toa numa tabela que já cresce rápido (ver anotacoes/capacidade.md).
+        // banco à toa numa tabela que já cresce rápido (ver anotacoes/HISTORICO-CONSOLIDADO.md).
         $resposta_salva = $ok ? null : substr($res, 0, 500);
         $stmt_log->execute([$cid, $chat_id, $ok ? 'sucesso' : 'falha', $resposta_salva]);
         if ($ok) {

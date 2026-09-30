@@ -17,7 +17,7 @@ function logLimparRemarketingEnvios(string $msg): void {
 // milhares de linhas por campanha) — só serve pra debugar entrega recente, não é histórico
 // de negócio como vendas/leads. Sem limpeza, campanha recorrente grande (ex. "quem não
 // comprou" toda semana) acumula sem limite e pode competir de verdade pela cota de banco
-// (ver anotacoes/capacidade.md). Os contadores agregados (enviados/entregues/falhas) ficam
+// (ver anotacoes/HISTORICO-CONSOLIDADO.md). Os contadores agregados (enviados/entregues/falhas) ficam
 // na própria campanha pra sempre — só o log linha-a-linha expira. Mesmo padrão de acesso
 // (CLI livre, HTTP exige chave) de cron_limpar_stories.php.
 const RETENCAO_DIAS = 45;

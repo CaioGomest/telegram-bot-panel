@@ -4,7 +4,7 @@ declare(strict_types=1);
 // Feature isolada (navbar de stories, tipo Instagram/WhatsApp Status). Nenhuma função
 // deste arquivo é chamada por webhook.php/webhook_omegapayments.php ou
 // funcoes/gateways.php -- se algo aqui falhar, venda/pagamento não é afetado.
-// Ver anotacoes/pendente/plano-recursos-sharkbot.md.
+// Ver anotacoes/REFERENCIA-SHARKBOT.md.
 
 const STORIES_LIMITE_FOTO_BYTES = 5 * 1024 * 1024;
 const STORIES_LIMITE_VIDEO_BYTES = 20 * 1024 * 1024;

@@ -329,7 +329,7 @@ function verificarAdmin(): void {
  *
  * A barra lateral já escondia esses itens do admin desde sempre, mas era só visual -- as
  * páginas continuavam abrindo por URL, e o admin que caísse em /fluxo acabava criando fluxo
- * em nome próprio sem perceber. Ver anotacoes/separacao-admin-usuario.md.
+ * em nome próprio sem perceber. Ver anotacoes/HISTORICO-CONSOLIDADO.md.
  */
 function bloquearAdmin(): void {
     verificarLogin();

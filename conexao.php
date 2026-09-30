@@ -8,7 +8,7 @@ require_once __DIR__ . '/config.php';
 // combina data calculada em PHP com dado buscado por data no banco (ex. os gráficos "8
 // dias"/"30 dias" de index.php/admin/dashboard.php, que geram os rótulos dos dias em PHP
 // e buscam os valores em MySQL) -- achado ao conferir a correção do filtro "8 dias" (ver
-// anotacoes/pedido-filtro-periodo-dashboard.md): o total do card não batia com a soma dos
+// anotacoes/HISTORICO-CONSOLIDADO.md): o total do card não batia com a soma dos
 // pontos do gráfico, e o motivo era esse desalinhamento de fuso, não um erro de cálculo.
 date_default_timezone_set('America/Sao_Paulo');
 
@@ -25,7 +25,7 @@ try {
     // Antes isto só logava e seguia em frente, deixando $pdo indefinido. O efeito era que o
     // erro não aparecia aqui: estourava lá adiante como "Call to a member function prepare()
     // on null", num arquivo qualquer, sem dizer que o problema era o banco. Foi exatamente o
-    // que mascarou o incidente de 19/09 (ver anotacoes/urgente/incidente-config-php-sobrescrito.md).
+    // que mascarou o incidente de 19/09 (ver anotacoes/HISTORICO-CONSOLIDADO.md).
     //
     // Agora para aqui. O detalhe vai pro log; quem está do outro lado recebe uma mensagem
     // honesta e nenhum dado de conexão (usuário/host já vazaram pra tela uma vez).

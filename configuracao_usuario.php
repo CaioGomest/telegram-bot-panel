@@ -67,7 +67,7 @@ $url_foto_conta = urlFotoPerfil($foto_conta);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Minha Conta - <?php echo htmlspecialchars(nomeSistema()); ?></title>
     <?php include 'tema_inline.php'; ?>
-    <link rel="stylesheet" href="assets/css/coyote.css?v=<?php echo @filemtime(__DIR__.'/assets/css/coyote.css'); ?>">
+    <link rel="stylesheet" href="assets/css/painel.css?v=<?php echo @filemtime(__DIR__.'/assets/css/painel.css'); ?>">
 </head>
 <body>
 <div class="layout-painel">
@@ -148,7 +148,7 @@ $url_foto_conta = urlFotoPerfil($foto_conta);
                                 <span class="texto-ajuda">É esse nome (não seu nome real nem e-mail) que os outros usuários veem no Ranking. Deixe em branco pra aparecer como "Usuário #<?php echo (int) $usuario_id; ?>".</span>
                             </div>
                         </div>
-                        <button type="submit" class="botao botao-primario" style="margin-top:16px;">Salvar alterações</button>
+                        <div class="linha-acoes" style="margin-top:16px;"><button type="submit" class="botao botao-primario">Salvar alterações</button></div>
                     </div>
 
                     <div class="painel">
@@ -168,7 +168,7 @@ $url_foto_conta = urlFotoPerfil($foto_conta);
                                 <input type="password" id="confirmar_senha" name="confirmar_senha" autocomplete="new-password" placeholder="Repita a nova senha">
                             </div>
                         </div>
-                        <button type="submit" class="botao botao-secundario" style="margin-top:16px;">Atualizar senha</button>
+                        <div class="linha-acoes" style="margin-top:16px;"><button type="submit" class="botao botao-secundario">Atualizar senha</button></div>
                     </div>
                 </div>
             </form>

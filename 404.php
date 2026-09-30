@@ -23,8 +23,8 @@ if (is_file(__DIR__ . '/funcoes/configuracoes.php') && is_file(__DIR__ . '/confi
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Página não encontrada - <?php echo htmlspecialchars($nome); ?></title>
     <?php if (is_file($tema)) { include $tema; } ?>
-    <?php if (is_file(__DIR__ . '/assets/css/coyote.css')): ?>
-    <link rel="stylesheet" href="/assets/css/coyote.css?v=<?php echo (int) @filemtime(__DIR__ . '/assets/css/coyote.css'); ?>">
+    <?php if (is_file(__DIR__ . '/assets/css/painel.css')): ?>
+    <link rel="stylesheet" href="/assets/css/painel.css?v=<?php echo (int) @filemtime(__DIR__ . '/assets/css/painel.css'); ?>">
     <?php endif; ?>
 </head>
 <body>

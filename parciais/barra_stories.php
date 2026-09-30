@@ -1,7 +1,7 @@
 <?php
 // Feature isolada: se algo aqui quebrar, é só um <div> vazio no topo do dashboard --
 // não toca em fluxo de venda/lead/pagamento. Ver funcoes/stories.php e
-// anotacoes/pendente/plano-recursos-sharkbot.md.
+// anotacoes/REFERENCIA-SHARKBOT.md.
 ?>
 <div class="barra-stories-painel">
     <div class="barra-stories" id="barra-stories" data-usuario-id="<?php echo (int) ($_SESSION['usuario_id'] ?? 0); ?>">
@@ -44,7 +44,7 @@
                 <span class="visualizador-story-tempo" id="visualizador-story-tempo"></span>
             </div>
             <div class="visualizador-story-acoes">
-                <button type="button" class="visualizador-story-excluir" id="visualizador-story-excluir" hidden>Excluir</button>
+                <button type="button" class="visualizador-story-excluir" id="visualizador-story-excluir" aria-label="Excluir story" title="Excluir story" hidden><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
                 <button type="button" class="visualizador-story-fechar" id="visualizador-story-fechar">&times;</button>
             </div>
         </div>

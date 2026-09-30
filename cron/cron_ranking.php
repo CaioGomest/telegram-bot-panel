@@ -16,7 +16,7 @@ function logCronRanking(string $msg): void
 
 // Só libera via CLI (crontab chamando "php cron_ranking.php" direto) ou HTTP com a chave
 // certa (?chave=...) — sem isso, qualquer um que descubra a URL podia martelar esse script
-// e derrubar o recálculo do ranking (ver anotacoes/varredura-10-cron-ranking-segredos-formulario.md).
+// e derrubar o recálculo do ranking (ver anotacoes/HISTORICO-CONSOLIDADO.md).
 if (php_sapi_name() !== 'cli') {
     $chave_informada = (string) ($_GET['chave'] ?? '');
     if (!hash_equals(CHAVE_SECRETA_CRON, $chave_informada)) {

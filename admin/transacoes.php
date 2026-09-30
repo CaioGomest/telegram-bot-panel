@@ -59,7 +59,7 @@ $sql_base = "
 // com bots/usuarios quando não há filtro por usuário -- só existem ali pra dar suporte
 // a filtros que podem nem estar ativos. Sem filtro nenhum (visão padrão), juntar tudo
 // pra só contar forçava o MySQL a escanear vendas inteira (testado: full table scan
-// mesmo sem WHERE nenhum). Ver anotacoes/analise-potencia-e-escala.md.
+// mesmo sem WHERE nenhum). Ver anotacoes/HISTORICO-CONSOLIDADO.md.
 if ($usuario_id > 0) {
     $sql_count_base = "FROM vendas v JOIN bots b ON v.bot_id = b.id JOIN usuarios u ON b.id_usuario = u.id WHERE $where_sql";
 } else {
@@ -68,7 +68,7 @@ if ($usuario_id > 0) {
 if ($where_sql === '1=1') {
     // Visão padrão (sem nenhum filtro): um COUNT(*) exato aqui é full table scan --
     // medido em 2026-09-17 a 6,8 milhões de linhas: 1,57s, escala linear com o total
-    // acumulado na plataforma (ver anotacoes/analise-potencia-e-escala.md secao 11).
+    // acumulado na plataforma (ver anotacoes/HISTORICO-CONSOLIDADO.md secao 11).
     // $total_transacoes só alimenta o paginador() (numeração de página), nunca é
     // exibido como "X resultados" -- uma estimativa instantânea das estatísticas do
     // InnoDB é suficiente pra isso, não precisa ser exata.
@@ -101,7 +101,7 @@ $limite_ids = $visao_padrao ? $por_pagina + 1 : $por_pagina;
 // usando o índice em criado_em -- e só faz o JOIN pesado pras poucas linhas que
 // sobraram, não pra tabela inteira. Sem isso, com muitas vendas acumuladas o MySQL
 // materializa a junção inteira antes de ordenar (testado: 5,75s -> 0,002s com 1M de
-// vendas). Ver anotacoes/analise-potencia-e-escala.md.
+// vendas). Ver anotacoes/HISTORICO-CONSOLIDADO.md.
 $sql_ids = "
     SELECT v.id
     FROM vendas v
@@ -286,7 +286,7 @@ function celulaSplit(array $venda, array $linhas_split): string {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Transações - <?php echo htmlspecialchars(nomeSistema()); ?></title>
     <?php include __DIR__ . '/../tema_inline.php'; ?>
-    <link rel="stylesheet" href="../assets/css/coyote.css?v=<?php echo @filemtime(__DIR__.'/../assets/css/coyote.css'); ?>">
+    <link rel="stylesheet" href="../assets/css/painel.css?v=<?php echo @filemtime(__DIR__.'/../assets/css/painel.css'); ?>">
 </head>
 <body>
 <div class="layout-painel">

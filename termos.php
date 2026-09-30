@@ -15,7 +15,7 @@ $atualizado_em = '18 de setembro de 2026';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Termos de uso - <?php echo htmlspecialchars($nome); ?></title>
     <?php include 'tema_inline.php'; ?>
-    <link rel="stylesheet" href="assets/css/coyote.css?v=<?php echo @filemtime(__DIR__.'/assets/css/coyote.css'); ?>">
+    <link rel="stylesheet" href="assets/css/painel.css?v=<?php echo @filemtime(__DIR__.'/assets/css/painel.css'); ?>">
 </head>
 <body>
 <div class="pagina-texto">

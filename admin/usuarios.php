@@ -19,7 +19,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Usuários da Plataforma - <?php echo htmlspecialchars(nomeSistema()); ?></title>
     <?php include __DIR__ . '/../tema_inline.php'; ?>
-    <link rel="stylesheet" href="../assets/css/coyote.css?v=<?php echo @filemtime(__DIR__.'/../assets/css/coyote.css'); ?>">
+    <link rel="stylesheet" href="../assets/css/painel.css?v=<?php echo @filemtime(__DIR__.'/../assets/css/painel.css'); ?>">
 </head>
 <body>
 <div class="layout-painel">
@@ -435,7 +435,7 @@ $usuarios = listarTodosUsuarios($por_pagina, $offset);
  </script>
  
  <style>
-    /* O grosso do visual reaproveita assets/css/coyote.css; aqui só o que é específico desta página */
+    /* O grosso do visual reaproveita assets/css/painel.css; aqui só o que é específico desta página */
     /* .form-input e .text-muted são usados nos templates HTML montados pelo <script> abaixo */
     .form-input { width: 100%; padding: 9px 11px; border: 1px solid var(--bd); border-radius: 8px; background: var(--p2); color: var(--t); font: 600 12.5px 'Manrope', sans-serif; }
     .form-input:focus { outline: none; border-color: var(--or); }

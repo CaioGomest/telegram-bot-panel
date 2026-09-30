@@ -103,7 +103,7 @@ switch ($periodo) {
     case '7dias':
         // Chave interna ficou "7dias" (não vale a pena renomear só por isso), mas o
         // pedido original do Caio foi "8d" -- INTERVAL 7 DAY já cobre 8 dias corridos
-        // (hoje + 7 pra trás). Ver anotacoes/pedido-filtro-periodo-dashboard.md.
+        // (hoje + 7 pra trás). Ver anotacoes/HISTORICO-CONSOLIDADO.md.
         $where_data_vendas = "AND v.criado_em >= CURDATE() - INTERVAL 7 DAY";
         $where_data_leads = "AND l.criado_em >= CURDATE() - INTERVAL 7 DAY";
         $where_data_metricas = "AND data >= CURDATE() - INTERVAL 7 DAY";
@@ -160,7 +160,7 @@ function montarUrlFiltroDashboard(array $overrides = []): string
 // com muitos anos de histórico (ou o admin vendo a plataforma inteira) pode ter
 // milhões de linhas, e as mesmas 4 consultas rodavam a cada carregamento de página.
 // Com um bot específico selecionado, o cache não serve (só agrega por usuário, não
-// por bot), então cai de volta pra query ao vivo -- ver anotacoes/analise-potencia-e-escala.md.
+// por bot), então cai de volta pra query ao vivo -- ver anotacoes/HISTORICO-CONSOLIDADO.md.
 $usa_cache_metricas = ($bot_id_selecionado === 'todos');
 
 // A lista de atividade e' buscada ANTES do bloco pesado de KPI/grafico de proposito:
@@ -441,7 +441,7 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - <?php echo htmlspecialchars(nomeSistema()); ?></title>
     <?php include 'tema_inline.php'; ?>
-    <link rel="stylesheet" href="assets/css/coyote.css?v=<?php echo @filemtime(__DIR__.'/assets/css/coyote.css'); ?>">
+    <link rel="stylesheet" href="assets/css/painel.css?v=<?php echo @filemtime(__DIR__.'/assets/css/painel.css'); ?>">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>

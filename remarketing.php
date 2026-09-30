@@ -123,7 +123,7 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Remarketing - <?php echo htmlspecialchars(nomeSistema()); ?></title>
     <?php include 'tema_inline.php'; ?>
-    <link rel="stylesheet" href="assets/css/coyote.css?v=<?php echo @filemtime(__DIR__.'/assets/css/coyote.css'); ?>">
+    <link rel="stylesheet" href="assets/css/painel.css?v=<?php echo @filemtime(__DIR__.'/assets/css/painel.css'); ?>">
 </head>
 <body>
 <div class="layout-painel">
@@ -347,8 +347,8 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                             <small>Foto até 5MB (jpg/png) ou vídeo até 20MB (mp4/mov/mkv/webm). Com mídia, a mensagem vira legenda e o limite cai pra 1024 caracteres.</small>
                         </div>
                         <div class="linha-acoes" style="margin-top:16px;">
-                            <button type="submit" class="botao botao-primario">Agendar</button>
                             <button type="button" class="botao" id="btn-cancelar-campanha">Cancelar</button>
+                            <button type="submit" class="botao botao-primario">Agendar</button>
                         </div>
                     </form>
                     <div id="modal-feedback" class="texto-suave" style="display:none;margin-top:12px;"></div>

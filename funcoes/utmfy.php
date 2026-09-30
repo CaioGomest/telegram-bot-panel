@@ -6,7 +6,7 @@
  * Quem configura esse campo é o próprio dono do bot (não confiável do ponto de vista do
  * servidor) e a requisição é feita pelo próprio servidor da plataforma — sem essa checagem,
  * dava pra usar o servidor como ponte pra alcançar rede interna. Ver
- * anotacoes/varredura-09-xss-admin-ssrf-utmfy.md.
+ * anotacoes/HISTORICO-CONSOLIDADO.md.
  */
 function urlPostbackEhSegura(string $url): bool
 {

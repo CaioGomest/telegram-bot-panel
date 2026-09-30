@@ -200,7 +200,7 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gateways de Pagamento - <?php echo htmlspecialchars(nomeSistema()); ?></title>
     <?php include 'tema_inline.php'; ?>
-    <link rel="stylesheet" href="assets/css/coyote.css?v=<?php echo @filemtime(__DIR__.'/assets/css/coyote.css'); ?>">
+    <link rel="stylesheet" href="assets/css/painel.css?v=<?php echo @filemtime(__DIR__.'/assets/css/painel.css'); ?>">
 </head>
 <body>
 <div class="layout-painel">
@@ -294,7 +294,7 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                                     <small>0 ou chave vazia = nenhum split é feito.</small>
                                 </div>
 
-                                <button type="submit" class="botao botao-primario botao-bloco" style="margin-top:12px;">Salvar Split</button>
+                                <div class="linha-acoes" style="margin-top:12px;"><button type="submit" class="botao botao-primario">Salvar Split</button></div>
                             </div>
                         </div>
                         <?php endforeach; ?>
@@ -438,7 +438,10 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                             </div>
                             <?php endif; ?>
 
-                            <button type="submit" class="botao botao-primario botao-bloco">Salvar Credenciais</button>
+                            <div class="linha-acoes" style="margin-top:6px;">
+                                <button type="button" class="botao" onclick="closeModal(this.closest('.sobreposicao-modal').id)">Cancelar</button>
+                                <button type="submit" class="botao botao-primario">Salvar Credenciais</button>
+                            </div>
                         </form>
 
                         <?php

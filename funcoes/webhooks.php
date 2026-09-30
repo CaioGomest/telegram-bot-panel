@@ -5,8 +5,8 @@ declare(strict_types=1);
  * Webhooks de saída do painel (lead, PIX gerado, pagamento aprovado).
  *
  * O payload segue o schema do plano, mas só com colunas que existem de verdade:
- * leads tem um nome só (vira first_name), telefone e origem_rastreio. Não há
- * e-mail, sobrenome, username do Telegram nem IP — esses campos saem null.
+ * leads tem um nome só (vira first_name), telefone, @usuário do Telegram e
+ * origem_rastreio. Não há e-mail, sobrenome nem IP — esses campos saem null.
  * O código Pix só existe na memória na hora de criar a cobrança, então só vai
  * em payment_created. plan_name e contact_capture_status também não são salvos.
  *

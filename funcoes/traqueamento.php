@@ -85,7 +85,7 @@ function enviarEventosTraqueamento($id_usuario, $evento, $dados, $user_data = []
  * Existe porque os pontos de chamada (webhook.php x2, webhook_omegapayments.php) montavam
  * esse array na mão e só passavam id_telegram -- então Facebook e UTMify recebiam evento sem
  * nenhum dado de correspondência e a atribuição não acontecia, mesmo com a API devolvendo
- * 200. Ver anotacoes/revisao-traqueamento-facebook-utmify.md.
+ * 200. Ver anotacoes/HISTORICO-CONSOLIDADO.md.
  *
  * O que dá pra enviar hoje: nome, telefone (quando o lead informou) e a origem do link de
  * rastreamento. E-mail e IP o Telegram não fornece -- ficam de fora em vez de serem

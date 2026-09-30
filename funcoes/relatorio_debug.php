@@ -15,7 +15,7 @@ function exibirRelatorioDebug(string $titulo, string $conteudo_html, string $cam
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title><?php echo htmlspecialchars($titulo); ?></title>
         <?php include __DIR__ . '/../tema_inline.php'; ?>
-        <link rel="stylesheet" href="<?php echo $caminho_base; ?>assets/css/coyote.css">
+        <link rel="stylesheet" href="<?php echo $caminho_base; ?>assets/css/painel.css">
     </head>
     <body>
     <div class="layout-painel">

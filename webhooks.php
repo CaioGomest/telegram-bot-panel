@@ -124,7 +124,7 @@ function nomeBotWebhook(array $bot): string
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Webhooks - <?php echo htmlspecialchars(nomeSistema()); ?></title>
     <?php include 'tema_inline.php'; ?>
-    <link rel="stylesheet" href="assets/css/coyote.css?v=<?php echo @filemtime(__DIR__ . '/assets/css/coyote.css'); ?>">
+    <link rel="stylesheet" href="assets/css/painel.css?v=<?php echo @filemtime(__DIR__ . '/assets/css/painel.css'); ?>">
 </head>
 <body>
 <div class="layout-painel">
@@ -274,7 +274,7 @@ function nomeBotWebhook(array $bot): string
                 <h2>Exemplo de payload</h2>
             </div>
             <div class="exemplos-webhook">
-                <p class="texto-suave">E-mail, sobrenome, usuário do Telegram e IP não existem neste painel — esses campos vão null. O telefone entra quando o lead tem número. O código Pix só aparece em pagamento criado.</p>
+                <p class="texto-suave">E-mail, sobrenome e IP não existem neste painel — esses campos vão null. O telefone e o @usuário do Telegram entram quando o lead tem (senão vão null). O código Pix só aparece em pagamento criado.</p>
                 <?php foreach (exemplosPayloadWebhook() as $codigo => $exemplo): ?>
                     <details>
                         <summary><?php echo htmlspecialchars($eventos_catalogo[$codigo] ?? $codigo); ?></summary>
