@@ -6,6 +6,7 @@ require_once __DIR__ . '/funcoes/log.php';
 require_once __DIR__ . '/funcoes/omegapayments_banco.php';
 require_once __DIR__ . '/funcoes/gateways.php';
 require_once __DIR__ . '/funcoes/webhooks.php';
+require_once __DIR__ . '/funcoes/fluxo_blocos.php';
 
 date_default_timezone_set('America/Sao_Paulo');
 
@@ -43,59 +44,11 @@ function obterProximoNoOmegapayments(array $links, string $id_atual, string $con
     return null;
 }
 
-/**
- * Resolve um caminho de mídia salvo em dados_fluxograma garantindo que o resultado fica
- * dentro de uploads/ — mesma proteção de webhook.php::resolverCaminhoUploadSeguro().
- */
-function resolverCaminhoUploadSeguroOmegapayments(string $caminho): ?string {
-    if ($caminho === '' || strpos($caminho, 'uploads/') !== 0) {
-        return null;
-    }
-    $base_real = realpath(__DIR__ . '/uploads');
-    if ($base_real === false) {
-        return null;
-    }
-    $real = realpath(__DIR__ . '/' . $caminho);
-    if ($real === false) {
-        return null;
-    }
-    if ($real !== $base_real && strpos($real, $base_real . DIRECTORY_SEPARATOR) !== 0) {
-        return null;
-    }
-    return $real;
-}
-
-function processarBlocoOmegapayments(string $token, $id_chat, array $operador, int $id_usuario_dono): void {
-    $propriedades = $operador['properties'] ?? [];
-    $tipo = $propriedades['type'] ?? '';
-
-    if ($tipo === 'message') {
-        $texto = trim((string)($propriedades['conteudo'] ?? $propriedades['body'] ?? ''));
-        if ($texto !== '') {
-            requisicaoTelegramOmegapayments($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => $texto]);
-        }
-    } elseif ($tipo === 'image') {
-        $real = resolverCaminhoUploadSeguroOmegapayments((string)($propriedades['image_path'] ?? ''));
-        if ($real) {
-            requisicaoTelegramOmegapayments($token, 'sendPhoto', ['chat_id' => $id_chat, 'photo' => $real]);
-        }
-    } elseif ($tipo === 'botoes') {
-        $texto = trim((string)($propriedades['texto'] ?? ''));
-        $botoes = $propriedades['botoes'] ?? [];
-        $keyboard = [];
-        $current_row = [];
-        foreach ($botoes as $btn_texto) {
-            $current_row[] = ['text' => $btn_texto, 'callback_data' => $btn_texto];
-            if (count($current_row) >= 2) { $keyboard[] = $current_row; $current_row = []; }
-        }
-        if (!empty($current_row)) $keyboard[] = $current_row;
-        requisicaoTelegramOmegapayments($token, 'sendMessage', [
-            'chat_id'      => $id_chat,
-            'text'         => $texto ?: 'Escolha:',
-            'reply_markup' => json_encode(['inline_keyboard' => $keyboard])
-        ]);
-    }
-}
+// Envio/mídia/Pix do fluxo pós-pagamento usam o mesmo executor de webhook.php
+// (processarEEnviarBloco, em funcoes/fluxo_blocos.php) -- antes esta função tinha uma cópia
+// reduzida própria que só tratava message/image/botoes e ignorava vídeo/áudio/grupo/link/Pix,
+// então o fluxo "PAGO" ficava incompleto quando disparado pela confirmação de pagamento da
+// OmegaPayments em vez de por uma mensagem do usuário no Telegram.
 
 function executarFluxoOmegapayments(string $token, string $id_chat, int $bot_id, string $id_operador_inicial, int $id_usuario_dono, string $conector = 'output_pago'): void {
     global $pdo;
@@ -118,9 +71,9 @@ function executarFluxoOmegapayments(string $token, string $id_chat, int $bot_id,
 
     while ($proximo_id && isset($operadores[$proximo_id])) {
         $operador = $operadores[$proximo_id];
-        processarBlocoOmegapayments($token, $id_chat, $operador, $id_usuario_dono);
+        processarEEnviarBloco($token, $id_chat, $operador, $proximo_id);
         $tipo = $operador['properties']['type'] ?? '';
-        if ($tipo === 'botoes' || $tipo === 'pix') break;
+        if (in_array($tipo, ['botoes', 'pix', 'upsell', 'downsell', 'order_bump'], true)) break;
         if ($tipo === 'delay') sleep(1);
         $proximo_id = obterProximoNoOmegapayments($links, $proximo_id, 'output_1');
     }
@@ -129,7 +82,7 @@ function executarFluxoOmegapayments(string $token, string $id_chat, int $bot_id,
 /**
  * Libera ou renova acesso ao grupo. Estende da expiração atual se ainda ativo.
  */
-function liberarAcessoGrupoOmegapayments(array $venda, string $token_bot): ?string {
+function liberarAcessoGrupoOmegapayments(array $venda, string $token_bot, ?int $expiracao_minima_ts = null): ?string {
     global $pdo;
 
     $id_grupo = $venda['id_grupo_telegram'] ?? '';
@@ -142,10 +95,17 @@ function liberarAcessoGrupoOmegapayments(array $venda, string $token_bot): ?stri
     $expiracao_atual = $stmt_m->fetchColumn();
 
     if ($expiracao_atual && strtotime($expiracao_atual) > time()) {
-        $data_expiracao = date('Y-m-d H:i:s', strtotime($expiracao_atual) + ($tempo_minutos * 60));
+        $expiracao_ts = strtotime($expiracao_atual) + ($tempo_minutos * 60);
     } else {
-        $data_expiracao = date('Y-m-d H:i:s', time() + ($tempo_minutos * 60));
+        $expiracao_ts = time() + ($tempo_minutos * 60);
     }
+    // Assinatura: o gateway cobra por calendário (mês de 28-31 dias), mas o acesso é
+    // contado em minutos fixos — sem esse piso, o acesso fica atrasado ~0,4 dia por ciclo
+    // mensal e estoura a carência de 2 dias por volta do 5º mês.
+    if ($expiracao_minima_ts !== null && $expiracao_minima_ts > $expiracao_ts) {
+        $expiracao_ts = $expiracao_minima_ts;
+    }
+    $data_expiracao = date('Y-m-d H:i:s', $expiracao_ts);
 
     // Revoga convite anterior para impedir reuso do mesmo link entre pessoas.
     $stmt_link_anterior = $pdo->prepare("SELECT invite_link FROM membros_grupos WHERE id_telegram = ? AND id_grupo_telegram = ? AND bot_id = ? LIMIT 1");
@@ -194,20 +154,20 @@ function liberarAcessoGrupoOmegapayments(array $venda, string $token_bot): ?stri
 }
 
 /**
- * Tenta extrair o identificador da transação do payload do webhook. Schema exato do
- * corpo do webhook [A CONFIRMAR EM SANDBOX] (doc bloqueou com 403 antes de confirmar) —
- * tenta os nomes de campo mais prováveis com base na resposta já confirmada de criação
- * (transactionId/identifier), aninhados ou não. Não é um problema de segurança se o
- * palpite errar o nome do campo: a venda só é marcada como paga depois da reconsulta
- * direta na API (ver abaixo), nunca só por causa do payload recebido aqui.
+ * Extrai o id da transação do payload do webhook. Formato real confirmado em 28/09:
+ * {"event":"TRANSACTION_CREATED","transaction":{"id":...,"identifier":...,"status":...},
+ * "subscription":{"id":...,"cycle":...}|null}. A venda é gravada com transaction.id
+ * (o "transactionId" devolvido na criação); transaction.identifier é outro valor e
+ * nunca casa, por isso fica por último.
  */
 function extrairIdentificadorOmegapayments(array $notificacao): string {
     $candidatos = [
+        $notificacao['transaction']['id'] ?? null,
         $notificacao['transactionId'] ?? null,
-        $notificacao['identifier'] ?? null,
         $notificacao['data']['transactionId'] ?? null,
-        $notificacao['data']['identifier'] ?? null,
         $notificacao['transaction']['transactionId'] ?? null,
+        $notificacao['identifier'] ?? null,
+        $notificacao['data']['identifier'] ?? null,
         $notificacao['transaction']['identifier'] ?? null,
     ];
     foreach ($candidatos as $candidato) {
@@ -216,6 +176,114 @@ function extrairIdentificadorOmegapayments(array $notificacao): string {
         }
     }
     return '';
+}
+
+const STATUS_PAGOS_OMEGAPAYMENTS = ['CONCLUIDA', 'PAGO', 'LIQUIDADO', 'PAID', 'APPROVED', 'COMPLETED'];
+
+/**
+ * Fim do período de um ciclo de assinatura pelo calendário: startAt + cycle * intervalo.
+ * Devolve null se o payload não trouxer o suficiente (nunca chuta).
+ */
+function fimCicloAssinaturaOmegapayments(array $assinatura): ?int {
+    $inicio = strtotime((string)($assinatura['startAt'] ?? ''));
+    $ciclo = (int)($assinatura['cycle'] ?? 0);
+    $contagem = (int)($assinatura['intervalCount'] ?? 0);
+    $unidades = ['DAYS' => 'days', 'WEEKS' => 'weeks', 'MONTHS' => 'months', 'YEARS' => 'years'];
+    $unidade = $unidades[strtoupper((string)($assinatura['intervalType'] ?? ''))] ?? null;
+    if (!$inicio || $ciclo < 1 || $contagem < 1 || !$unidade) {
+        return null;
+    }
+    $passos = $ciclo * $contagem;
+    if ($unidade === 'months' || $unidade === 'years') {
+        // strtotime('+1 month') em 31/01 vira 03/03; o calendário do gateway cai em 28/02.
+        $meses = $unidade === 'years' ? $passos * 12 : $passos;
+        $data = (new DateTimeImmutable('@' . $inicio))->setTimezone(new DateTimeZone('UTC'));
+        $primeiro_do_mes = $data->modify('first day of this month')->modify("+$meses months");
+        $dia = min((int)$data->format('j'), (int)$primeiro_do_mes->format('t'));
+        return $primeiro_do_mes->setDate((int)$primeiro_do_mes->format('Y'), (int)$primeiro_do_mes->format('n'), $dia)->getTimestamp();
+    }
+    $fim = strtotime('+' . $passos . ' ' . $unidade, $inicio);
+    return $fim ?: null;
+}
+
+/**
+ * Ciclo 2+ de uma assinatura: a OmegaPayments cria uma transação nova a cada ciclo (id
+ * que a gente nunca viu). Casa pela assinatura (subscription.id == vendas.id_assinatura)
+ * e cria a venda filha, pra o fluxo normal (confirmar -> estender acesso) funcionar.
+ * Retorna a venda filha recém-criada, ou null se não há assinatura conhecida/já existia.
+ * Não copia id_operador_fluxo de propósito: o funil de vendas não deve rodar de novo a
+ * cada renovação.
+ */
+function criarVendaCicloOmegapayments(array $notificacao, string $txid): ?array {
+    global $pdo;
+
+    $id_assinatura = (string)($notificacao['subscription']['id'] ?? '');
+    if ($id_assinatura === '') {
+        return null;
+    }
+    $stmt = $pdo->prepare("SELECT * FROM vendas WHERE id_assinatura = ? ORDER BY id ASC LIMIT 1");
+    $stmt->execute([$id_assinatura]);
+    $pai = $stmt->fetch();
+    if (!$pai) {
+        return null;
+    }
+
+    $expira_ts = strtotime((string)($notificacao['transaction']['pixInformation']['expiresAt'] ?? ''));
+    $minutos_expiracao = $expira_ts ? max(1, (int)ceil(($expira_ts - time()) / 60)) : (int)($pai['tempo_expiracao_minutos'] ?? 15);
+    $valor = (float)($notificacao['transaction']['amount'] ?? $pai['valor']);
+
+    try {
+        $pdo->prepare("
+            INSERT INTO vendas (id_telegram, bot_id, valor, status, transacao_id, id_grupo_telegram, dias_acesso,
+                tempo_acesso_minutos, id_gateway, tempo_expiracao_minutos, criado_em, tipo_cobranca, id_assinatura,
+                venda_pai_id, id_plano)
+            VALUES (?, ?, ?, 'gerado', ?, ?, ?, ?, ?, ?, ?, 'assinatura', ?, ?, ?)
+        ")->execute([
+            $pai['id_telegram'], $pai['bot_id'], $valor, $txid, $pai['id_grupo_telegram'], $pai['dias_acesso'],
+            $pai['tempo_acesso_minutos'], $pai['id_gateway'], $minutos_expiracao, date('Y-m-d H:i:s'), $id_assinatura,
+            $pai['venda_pai_id'] ?: $pai['id'], $pai['id_plano'],
+        ]);
+    } catch (\PDOException $e) {
+        // Entrega duplicada/simultânea do mesmo evento: o índice único em transacao_id barra.
+        logWebhookOmegapayments("Venda de ciclo para $txid já criada por outra entrega (" . $e->getMessage() . ").");
+        return null;
+    }
+
+    $stmt = $pdo->prepare("SELECT * FROM vendas WHERE transacao_id = ?");
+    $stmt->execute([$txid]);
+    return $stmt->fetch() ?: null;
+}
+
+/**
+ * O e-mail do cliente é sintético (a plataforma não coleta), então a OmegaPayments nunca
+ * consegue avisar o assinante da cobrança do próximo ciclo. Manda o PIX pelo Telegram.
+ */
+function avisarCobrancaCicloOmegapayments(array $venda, array $notificacao): void {
+    global $pdo;
+
+    $stmt = $pdo->prepare("SELECT token FROM bots WHERE id = ?");
+    $stmt->execute([$venda['bot_id']]);
+    $token_bot = $stmt->fetchColumn();
+    $codigo = (string)($notificacao['transaction']['pixInformation']['qrCode'] ?? '');
+    if (!$token_bot || $codigo === '') {
+        logWebhookOmegapayments("Cobrança de ciclo da venda #{$venda['id']}: sem token do bot ou sem código PIX no payload, não avisei o assinante.");
+        return;
+    }
+
+    $ate = strtotime((string)($notificacao['transaction']['pixInformation']['expiresAt'] ?? ''));
+    $valor_fmt = number_format((float)$venda['valor'], 2, ',', '.');
+    $msg = "🔄 <b>Renovação da sua assinatura</b>\n\nValor: <b>R$ {$valor_fmt}</b>";
+    if ($ate) {
+        $msg .= "\nPague até: <b>" . date('d/m/Y H:i', $ate) . "</b>";
+    }
+    $msg .= "\n\nPIX copia e cola (toque para copiar):\n<code>" . htmlspecialchars($codigo) . "</code>\n\nAssim que o pagamento for confirmado, seu acesso é renovado automaticamente.";
+
+    $resp = requisicaoTelegramOmegapayments($token_bot, 'sendMessage', [
+        'chat_id' => $venda['id_telegram'],
+        'text' => $msg,
+        'parse_mode' => 'HTML',
+    ]);
+    logWebhookOmegapayments("Cobrança de ciclo enviada ao assinante (venda #{$venda['id']}): " . json_encode($resp));
 }
 
 $entrada = file_get_contents('php://input');
@@ -247,9 +315,27 @@ if (empty($txid)) {
 
 logWebhookOmegapayments("Processando notificação | identificador=$txid");
 
+$status_payload = strtoupper(trim((string)($notificacao['transaction']['status'] ?? '')));
+$payload_diz_pago = in_array($status_payload, STATUS_PAGOS_OMEGAPAYMENTS, true);
+$assinatura_payload = is_array($notificacao['subscription'] ?? null) ? $notificacao['subscription'] : null;
+
 $stmt = $pdo->prepare("SELECT * FROM vendas WHERE transacao_id = ?");
 $stmt->execute([$txid]);
 $venda = $stmt->fetch();
+$venda_ciclo_nova = false;
+
+if (!$venda && $assinatura_payload) {
+    $venda = criarVendaCicloOmegapayments($notificacao, $txid);
+    if ($venda) {
+        $venda_ciclo_nova = true;
+        logWebhookOmegapayments("Ciclo {$assinatura_payload['cycle']} da assinatura {$assinatura_payload['id']}: criada venda #{$venda['id']} (transação $txid, status do payload=$status_payload).");
+        if (!$payload_diz_pago) {
+            avisarCobrancaCicloOmegapayments($venda, $notificacao);
+            http_response_code(200);
+            exit;
+        }
+    }
+}
 
 if (!$venda) {
     logWebhookOmegapayments("Venda não encontrada para identificador=$txid.");
@@ -259,6 +345,14 @@ if (!$venda) {
 
 if ($venda['status'] === 'pago') {
     logWebhookOmegapayments("Venda #{$venda['id']} já paga. Ignorando duplicata.");
+    http_response_code(200);
+    exit;
+}
+
+// Só evento de pagamento merece reconsulta na API: a OmegaPayments bloqueia polling
+// (HTTP 429, retryAfterSeconds=300), e TRANSACTION_CREATED/expiração não liberam nada.
+if ($status_payload !== '' && !$payload_diz_pago) {
+    logWebhookOmegapayments("Venda #{$venda['id']}: evento com status '$status_payload' (não é pagamento). Nada a fazer.");
     http_response_code(200);
     exit;
 }
@@ -296,10 +390,16 @@ if ($id_dono_pre) {
         try {
             $resp_confirmacao = $provedor_pre->consultarCobranca($txid);
             $status_confirmado = strtoupper(trim($resp_confirmacao['dados']['status'] ?? ''));
-            if (($resp_confirmacao['sucesso'] ?? false) && in_array($status_confirmado, ['CONCLUIDA', 'PAGO', 'LIQUIDADO', 'PAID', 'APPROVED', 'COMPLETED'])) {
+            if (($resp_confirmacao['sucesso'] ?? false) && in_array($status_confirmado, STATUS_PAGOS_OMEGAPAYMENTS, true)) {
                 $pagamento_confirmado = true;
             } else {
                 logWebhookOmegapayments("Venda #{$venda['id']}: notificação recebida, mas a consulta direta na OmegaPayments não confirma pagamento (status='$status_confirmado'). Ignorando notificação — o cron de verificação vai pegar quando/se realmente for pago.");
+                // Payload forjado (API respondeu e diz que não pagou): não deixa venda filha órfã.
+                // Se a API só falhou (429/rede), a venda fica pro cron confirmar depois.
+                if ($venda_ciclo_nova && ($resp_confirmacao['sucesso'] ?? false)) {
+                    $pdo->prepare("DELETE FROM vendas WHERE id = ? AND status = 'gerado'")->execute([$venda['id']]);
+                    logWebhookOmegapayments("Venda de ciclo #{$venda['id']} removida (pagamento não confirmado na API).");
+                }
             }
         } catch (\Throwable $e) {
             logWebhookOmegapayments("Venda #{$venda['id']}: erro ao confirmar na API OmegaPayments (" . $e->getMessage() . "). Não vou marcar como pago só pelo webhook — aguardando confirmação pelo cron.");
@@ -370,10 +470,13 @@ if (!$token_bot) {
     exit;
 }
 
-$msg = "✅ <b>Pagamento Confirmado!</b>\n\nObrigado pela sua compra.";
+$msg = $venda_ciclo_nova || !empty($venda['venda_pai_id'])
+    ? "✅ <b>Renovação confirmada!</b>\n\nObrigado, sua assinatura continua ativa."
+    : "✅ <b>Pagamento Confirmado!</b>\n\nObrigado pela sua compra.";
 
 if (!empty($venda['id_grupo_telegram'])) {
-    $link = liberarAcessoGrupoOmegapayments($venda, $token_bot);
+    $expiracao_minima = $assinatura_payload ? fimCicloAssinaturaOmegapayments($assinatura_payload) : null;
+    $link = liberarAcessoGrupoOmegapayments($venda, $token_bot, $expiracao_minima);
     $tempo_minutos = (int)($venda['tempo_acesso_minutos'] ?? ($venda['dias_acesso'] * 1440));
 
     if ($link) {

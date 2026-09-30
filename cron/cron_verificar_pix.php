@@ -53,62 +53,11 @@ function obterProximoNoLocal(array $links, string $id_atual, string $conector_sa
     return null;
 }
 
-/**
- * Resolve um caminho de mídia salvo em dados_fluxograma garantindo que o resultado fica
- * dentro de uploads/ — mesma proteção de webhook.php::resolverCaminhoUploadSeguro(). Sem
- * isso, um image_path gravado fora do padrão de upload (ex. "config.php") seria aceito
- * sem checagem nenhuma.
- */
-function resolverCaminhoUploadSeguroLocal(string $caminho): ?string {
-    if ($caminho === '' || strpos($caminho, 'uploads/') !== 0) {
-        return null;
-    }
-    $base_real = realpath(__DIR__ . '/../uploads');
-    if ($base_real === false) {
-        return null;
-    }
-    $real = realpath(__DIR__ . '/../' . $caminho);
-    if ($real === false) {
-        return null;
-    }
-    if ($real !== $base_real && strpos($real, $base_real . DIRECTORY_SEPARATOR) !== 0) {
-        return null;
-    }
-    return $real;
-}
-
-function processarBlocoLocal(string $token, $id_chat, array $operador, int $id_usuario_dono): void {
-    $propriedades = $operador['properties'] ?? [];
-    $tipo = $propriedades['type'] ?? '';
-
-    if ($tipo === 'message') {
-        $texto = trim((string) ($propriedades['conteudo'] ?? $propriedades['body'] ?? ''));
-        if ($texto !== '') {
-            requisicaoTelegramLocal($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => $texto]);
-        }
-    } elseif ($tipo === 'image') {
-        $real = resolverCaminhoUploadSeguroLocal((string) ($propriedades['image_path'] ?? ''));
-        if ($real) {
-            requisicaoTelegramLocal($token, 'sendPhoto', ['chat_id' => $id_chat, 'photo' => $real]);
-        }
-    } elseif ($tipo === 'botoes') {
-        $texto = trim((string) ($propriedades['texto'] ?? ''));
-        $botoes = $propriedades['botoes'] ?? [];
-        $keyboard = [];
-        $current_row = [];
-        foreach ($botoes as $btn_texto) {
-            $current_row[] = ['text' => $btn_texto, 'callback_data' => $btn_texto];
-            if (count($current_row) >= 2) { $keyboard[] = $current_row; $current_row = []; }
-        }
-        if (!empty($current_row)) $keyboard[] = $current_row;
-        
-        requisicaoTelegramLocal($token, 'sendMessage', [
-            'chat_id' => $id_chat,
-            'text' => $texto ?: 'Escolha:',
-            'reply_markup' => json_encode(['inline_keyboard' => $keyboard])
-        ]);
-    }
-}
+// Envio/mídia/Pix do fluxo pós-pagamento usam o mesmo executor de webhook.php
+// (processarEEnviarBloco, em funcoes/fluxo_blocos.php) -- antes esta função tinha uma cópia
+// reduzida própria que só tratava message/image/botoes e ignorava vídeo/áudio/grupo/link/Pix,
+// então o fluxo "PAGO" ficava incompleto quando disparado pelo cron em vez de por uma
+// mensagem do usuário no Telegram.
 
 function executarFluxoContinuacao(string $token, string $id_chat, int $bot_id, string $id_operador_inicial, int $id_usuario_dono, string $conector = 'output_pago') {
     global $pdo;
@@ -134,11 +83,11 @@ function executarFluxoContinuacao(string $token, string $id_chat, int $bot_id, s
     
     while ($proximo_id && isset($operadores[$proximo_id])) {
         $operador = $operadores[$proximo_id];
-        processarBlocoLocal($token, $id_chat, $operador, $id_usuario_dono);
-        
+        processarEEnviarBloco($token, $id_chat, $operador, $proximo_id);
+
         $tipo = $operador['properties']['type'] ?? '';
-        if ($tipo === 'botoes' || $tipo === 'pix') break;
-        
+        if (in_array($tipo, ['botoes', 'pix', 'upsell', 'downsell', 'order_bump'], true)) break;
+
         if ($tipo === 'delay') sleep(1);
 
         $proximo_id = obterProximoNoLocal($links, $proximo_id, 'output_1');
@@ -146,6 +95,7 @@ function executarFluxoContinuacao(string $token, string $id_chat, int $bot_id, s
 }
 
 require_once __DIR__ . '/../funcoes/gateways.php';
+require_once __DIR__ . '/../funcoes/fluxo_blocos.php';
 
 // LIMIT mantém cada rodada rápida e previsível mesmo com muitas vendas pendentes
 // de uma vez — o que sobrar fica pra próxima execução (roda de novo em instantes).
@@ -192,6 +142,12 @@ foreach ($vendas_pendentes as $venda) {
     $provedor = resolveGatewayProvider($nome_gateway, $gateway_config);
     if (!$provedor) {
         logCron("Venda #{$venda['id']} gateway $nome_gateway não suportado.");
+        continue;
+    }
+
+    // OmegaPayments bloqueia polling frequente (429) e manda usar o webhook, que é o caminho
+    // principal. Aqui é só rede de segurança: consulta a cada 5 min em vez de todo minuto.
+    if ($nome_gateway === 'omegapayments' && ((int)date('i')) % 5 !== 0) {
         continue;
     }
 
@@ -332,6 +288,17 @@ foreach ($vendas_expiradas as $venda) {
         executarFluxoContinuacao($venda['token'], $venda['id_telegram'], $venda['bot_id'], $venda['id_operador_fluxo'], (int)$venda['id_dono'], 'output_nao_pago');
     }
 }
+
+// Cobranças de ciclo de assinatura (criadas pelo webhook, sem bloco de fluxo) que o
+// assinante não pagou: expira em silêncio pra não ficarem 'gerado' pra sempre e ocuparem o
+// LIMIT do polling. O acesso em si é cortado pelo cron_verificar_acessos.
+$stmt_ciclos = $pdo->prepare("
+    UPDATE vendas SET status = 'expirado'
+    WHERE status = 'gerado' AND id_assinatura IS NOT NULL AND venda_pai_id IS NOT NULL
+    AND id_operador_fluxo IS NULL
+    AND TIMESTAMPDIFF(SECOND, criado_em, ?) >= tempo_expiracao_minutos * 60
+");
+$stmt_ciclos->execute([$agora_php]);
 
 flock($lock, LOCK_UN);
 fclose($lock);
