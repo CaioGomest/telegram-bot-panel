@@ -1,3 +1,11 @@
+# Referência SharkBot e specs do que ainda não foi construído
+
+Reúne 4 notas: captura da criação de fluxo no SharkBot (25/09), plano de recursos a portar, plano do modo Básico e plano de expansão do editor. As partes marcadas ✅ Executado já estão no código; o que falta está resumido em `PENDENCIAS.md`.
+
+
+---
+
+<!-- origem: pendente/criacao-fluxos-sharkbot.md -->
 # Criação de fluxo no Shark Bot: Básico, Fluxo n8n e Modo IA
 
 Documento técnico para planejar a implementação em outro projeto. Capturado em 25 de setembro de 2026, logado em sharkbot.com.br. Textos de tela, modos internos e contratos de API foram lidos da interface e das respostas reais.
@@ -940,3 +948,502 @@ Todos com cookie de sessão (`credentials: include`). Onde o verbo não foi disp
 ---
 
 Fonte: sharkbot.com.br em 25/09/2026, sessão logada. Arquivo para o Claude Code planejar a implementação. Nenhum fluxo permanente da conta foi alterado.
+
+---
+
+<!-- origem: pendente/plano-recursos-sharkbot.md -->
+# Portar recursos do SharkBot para o telegram-bot-panel
+
+> Plano criado em 2026-09-23, a partir de uma análise ao vivo do sharkbot.com.br (logado
+> manualmente pelo usuário) comparando com o padrão atual deste projeto. Ainda não implementado —
+> ver seção "Ordem de implementação sugerida" no fim.
+
+## Contexto da pesquisa (sharkbot.com.br, logado)
+
+Analisei ao vivo, com o usuário logado manualmente, todas as telas pedidas. Resumo do que cada uma faz e como vou adaptar para os padrões do nosso projeto.
+
+### 1. Navbar de Stories
+Barra horizontal no topo do dashboard: círculo "+ Criar" (upload de foto/vídeo, máx. 30s) seguido dos avatares de outros usuários da plataforma. Clicar em um avatar abre um visualizador em tela cheia (mockup de celular) mostrando a mídia. É uma vitrine social tipo Instagram Stories — sem lógica de negócio, só engajamento/prova social entre usuários da plataforma.
+
+**Plano de implementação (v1, enxuto):**
+- Tabela nova `stories` (`id`, `id_usuario`, `tipo_midia` enum('foto','video'), `arquivo`, `criado_em`, `expira_em`) — expira em 24h como Instagram, um cron/checagem simples oculta expiradas (sem precisar de job dedicado: filtrar `WHERE expira_em > NOW()` nas queries).
+- Upload em `uploads/stories/`, reaproveitando o padrão de validação de `funcoes/configuracoes.php::salvarArquivoMarca()` (extensão permitida, tamanho máx., `getimagesize()` para foto). Para vídeo: limite de tamanho (ex. 20MB) e extensão mp4/webm; duração de 30s é validada no client (JS), documentado como best-effort já que o servidor não tem ffmpeg disponível.
+- Novo parcial `parciais/barra_stories.php`, incluído no topo de `index.php` (dashboard do usuário): avatar "+" seguido dos avatares de outros usuários com stories ativas (anel colorido = não visto, cinza = já visto — precisa de tabela leve `stories_visualizacoes(story_id, id_usuario)`).
+- Modal de visualização (JS simples, sem dependência nova): mostra a mídia atual, avança para a próxima ao terminar/clicar, fecha com X ou Esc.
+- Novo endpoint AJAX `ajax/criar_story.php` (upload) e `ajax/marcar_story_vista.php`.
+
+### 2. Comunidade (bio-tree institucional)
+Em sharkbot.com.br/comunidade: página estática estilo Linktree com logo, título, e uma lista de cards (Grupo WhatsApp 1-6 com contador `1024/1024` e badge "LOTADO" quando cheio, Canal de Atualizações, Instagram, Telefone, Site, Canal de Denúncias). É conteúdo institucional da plataforma (não por usuário).
+
+**Plano de implementação:**
+- Tabela nova `comunidade_links` (`id`, `tipo`, `titulo`, `subtitulo`, `url`, `icone`, `membros_atual`, `membros_max`, `ordem`, `ativo`) — segue o padrão de tabela simples com `ordem`/`ativo` já usado no projeto.
+- Nova página admin `admin/comunidade.php` (CRUD dos links, só admin edita — mesmo padrão de `admin/configuracoes.php`).
+- Nova página pública `comunidade.php`, card list com badge "LOTADO" quando `membros_atual >= membros_max`, senão o link fica clicável.
+- Novo item de nav em `barra_lateral.php` (`$grupo_operacao`).
+
+### 3. Webhooks
+Tela completa de CRUD (peguei o formulário completo e os 3 exemplos de payload reais, veja abaixo). Suporta HMAC-SHA256, HTTPS obrigatório, desativação automática após 5 falhas seguidas, e escopo por "fluxo" (no nosso caso, por bot).
+
+**Payloads capturados (evento → schema):**
+- `user_joined` (Novo Lead): `customer{id,telegram_id,first_name,last_name,username,phone,email,is_vip}`, `bot{id,name,username}`, `flow{id,name}`, `tracking{utm_source,utm_campaign,ip}`, `joined_at`.
+- `payment_created` (Pagamento Criado): igual + `transaction{id,external_id,status:"pending",amount,currency,gateway,plan_name,type,payment_method,pix_code,sales_code,created_at}`.
+- `payment_approved` (Pagamento Aprovado): igual + `transaction.status:"paid"` + `paid_at` + `contact_capture_status`.
+
+**Plano de implementação:**
+- Tabela nova `webhooks` (`id`, `id_usuario`, `nome`, `url`, `secret` nullable, `eventos` JSON/CSV, `bot_id` nullable (NULL = todos os bots do usuário), `ativo`, `falhas_consecutivas`, `criado_em`).
+- Tabela nova `webhooks_envios` (log leve, para os cards "Webhooks Ativos / Fluxos Monitorados / Total Enviados").
+- `funcoes/webhooks.php`: `dispararWebhooks(int $id_usuario, string $evento, array $dados)` — monta o payload no formato acima usando dados que já existem em `leads`/`vendas`/`bots`, assina com HMAC-SHA256 (header `X-Webhook-Signature`), envia com timeout curto, incrementa/zera `falhas_consecutivas`, desativa com `ativo=0` ao chegar em 5.
+- Chamar `dispararWebhooks()` nos mesmos pontos onde `registrarAtividade()` já é chamado hoje para `lead`, `pix_gerado` e `venda` (em `webhook.php`, `webhook_infopago.php`, `webhook_omegapayments.php`) — evita duplicar a lógica de "quando disparar".
+- Página `webhooks.php`: cards de estatística, aviso de segurança, modal "Novo Webhook" (nome, URL https-only, secret com botão "Gerar", checkboxes de evento, seleção de bot), accordion "Exemplo de Payload" com os 3 JSONs reais acima.
+- Novo item de nav em `barra_lateral.php`.
+
+### 4. Notificações de vendas (sino no header)
+**Achado importante:** o projeto já tem uma nota (`anotacoes/urgente/notificacoes-sino-header.md`) descrevendo exatamente esse pedido, criada em 2026-09-17 e adiada. Já existe infraestrutura pronta pra isso:
+- Tabela `atividades` + `registrarAtividade()`/`listarAtividades()` (`funcoes/log.php`) — já grava `venda`, `pix_gerado`, `lead`, `sistema`.
+- CSS `.ponto-vivo` (bolinha verde pulsante) já existe, usada em `ranking.php`.
+- Padrão de cabeçalho `.acoes-cabecalho` + `.alternador-tema` já resolve onde o sino entra (do lado do botão de tema).
+
+**Plano de implementação (decisões da nota, agora resolvidas):**
+- Sino mostra: `venda`, `pix_gerado`, `lead` (não mostra `sistema`/login) — mesmo filtro que o dashboard do usuário já usa.
+- Lido/não lido: adicionar coluna nullable `lido_em` em `atividades` (mais simples que tabela separada de leitura por usuário).
+- "Ao vivo": polling a cada 30s (mesmo padrão do `ranking.php`), sem WebSocket/SSE.
+- Fora do painel (push navegador/e-mail/Telegram do dono): fora de escopo deste plano.
+- Novo botão `.sino-notificacoes` ao lado de `.alternador-tema` em `.acoes-cabecalho` de cada página (reaproveita a régua CSS mobile que já trata esse container).
+- Novo endpoint leve `ajax/notificacoes.php` (lista as N mais recentes não lidas + contador) e `ajax/marcar_notificacao_lida.php`.
+- Dropdown reaproveita a mesma estrutura visual de `parciais/lista_atividades.php` (ícone por tipo, tempo relativo).
+
+### 5. Bio Link
+Por usuário: nome, slug (`/b/{slug}`), lista de links (título + URL) — construtor tipo Linktree pessoal. **Decisão do usuário: só domínio próprio, sem domínios alternativos/cloaking.**
+
+**Plano de implementação:**
+- Tabela `bio_links` (`id`, `id_usuario`, `nome`, `slug` unique, `ativo`, `criado_em`) + `bio_link_itens` (`id`, `bio_link_id`, `titulo`, `url`, `icone`, `ordem`, `ativo`).
+- Nova rota pública `b.php?slug=...` (ou regra de rewrite `/b/{slug}` seguindo o padrão de URLs limpas já usado no projeto — ver `anotacoes/url-sem-php.md`).
+- Página de gestão `biolink.php` (usuário): criar/editar nome+slug, builder de itens (arrastar pra reordenar é opcional/v2; v1 usa botões subir/descer como já é feito em `admin/bots.php`).
+- Novo item de nav em `barra_lateral.php`.
+
+### 6. Reativar Pixel do TikTok (verificado contra a documentação oficial)
+**Achado importante:** o projeto já tem uma implementação quase completa e **desativada de propósito** em 19/09/2026 ("ninguém tinha conta de TikTok Ads pra validar"): `funcoes/tiktok.php` intacto, colunas `tiktok_ativo/tiktok_pixel_id/tiktok_access_token` na tabela `usuarios_traqueamento`, UI comentada em `traqueamento.php`, chamada comentada em `funcoes/traqueamento.php`.
+
+Confirmei contra a documentação atual da TikTok Events API v1.3 (`business-api.tiktok.com/portal/docs/report-app-web-offline-or-crm-events/v1.3`): o endpoint, header `Access-Token` e formato `event_source`/`event_source_id`/`data[]` em `funcoes/tiktok.php` **batem** com o oficial. **Sim, dá pra integrar o pixel via Events API** (server-side), do mesmo jeito que Facebook Conversions API já funciona hoje.
+
+**O que precisa de ajuste antes de religar** (mesma classe de bug já corrigida no Facebook/UTMify, ver `anotacoes/revisao-traqueamento-facebook-utmify.md`):
+- `properties.content_type` é obrigatório quando `contents[]` é enviado — está faltando em `funcoes/tiktok.php`. Adicionar `'content_type' => 'product'`.
+- Ligar ao `montarUserDataTraqueamento()` (já existe, usado por Facebook/UTMify) em vez de receber só `id_telegram`/`first_name` nos pontos de chamada.
+- `ip`/`user_agent`/`ttclid`/`ttp` continuam indisponíveis (mesma limitação do Facebook: bot do Telegram não vê isso) — documentar como limitação aceita, não bloqueante.
+
+**Plano de implementação:**
+- Corrigir `funcoes/tiktok.php` (content_type + qualquer outro ajuste pontual).
+- Descomentar o bloco em `funcoes/traqueamento.php` (chamada `enviarEventoTikTok`) e em `traqueamento.php` (UI + JS `['facebook','utmfy','tiktok']`).
+- Atualizar `anotacoes/revisao-traqueamento-facebook-utmify.md` ou criar nota nova documentando a reativação e a verificação contra a doc oficial.
+
+### 7. Geolocalização / "Mapa de Leads por Estado" — PAUSADO
+
+Achado que motivou a pausa: o Bot API do Telegram nunca expõe o IP de quem conversa com o bot (tudo passa pelos servidores do Telegram). Hoje `leads` não tem nenhuma coluna de IP/local, e `links_rastreamento` é só um identificador de deep-link (`t.me/bot?start=identificador`), não uma página HTTP capaz de capturar IP.
+
+Pra esse mapa funcionar de verdade seria preciso um redirecionador HTTP próprio antes do link do bot (captura IP real, geolocaliza, e de brinde melhora o match rate do Facebook/TikTok Pixel) — isso é uma peça de infraestrutura nova, maior que os outros itens.
+
+**A pedido do usuário: pausado.** Registrar esse achado como ponto de atenção pra quando for retomado, sem nenhuma mudança de código enquanto isso.
+
+## Ordem de implementação sugerida
+
+1. TikTok Pixel (menor risco, já quase pronto)
+2. Notificações de vendas / sino (infraestrutura já existe)
+3. Comunidade (CRUD simples, institucional)
+4. Bio Link
+5. Webhooks (maior integração com os 3 arquivos de webhook existentes)
+6. Stories (o mais novo, upload de mídia + visualizador)
+
+## Arquivos-chave a criar/editar
+- Novo: `funcoes/webhooks.php`, `funcoes/stories.php`, `funcoes/comunidade.php`, `funcoes/biolink.php`
+- Novo: `webhooks.php`, `comunidade.php`, `biolink.php`, `b.php`, `admin/comunidade.php`, `ajax/notificacoes.php`, `ajax/marcar_notificacao_lida.php`, `ajax/criar_story.php`, `ajax/marcar_story_vista.php`
+- Editar: `barra_lateral.php` (novos itens de nav), `index.php` (barra de stories + sino), `funcoes/log.php` (coluna `lido_em`), `funcoes/tiktok.php`, `funcoes/traqueamento.php`, `traqueamento.php`, `admin/atualiza_banco.php` (migrações idempotentes de todas as tabelas novas), `assets/css/painel.css` (estilos novos: stories, sino, badges)
+
+## Decisões já tomadas com o usuário
+- Geolocalização (item 7): pausada, só documentar.
+- Bio Link: só domínio próprio (`/b/{slug}`), sem domínios alternativos/cloaking como a Shark.
+
+---
+
+<!-- origem: pendente/plano-modo-basico-fluxo.md -->
+# Plano — modo "Básico" (funil guiado por formulário)
+
+> Frente B do plano geral (`anotacoes/pendente/criacao-fluxos-sharkbot.md`,
+> `anotacoes/pendente/plano-expansao-editor-fluxo.md`). Decidido com o usuário: B antes
+> de C (Modo IA), e a decisão de cobrança do Modo IA fica pra quando chegar lá.
+
+## Ideia central
+
+Hoje só existe 1 tipo de fluxo (o editor de nós/canvas). Vamos ter 2: o de nós continua
+existindo do jeito que está (renomeado internamente pra `modo = 'avancado'`, sem quebrar
+nada que já existe), e um novo `modo = 'basico'` — uma tela de formulário por seções em
+vez de canvas, pra quem não quer montar fluxograma.
+
+### Decisão de schema: reaproveitar `dados_fluxograma`, não criar tabelas novas
+
+`fluxos.dados_fluxograma` já é um LONGTEXT livre (JSON). Em vez de criar várias tabelas
+novas (`fluxos_planos`, `fluxos_upsell`, etc.) — que exigiriam joins extras em toda
+leitura de fluxo e mais uma camada de migração — o modo básico guarda sua configuração
+inteira nesse mesmo campo, só que com um formato de JSON diferente (objeto de seções em
+vez de `{operators, links}`). Mesma lógica que já vale pro modo avançado: 1 fluxo = 1
+blob. Mantém `api.php` (`salvar_fluxo`/`obter_fluxo`) igual, sem mudança de contrato.
+
+Única coluna nova: `fluxos.modo ENUM('avancado','basico') NOT NULL DEFAULT 'avancado'`.
+Todo fluxo existente já nasce `avancado` (default), zero migração de dado.
+
+## Fatia 1 (esta rodada) — vertical, funcionando ponta a ponta
+
+Prioridade: entregar um caminho **completo e testável**, não as 13 seções da Shark de
+uma vez. Fica de fora desta fatia (documentado na Seção "Fora desta fatia" abaixo):
+Upsell/Downsell/Order Bump automáticos, Packs, Prévias, Assinatura (renovação fora do
+grafo), Top Assinantes, Conversões, estilo de Botões.
+
+**Dentro desta fatia:**
+
+1. **Escolha de modo ao criar fluxo** — `fluxos.php`, botão "Criar Fluxo" abre uma
+   escolha simples (2 cards: "Editor Visual" = o que já existe, "Guiado" = básico) antes
+   de cair na tela de edição. Resolve o que o usuário via na print da Shark.
+2. **Tela do editor básico** (`fluxo_basico.php`, nova) — sidebar de seções, 4 primeiras:
+   - **Bots**: vincular bot(s) a este fluxo, canal de cache de mídia (igual o que a Shark
+     mostrou, adaptado ao nosso modelo de 1 fluxo → N bots via `id_fluxo_conectado`).
+   - **Boas-vindas**: mensagem inicial, mídia opcional, texto do botão CTA.
+   - **Planos**: lista de planos (nome, preço, dias de acesso, grupo de entrega) —
+     substitui o nó PIX único do modo avançado por uma lista de opções que o cliente
+     escolhe.
+   - **Pagamentos**: mensagem de "Pix gerado" e "Pagamento aprovado".
+3. **Execução em `webhook.php`** — novo branch `if (($fluxo['modo'] ?? 'avancado') ===
+   'basico')`, motor próprio e simples (sem grafo): `/start` → manda boas-vindas → manda
+   lista de planos como botões → clique gera Pix do plano escolhido → paga → entrega no
+   grupo configurado. Reaproveita as funções que já existem (`getUserGateways`,
+   `resolveGatewayProvider`, `getGatewaySplit`, criação de invite link) — só a
+   orientação do fluxo é mais simples que o grafo.
+
+## Fora desta fatia (documentado, não implementado agora)
+
+- **Upsell/Downsell/Order Bump automáticos com sequência/reenvio** — no modo avançado já
+  existem como nó manual (frente A, feito). No básico, a Shark tem isso como sequência
+  configurável com reenvio por tempo — isso cai na mesma dependência de "estado por lead"
+  já identificada em `plano-expansao-editor-fluxo.md` (Seção 3). Fica pra quando essa
+  infra existir.
+- **Packs** (produtos avulsos fora do funil principal) — seção adicional, baixo risco,
+  mas fora da fatia 1 pra não inflar o escopo do primeiro corte.
+- **Prévias** (mídia de amostra que se autodestrói) — depende de um job de expiração de
+  mídia; nada parecido existe hoje.
+- **Assinatura com renovação fora do grafo** — o sistema já tem renovação (crons
+  `cron_renovacao.php`/`cron_aviso_vencimento.php`), mas a ideia da Shark de "grupo de
+  destino diferente pra renovação" não existe — fica pra depois.
+- **Top Assinantes** (ranking e prêmios por posição) — o projeto já tem um sistema de
+  Ranking próprio (`ranking.php`, `cron_ranking.php`); antes de portar o da Shark vale
+  entender se não é redundante com o que já existe.
+- **Conversões** (funil e origens dentro do editor) — o projeto já tem
+  `links_rastreamento`/Traqueamento como telas separadas; replicar dentro do editor de
+  fluxo é decisão de produto (duplicar informação em 2 lugares?), não só código.
+- **Estilo de Botões** (cor customizada por botão) — cosmético, baixa prioridade.
+
+## Arquivos a criar/editar
+
+| Arquivo | O que muda |
+|---|---|
+| `admin/atualiza_banco.php`, `instalacao.php` | Coluna `fluxos.modo ENUM('avancado','basico') DEFAULT 'avancado'` |
+| `fluxos.php` / `assets/lista_fluxos.js` | Modal de escolha de modo ao criar; badge do modo no card da lista |
+| `fluxo_basico.php` (novo) | Tela do editor guiado, 4 seções da fatia 1 |
+| `assets/edicao_fluxo_basico.js` (novo) | Lógica de formulário — sem canvas, sem flowchart.js |
+| `api.php` | `salvar_fluxo`/`obter_fluxo` passam a aceitar/devolver `modo`; `criar_fluxo` (ou equivalente) grava o modo escolhido |
+| `webhook.php` | Novo branch de execução pro modo básico (função própria, ex. `executarFluxoBasico()`), sem tocar no motor de nós existente |
+
+## ✅ Executado em 2026-09-25 — Fatia 1
+
+Implementado o caminho ponta a ponta: escolha de modo ao criar → editor guiado (Bots
+info / Boas-vindas / Planos / Pagamentos) → execução real no webhook (`/start` → boas-
+vindas com botão → lista de planos → Pix do plano escolhido → pagamento confirmado →
+acesso entregue). Não commitado/deployado ainda no momento de escrever esta nota.
+
+**Decisão técnica que vale registrar:** a geração de Pix do modo básico **não duplica**
+a lógica de gateway/split/fallback do bloco `pix` do editor de nós — monta um array de
+propriedades sintético (`['type' => 'pix', 'nome' => ..., 'valor' => ..., ...]`) e chama
+`processarEEnviarBloco()` direto, a mesma função que o editor de nós usa. Isso significa
+que qualquer correção futura nessa lógica (troca de gateway, formato de payload, etc.)
+vale automaticamente pros dois modos, sem precisar lembrar de mexer em 2 lugares.
+
+**Confirmação de pagamento não precisou de nenhum código novo**: a entrega de acesso
+(link de convite, `membros_grupos`, mensagem de confirmação) já roda pra **qualquer**
+venda com `id_grupo_telegram` preenchido, independente de ter vindo de um nó de grafo —
+o campo `id_operador_fluxo` (que só existe pro modo avançado) fica `NULL` numa venda do
+modo básico, e o código que continua a caminhada do grafo já checava
+`!empty($venda['id_operador_fluxo'])` antes de tentar continuar — condição que já é
+falsa aqui, então nada extra precisou ser escrito.
+
+**Achado incidental (não é bug meu, pré-existente):** os campos `msg_instrucoes` e
+`msg_confirmado` do bloco PIX (editor de nós) nunca foram lidos na montagem da mensagem
+em `webhook.php` — só existem no formulário do editor, sem efeito real. Os mesmos campos
+na seção "Pagamentos" do modo básico herdam essa mesma limitação (ficam salvos, mas sem
+efeito na mensagem de verdade, que é fixa). Não corrigido agora (fora do escopo desta
+fatia); registrado aqui pra não parecer bug novo se alguém notar depois.
+
+**Testado:** lint (`php -l`, `node --check`) em todos os arquivos, e teste isolado via
+CLI da lógica de parse de `callback_data` (`basico::plano::<id>`) e busca do plano por
+id. **Não testado ao vivo contra bot real ainda** — falta criar um fluxo básico de
+verdade, vincular a um bot de teste, e validar a conversa ponta a ponta.
+
+## Notas relacionadas
+
+- `anotacoes/pendente/criacao-fluxos-sharkbot.md` — pesquisa completa da Shark (fonte).
+- `anotacoes/pendente/plano-expansao-editor-fluxo.md` — frente A (blocos do editor de
+  nós), já implementada.
+
+---
+
+<!-- origem: pendente/plano-expansao-editor-fluxo.md -->
+## ✅ Executado em 2026-09-25 (blocos 2.1–2.3) — ver nota no fim do documento
+
+# Plano — expandir o editor de fluxo (nós que faltam vs. SharkBot)
+
+> Plano de implementação, ainda não codado. Baseado em
+> `anotacoes/pendente/criacao-fluxos-sharkbot.md` (pesquisa ao vivo do concorrente,
+> 25/09/2026) comparado com o estado atual do nosso editor (levantamento feito na mesma
+> data). Escopo decidido com o usuário: só a frente **A** das 3 possíveis (expandir o
+> editor de nós existente) — **não** inclui o modo "Básico" guiado por formulário nem o
+> "Modo IA" (agente conversacional com créditos), que ficam para decisão futura.
+
+## O que já temos vs. o que falta
+
+Nosso editor (`fluxo.php` + `assets/edicao_fluxo.js`, motor `flowchart.js`, execução em
+`webhook.php`) já cobre o equivalente ao "Fluxo n8n" da Shark, só que com menos blocos:
+
+| Bloco | Temos hoje | Shark tem |
+|---|---|---|
+| Mensagem / Mídia / Botões / Delay ("digitando") | ✅ | ✅ |
+| PIX / pagamento | ✅ (`pix`, nome+valor+recorrência) | ✅ (`charge`, similar) |
+| Entrega (link / grupo) | ✅ (`link`, `grupo`) | ✅ (`send_delivery`, mais tipos de destino) |
+| **Condição** (aguardar resposta, com timeout) | ❌ | ✅ |
+| **Randomizer** (caminho aleatório ponderado) | ❌ | ✅ |
+| **Input do usuário** (captura resposta numa variável) | ❌ | ✅ |
+| **Upsell / Downsell** (nó dedicado, aceito/recusado) | ❌ | ✅ |
+| **Order Bump** (oferta extra no checkout) | ❌ | ✅ |
+
+## Achado importante que muda o tamanho do trabalho
+
+O motor de execução hoje (`webhook.php`) **não guarda em lugar nenhum "em que nó da
+conversa o lead está".** Quando chega um clique de botão, o callback_data é só o *texto*
+do botão — o webhook varre **todos os operadores do grafo** (`foreach
+$dados_fluxo['operators']`) procurando um bloco `botoes` que tenha um botão com aquele
+texto, e segue o link de saída correspondente. Funciona hoje porque tudo que espera
+resposta (`botoes`, `pix`) é sempre resolvido por um **clique** (callback_data
+determinístico), nunca por texto livre.
+
+Isso quebra pros dois blocos mais "caros" da lista:
+
+- **Input do usuário** precisa capturar **texto livre** (não um clique) e saber pra qual
+  variável salvar — não dá pra "adivinhar" isso varrendo o grafo, porque texto livre não
+  carrega identificador nenhum do bloco que pediu ele.
+- **Condição** com timeout (`not_responded`) precisa saber que **passou tempo demais**
+  sem resposta — isso não existe hoje (nada monitora "lead parado há N minutos nesse
+  nó"), e só um cron pode detectar isso, não o webhook (que só roda quando o Telegram
+  manda algo).
+
+**Ou seja: esses dois blocos exigem uma peça de infraestrutura nova — estado por lead —
+que os outros 3 não exigem.** Detalhado na Seção 3.
+
+## Ordem sugerida (do mais barato pro mais caro)
+
+1. **Randomizer** — sem espera, resolve na hora, reaproveita 100% o padrão de link/saída
+   que já existe (só que a saída é sorteada por peso em vez de fixa).
+2. **Upsell / Downsell** — reaproveita o padrão de saída por clique de botão que já existe
+   no `botoes`/`pix` (aceito/recusado = 2 botões com callback_data fixo).
+3. **Order Bump** — mesmo padrão dos dois acima, oferta extra amarrada a um `pix`/plano.
+4. **Condição** (variante `clicked_button`/`paid`/`not_paid`) — ainda cabe no modelo
+   atual (decide na hora, sem esperar nada novo, só reorganiza uma decisão que hoje é
+   implícita no fluxo do `pix`).
+5. **Input do usuário** + **Condição** (variante `responded`/`not_responded` com timeout)
+   — exige a peça de estado por lead (Seção 3). Maior risco/esforço, deixar por último.
+
+---
+
+## Seção 2 — Blocos 1 a 4 (sem infraestrutura nova)
+
+### 2.1 Randomizer
+
+- **Editor** (`assets/edicao_fluxo.js`): novo `type: 'randomizer'`, ícone em
+  `block_icons`, formulário do bloco com lista de "caminhos" (`path_1`, `path_2`, ...),
+  cada um com um peso (%). Saída (`outputs`) dinâmica: uma por caminho, no padrão
+  `output_path_N` (mesmo esquema de `botoes` já usa `output_N` por botão).
+- **Execução** (`webhook.php`): ao alcançar um nó `randomizer`, sorteia um caminho
+  ponderado (`mt_rand`/soma acumulada dos pesos) e segue o link cujo `fromConnector`
+  seja o `output_path_N` sorteado — mesma mecânica do salto de `output_pago`/
+  `output_nao_pago` que o `pix` já faz hoje (linha ~840-848), só trocando "decisão por
+  status" por "decisão por sorteio".
+- **CSS**: classe `.no-randomizer` em `fluxograma_tema.css`, seguindo o padrão visual
+  dos blocos existentes.
+
+### 2.2 Upsell / Downsell
+
+- **Editor**: `type: 'upsell'` / `type: 'downsell'`, campos: mensagem, desconto (%),
+  qual plano oferecer (reaproveita a mesma referência de plano que o `pix` usa — como
+  não existe um cadastro de "planos" separado, o campo aponta pro texto/valor livre,
+  igual o `pix` já faz). Dois botões fixos no bloco (texto editável, callback_data fixo
+  tipo `upsell_aceitar_<id_bloco>`/`upsell_recusar_<id_bloco>`), saídas
+  `output_aceito`/`output_recusado`.
+- **Execução**: reaproveita o mesmo mecanismo de busca-por-texto-de-botão que `botoes`
+  já usa hoje — nenhuma peça nova de estado, só um novo `type` reconhecido no `switch`
+  de `processarEEnviarBloco()` e no loop de resolução de callback.
+- **Diferença real pro Shark**: lá, upsell/downsell tem uma "sequência" de até 20
+  tentativas com espera entre elas (reenvio automático se não responder). **Isso
+  também precisaria da peça de estado da Seção 3** (saber quando reenviar) — decisão:
+  entrar já na v1 como um nó único disparado manualmente no grafo (sem sequência
+  automática), e a sequência com reenvio fica de fora até (ou se) o trabalho da Seção 3
+  for feito.
+
+### 2.3 Order Bump
+
+- Igual ao upsell/downsell em mecânica (oferta + aceitar/recusar por botão), mas
+  pensado pra encaixar antes da confirmação de um `pix` (ex.: "quer adicionar X por mais
+  R$Y?" antes de gerar a cobrança) em vez de depois da compra.
+- **Editor/execução**: mesmo padrão da 2.2, só muda o texto/posição sugerida no fluxo
+  (é o próprio usuário que decide onde encaixar o bloco no grafo, arrastando).
+
+### 2.4 Condição (variantes sem timeout: `clicked_button`, `paid`, `not_paid`)
+
+- **Editor**: `type: 'condicao'`, campo select com o tipo (`clicked_button`, `paid`,
+  `not_paid` nesta primeira leva), duas saídas fixas `output_sim`/`output_nao`.
+- **Execução**: `paid`/`not_paid` já é literalmente o que o `pix` resolve hoje (saída
+  `output_pago`/`output_nao_pago`) — aqui vira um nó reutilizável e explícito em vez de
+  ficar embutido só no `pix`. `clicked_button` verifica se o parâmetro que chegou bate
+  com algum botão específico anterior (checagem local, sem esperar nada novo).
+- **Não entra nesta leva**: `responded`/`not_responded` (dependem de timeout — Seção 3).
+
+---
+
+## Seção 3 — Infraestrutura nova: estado do lead no fluxo
+
+Necessária só para: **Input do usuário**, e **Condição** nas variantes `responded`/
+`not_responded`. Proposta:
+
+### Schema
+
+Nova tabela `leads_estado_fluxo` (1 linha por lead ativo esperando algo):
+
+```sql
+CREATE TABLE leads_estado_fluxo (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    bot_id INT NOT NULL,
+    id_telegram VARCHAR(50) NOT NULL,
+    id_operador_aguardando VARCHAR(100) NOT NULL,   -- nó que está esperando
+    tipo_espera ENUM('input_usuario','condicao_timeout') NOT NULL,
+    nome_variavel VARCHAR(80) DEFAULT NULL,          -- só pra input_usuario
+    expira_em DATETIME DEFAULT NULL,                 -- só quando há timeout
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY (bot_id, id_telegram),
+    FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
+);
+```
+
+`UNIQUE KEY (bot_id, id_telegram)` — um lead só pode estar esperando **uma** coisa por
+vez (se um novo nó de espera for alcançado, substitui o anterior).
+
+Variáveis capturadas por `Input do usuário` (`user_input`) precisam de onde morar —
+proposta: coluna `leads.variaveis_fluxo JSON DEFAULT NULL` (mapa `nome_variavel =>
+valor`), lido/escrito pelo webhook e disponível como `{variavel}` nos textos dos blocos
+seguintes (mesmo padrão de variável tipo `{nome}` que já existe hoje).
+
+### Execução
+
+- Ao alcançar `user_input` ou `condicao` (variante com timeout): grava linha em
+  `leads_estado_fluxo` com o `id_operador_aguardando` = o nó atual, `expira_em` = agora +
+  timeout configurado, e **para** de processar (não envia mais nada, só a pergunta).
+- Nova mensagem de texto chega no webhook: antes do fluxo normal, checa se existe linha
+  em `leads_estado_fluxo` pro `(bot_id, id_telegram)`. Se existir:
+  - `input_usuario`: salva o texto em `leads.variaveis_fluxo[nome_variavel]`, apaga a
+    linha de espera, segue pelo `output_sucesso` do nó.
+  - `condicao_timeout`: texto chegou = "respondeu", segue `output_sim`, apaga a linha.
+  - Se não existir linha de espera, segue o comportamento atual (busca no grafo, /start,
+    etc.) sem mudança.
+- **Novo cron** `cron_verificar_timeouts_fluxo.php` (padrão dos outros 8 crons já
+  existentes: `flock`, proteção por `CHAVE_SECRETA_CRON`/CLI, `LIMIT` na varredura):
+  roda a cada 1 minuto, busca `leads_estado_fluxo` com `expira_em < NOW()` e
+  `tipo_espera = 'condicao_timeout'`, segue o `output_nao` do nó (timeout = "não
+  respondeu"), apaga a linha. Linhas de `input_usuario` sem timeout configurado nunca
+  expiram sozinhas (ficam esperando pra sempre, comportamento aceito — igual o `botoes`
+  já faz hoje).
+
+### Por que isolar isso numa seção própria
+
+Esse pedaço é o único que precisa de: tabela nova, coluna nova em `leads`, um cron a
+mais, e uma mudança na ordem de leitura do `webhook.php` (checar espera pendente antes
+do resto). Os blocos 2.1-2.4 não tocam em nada disso — só adicionam `type` novo no
+`switch` já existente. Por isso a sugestão de ordem (Seção 1) deixa isso por último: dá
+pra entregar valor real (randomizer, upsell/downsell, order bump, condição básica) sem
+esperar essa parte mais arriscada ficar pronta.
+
+---
+
+## Arquivos a editar (resumo)
+
+| Arquivo | O que muda |
+|---|---|
+| `assets/edicao_fluxo.js` | Novos `type` nos templates de nó, ícones, formulário embutido por tipo, cálculo de outputs dinâmicos (randomizer) |
+| `assets/fluxograma_tema.css` | Classes visuais dos 5 blocos novos |
+| `webhook.php` | Novo `case` em `processarEEnviarBloco()` por tipo; checagem de `leads_estado_fluxo` no início do tratamento de mensagem de texto; leitura/escrita de `leads.variaveis_fluxo` |
+| `admin/atualiza_banco.php` | Migração idempotente: tabela `leads_estado_fluxo`, coluna `leads.variaveis_fluxo` |
+| `instalacao.php` | Mesmo schema, pra instalação nova já nascer com isso |
+| `cron/cron_verificar_timeouts_fluxo.php` | Novo arquivo — cron de timeout (só necessário se a Seção 3 for implementada) |
+| `INSTALACAO.md` | Adicionar o novo cron na tabela da Seção 7, se a Seção 3 entrar |
+
+## Decisões que ainda precisam de confirmação antes de codar
+
+1. **Confirma a ordem sugerida** (2.1→2.4 primeiro, Seção 3 por último), ou prefere
+   tudo de uma vez / outra ordem?
+2. **Upsell/Downsell/Order Bump na v1 sem sequência automática de reenvio** (só o nó
+   único no grafo) — aceitável, ou a sequência automática (que exige a Seção 3) é
+   importante já de início?
+3. Nome exato da tabela/coluna novas (`leads_estado_fluxo`, `leads.variaveis_fluxo`) —
+   só pra confirmar que não colide com nada que já exista com nome parecido.
+
+## Notas relacionadas
+
+- `anotacoes/pendente/criacao-fluxos-sharkbot.md` — pesquisa completa da Shark (fonte).
+- `anotacoes/pendente/plano-recursos-sharkbot.md` — plano de outras features da Shark
+  (Stories, Comunidade, Webhooks, etc.), a maioria já implementada; este documento é
+  específico do editor de fluxo, que ficou de fora daquele.
+
+## ✅ Executado em 2026-09-25 — blocos 2.1 a 2.3
+
+Implementados **Randomizer**, **Upsell**, **Downsell** e **Order Bump** (2.1–2.3 da
+Seção 2), com a ordem sugerida respeitada. Não commitado/deployado ainda.
+
+**Arquivos alterados:**
+- `webhook.php` — novo `case` por tipo em `processarEEnviarBloco()`; nova função
+  `proximoNoConsiderandoTipo()` (sorteio ponderado do randomizer); nova função
+  `obterProximoNoPorConector()` (resolução por saída específica, reaproveitando o que já
+  existia inline pro `pix`); nova função `caminharFluxoAPartirDe()` que **substitui os 3
+  loops de caminhada que estavam duplicados** (início, resposta de botão, pagamento
+  confirmado) por um só — reduz código e evita repetir a lista de tipos que "param a
+  execução" em 3 lugares diferentes; novo bloco de interceptação de callback `saida::`
+  pro clique de aceitar/recusar do upsell/downsell/order_bump.
+- `assets/edicao_fluxo.js` — ícones, `nodeTemplate()`, `renderCorpoDoBloco()`, mapa de
+  classe CSS, e handlers de formulário pros 4 blocos novos (add/remover caminho do
+  randomizer, campos de mensagem/valor/textos de botão da oferta).
+- `fluxo.php` — 4 novos botões na paleta.
+- `assets/fluxograma_tema.css` — classes visuais dos 4 blocos novos (randomizer reusa a
+  cor neutra do delay/link; upsell verde; downsell vermelho; order bump laranja, mesma
+  cor do "Botões" mas ícone diferente).
+
+**Decisão de performance/escalabilidade tomada durante a implementação:** o bloco
+"Botões" resolve o clique varrendo **todos os operadores do grafo** procurando o texto
+do botão (O(nós) a cada clique, e frágil se dois botões em nós diferentes tiverem o
+mesmo texto). Os 3 blocos novos **não repetem esse padrão** — o `callback_data` já
+carrega o id do próprio bloco (`saida::<id_operador>::aceito`), então resolver o clique
+vira uma busca direta pela chave, sem varrer nada. Não mudei o bloco "Botões" existente
+(evitar quebrar fluxos antigos já salvos com aquele formato), mas os blocos novos já
+nascem no padrão melhor.
+
+**Escopo intencionalmente deixado de fora (não é bug, é decisão):** o bloco **Condição**
+(2.4) não foi implementado. Motivo: nas variantes `paid`/`not_paid` ele duplicaria a
+saída dupla que o próprio `pix` já tem; na variante `clicked_button` duplicaria a saída
+por botão que o próprio `botoes` já tem. Como nó *independente* solto no grafo, sem a
+infraestrutura de estado por lead da Seção 3, ele não agrega nada que os blocos que já
+existem não resolvam — implementar mesmo assim seria adicionar um bloco confuso/redundante
+na paleta só pra "bater a lista". Fica pra quando (ou se) a Seção 3 for implementada, onde
+aí sim ele ganha sentido próprio (`responded`/`not_responded` com timeout de verdade).
+
+**Não testado ao vivo ainda** — só lint (`php -l`, `node --check`), sem teste funcional
+num bot real. Próximo passo antes de considerar pronto: criar um fluxo de teste com os 4
+blocos novos, vincular a um bot de teste, e validar cada saída manualmente.

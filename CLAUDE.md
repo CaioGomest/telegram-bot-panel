@@ -20,10 +20,10 @@ Regras que valem sempre que alguém (eu ou outra sessão) tiver acesso SSH a ess
 
 ## Fase atual: redesign de layout (concluído)
 
-O layout novo descrito em `Telegram bot management redesign/design_handoff_coyote_bot_panel/README.md` (protótipo `Coyote Bot Panel.dc.html`) foi aplicado em **todas** as páginas do painel, incluindo as que originalmente estavam fora do escopo do handoff (não havia spec própria pra elas — foi seguido o mesmo padrão visual já estabelecido). Só layout — lógica, nomes de campo, queries, rotas e IDs usados pelo JS não mudaram.
+O layout novo (redesign do painel, handoff de design fora do repositório) foi aplicado em **todas** as páginas do painel, incluindo as que originalmente estavam fora do escopo do handoff (não havia spec própria pra elas — foi seguido o mesmo padrão visual já estabelecido). Só layout — lógica, nomes de campo, queries, rotas e IDs usados pelo JS não mudaram.
 
 - **Toda classe CSS nova ou alterada usa nomenclatura em português, kebab-case** (mesmo padrão de `painel`, `botao`, `cabecalho-pagina`, `cartao-bot-item`) — nunca inglês, nunca camelCase.
-- `barra_lateral.php` é a sidebar (substituiu `sidebar.php`, removido por não ter mais nenhuma página usando). `assets/css/coyote.css` é o único CSS do painel (tokens, tema dark/light, sidebar/header/cards) — `assets/app.css` e `assets/login.css` foram removidos por ficarem 100% sem uso.
+- `barra_lateral.php` é a sidebar (substituiu `sidebar.php`, removido por não ter mais nenhuma página usando). `assets/css/painel.css` é o único CSS do painel (tokens, tema dark/light, sidebar/header/cards) — `assets/app.css` e `assets/login.css` foram removidos por ficarem 100% sem uso.
 - `funcoes/relatorio_debug.php` (`exibirRelatorioDebug()`) envolve a saída em texto das rotinas de manutenção no layout novo, sem mudar o que cada rotina calcula ou grava no banco.
 - Pendências que dependem de backend novo (fora do escopo de layout): badge "Online"/mini-painel "Leads 7d" nos cards de bot, "N blocos"/status Publicado-Rascunho nos cards de fluxo, paginação real de `leads.php`, painel "Top usuários" no admin.
 
@@ -59,7 +59,7 @@ Etapa de **organização e code clean** (regras abaixo continuam valendo para mu
 
 Regras para esta fase:
 
-- **Código mínimo e necessário.** Remover o que não é usado (código morto, comentários redundantes). Arquivos de debug/teste que ainda são úteis ficam protegidos por login e organizados no menu "Debug" (não deletados) — ver `/anotacoes/varredura-01-seguranca.md`.
+- **Código mínimo e necessário.** Remover o que não é usado (código morto, comentários redundantes). Arquivos de debug/teste que ainda são úteis ficam protegidos por login e organizados no menu "Debug" (não deletados) — ver `/anotacoes/HISTORICO-CONSOLIDADO.md`.
 - **Responsabilidade única.** Cada função deve fazer uma coisa só. Quebrar funções grandes (ex. arquivos em `funcoes/` e `webhook.php` que hoje concentram várias responsabilidades) em funções menores e nomeadas com clareza.
 - **Altamente escalável.** Evitar acoplamento desnecessário, preferir funções puras quando possível, isolar acesso a banco e integrações externas (gateways, Telegram, pixels) em camadas bem definidas dentro de `funcoes/`.
 - **Não alterar comportamento visível.** Refatoração é interna — mesma funcionalidade, mesmo output, mesmas rotas/nomes de arquivo (a menos que combinado explicitamente).
@@ -107,9 +107,15 @@ Reportar os achados antes de aplicar qualquer mudança — varredura é análise
 
 Pasta pra guardar lembretes, notas e coisas pra fazer depois (não é código, não afeta a aplicação). Usar arquivos `.md` simples. Exemplos: ideias de melhoria adiadas, débitos técnicos identificados durante a limpeza, pontos pra revisar na etapa de layout, dúvidas pra confirmar com o Caio.
 
-### Pasta /anotacoes/testes
+### Organização das notas
 
-Todo plano de teste e todo resultado/rodada de teste (o que foi testado, o que passou, o que ficou pendente) é registrado em `anotacoes/testes/`, não solto direto em `anotacoes/`. Um mapa por tópico pode ser atualizado conforme os testes acontecem (estado ✅ verificado / 🟡 parcial / ❓ não testado / 🔴 problema conhecido, por tópico); uma rodada de teste específica (data, o que foi feito, achados) vira um arquivo próprio referenciando o mapa. Exemplo já nessa pasta: `plano-de-testes-24-09.md`. `anotacoes/mapa-de-testes-por-topico.md` e `anotacoes/rodada-de-testes-19-09.md` são de antes dessa convenção e continuam soltos na raiz — não precisam ser movidos, mas testes novos a partir de agora vão em `anotacoes/testes/`.
+`anotacoes/` tem poucos arquivos de propósito (quanto menos nota, melhor):
+
+- `PENDENCIAS.md` — único lugar de "o que falta" (código, decisões, antes do lançamento, testes reais). Ao resolver algo, apagar a linha.
+- `HISTORICO-CONSOLIDADO.md` — por que o código é assim, incidentes, capacidade, rodadas de teste. Resultado de teste novo entra aqui como um item curto na seção "Rodadas de teste", não como arquivo novo.
+- `como-funciona-pagamento-gateway.md`, `REFERENCIA-SHARKBOT.md`, `credenciais-ssh-hostinger.md` (gitignored).
+
+Não criar uma nota por rodada, plano ou varredura: atualizar esses arquivos. `anotacoes/testes/` só guarda imagens de apoio.
 
 ## O que evitar
 
