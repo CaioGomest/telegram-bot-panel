@@ -10,7 +10,7 @@ $eh_edicao = isset($_GET['id']) && $_GET['id'] !== '';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo $eh_edicao ? 'Configurar Bot' : 'Novo Bot'; ?> - <?php echo htmlspecialchars(nomeSistema()); ?></title>
     <?php include 'tema_inline.php'; ?>
-    <link rel="stylesheet" href="assets/css/coyote.css?v=<?php echo @filemtime(__DIR__.'/assets/css/coyote.css'); ?>">
+    <link rel="stylesheet" href="assets/css/painel.css?v=<?php echo @filemtime(__DIR__.'/assets/css/painel.css'); ?>">
 </head>
 <body>
 <div class="layout-painel">
@@ -132,14 +132,6 @@ $eh_edicao = isset($_GET['id']) && $_GET['id'] !== '';
                     <p class="texto-suave" style="margin:-8px 0 16px;">Como o bot aparece para o lead.</p>
                     <form id="formulario-perfil" enctype="multipart/form-data">
                         <div class="grade grade-2">
-                            <div class="campo completo linha-foto-perfil-bot">
-                                <div id="preview-foto-perfil-bot"><div class="avatar-preview-bot-placeholder">?</div></div>
-                                <div>
-                                    <label for="photo" class="botao botao-claro">Trocar</label>
-                                    <input type="file" id="photo" name="photo" accept="image/*" style="display:none">
-                                    <p class="texto-ajuda" style="margin:6px 0 0;">PNG ou JPG, mínimo 512×512.</p>
-                                </div>
-                            </div>
                             <div class="campo">
                                 <label for="name">Nome de Exibição</label>
                                 <input type="text" id="name" name="name" maxlength="64" placeholder="Nome do Bot">
@@ -153,7 +145,7 @@ $eh_edicao = isset($_GET['id']) && $_GET['id'] !== '';
                                 <textarea id="description" name="description" rows="4" maxlength="512" placeholder="Aparece quando o usuário abre o bot pela primeira vez"></textarea>
                             </div>
 
-                            <div class="campo completo linha-acoes">
+                            <div class="completo linha-acoes">
                                 <button type="button" class="botao" id="btn-descartar-perfil">Descartar</button>
                                 <button type="submit" class="botao botao-primario">Salvar alterações</button>
                             </div>

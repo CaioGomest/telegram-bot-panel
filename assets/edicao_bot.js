@@ -32,7 +32,6 @@
     function atualizarCardStatus(bot_info, is_online) {
         if (!bot_info) {
             $('#status-avatar-container').html('<div class="avatar-preview-bot-placeholder">?</div>');
-            $('#preview-foto-perfil-bot').html('<div class="avatar-preview-bot-placeholder">?</div>');
             $('#status-nome').text('Novo Bot');
             $('#status-username').text('@...');
             $('#status-badge').removeClass('ligado desligado').html('<span class="ponto-status"></span> <span class="texto-status">Desconhecido</span>');
@@ -42,11 +41,9 @@
 
         if (bot_info.caminho_foto) {
              $('#status-avatar-container').html(`<img src="${escaparHtml(bot_info.caminho_foto)}?t=${Date.now()}" class="avatar-preview-bot" alt="Bot Avatar">`);
-             $('#preview-foto-perfil-bot').html(`<img src="${escaparHtml(bot_info.caminho_foto)}?t=${Date.now()}" class="avatar-preview-bot" alt="">`);
         } else {
              const inicial = (bot_info.first_name || 'B').charAt(0).toUpperCase();
              $('#status-avatar-container').html(`<div class="avatar-preview-bot-placeholder">${inicial}</div>`);
-             $('#preview-foto-perfil-bot').html(`<div class="avatar-preview-bot-placeholder">${inicial}</div>`);
         }
 
         $('#status-nome').text(bot_info.first_name || 'Sem nome');
@@ -278,11 +275,6 @@
         // Enviamos o fluxo tbm pra garantir consistência, mas o foco é perfil
         form_data.append('id_fluxo_conectado', $('#id-fluxo-conectado').val());
 
-        const photo_input = $('#photo')[0];
-        if (photo_input.files && photo_input.files[0]) {
-            form_data.append('photo', photo_input.files[0]);
-        }
-
         $.ajax({
             url: url_api + '?action=atualizar_perfil_bot',
             method: 'POST',
@@ -391,16 +383,6 @@
 
     $('#btn-descartar-perfil').on('click', function () {
         if (bot_atual) preencherFormularioBot(bot_atual);
-    });
-
-    $('#photo').on('change', function () {
-        const arquivo = this.files && this.files[0];
-        if (!arquivo) return;
-        const leitor = new FileReader();
-        leitor.onload = function (ev) {
-            $('#preview-foto-perfil-bot').html(`<img src="${ev.target.result}" class="avatar-preview-bot" alt="">`);
-        };
-        leitor.readAsDataURL(arquivo);
     });
 
     $('#btn-exportar-fluxo-bot').on('click', function () {

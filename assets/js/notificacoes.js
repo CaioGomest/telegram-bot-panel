@@ -119,7 +119,15 @@
             painel.style.width = largura + 'px';
         }
 
+        var fundo = document.createElement('div');
+        fundo.className = 'sino-fundo';
+        fundo.hidden = true;
+        document.body.appendChild(fundo);
+
         function abrir() {
+            fundo.hidden = false;
+            document.documentElement.classList.add('sino-aberto');
+            raiz.classList.add('aberto');
             painel.hidden = false;
             botao.setAttribute('aria-expanded', 'true');
             posicionarPainel();
@@ -134,6 +142,9 @@
         }
 
         function fechar() {
+            fundo.hidden = true;
+            document.documentElement.classList.remove('sino-aberto');
+            raiz.classList.remove('aberto');
             painel.hidden = true;
             botao.setAttribute('aria-expanded', 'false');
         }
