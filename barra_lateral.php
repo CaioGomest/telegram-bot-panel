@@ -12,7 +12,7 @@ if (!isset($pdo)) {
 $is_admin = function_exists('ehAdmin') ? ehAdmin() : false;
 // Sem o .php: os href dos menus agora são limpos (/bots), mas PHP_SELF continua
 // apontando pro arquivo real (bots.php) -- sem normalizar, o item ativo do menu
-// nunca casaria. Ver anotacoes/url-sem-php.md.
+// nunca casaria. Ver anotacoes/HISTORICO-CONSOLIDADO.md.
 $pagina_atual = preg_replace('/\.php$/', '', basename($_SERVER['PHP_SELF']));
 $user_id = $_SESSION['usuario_id'] ?? 0;
 
@@ -38,7 +38,7 @@ function iconeNav(string $d, string $viewBox = '0 0 24 24'): string
     return '<svg width="17" height="17" viewBox="' . $viewBox . '" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="' . $d . '"></path></svg>';
 }
 
-// Sincronizado com icons novos telegram/design_handoff_coyote_bot_panel/icons.js (2026-09-24) --
+// Ícones sincronizados com o handoff do redesign (2026-09-24) --
 // mesmas chaves de sempre, paths corrigidos pro traço oficial do design.
 $icones = [
     'dashboard' => 'M3 3h7v9H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 16h7v5H3z',
@@ -54,6 +54,7 @@ $icones = [
     'remarketing' => 'M3 11l18-5v12L3 14v-3zM11.6 16.8a3 3 0 1 1-5.8-1.6',
     'traqueamento' => 'M22 12h-4l-3 9L9 3l-3 9H2',
     'links' => 'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71',
+    'redirecionamento' => 'M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5',
     'comunidade' => 'M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z',
     'webhooks' => 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
     'usuarios' => 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM16 11l2 2 4-4',
@@ -73,8 +74,9 @@ if (!$is_admin) {
     $grupo_operacao[] = ['href' => 'leads', 'label' => 'Leads', 'icone' => 'leads', 'badge' => $badge_leads];
     $grupo_operacao[] = ['href' => 'ranking', 'label' => 'Ranking', 'icone' => 'ranking'];
     $grupo_operacao[] = ['href' => 'remarketing', 'label' => 'Remarketing', 'icone' => 'remarketing'];
-    $grupo_operacao[] = ['href' => 'traqueamento', 'label' => 'Rastreamento', 'icone' => 'traqueamento'];
+    $grupo_operacao[] = ['href' => 'traqueamento', 'label' => 'Traqueamento', 'icone' => 'traqueamento'];
     $grupo_operacao[] = ['href' => 'links_rastreamento', 'label' => 'Links de Rastreamento', 'icone' => 'links'];
+    $grupo_operacao[] = ['href' => 'redirecionamento', 'label' => 'Redirecionamento', 'icone' => 'redirecionamento'];
     $grupo_operacao[] = ['href' => 'webhooks', 'label' => 'Webhooks', 'icone' => 'webhooks'];
     $grupo_operacao[] = ['href' => 'comunidade', 'label' => 'Comunidade', 'icone' => 'comunidade'];
 }
@@ -213,7 +215,7 @@ $foto_usuario = function_exists('fotoPerfilDaSessao') ? fotoPerfilDaSessao() : '
 
     <?php // As 6 abas acima são as do protótipo. "Mais" existe porque a barra lateral (17 links)
           // some no mobile: sem ele, Remarketing/Traqueamento/Links e a área de admin inteira
-          // ficavam inalcançáveis no celular -- ver anotacoes/varredura-11-cobertura-mobile.md. ?>
+          // ficavam inalcançáveis no celular -- ver anotacoes/HISTORICO-CONSOLIDADO.md. ?>
     <button type="button" class="mobile-item" id="abrir-menu-mobile" aria-label="Mais opções" aria-expanded="false">
         <span class="mobile-icone"><?php echo iconeNav('M4 7h16M4 12h16M4 17h16'); ?></span>
         <span class="mobile-texto">Mais</span>

@@ -344,6 +344,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ja_instalado) {
             UNIQUE KEY unique_identificador_usuario (id_usuario, identificador)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
+        require_once __DIR__ . '/funcoes/redirecionadores.php';
+        foreach (esquemaRedirecionamento() as $sql_redirecionamento) {
+            $pdo->exec($sql_redirecionamento);
+        }
+
         $pdo->exec("CREATE TABLE IF NOT EXISTS stories (
             id INT AUTO_INCREMENT PRIMARY KEY,
             id_usuario INT NOT NULL,
@@ -536,7 +541,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ja_instalado) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Instalação</title>
     <?php include __DIR__ . '/tema_inline.php'; ?>
-    <link rel="stylesheet" href="assets/css/coyote.css?v=<?php echo @filemtime(__DIR__.'/assets/css/coyote.css'); ?>">
+    <link rel="stylesheet" href="assets/css/painel.css?v=<?php echo @filemtime(__DIR__.'/assets/css/painel.css'); ?>">
     <style>body { display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 24px 16px; box-sizing: border-box; }</style>
 </head>
 <body>

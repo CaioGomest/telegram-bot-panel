@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../funcoes/usuario.php';
 require_once __DIR__ . '/../funcoes/google_auth.php';
+require_once __DIR__ . '/../funcoes/redirecionadores.php';
 verificarAdmin();
 $caminho_base = '../';
 
@@ -25,6 +26,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'identid
             throw new RuntimeException('Cor inválida.');
         }
         definirConfigSistema('cor_primaria', strtolower($cor_primaria));
+
+        $dominios_validos = [];
+        foreach (preg_split('/[\r\n,;\s]+/', (string) ($_POST['dominios_redirecionamento'] ?? '')) ?: [] as $dominio) {
+            $dominio = strtolower(trim($dominio));
+            if ($dominio === '') {
+                continue;
+            }
+            if (!dominioRedirecionamentoValido($dominio)) {
+                throw new RuntimeException('Domínio de redirecionamento inválido: ' . $dominio);
+            }
+            $dominios_validos[$dominio] = $dominio;
+        }
+        definirConfigSistema('dominios_redirecionamento', implode("\n", $dominios_validos));
 
         if (isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
             definirConfigSistema('logo', salvarArquivoMarca($_FILES['logo'], 'marca_logo'));
@@ -75,7 +89,7 @@ if (isset($_GET['salvo_google'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Configurações - <?php echo htmlspecialchars(nomeSistema()); ?></title>
     <?php include __DIR__ . '/../tema_inline.php'; ?>
-    <link rel="stylesheet" href="../assets/css/coyote.css?v=<?php echo @filemtime(__DIR__.'/../assets/css/coyote.css'); ?>">
+    <link rel="stylesheet" href="../assets/css/painel.css?v=<?php echo @filemtime(__DIR__.'/../assets/css/painel.css'); ?>">
 </head>
 <body>
 <div class="layout-painel">
@@ -140,6 +154,13 @@ if (isset($_GET['salvo_google'])) {
                     <input type="color" id="cor_primaria" name="cor_primaria"
                            value="<?php echo htmlspecialchars(corPrimariaSistema()); ?>">
                     <small>Cor usada em botões, links e destaques no painel inteiro (claro e escuro).</small>
+                </div>
+
+                <div class="campo" style="margin-top:18px;">
+                    <label for="dominios_redirecionamento">Domínios do Redirecionamento</label>
+                    <textarea id="dominios_redirecionamento" name="dominios_redirecionamento" rows="3"
+                              placeholder="link.seudominio.com"><?php echo htmlspecialchars(implode("\n", dominiosRedirecionamento())); ?></textarea>
+                    <small>Um por linha. Além do endereço do painel, os usuários podem escolher estes domínios pros links /l/. Cada domínio precisa já estar apontado (DNS) pra esta mesma hospedagem.</small>
                 </div>
 
                 <div class="linha-acoes" style="margin-top: 22px;">

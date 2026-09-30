@@ -104,7 +104,7 @@ try {
     // Telegram manda o @username em todo /start (message.from.username), mas até aqui
     // nunca era salvo em lugar nenhum -- webhook de saída sempre mandava customer.username
     // = null pra quem integra (achado em rodada de teste, ver
-    // anotacoes/testes/rodada-de-testes-25-09.md). Username do Telegram tem no máximo
+    // anotacoes/HISTORICO-CONSOLIDADO.md). Username do Telegram tem no máximo
     // 32 caracteres.
     try { $pdo->exec("ALTER TABLE leads ADD COLUMN nome_usuario_telegram VARCHAR(32) DEFAULT NULL AFTER telefone"); } catch (PDOException $e) {}
     echo "Tabela 'leads' OK.<br>";
@@ -200,14 +200,14 @@ try {
 
     // 'atividades' cresce mais rápido que qualquer outra tabela (toda venda/split/login
     // gera pelo menos uma linha) e funcoes/log.php filtra por 'tipo' (tipo=?, tipo IN (...),
-    // tipo NOT IN (...)) -- sem índice, isso é full table scan. Ver anotacoes/analise-potencia-e-escala.md.
+    // tipo NOT IN (...)) -- sem índice, isso é full table scan. Ver anotacoes/HISTORICO-CONSOLIDADO.md.
     try { $pdo->exec("ALTER TABLE atividades ADD INDEX idx_atividades_tipo (tipo)"); } catch (PDOException $e) {}
 
     // Sino de notificações no header: coluna de lido + índice pro contador de não-lidas
     // (id_usuario + lido_em). Sem backfill, o badge estouraria com o histórico inteiro
     // de vendas/leads. O UPDATE só roda na primeira vez que a coluna é criada — nas
     // próximas execuções o ALTER falha e as não-lidas novas ficam intactas.
-    // Ver anotacoes/pendente/plano-recursos-sharkbot.md item 4.
+    // Ver anotacoes/REFERENCIA-SHARKBOT.md item 4.
     $coluna_lido_criada = false;
     try {
         $pdo->exec("ALTER TABLE atividades ADD COLUMN lido_em DATETIME DEFAULT NULL");
@@ -328,7 +328,7 @@ try {
 
     // Colunas de Cash-Out (API de Contas/transferência) eram só da InfoPago -- simulava split
     // via transferência manual após o Pix cair (removida do sistema, ver
-    // anotacoes/pendente/plano-remocao-infopago.md). Dropa se ainda existirem de uma instalação
+    // anotacoes/HISTORICO-CONSOLIDADO.md). Dropa se ainda existirem de uma instalação
     // anterior; instalação nova nunca chega a criar essas colunas.
     foreach (['cashout_client_id', 'cashout_client_secret', 'cashout_certificado', 'cashout_cert_password'] as $coluna_cashout) {
         try {
@@ -516,7 +516,7 @@ try {
     echo "Tabela 'usuarios_traqueamento' OK.<br>";
 
 
-    // InfoPago saiu do sistema (ver anotacoes/pendente/plano-remocao-infopago.md) -- não semeia
+    // InfoPago saiu do sistema (ver anotacoes/HISTORICO-CONSOLIDADO.md) -- não semeia
     // mais essa linha. A linha antiga (se existir de uma instalação anterior) fica só de
     // histórico pras vendas antigas continuarem mostrando o nome do gateway corretamente;
     // gatewaysSuportados() já não inclui 'infopago', então ela some sozinha de toda UI.
@@ -546,6 +546,13 @@ try {
     $pdo->exec($sql_links_rastreamento);
     try { $pdo->exec("ALTER TABLE links_rastreamento ADD COLUMN starts INT DEFAULT 0 AFTER bot_id"); } catch (PDOException $e) {}
     echo "Tabela 'links_rastreamento' OK.<br>";
+
+    // Redirecionamento (/l/{slug}): link público dos anúncios. Ver funcoes/redirecionadores.php.
+    require_once __DIR__ . '/../funcoes/redirecionadores.php';
+    foreach (esquemaRedirecionamento() as $sql_redirecionamento) {
+        $pdo->exec($sql_redirecionamento);
+    }
+    echo "Tabelas de redirecionamento OK.<br>";
 
     // Identidade visual do painel (white-label): nome, logo e favicon por instalação.
     // Ver funcoes/configuracoes.php e admin/configuracoes.php.
@@ -710,14 +717,14 @@ try {
 
     // Suporta ORDER BY criado_em DESC em listagens paginadas (admin/transacoes.php,
     // leads.php) sem filesort mesmo com milhões de linhas -- ver
-    // anotacoes/analise-potencia-e-escala.md.
+    // anotacoes/HISTORICO-CONSOLIDADO.md.
     try { $pdo->exec("ALTER TABLE vendas ADD INDEX idx_vendas_criado_em (criado_em DESC)"); } catch (PDOException $e) {}
     try { $pdo->exec("ALTER TABLE leads ADD INDEX idx_leads_bot_criado_em (bot_id, criado_em DESC)"); } catch (PDOException $e) {}
 
     // Cache pré-calculado do dashboard do cliente (index.php) -- mesmo raciocínio de
     // metricas_horarias_admin, só que por usuário (cada usuário só vê o próprio
     // faturamento, então não faz sentido guardar por bot também). Ver
-    // cron/cron_metricas_admin.php (mantém em dia) e anotacoes/analise-potencia-e-escala.md.
+    // cron/cron_metricas_admin.php (mantém em dia) e anotacoes/HISTORICO-CONSOLIDADO.md.
     $sql_metricas_usuario = "
         CREATE TABLE IF NOT EXISTS metricas_horarias_usuario (
             id_usuario INT NOT NULL,
@@ -770,7 +777,7 @@ try {
     // por nenhuma tabela de venda/pagamento. Expiração de 24h é resolvida por filtro de
     // consulta (expira_em > NOW()) em todo SELECT, sem depender de cron pra "esconder" nada;
     // cron/cron_limpar_stories.php só faz limpeza best-effort de linhas/arquivos antigos.
-    // Ver anotacoes/pendente/plano-recursos-sharkbot.md.
+    // Ver anotacoes/REFERENCIA-SHARKBOT.md.
     $sql_stories = "
         CREATE TABLE IF NOT EXISTS stories (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -805,7 +812,7 @@ try {
     // Página Comunidade: links institucionais da plataforma (grupos, canais, redes).
     // Quem edita é o admin (admin/comunidade.php); o usuário só vê os ativos em comunidade.php.
     // membros_max = 0 significa sem limite de vagas — o card não mostra contador nem LOTADO.
-    // Ver anotacoes/pendente/plano-recursos-sharkbot.md.
+    // Ver anotacoes/REFERENCIA-SHARKBOT.md.
     $sql_comunidade = "
         CREATE TABLE IF NOT EXISTS comunidade_links (
             id INT AUTO_INCREMENT PRIMARY KEY,

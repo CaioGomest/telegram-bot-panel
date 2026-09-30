@@ -49,10 +49,13 @@ Options -Indexes
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
+    # Redirecionamento: /l/{slug} -> l.php (link público dos anúncios, sem login).
+    RewriteRule ^l/([A-Za-z0-9-]{3,40})/?$ /l.php?s=$1 [L,QSA]
+
     # (a) /bots.php -> /bots
     RewriteCond %{REQUEST_METHOD} =GET
     RewriteCond %{THE_REQUEST} \s/+([^?\s]+)\.php[\s?] [NC]
-    RewriteCond %1 !^(webhook|webhook_omegapayments|api)$ [NC]
+    RewriteCond %1 !^(webhook|webhook_omegapayments|api|l)$ [NC]
     RewriteCond %1 !^ajax/ [NC]
     RewriteRule ^ /%1 [R=301,L]
 
