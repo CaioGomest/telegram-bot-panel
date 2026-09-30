@@ -14,7 +14,7 @@ function logCronMetricas(string $msg): void {
 }
 
 // Só libera via CLI (crontab chamando "php cron_metricas_admin.php" direto) ou HTTP com a
-// chave certa (?chave=...) — ver anotacoes/varredura-10-cron-ranking-segredos-formulario.md.
+// chave certa (?chave=...) — ver anotacoes/HISTORICO-CONSOLIDADO.md.
 if (php_sapi_name() !== 'cli') {
     $chave_informada = (string) ($_GET['chave'] ?? '');
     if (!hash_equals(CHAVE_SECRETA_CRON, $chave_informada)) {
@@ -32,16 +32,25 @@ if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) {
     exit;
 }
 
+// O bucket é por criado_em, mas o status muda depois: PIX de assinatura fica pagável ~6 dias, então
+// uma venda criada há 3 dias pode virar 'pago' hoje. Por isso a janela é de 7 dias (começa sempre à
+// meia-noite, então nenhum bucket é recalculado pela metade). --completo (CLI) ou ?completo=1 refaz
+// o histórico inteiro, pra reconciliar venda antiga inserida/alterada depois do preenchimento inicial.
+$modo_completo = (php_sapi_name() === 'cli' && in_array('--completo', $argv ?? [], true))
+    || (php_sapi_name() !== 'cli' && ($_GET['completo'] ?? '') === '1');
+$janela_vendas = $modo_completo ? '1=1' : 'v.criado_em >= (CURDATE() - INTERVAL 7 DAY)';
+$janela_leads  = $modo_completo ? '1=1' : 'l.criado_em >= (CURDATE() - INTERVAL 1 DAY)';
+$rotulo_janela = $modo_completo ? 'histórico completo' : 'últimos 7 dias';
+if ($modo_completo) {
+    logCronMetricas('Modo --completo: recalculando o histórico inteiro.');
+}
+
 try {
-    // Só recalcula as últimas 48h a cada execução — vendas pagas nunca mudam de valor depois de
-    // confirmadas (sem fluxo de estorno neste projeto), então o histórico mais antigo já preenchido
-    // por admin/atualiza_banco.php nunca precisa ser revisitado. Isso mantém o cron rápido pra sempre,
-    // independente de quantos milhões de linhas 'vendas' acumular (ver anotacoes/analise-potencia-e-escala.md).
     $stmt = $pdo->prepare("
         INSERT INTO metricas_horarias_admin (data, hora, faturamento, comissao, quantidade, atualizado_em)
         SELECT DATE(v.criado_em), HOUR(v.criado_em), SUM(v.valor), SUM(v.comissao_admin), COUNT(*), NOW()
         FROM vendas v
-        WHERE v.status = 'pago' AND v.criado_em >= (CURDATE() - INTERVAL 1 DAY)
+        WHERE v.status = 'pago' AND $janela_vendas
         GROUP BY DATE(v.criado_em), HOUR(v.criado_em)
         ON DUPLICATE KEY UPDATE
             faturamento = VALUES(faturamento),
@@ -50,7 +59,7 @@ try {
             atualizado_em = VALUES(atualizado_em)
     ");
     $stmt->execute();
-    logCronMetricas("Métricas horárias (admin) recalculadas (últimas 48h). Linhas afetadas: {$stmt->rowCount()}.");
+    logCronMetricas("Métricas horárias (admin) recalculadas ($rotulo_janela). Linhas afetadas: {$stmt->rowCount()}.");
 } catch (Throwable $e) {
     logCronMetricas('Erro (admin): ' . $e->getMessage());
 }
@@ -67,7 +76,7 @@ try {
                NOW()
         FROM vendas v
         JOIN bots b ON v.bot_id = b.id
-        WHERE v.criado_em >= (CURDATE() - INTERVAL 1 DAY)
+        WHERE $janela_vendas
         GROUP BY b.id_usuario, DATE(v.criado_em), HOUR(v.criado_em)
         ON DUPLICATE KEY UPDATE
             valor_pago = VALUES(valor_pago),
@@ -82,7 +91,7 @@ try {
         SELECT b.id_usuario, DATE(l.criado_em), HOUR(l.criado_em), COUNT(*), NOW()
         FROM leads l
         JOIN bots b ON l.bot_id = b.id
-        WHERE l.criado_em >= (CURDATE() - INTERVAL 1 DAY)
+        WHERE $janela_leads
         GROUP BY b.id_usuario, DATE(l.criado_em), HOUR(l.criado_em)
         ON DUPLICATE KEY UPDATE
             qtd_leads = VALUES(qtd_leads),
@@ -90,7 +99,7 @@ try {
     ");
     $stmt2->execute();
 
-    logCronMetricas("Métricas horárias (usuário) recalculadas (últimas 48h). Linhas afetadas: {$stmt->rowCount()} + {$stmt2->rowCount()}.");
+    logCronMetricas("Métricas horárias (usuário) recalculadas ($rotulo_janela). Linhas afetadas: {$stmt->rowCount()} + {$stmt2->rowCount()}.");
 } catch (Throwable $e) {
     logCronMetricas('Erro (usuário): ' . $e->getMessage());
 }
