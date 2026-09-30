@@ -68,6 +68,16 @@
                 '    </div>' +
                 '    <div class="campo"><label>Grupo de entrega</label><select class="campo-plano-grupo">' + optsGrupos(p.id_grupo) + '</select></div>' +
                 '  </div>' +
+                '  <div class="grade grade-2 grade-compacta" style="margin-top:8px;">' +
+                '    <div class="campo"><label>Cor do botão</label>' +
+                '      <select class="campo-plano-cor">' +
+                '        <option value=""' + (!p.cor ? ' selected' : '') + '>Padrão do Telegram</option>' +
+                '        <option value="primary"' + (p.cor === 'primary' ? ' selected' : '') + '>Azul</option>' +
+                '        <option value="success"' + (p.cor === 'success' ? ' selected' : '') + '>Verde</option>' +
+                '        <option value="danger"' + (p.cor === 'danger' ? ' selected' : '') + '>Vermelho</option>' +
+                '      </select>' +
+                '    </div>' +
+                '  </div>' +
                 '  <button type="button" class="botao botao-claro remover-plano" style="margin-top:8px;">Remover plano</button>' +
                 '</div>';
         });
@@ -83,7 +93,8 @@
                 valor: parseFloat($p.find('.campo-plano-valor').val()) || 0,
                 dias_acesso: parseInt($p.find('.campo-plano-dias').val(), 10) || 30,
                 unidade_acesso: $p.find('.campo-plano-unidade').val(),
-                id_grupo: $p.find('.campo-plano-grupo').val()
+                id_grupo: $p.find('.campo-plano-grupo').val(),
+                cor: $p.find('.campo-plano-cor').val() || ''
             };
         });
     }
@@ -136,7 +147,9 @@
             ativo: $p.find('.of-ativo').is(':checked'),
             mensagem: $p.find('.of-mensagem').val().trim(),
             texto_aceitar: $p.find('.of-aceitar').val().trim(),
-            texto_recusar: $p.find('.of-recusar').val().trim()
+            cor_aceitar: $p.find('.of-aceitar-cor').val() || '',
+            texto_recusar: $p.find('.of-recusar').val().trim(),
+            cor_recusar: $p.find('.of-recusar-cor').val() || ''
         };
         if (tipo === 'order_bump') {
             oferta.nome = $p.find('.of-nome').val().trim();
@@ -154,7 +167,9 @@
         $p.find('.of-ativo').prop('checked', !!oferta.ativo);
         $p.find('.of-mensagem').val(oferta.mensagem || '');
         $p.find('.of-aceitar').val(oferta.texto_aceitar || '');
+        $p.find('.of-aceitar-cor').val(oferta.cor_aceitar || '');
         $p.find('.of-recusar').val(oferta.texto_recusar || '');
+        $p.find('.of-recusar-cor').val(oferta.cor_recusar || '');
         if (tipo === 'order_bump') {
             $p.find('.of-nome').val(oferta.nome || '');
             $p.find('.of-valor-extra').val(oferta.valor_extra != null ? oferta.valor_extra : 0);
@@ -239,17 +254,6 @@
         $('#fluxo-ativo-rotulo').text($('#fluxo-ativo').is(':checked') ? 'Ativo' : 'Desligado');
     }
 
-    function coletarCoresBotoes() {
-        const cores = {};
-        $('.cor-botao').each(function () { cores[$(this).data('papel')] = $(this).val() || ''; });
-        return cores;
-    }
-
-    function preencherCoresBotoes(cores) {
-        cores = cores || {};
-        $('.cor-botao').each(function () { $(this).val(cores[$(this).data('papel')] || ''); });
-    }
-
     function coletarDados() {
         sincronizarPlanosDoDom();
         atualizarSelectsOfertas();
@@ -261,7 +265,7 @@
             dados_fluxograma: {
                 ativo: $('#fluxo-ativo').is(':checked'),
                 suporte: $('#suporte-usuario').val().trim(),
-                botoes: coletarCoresBotoes(),
+                suporte_cor: $('#suporte-cor').val() || '',
                 ofertas: {
                     upsell: coletarOferta('upsell'),
                     downsell: coletarOferta('downsell'),
@@ -271,7 +275,8 @@
                     mensagem: $('#bv-mensagem').val(),
                     midia_tipo: midia_tipo_atual,
                     midia_path: midia_path_atual,
-                    texto_cta: $('#bv-cta').val().trim() || 'Ver Planos'
+                    texto_cta: $('#bv-cta').val().trim() || 'Ver Planos',
+                    cor_cta: $('#bv-cta-cor').val() || ''
                 },
                 planos: planos,
                 pagamentos: {
@@ -294,6 +299,7 @@
         const bv = dados.boas_vindas || {};
         $('#bv-mensagem').val(bv.mensagem || '');
         $('#bv-cta').val(bv.texto_cta || 'Ver Planos');
+        $('#bv-cta-cor').val(bv.cor_cta || '');
         midia_tipo_atual = bv.midia_tipo || 'none';
         midia_path_atual = bv.midia_path || '';
         atualizarPreviaMidia();
@@ -310,7 +316,7 @@
         $('#fluxo-ativo').prop('checked', dados.ativo !== false);
         atualizarRotuloAtivo();
         $('#suporte-usuario').val(dados.suporte || '');
-        preencherCoresBotoes(dados.botoes);
+        $('#suporte-cor').val(dados.suporte_cor || '');
         const ofertas = dados.ofertas || {};
         oferta_tipos.forEach(function (tipo) { preencherOferta(tipo, ofertas[tipo]); });
         atualizarSelectsOfertas();

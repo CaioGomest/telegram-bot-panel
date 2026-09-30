@@ -75,6 +75,25 @@
         return (b && typeof b === 'object') ? (b.texto || '') : (b || '');
     }
 
+    // Cor de um botão (mesmo aceita-os-dois de textoBotao): string simples = sem cor.
+    function corBotao(b) {
+        return (b && typeof b === 'object') ? (b.cor || '') : '';
+    }
+
+    // Select de cor reutilizado em "Botões", "Upsell/Downsell/Order Bump" -- style
+    // primary/success/danger é o único valor que a Bot API do Telegram aceita
+    // (Bot API 9.4+) pra InlineKeyboardButton/KeyboardButton, sem hex livre.
+    function selectCorBotao(classe, valorAtual) {
+        valorAtual = valorAtual || '';
+        return '' +
+            '<select class="' + classe + '">' +
+            '  <option value=""' + (valorAtual === '' ? ' selected' : '') + '>Padrão do Telegram</option>' +
+            '  <option value="primary"' + (valorAtual === 'primary' ? ' selected' : '') + '>Azul</option>' +
+            '  <option value="success"' + (valorAtual === 'success' ? ' selected' : '') + '>Verde</option>' +
+            '  <option value="danger"' + (valorAtual === 'danger' ? ' selected' : '') + '>Vermelho</option>' +
+            '</select>';
+    }
+
     const block_icons = {
         start: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>',
         message: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>',
@@ -182,6 +201,7 @@
                 return '' +
                     '<div class="item-botao" data-index="' + i + '">' +
                     '  <input type="text" class="campo-botao-texto" value="' + escaparHtml(textoBotao(t)) + '" placeholder="Texto do botão">' +
+                    '  ' + selectCorBotao('campo-botao-cor', corBotao(t)) +
                     '  <button type="button" class="remover-botao" title="Remover">✕</button>' +
                     '</div>';
             }).join('');
@@ -331,7 +351,9 @@
                 '  <input type="number" step="0.01" min="0" class="campo-oferta-valor" value="' + (props.valor_extra != null ? props.valor_extra : (props.desconto_percentual != null ? props.desconto_percentual : 0)) + '">' +
                 '  <div class="grade grade-2 grade-compacta">' +
                 '    <div class="campo"><label>Texto (aceitar)</label><input type="text" class="campo-oferta-aceitar" value="' + escaparHtml(props.texto_aceitar || '') + '"></div>' +
+                '    <div class="campo"><label>Cor (aceitar)</label>' + selectCorBotao('campo-oferta-cor-aceitar', props.cor_aceitar) + '</div>' +
                 '    <div class="campo"><label>Texto (recusar)</label><input type="text" class="campo-oferta-recusar" value="' + escaparHtml(props.texto_recusar || '') + '"></div>' +
+                '    <div class="campo"><label>Cor (recusar)</label>' + selectCorBotao('campo-oferta-cor-recusar', props.cor_recusar) + '</div>' +
                 '  </div>' +
                 '</div>';
         }
@@ -1077,7 +1099,7 @@
         if (!props || props.type !== 'botoes') return;
         props.botoes = props.botoes || [];
         const novo_nome = 'Novo botão';
-        props.botoes.push(novo_nome);
+        props.botoes.push({ texto: novo_nome, cor: '' });
 
         props.outputs = props.outputs || {};
         props.outputs['output_' + (props.botoes.length - 1)] = { label: novo_nome };
@@ -1123,7 +1145,8 @@
         props.botoes = props.botoes || [];
         if (idx >= 0 && idx < props.botoes.length) {
             const novo_texto = $(this).val();
-            props.botoes[idx] = novo_texto;
+            const atual = props.botoes[idx];
+            props.botoes[idx] = Object.assign({}, (atual && typeof atual === 'object') ? atual : {}, { texto: novo_texto });
             if (props.outputs && props.outputs['output_' + idx]) {
                 props.outputs['output_' + idx].label = novo_texto;
             }
@@ -1132,6 +1155,23 @@
         $flowchart.flowchart('setOperatorBody', id, props.body);
         setChartData(data);
         $flowchart.flowchart('selectOperator', id);
+        agendarAutoSalvar();
+    });
+    $flowchart.on('change', '.bloco-botoes .campo-botao-cor', function () {
+        const $item = $(this).closest('.item-botao');
+        const idx = parseInt($item.data('index'), 10);
+        const $op = $(this).closest('.flowchart-operator');
+        const id = $op.data('operator_id');
+        const data = getChartData();
+        const props = data.operators[id] && data.operators[id].properties;
+        if (!props || props.type !== 'botoes') return;
+        props.botoes = props.botoes || [];
+        if (idx >= 0 && idx < props.botoes.length) {
+            const atual = props.botoes[idx];
+            props.botoes[idx] = Object.assign({}, (atual && typeof atual === 'object') ? atual : { texto: textoBotao(atual) }, { cor: $(this).val() });
+        }
+        // Não precisa re-renderizar o corpo do bloco (a cor não aparece no preview do nó).
+        setChartData(data);
         agendarAutoSalvar();
     });
     $flowchart.on('change', '.bloco-botoes .campo-sumir-apos-clique', function () {
@@ -1297,7 +1337,7 @@
         $flowchart.flowchart('selectOperator', id);
         agendarAutoSalvar();
     });
-    $flowchart.on('change', '.bloco-oferta .campo-oferta-mensagem, .bloco-oferta .campo-oferta-valor, .bloco-oferta .campo-oferta-aceitar, .bloco-oferta .campo-oferta-recusar', function () {
+    $flowchart.on('change', '.bloco-oferta .campo-oferta-mensagem, .bloco-oferta .campo-oferta-valor, .bloco-oferta .campo-oferta-aceitar, .bloco-oferta .campo-oferta-recusar, .bloco-oferta .campo-oferta-cor-aceitar, .bloco-oferta .campo-oferta-cor-recusar', function () {
         const $op = $(this).closest('.flowchart-operator');
         const id = $op.data('operator_id');
         const data = getChartData();
@@ -1311,7 +1351,9 @@
             props.desconto_percentual = valor;
         }
         props.texto_aceitar = $op.find('.campo-oferta-aceitar').val();
+        props.cor_aceitar = $op.find('.campo-oferta-cor-aceitar').val() || '';
         props.texto_recusar = $op.find('.campo-oferta-recusar').val();
+        props.cor_recusar = $op.find('.campo-oferta-cor-recusar').val() || '';
         props.body = renderCorpoDoBloco(props);
         $flowchart.flowchart('setOperatorBody', id, props.body);
         setChartData(data);

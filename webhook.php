@@ -535,10 +535,10 @@ function proximoNoConsiderandoTipo(array $dados_fluxo, string $id_atual, array $
  * como null), então a confirmação de pagamento entrega o acesso normalmente sem tentar
  * continuar um grafo que não existe.
  */
-function enviarBoasVindasBasico(string $token, $id_chat, array $boas_vindas, array $estilos = []): void {
+function enviarBoasVindasBasico(string $token, $id_chat, array $boas_vindas): void {
     $mensagem = trim((string) ($boas_vindas['mensagem'] ?? '')) ?: 'Bem-vindo(a)!';
     $texto_cta = trim((string) ($boas_vindas['texto_cta'] ?? '')) ?: 'Ver Planos';
-    $teclado = json_encode(['inline_keyboard' => [[['text' => $texto_cta, 'callback_data' => 'basico::ver_planos'] + estiloBotaoBasico($estilos, 'cta')]]]);
+    $teclado = json_encode(['inline_keyboard' => [[['text' => $texto_cta, 'callback_data' => 'basico::ver_planos'] + estiloBotaoBasicoValor((string) ($boas_vindas['cor_cta'] ?? ''))]]]);
     $midia_tipo = $boas_vindas['midia_tipo'] ?? 'none';
     $midia_path = resolverCaminhoUploadSeguro((string) ($boas_vindas['midia_path'] ?? ''));
     if ($midia_tipo === 'image' && $midia_path) {
@@ -551,8 +551,13 @@ function enviarBoasVindasBasico(string $token, $id_chat, array $boas_vindas, arr
     }
     requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => $mensagem, 'reply_markup' => $teclado]);
 }
-function estiloBotaoBasico(array $estilos, string $papel): array {
-    $valor = $estilos[$papel] ?? '';
+/**
+ * Cor por botão (não mais uma cor "geral" por papel): cada plano, cada oferta e o CTA de
+ * boas-vindas/suporte guardam o próprio valor de cor dentro do próprio registro
+ * (plano['cor'], oferta['cor_aceitar'/'cor_recusar'], etc.), em vez de um mapa único de
+ * papel->cor compartilhado por todos os botões daquele papel.
+ */
+function estiloBotaoBasicoValor(string $valor): array {
     return in_array($valor, ['primary', 'success', 'danger'], true) ? ['style' => $valor] : [];
 }
 function urlSuporteBasico(string $suporte): string {
@@ -568,7 +573,7 @@ function localizarPlanoBasico(array $planos, string $id_plano): ?array {
     }
     return null;
 }
-function enviarListaPlanosBasico(string $token, $id_chat, array $planos, string $suporte = '', array $estilos = []): void {
+function enviarListaPlanosBasico(string $token, $id_chat, array $planos, string $suporte = '', string $cor_suporte = ''): void {
     if (empty($planos)) {
         requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Nenhum plano disponível no momento.']);
         return;
@@ -576,11 +581,11 @@ function enviarListaPlanosBasico(string $token, $id_chat, array $planos, string 
     $botoes = [];
     foreach ($planos as $p) {
         $rotulo = trim((string) ($p['nome'] ?? 'Plano')) . ' — R$ ' . number_format((float) ($p['valor'] ?? 0), 2, ',', '.');
-        $botoes[] = [['text' => $rotulo, 'callback_data' => 'basico::plano::' . ($p['id'] ?? '')] + estiloBotaoBasico($estilos, 'plano')];
+        $botoes[] = [['text' => $rotulo, 'callback_data' => 'basico::plano::' . ($p['id'] ?? '')] + estiloBotaoBasicoValor((string) ($p['cor'] ?? ''))];
     }
     $url_suporte = urlSuporteBasico($suporte);
     if ($url_suporte !== '') {
-        $botoes[] = [['text' => '💬 Falar com o suporte', 'url' => $url_suporte] + estiloBotaoBasico($estilos, 'suporte')];
+        $botoes[] = [['text' => '💬 Falar com o suporte', 'url' => $url_suporte] + estiloBotaoBasicoValor($cor_suporte)];
     }
     requisicaoTelegram($token, 'sendMessage', [
         'chat_id' => $id_chat,
@@ -601,7 +606,7 @@ function planoDaOfertaBasico(array $dados_basico, string $tipo): ?array {
     }
     return localizarPlanoBasico($dados_basico['planos'] ?? [], (string) ($oferta['id_plano_destino'] ?? ''));
 }
-function enviarOfertaBasico(string $token, $id_chat, array $oferta, string $prefixo_callback, string $texto_padrao, array $estilos = []): void {
+function enviarOfertaBasico(string $token, $id_chat, array $oferta, string $prefixo_callback, string $texto_padrao): void {
     $mensagem = trim((string) ($oferta['mensagem'] ?? '')) ?: $texto_padrao;
     $aceitar = trim((string) ($oferta['texto_aceitar'] ?? '')) ?: 'Sim, quero!';
     $recusar = trim((string) ($oferta['texto_recusar'] ?? '')) ?: 'Não, obrigado';
@@ -609,8 +614,8 @@ function enviarOfertaBasico(string $token, $id_chat, array $oferta, string $pref
         'chat_id' => $id_chat,
         'text' => $mensagem,
         'reply_markup' => json_encode(['inline_keyboard' => [[
-            ['text' => $aceitar, 'callback_data' => $prefixo_callback . '::1'] + estiloBotaoBasico($estilos, 'aceitar'),
-            ['text' => $recusar, 'callback_data' => $prefixo_callback . '::0'] + estiloBotaoBasico($estilos, 'recusar'),
+            ['text' => $aceitar, 'callback_data' => $prefixo_callback . '::1'] + estiloBotaoBasicoValor((string) ($oferta['cor_aceitar'] ?? '')),
+            ['text' => $recusar, 'callback_data' => $prefixo_callback . '::0'] + estiloBotaoBasicoValor((string) ($oferta['cor_recusar'] ?? '')),
         ]]])
     ]);
 }
@@ -660,11 +665,10 @@ function gerarPixBasico(string $token, $id_chat, array $dados_basico, string $id
 }
 function avancarOfertasBasico(string $token, $id_chat, array $dados_basico, string $etapa, string $id_plano, string $variante = 'o'): void {
     $ofertas = $dados_basico['ofertas'] ?? [];
-    $estilos = $dados_basico['botoes'] ?? [];
     if ($etapa === 'up') {
         $destino = planoDaOfertaBasico($dados_basico, 'upsell');
         if ($destino && (string) $destino['id'] !== $id_plano) {
-            enviarOfertaBasico($token, $id_chat, $ofertas['upsell'], 'basico::of::up::' . $id_plano, 'Quer fazer um upgrade para ' . ($destino['nome'] ?? 'outro plano') . '?', $estilos);
+            enviarOfertaBasico($token, $id_chat, $ofertas['upsell'], 'basico::of::up::' . $id_plano, 'Quer fazer um upgrade para ' . ($destino['nome'] ?? 'outro plano') . '?');
             return;
         }
         $etapa = 'dn';
@@ -672,7 +676,7 @@ function avancarOfertasBasico(string $token, $id_chat, array $dados_basico, stri
     if ($etapa === 'dn') {
         $destino = planoDaOfertaBasico($dados_basico, 'downsell');
         if ($destino && (string) $destino['id'] !== $id_plano) {
-            enviarOfertaBasico($token, $id_chat, $ofertas['downsell'], 'basico::of::dn::' . $id_plano, 'Que tal esta opção: ' . ($destino['nome'] ?? 'outro plano') . '?', $estilos);
+            enviarOfertaBasico($token, $id_chat, $ofertas['downsell'], 'basico::of::dn::' . $id_plano, 'Que tal esta opção: ' . ($destino['nome'] ?? 'outro plano') . '?');
             return;
         }
         $etapa = 'bp';
@@ -680,7 +684,7 @@ function avancarOfertasBasico(string $token, $id_chat, array $dados_basico, stri
     if ($etapa === 'bp') {
         $bump = $ofertas['order_bump'] ?? [];
         if (!empty($bump['ativo']) && (float) ($bump['valor_extra'] ?? 0) > 0) {
-            enviarOfertaBasico($token, $id_chat, $bump, 'basico::of::bp::' . $id_plano . '::' . $variante, 'Adicione um extra ao seu pedido por R$ ' . number_format((float) $bump['valor_extra'], 2, ',', '.') . '.', $estilos);
+            enviarOfertaBasico($token, $id_chat, $bump, 'basico::of::bp::' . $id_plano . '::' . $variante, 'Adicione um extra ao seu pedido por R$ ' . number_format((float) $bump['valor_extra'], 2, ',', '.') . '.');
             return;
         }
     }
@@ -697,11 +701,11 @@ function executarFluxoBasico(string $token, $id_chat, array $dados_basico, strin
         return;
     }
     if ($texto === '/start') {
-        enviarBoasVindasBasico($token, $id_chat, $boas_vindas, $dados_basico['botoes'] ?? []);
+        enviarBoasVindasBasico($token, $id_chat, $boas_vindas);
         return;
     }
     if ($texto === 'basico::ver_planos') {
-        enviarListaPlanosBasico($token, $id_chat, $planos, (string) ($dados_basico['suporte'] ?? ''), $dados_basico['botoes'] ?? []);
+        enviarListaPlanosBasico($token, $id_chat, $planos, (string) ($dados_basico['suporte'] ?? ''), (string) ($dados_basico['suporte_cor'] ?? ''));
         return;
     }
     if (strpos($texto, 'basico::plano::') === 0) {
@@ -766,7 +770,10 @@ if (!empty($bot['id_fluxo_conectado'])) {
                 // Tenta identificar resposta a botões (lógica sem estado)
                 foreach ($dados_fluxo['operators'] as $op_id => $op) {
                     if (($op['properties']['type'] ?? '') === 'botoes') {
-                         $botoes = $op['properties']['botoes'] ?? [];
+                         // Cada item pode ser texto puro (fluxo antigo) ou ['texto'=>..,'cor'=>..]
+                         // desde que o bloco "Botões" ganhou cor por botão -- normaliza antes de
+                         // comparar, senão um botão colorido nunca bateria aqui.
+                         $botoes = array_map('textoBotaoBloco', $op['properties']['botoes'] ?? []);
                          if (in_array($texto, $botoes)) {
                              $index = array_search($texto, $botoes);
                              $proximo_id = obterProximoNoPorConector($dados_fluxo['links'], $op_id, 'output_' . $index);

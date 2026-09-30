@@ -64,6 +64,25 @@ function resolverCaminhoUploadSeguro(string $caminho): ?string
 }
 
 /**
+ * Cor por botão (Bot API 9.4+, "style" em InlineKeyboardButton -- só aceita um destes três
+ * valores predefinidos, sem hex livre). Cada botão guarda a própria cor; não existe mais
+ * uma cor "geral" compartilhada por todos os botões de um mesmo papel.
+ */
+function estiloBotaoBloco(string $valor): array
+{
+    return in_array($valor, ['primary', 'success', 'danger'], true) ? ['style' => $valor] : [];
+}
+
+/**
+ * Texto de um item de $propriedades['botoes'] do bloco "Botões" -- cada item pode ser uma
+ * string simples (fluxo antigo, sem cor) ou um array ['texto' => ..., 'cor' => ...].
+ */
+function textoBotaoBloco($botao): string
+{
+    return is_array($botao) ? (string) ($botao['texto'] ?? '') : (string) $botao;
+}
+
+/**
  * Executor único de blocos do fluxo (mensagem, mídia, botões, grupo, link, upsell/downsell/
  * order_bump, Pix). Usado por webhook.php (fluxo ao vivo), cron/cron_verificar_pix.php e
  * webhook_omegapayments.php (continuação do fluxo após confirmação de pagamento) — antes cada
@@ -203,11 +222,13 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
         // QUERO"), o clique sempre ia para o primeiro bloco encontrado na varredura, não
         // necessariamente o bloco certo (causou PIX com valor errado em produção). Sem
         // $id_operador (ex. bloco sintético do modo básico) cai no formato antigo por texto.
-        foreach (array_values($botoes) as $indice_botao => $btn_texto) {
+        foreach (array_values($botoes) as $indice_botao => $btn) {
+            $btn_texto = textoBotaoBloco($btn);
             $callback_data = ($id_operador !== '')
                 ? ('btn::' . $id_operador . '::' . $indice_botao)
-                : (string) $btn_texto;
-            $current_row[] = ['text' => $btn_texto, 'callback_data' => $callback_data];
+                : $btn_texto;
+            $cor_botao = is_array($btn) ? (string) ($btn['cor'] ?? '') : '';
+            $current_row[] = ['text' => $btn_texto, 'callback_data' => $callback_data] + estiloBotaoBloco($cor_botao);
             if (count($current_row) >= 2) {
                 $keyboard[] = $current_row;
                 $current_row = [];
@@ -243,8 +264,8 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
         // precisar varrer o grafo procurando texto de botão.
         $teclado = [
             'inline_keyboard' => [[
-                ['text' => $texto_aceitar, 'callback_data' => 'saida::' . $id_operador . '::aceito'],
-                ['text' => $texto_recusar, 'callback_data' => 'saida::' . $id_operador . '::recusado'],
+                ['text' => $texto_aceitar, 'callback_data' => 'saida::' . $id_operador . '::aceito'] + estiloBotaoBloco((string) ($propriedades['cor_aceitar'] ?? '')),
+                ['text' => $texto_recusar, 'callback_data' => 'saida::' . $id_operador . '::recusado'] + estiloBotaoBloco((string) ($propriedades['cor_recusar'] ?? '')),
             ]]
         ];
         requisicaoTelegram($token, 'sendMessage', [

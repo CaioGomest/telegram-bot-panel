@@ -50,7 +50,6 @@ bloquearAdmin();
                 <div class="basico-nav-grupo">Operação</div>
                 <button type="button" class="basico-nav-item" data-secao="pagamentos">Pagamentos</button>
                 <button type="button" class="basico-nav-item" data-secao="suporte">Suporte</button>
-                <button type="button" class="basico-nav-item" data-secao="botoes">Botões</button>
             </nav>
 
             <div class="basico-conteudo" id="basico-conteudo">
@@ -109,6 +108,15 @@ bloquearAdmin();
                                 <label for="bv-cta">Texto do botão (CTA)</label>
                                 <input type="text" id="bv-cta" placeholder="Ver Planos" value="Ver Planos">
                             </div>
+                            <div class="campo">
+                                <label for="bv-cta-cor">Cor do botão</label>
+                                <select id="bv-cta-cor">
+                                    <option value="">Padrão do Telegram</option>
+                                    <option value="primary">Azul</option>
+                                    <option value="success">Verde</option>
+                                    <option value="danger">Vermelho</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -134,7 +142,23 @@ bloquearAdmin();
                         <div class="campo"><label>Mensagem da oferta</label><textarea class="of-mensagem" rows="3" placeholder="Que tal levar o plano completo com desconto?"></textarea></div>
                         <div class="grade grade-2 grade-compacta">
                             <div class="campo"><label>Botão aceitar</label><input type="text" class="of-aceitar" placeholder="Sim, quero!"></div>
+                            <div class="campo"><label>Cor do botão aceitar</label>
+                                <select class="of-aceitar-cor">
+                                    <option value="">Padrão do Telegram</option>
+                                    <option value="primary">Azul</option>
+                                    <option value="success">Verde</option>
+                                    <option value="danger">Vermelho</option>
+                                </select>
+                            </div>
                             <div class="campo"><label>Botão recusar</label><input type="text" class="of-recusar" placeholder="Não, obrigado"></div>
+                            <div class="campo"><label>Cor do botão recusar</label>
+                                <select class="of-recusar-cor">
+                                    <option value="">Padrão do Telegram</option>
+                                    <option value="primary">Azul</option>
+                                    <option value="success">Verde</option>
+                                    <option value="danger">Vermelho</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -151,7 +175,23 @@ bloquearAdmin();
                         <div class="campo"><label>Mensagem da oferta</label><textarea class="of-mensagem" rows="3" placeholder="Espera! Tenho uma condição especial pra você."></textarea></div>
                         <div class="grade grade-2 grade-compacta">
                             <div class="campo"><label>Botão aceitar</label><input type="text" class="of-aceitar" placeholder="Sim, quero!"></div>
+                            <div class="campo"><label>Cor do botão aceitar</label>
+                                <select class="of-aceitar-cor">
+                                    <option value="">Padrão do Telegram</option>
+                                    <option value="primary">Azul</option>
+                                    <option value="success">Verde</option>
+                                    <option value="danger">Vermelho</option>
+                                </select>
+                            </div>
                             <div class="campo"><label>Botão recusar</label><input type="text" class="of-recusar" placeholder="Não, obrigado"></div>
+                            <div class="campo"><label>Cor do botão recusar</label>
+                                <select class="of-recusar-cor">
+                                    <option value="">Padrão do Telegram</option>
+                                    <option value="primary">Azul</option>
+                                    <option value="success">Verde</option>
+                                    <option value="danger">Vermelho</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -168,7 +208,23 @@ bloquearAdmin();
                         <div class="campo"><label>Mensagem da oferta</label><textarea class="of-mensagem" rows="3" placeholder="Quer adicionar o bônus por só mais R$ 9,90?"></textarea></div>
                         <div class="grade grade-2 grade-compacta">
                             <div class="campo"><label>Botão aceitar</label><input type="text" class="of-aceitar" placeholder="Sim, quero!"></div>
+                            <div class="campo"><label>Cor do botão aceitar</label>
+                                <select class="of-aceitar-cor">
+                                    <option value="">Padrão do Telegram</option>
+                                    <option value="primary">Azul</option>
+                                    <option value="success">Verde</option>
+                                    <option value="danger">Vermelho</option>
+                                </select>
+                            </div>
                             <div class="campo"><label>Botão recusar</label><input type="text" class="of-recusar" placeholder="Não, obrigado"></div>
+                            <div class="campo"><label>Cor do botão recusar</label>
+                                <select class="of-recusar-cor">
+                                    <option value="">Padrão do Telegram</option>
+                                    <option value="primary">Azul</option>
+                                    <option value="success">Verde</option>
+                                    <option value="danger">Vermelho</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -199,63 +255,20 @@ bloquearAdmin();
                     <div class="painel">
                         <div class="painel-cabecalho"><h2>Suporte</h2></div>
                         <p class="texto-ajuda">Se preencher, a lista de planos ganha um botão "Falar com o suporte" que abre esse contato no Telegram.</p>
-                        <div class="campo">
-                            <label for="suporte-usuario">Usuário do Telegram</label>
-                            <input type="text" id="suporte-usuario" placeholder="@seususuario" maxlength="60">
-                        </div>
-                    </div>
-                </section>
-
-                <section class="basico-secao" data-secao="botoes">
-                    <div class="painel">
-                        <div class="painel-cabecalho"><h2>Botões</h2></div>
-                        <p class="texto-ajuda">Cor de cada tipo de botão no chat do Telegram. Os botões do Pix (Copiar código e "Já fiz o pagamento") ficam com a cor padrão.</p>
                         <div class="grade grade-2 grade-compacta">
-                        <div class="campo">
-                            <label>Botão das boas-vindas</label>
-                            <select class="cor-botao" data-papel="cta">
-                                <option value="">Padrão do Telegram</option>
-                                <option value="primary">Azul</option>
-                                <option value="success">Verde</option>
-                                <option value="danger">Vermelho</option>
-                            </select>
-                        </div>
-                        <div class="campo">
-                            <label>Botões dos planos</label>
-                            <select class="cor-botao" data-papel="plano">
-                                <option value="">Padrão do Telegram</option>
-                                <option value="primary">Azul</option>
-                                <option value="success">Verde</option>
-                                <option value="danger">Vermelho</option>
-                            </select>
-                        </div>
-                        <div class="campo">
-                            <label>Aceitar oferta (upsell, downsell, bump)</label>
-                            <select class="cor-botao" data-papel="aceitar">
-                                <option value="">Padrão do Telegram</option>
-                                <option value="primary">Azul</option>
-                                <option value="success">Verde</option>
-                                <option value="danger">Vermelho</option>
-                            </select>
-                        </div>
-                        <div class="campo">
-                            <label>Recusar oferta</label>
-                            <select class="cor-botao" data-papel="recusar">
-                                <option value="">Padrão do Telegram</option>
-                                <option value="primary">Azul</option>
-                                <option value="success">Verde</option>
-                                <option value="danger">Vermelho</option>
-                            </select>
-                        </div>
-                        <div class="campo">
-                            <label>Botão de suporte</label>
-                            <select class="cor-botao" data-papel="suporte">
-                                <option value="">Padrão do Telegram</option>
-                                <option value="primary">Azul</option>
-                                <option value="success">Verde</option>
-                                <option value="danger">Vermelho</option>
-                            </select>
-                        </div>
+                            <div class="campo">
+                                <label for="suporte-usuario">Usuário do Telegram</label>
+                                <input type="text" id="suporte-usuario" placeholder="@seususuario" maxlength="60">
+                            </div>
+                            <div class="campo">
+                                <label for="suporte-cor">Cor do botão</label>
+                                <select id="suporte-cor">
+                                    <option value="">Padrão do Telegram</option>
+                                    <option value="primary">Azul</option>
+                                    <option value="success">Verde</option>
+                                    <option value="danger">Vermelho</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                 </section>
