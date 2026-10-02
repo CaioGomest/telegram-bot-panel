@@ -21,6 +21,34 @@ require_once __DIR__ . '/../funcoes/relatorio_debug.php';
 require_once __DIR__ . '/../funcoes/gateways.php';
 verificarAdminOuInstalacao();
 
+/**
+ * O preenchimento de metricas_horarias_admin/usuario lê e escreve nas mesmas linhas que
+ * cron/cron_metricas_admin.php toca a cada 5 minutos -- rodar "Atualizar Banco" bem na hora
+ * em que o cron dispara colide (achado ao vivo em 02/10: "SQLSTATE[HY000]: General error:
+ * 1020 Record has changed since last read ... try restarting transaction", exatamente o
+ * texto que o MySQL usa pra pedir retry). Em vez de abortar a migração inteira por uma
+ * colisão passageira de alguns milissegundos, tenta de novo algumas vezes antes de desistir.
+ */
+function execComRetryDeColisao(PDO $pdo, string $sql, int $max_tentativas = 4): void
+{
+    $tentativas = 0;
+    while (true) {
+        try {
+            $pdo->exec($sql);
+            return;
+        } catch (PDOException $e) {
+            $tentativas++;
+            $eh_colisao = str_contains($e->getMessage(), 'Record has changed since last read')
+                || str_contains($e->getMessage(), 'Deadlock found')
+                || str_contains($e->getMessage(), 'Lock wait timeout');
+            if (!$eh_colisao || $tentativas >= $max_tentativas) {
+                throw $e;
+            }
+            usleep(300000); // 300ms
+        }
+    }
+}
+
 ob_start();
 
 try {
@@ -709,7 +737,7 @@ try {
     // Preenchimento único do histórico existente — daqui em diante o cron cuida só das
     // últimas 48h a cada execução (vendas pagas nunca mudam de valor depois de confirmadas,
     // não existe fluxo de estorno neste projeto — ver como-funciona-pagamento-gateway.md).
-    $pdo->exec("
+    execComRetryDeColisao($pdo, "
         INSERT INTO metricas_horarias_admin (data, hora, faturamento, comissao, quantidade, atualizado_em)
         SELECT DATE(v.criado_em), HOUR(v.criado_em), SUM(v.valor), SUM(v.comissao_admin), COUNT(*), NOW()
         FROM vendas v
@@ -750,7 +778,7 @@ try {
     echo "Tabela 'metricas_horarias_usuario' OK.<br>";
 
     // Preenchimento único do histórico (vendas pagas + geradas por hora/usuário).
-    $pdo->exec("
+    execComRetryDeColisao($pdo, "
         INSERT INTO metricas_horarias_usuario (id_usuario, data, hora, valor_pago, qtd_paga, qtd_gerada, atualizado_em)
         SELECT b.id_usuario, DATE(v.criado_em), HOUR(v.criado_em),
                SUM(CASE WHEN v.status = 'pago' THEN v.valor ELSE 0 END),
@@ -769,7 +797,7 @@ try {
     // Contagem de leads por hora/usuário -- soma em cima do que já foi inserido acima
     // (linhas de hora sem nenhuma venda ainda não existem, então usa INSERT...SELECT
     // com ON DUPLICATE pra somar só o campo de leads sem mexer nos outros).
-    $pdo->exec("
+    execComRetryDeColisao($pdo, "
         INSERT INTO metricas_horarias_usuario (id_usuario, data, hora, qtd_leads, atualizado_em)
         SELECT b.id_usuario, DATE(l.criado_em), HOUR(l.criado_em), COUNT(*), NOW()
         FROM leads l
