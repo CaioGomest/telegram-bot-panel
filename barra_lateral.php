@@ -62,6 +62,7 @@ $icones = [
     'identidade' => 'M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
     'atualizar_banco' => 'M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5',
     'consultar_venda' => 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3',
+    'testes_desempenho' => 'M18 20V10M12 20V4M6 20v-6',
     'debug' => 'M12 8v8M8 12h8M4 4h16v16H4z',
     'sair' => 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
 ];
@@ -98,6 +99,7 @@ $grupo_debug = [];
 if ($is_admin) {
     $grupo_debug[] = ['href' => 'admin/atualiza_banco', 'label' => 'Atualizar Banco', 'icone' => 'atualizar_banco'];
     $grupo_debug[] = ['href' => 'admin/consultar_venda', 'label' => 'Consultar Venda', 'icone' => 'consultar_venda'];
+    $grupo_debug[] = ['href' => 'admin/testes_desempenho', 'label' => 'Testes de Desempenho', 'icone' => 'testes_desempenho'];
 }
 
 function itemNavAtivo(string $href, string $pagina_atual): bool
