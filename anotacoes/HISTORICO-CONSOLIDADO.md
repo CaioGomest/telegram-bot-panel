@@ -237,6 +237,20 @@ Substitui `capacidade.md`, `teste-de-estresse-25-09.md` e `capacidade-vendas-dia
 
 ## Incidentes
 
+**🟢 "Atualizar Banco" colidindo com `cron_metricas_admin.php` (achado e corrigido em
+02/10/2026).** O Caio reportou (print) `SQLSTATE[HY000]: General error: 1020 Record has
+changed since last read in table 'metricas_horarias_admin'; try restarting transaction` ao
+clicar em Debug → Atualizar Banco, abortando a migração inteira. Causa: o cron de métricas
+roda a cada 5 min escrevendo nas mesmas tabelas que o preenchimento de histórico do
+`atualiza_banco.php` também escreve (agregando toda a `vendas`) — rodar a migração bem na
+hora do cron colide. **Não tinha relação com a correção de conexão persistente do mesmo dia**
+(cron roda via CLI, processo e conexão totalmente separados do request web que serve o
+admin — confirmado antes de mexer em qualquer coisa). Corrigido com retry (até 4x, 300ms)
+especificamente nesse tipo de colisão passageira, nos 3 `INSERT` que escrevem nas tabelas de
+métricas. Confirmado ao vivo: rodou em ~13s, concluiu com sucesso, `MAX(atualizado_em)` bateu
+com o horário do teste (não do cron). `cron_metricas_admin.php` já tolerava a mesma colisão
+graciosamente (só loga e segue) — não precisou mudar.
+
 **🔴 Estado do git no servidor de teste, achado em 02/10/2026 (não investigado a fundo,
 decisão do Caio).** Ao tentar `git pull` pra fazer o deploy das 2 correções desta rodada, o
 servidor recusou com "divergent branches" — o histórico local tem uma sequência longa de
