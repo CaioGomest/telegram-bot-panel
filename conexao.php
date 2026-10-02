@@ -18,8 +18,35 @@ try {
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         PDO::ATTR_EMULATE_PREPARES => false,
+        // Reaproveita a conexão TCP já aberta no processo do PHP (Apache/PHP-FPM) em vez de
+        // abrir uma nova a cada requisição. Achado em teste de carga (02/10): acima de ~20
+        // req/s, ~70% das respostas virava 503 com SQLSTATE[HY000][2002] "Operation not
+        // permitted" -- a hospedagem compartilhada limita quantas conexões simultâneas a conta
+        // pode abrir, e sem isso toda requisição (até uma página estática) contava como uma
+        // conexão nova competindo por essa cota. Reaproveitar reduz drasticamente isso.
+        PDO::ATTR_PERSISTENT => true,
     ];
-    $pdo = new PDO($dsn, BANCO_USUARIO, BANCO_SENHA, $options);
+
+    // Mesmo com conexão persistente, um pico de requisições pode bater no teto no exato
+    // momento em que vários processos tentam abrir a conexão pela primeira vez ao mesmo
+    // tempo. O erro medido ("Operation not permitted" por excesso de conexões simultâneas)
+    // é passageiro, não o banco fora do ar -- então, em vez de desistir na primeira falha,
+    // tenta mais 2 vezes com uma pausa curta antes de cair no catch abaixo.
+    $tentativas = 0;
+    $max_tentativas = 3;
+    do {
+        try {
+            $pdo = new PDO($dsn, BANCO_USUARIO, BANCO_SENHA, $options);
+            break;
+        } catch (PDOException $e) {
+            $tentativas++;
+            if ($tentativas >= $max_tentativas) {
+                throw $e;
+            }
+            usleep(100000); // 100ms
+        }
+    } while ($tentativas < $max_tentativas);
+
     $pdo->exec("SET time_zone = '-03:00'");
 } catch (PDOException $e) {
     // Antes isto só logava e seguia em frente, deixando $pdo indefinido. O efeito era que o

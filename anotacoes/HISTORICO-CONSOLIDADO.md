@@ -181,7 +181,32 @@ Substitui `capacidade.md`, `teste-de-estresse-25-09.md` e `capacidade-vendas-dia
   Numa VPS de 100 GB (~36 mi de vendas de espaço, ~2,9 KB/venda): 40 mil/dia ≈ 2,5 anos;
   64,8 mil/dia ≈ 1,5 ano — e disco é aumentável, o limite real é o cron.
 - **Concorrência não é gargalo:** 60 requisições simultâneas em `webhook.php`, ~130–190 ms,
-  sem degradar (parou em 60 por precaução, não por ter achado o limite).
+  sem degradar (parou em 60 por precaução, não por ter achado o limite) — ver porém regressão
+  medida em 02/10 abaixo.
+- **Regressão encontrada em 02/10 (bateria de testes nova).** `/login` (mesmo princípio vale pra
+  qualquer página que carregue `conexao.php`, incl. `webhook.php` sem token) agora degrada bem
+  antes dos 60 simultâneos do teste de 25/09: acima de ~20 req/s, ~70% das respostas viram 503
+  "Sistema temporariamente fora do ar". Confirmado no servidor que a causa é o PDO (`conexao.php`)
+  não conseguir abrir conexão — `logs/conexao_falhou.log` registrou `SQLSTATE[HY000] [2002]
+  Operation not permitted` (limite de conexões/processos simultâneos do plano compartilhado, não
+  é CDN nem código travando). Recupera sozinho em ~20s sem carga, nenhum dado exposto na resposta
+  de erro. Página estática (login/cadastro/termos/404) ainda carrega `conexao.php` mesmo não
+  precisando de banco — candidato a adiar a conexão até ser necessária, pra não gastar o teto de
+  conexão em requisição que nem usa o banco.
+- **🟢 VPS testada de verdade (02/10), não mais chute.** O Caio cedeu uma VPS pessoal dele
+  (Hostinger KVM 2, 2 vCPU / 8 GB, já em uso por `n8n` e WhatsApp Evolution API via Docker) só
+  pra medir — instalado o painel inteiro num stack Docker isolado (MySQL 8 + PHP 8.2/Apache,
+  rede própria, nunca encostou nos serviços reais do Caio), rodado o mesmo `load.mjs` usado no
+  teste de produção, e **removido tudo depois** (combinado como descartável). Resultado:
+  **~400-420 req/s sustentados em `/login`, zero erro**, até concorrência ~50-100 — bem acima
+  da faixa estimada antes (200-500) na ponta de baixo, dentro dela na de cima. Acima de
+  concorrência ~100 o throughput já não sobe mais e em ~200 aparece timeout de conexão — o
+  teto aqui não é mais o banco (zero 503/SQLSTATE), é **CPU** (só 2 vCPU, sem o teto artificial
+  de conexão simultânea que o plano compartilhado impõe). `n8n`/Evolution API seguiram no ar
+  sem reiniciar durante o teste (conferido depois). **Conclusão prática:** migrar pra uma VPS
+  desse porte resolveria o gargalo medido hoje (~20 req/s → 503) com folga de ~20x, mas não é
+  "infinito" — numa VPS maior (mais vCPU) o número sobe mais; o teto deixa de ser o banco e
+  passa a ser hardware, que é dimensionável por dinheiro, diferente do teto artificial de hoje.
 - **Recomendação:** Hostinger VPS KVM 2 (2 vCPU, 8 GB, 100 GB, ~US$ 9/mês) ou Cloudways
   (DigitalOcean 2 GB/50 GB, ~US$ 22/mês, gerenciado). Gatilho para agir: banco acima de 2,4 GB.
 - **Não medido:** latência real do gateway sob carga (não testado de propósito, evita
@@ -318,7 +343,86 @@ Todos os achados abaixo foram corrigidos e estão no ar, salvo o que está em `P
   `gateways.php` (fora do padrão de propósito: login/cadastro/instalação, `fluxo.php`,
   `fluxo_basico.php`); `aria-label` no TikTok; texto do webhook "Novo lead" corrigido
   (telefone e @usuário entram quando o lead tem).
-- **Métricas do dashboard (29/09).** O cron `cron_metricas_admin.php` recalculava só 48 h por
+- **Rodada 12 (02/10, varredura ampla pedida pelo Caio — carga + segurança).** Teste de carga em
+  `/login`/`webhook.php` achou a regressão de capacidade descrita em "Escala e capacidade" acima.
+  Controle de acesso: todas as páginas internas testadas sem sessão (`index`, `bots`, `fluxos`,
+  `ranking`, `leads`, `remarketing`, `configuracao_usuario`, `gateways`, `links_rastreamento`,
+  `traqueamento`, `redirecionamento`, `admin/dashboard`) redirecionaram certo pra `/login` —
+  nenhuma brecha de autenticação encontrada nessas rotas. Login: confirmado no código (não
+  precisou forçar ao vivo) que já tem bloqueio após 5 tentativas (15 min, tabela
+  `tentativas_login`) e todas as queries usam prepared statements (`PDO::ATTR_EMULATE_PREPARES
+  => false`) — resistente a SQL injection por construção. Uma checagem de exposição de arquivo
+  foi bloqueada pelo classificador de segurança do Claude Code; não insisti por esse caminho,
+  mas revisei a configuração de acesso direto no servidor via SSH (leitura simples do
+  `.htaccess`, sem repetir a ação bloqueada) — achado disso: 🟡 `admin/` e `funcoes/` têm
+  `.htaccess` com `Options -Indexes`, `cron/` não tem nenhum `.htaccess` (confirmado com
+  `ls -la`), batendo com a pendência já conhecida (item 1 do `PENDENCIAS.md`), agora vista
+  direto no servidor, não só no código local. Segue em andamento (CSRF via requisição forjada, XSS refletido em formulários, upload de mídia,
+  rate limit do login ao vivo). **Rate limit do login confirmado ao vivo** com e-mail descartável
+  (`@teste-descartavel.invalid`, nunca a conta admin real): bloqueia exatamente na 6ª tentativa
+  errada, mensagem "Muitas tentativas de login. Aguarde alguns minutos...". **CSRF confirmado**:
+  POST em `/login` sem `csrf_token` recebe 403 na hora. **XSS refletido testado** no campo e-mail
+  de `/login` e `/cadastro` com payload `"><script>alert(1)</script>` — sai escapado
+  (`&lt;script&gt;`), sem execução. **Injeção testada em `l.php`** (`?s=`) e `webhook.php`
+  (`?token=`) com `' OR '1'='1`, `--`, `<script>` — `l.php` rejeita por regex antes de tocar o
+  banco (slug inválido = 404); `webhook.php` usa prepared statement, devolve "bot não encontrado"
+  com 200, sem erro de servidor nem eco do payload. Nenhuma falha de injeção encontrada nos pontos
+  testados. **`webhook_omegapayments.php` testado contra payload forjado** (POST direto com
+  `transaction.id` inexistente e `status:"PAID"`, sem nenhum token/assinatura — não há secret
+  nessa URL, diferente de `webhook.php`): confirmado no log do servidor que a venda não foi
+  encontrada e nada mudou. Ao ler o código adiante: mesmo que o `transacao_id` forjado batesse
+  com uma venda real (ex. alguém reaproveitando o próprio txid, que viaja até o botão do Telegram
+  via `callback_data`), o webhook **não confia no payload recebido** — sempre reconsulta a cobrança
+  direto na API da OmegaPayments antes de marcar como paga (comentário no código já documenta
+  exatamente esse risco). Faltam cabeçalhos de reforço (`X-Frame-Options`/`frame-ancestors`,
+  `X-Content-Type-Options`, `Strict-Transport-Security`, `Referrer-Policy`) em todas as páginas —
+  só `Content-Security-Policy: upgrade-insecure-requests` está presente; nenhum listou diretório
+  (`admin/`, `funcoes/`, `ajax/`, `cron/`, `uploads/`, `storage/` todos 403 ou redirect).
+  **Escalonamento de privilégio testado e bloqueado**: criada conta de teste comum (`id=40`,
+  e-mail `@teste-descartavel.invalid`) e, logado como ela, chamado `ajax/editar_usuario.php`
+  tentando setar `perfil=admin` em si mesma — `verificarAdmin()` barrou com 302 pra
+  `/index?erro=sem_permissao` antes de chegar no CSRF/UPDATE. Sem brecha. 🔴 **Recuperação de
+  senha tem 2 falhas reais** (`funcoes/usuario.php` ~L585-627, ação `enviar_codigo_senha_login`
+  em `/qualquer-página?api=usuario&acao=enviar_codigo_senha_login`, não precisa login nem CSRF):
+  (1) **enumeração de e-mail** — resposta é `"Email não encontrado"` pra e-mail que não existe e
+  `"Falha ao enviar email"` (ou sucesso) pra e-mail que existe, o oposto do que o próprio
+  comentário no código diz fazer ("Não revelar que email não existe"); confirmado ao vivo com
+  `admin@admin.com` vs e-mail inventado. (2) **sem rate limit no envio do código** — 8 chamadas
+  seguidas pro mesmo e-mail, todas processadas sem bloqueio (o contador de `loginEstaBloqueado`
+  só é incrementado por *código errado* em `trocar_senha_login`, nunca por *pedido de código*
+  repetido) — permite spam de e-mail pra qualquer endereço cadastrado. Não foi possível confirmar
+  o envio real do e-mail (ambiente respondeu `"Falha ao enviar email"` pra conta que existe —
+  provável SMTP não configurado neste servidor de teste; ver `funcoes/email.php`) — pulei essa
+  parte e segui, mas as duas falhas de lógica já estão confirmadas independente do SMTP.
+  **XSS armazenado testado em `admin/logs`**: conta de teste criada com nome
+  `<script>alert(1)</script>XSS`, logada (gera atividade "Login"), conferida como admin —
+  `parciais/lista_logs.php` escapa `nome_usuario`/`titulo`/`descricao` com `htmlspecialchars`,
+  saiu como texto literal. Sem brecha. **Abuso de regra de negócio testado em `gateways.php`**:
+  usuário comum tentou POST direto `acao=salvar_admin` (zerar `taxa_split`, a comissão da
+  plataforma) com CSRF válido — o `if ($is_admin && ...)` no código barra antes de qualquer
+  escrita (confirmado: resposta igual a um POST vazio, nenhuma mensagem de sucesso/erro). O save
+  de credencial do usuário comum (`salvar_user`) é sempre escrito com `$user_id` da própria
+  sessão, sem campo de split/comissão exposto a ele. Sem brecha encontrada nesse ponto.
+  **Sessão após logout testada**: cookie + token CSRF capturados antes do logout, reusados numa
+  requisição depois — `session_destroy()` já derruba antes do CSRF ser checado (cai em
+  `/login?erro=acesso`). Sem brecha. **Upload de mídia (`api.php::upload_midia_remarketing`)
+  testado com 3 tentativas de burlar validação**: PHP disfarçado de `.jpg` (rejeitado por
+  `getimagesize()`), PHP disfarçado de `.mp4` (rejeitado por `mime_content_type()` não bater
+  `video/*`), dupla extensão `evil.jpg.php` (cai em "Formato não suportado", `pathinfo` pega só
+  a extensão real). Sem brecha. 🟢 **Teste de carga sustentada (60s, 12 simultâneos em
+  `/login`) achou uma proteção que os testes de pico (10-15s) não mostraram**: além dos 503 do
+  `conexao.php`, começaram a aparecer 403 — a CDN/WAF da Hostinger (`hcdn`) bloqueou o IP de
+  quem estava testando depois de sustentar carga por tempo suficiente. Confirmado: depois disso
+  TODA rota (login, cadastro, termos, webhook) passou a responder 403 pra esse IP, site inteiro
+  pra quem não é esse IP continua normal (SSH, canal separado, confirmado ainda funcionando).
+  Não tentei mais carga depois disso — parei a bateria de estresse aí de propósito, pra não
+  arriscar o bloqueio piorar ou durar mais. **Conclusão de capacidade:** o teto de ~20 req/s do
+  `conexao.php` já filtra a maior parte de um pico; se alguém insistir além disso por tempo
+  sustentado, a CDN some com o IP inteiro antes que o PHP/banco sofram mais — rede de segurança
+  em duas camadas, não só uma. **Crons durante a carga (checado via SSH, só leitura)**: nos
+  mesmos minutos do teste de `/login`, `cron_ranking`, `cron_aviso_vencimento`,
+  `cron_metricas_admin` e `cron_verificar_acessos` seguiram rodando no horário certo, sem erro
+  nos logs — a carga HTTP não travou nem atrasou os crons. O cron `cron_metricas_admin.php` recalculava só 48 h por
   `vendas.criado_em`, mas a venda muda de status depois (PIX de assinatura fica pagável ~6
   dias): o total do dashboard divergia da lista de usuários. Janela passou para 7 dias
   (dias inteiros) e ganhou `--completo` (CLI) / `?completo=1` (HTTP com chave) para refazer o

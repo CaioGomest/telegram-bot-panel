@@ -34,6 +34,11 @@ Arquivos que continuam em `anotacoes/`:
    `cron_verificar_pix`.
 4. Token de integração (Facebook/TikTok/UTMify) em texto claro no formulário de
    `traqueamento.php` (mesmo caso do token do bot: falta decidir, ver abaixo).
+4a. 🔴 **Recuperação de senha** (`funcoes/usuario.php`, ação `enviar_codigo_senha_login`):
+   enumera e-mail cadastrado pela mensagem de erro (diferente se existe ou não, ao contrário do
+   que o comentário no código promete) e não tem rate limit no envio do código (só no código
+   errado) — permite descobrir quem tem conta e espamar e-mail de qualquer usuário. Confirmado
+   ao vivo em 02/10 (ver `HISTORICO-CONSOLIDADO.md`, Rodada 12).
 5. `webhook.php` ainda cria link de convite e manda mensagem antes do
    `http_response_code(200)`. Menos pesado que na era InfoPago, mas em volume alto ainda
    segura o worker.
@@ -95,8 +100,18 @@ Arquivos que continuam em `anotacoes/`:
 - Confirmar no painel da OmegaPay quais eventos assinar (limite de 20 webhooks por integração; usamos uma URL fixa) e o schema de `splits[]` com vários destinos (mapeado como `{pixKey, value}`, testar 80/20 e ler a resposta bruta).
 - Fluxo id=41 (user 36, bot 15 @Claude_Gomes_bot) com Randomizer/Upsell/Downsell/Order Bump/Grupo/PIX: resultado nunca registrado. Bloco Grupo usa id falso; o PIX (R$ 2 recorrente semanal) é real. Em 29/09 o fluxo passou a usar todos os tipos de bloco e a mandar "📍 Passou pelo bloco: X" após cada um (39 blocos, 44 links).
 - Modo Básico ponta a ponta com bot real, incluindo a cadeia upsell → downsell → order bump (só simulada em PHP local: valores e callbacks conferidos, nunca no Telegram) e a tela nova (menu de seções, vínculo de bots, Resumo) que não foi aberta no navegador. Auto-save ao abrir fluxo só foi conferido no código, não no navegador.
-- Redirecionamento: testado em PHP local (32 checagens de criar/editar/validar/isolamento entre usuários/vendas, e `l.php` com sequencial, robô, HEAD, inativo, 404) e com Apache local (regra do `.htaccess`); a tela foi vista em navegador headless com API simulada. Nunca rodou no servidor de verdade: falta clicar num link real, ver o `/start rd_slug` chegar no bot (contadores starts/leads e vendas no `webhook.php`) e testar com domínio extra e no celular.
+- Redirecionamento: testado em PHP local (32 checagens de criar/editar/validar/isolamento entre usuários/vendas, e `l.php` com sequencial, robô, HEAD, inativo, 404) e com Apache local (regra do `.htaccess`); a tela foi vista em navegador headless com API simulada. **Metade cliente-servidor confirmada no servidor real em 02/10**: `GET /l/bipo` redireciona (302) pra `https://t.me/Claude_Gomes_bot?start=rd_bipo` certinho; slug inexistente dá 404. Falta a outra metade — **só dá com um celular/Telegram de verdade**: abrir esse link no Telegram, mandar `/start rd_bipo` pro bot e confirmar que `webhook.php` soma start/lead e (se houver venda) a venda. Não simulei isso forjando um update de webhook: incrementaria contador real com dado fabricado, sem necessidade — é exatamente o tipo de coisa que só o Caio consegue fazer clicando de verdade. Testar com domínio extra e no celular também continua pendente.
 - Passe visual no navegador: Stories (incl. lixeira), Comunidade, Sino, Webhooks (5 falhas desativam, HMAC), Cor primária, drag-and-drop e mobile.
-- Segurança: XSS em `admin/logs`, rate limit da recuperação de senha, abuso de regra de negócio (plano negativo, split acima de 100%), escalonamento em `editar_usuario`, reuso de CSRF.
-- Estresse: carga sustentada, tráfego misto, crons durante a carga, latência real do gateway.
+- Segurança: reuso de CSRF/sessão após logout testado em 02/10 — sem brecha (sessão já cai antes
+  do CSRF). "Plano negativo" não
+  testado por falta de um campo de plano/preço editável pelo usuário encontrado no código (talvez
+  se refira a outra tela — confirmar com o Caio o que é). XSS em `admin/logs`, abuso de regra de
+  negócio (split acima de 100% em `gateways.php`), rate limit da recuperação de senha e
+  escalonamento em `editar_usuario` já testados ao vivo em 02/10, todos sem brecha exceto a
+  recuperação de senha — ver `HISTORICO-CONSOLIDADO.md` Rodada 12 e item 4a acima.
+- Estresse: tráfego misto, latência real do gateway (não testados). Carga sustentada, teto de
+  ~20 req/s e crons durante a carga testados em 02/10 (achou também que a CDN da Hostinger bane
+  o IP depois de carga sustentada — segunda camada de proteção; crons seguiram rodando sem
+  atraso/erro durante a carga) — ver "Escala e capacidade" no `HISTORICO-CONSOLIDADO.md`. Parei o
+  teste de carga aí de propósito (IP bloqueado pela CDN).
 - `cron_metricas_admin.php --completo` nunca foi executado no servidor.

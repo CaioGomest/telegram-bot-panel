@@ -27,3 +27,5 @@ storage/*
 
 # Nunca versionar -- repositório é público no GitHub.
 anotacoes/credenciais-ssh-hostinger.md
+anotacoes/credenciais-vps-easypanel.md
+anotacoes/id_ed25519_vps_easypanel

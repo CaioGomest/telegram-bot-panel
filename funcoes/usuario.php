@@ -596,34 +596,49 @@ if ($api_endpoint === 'usuario') {
             exit;
         }
 
-        if (loginEstaBloqueado('reset:' . $email)) {
-            echo json_encode(['sucesso' => false, 'erro' => 'Muitas tentativas. Aguarde alguns minutos e tente novamente.']);
+        // Resposta é sempre a mesma pra quem está do outro lado, exista o e-mail ou não --
+        // nunca revelar quem tem conta por aqui. Antes a mensagem mudava ("Email não
+        // encontrado" vs sucesso/falha de envio), o que dava pra usar como oráculo pra
+        // descobrir contas cadastradas só tentando e-mails (achado em teste de carga, 02/10).
+        $resposta_padrao = ['sucesso' => true, 'mensagem' => 'Se esse e-mail estiver cadastrado, enviamos um código de verificação.'];
+
+        // Limite de PEDIDOS de código -- bucket separado do limite de tentativas de código
+        // errado (que já existia em trocar_senha_login, abaixo, prefixo 'reset:'). Antes, só
+        // pedir um código novo nunca era contado: 8 pedidos seguidos pro mesmo e-mail
+        // passavam sem bloqueio nenhum (mesmo achado de 02/10). Reaproveita a mesma
+        // tabela/limite do login (5 tentativas / 15 min), só com outro prefixo pra não
+        // misturar os dois contadores.
+        if (loginEstaBloqueado('reset_envio:' . $email)) {
+            echo json_encode($resposta_padrao);
             exit;
         }
-        
+
         try {
             $stmt = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
             $stmt->execute([$email]);
-            if (!$stmt->fetch()) {
-                // Não revelar que email não existe por segurança, mas retorna sucesso falso
-                echo json_encode(['sucesso' => false, 'erro' => 'Email não encontrado']);
-                exit;
-            }
-            
-            $codigo = sprintf('%06d', random_int(0, 999999));
-            $_SESSION['recuperacao_email'] = $email;
-            $_SESSION['recuperacao_codigo'] = $codigo;
-            $_SESSION['recuperacao_expira'] = time() + (15 * 60);
-            
-            $enviado = enviarEmailCodigo($email, $codigo);
-            if ($enviado) {
-                echo json_encode(['sucesso' => true]);
-            } else {
-                echo json_encode(['sucesso' => false, 'erro' => 'Falha ao enviar email']);
+            $existe = (bool) $stmt->fetch();
+
+            // Conta o pedido mesmo quando o e-mail não existe -- senão o próprio limite vira
+            // um oráculo (só bateria no limite pra e-mail real).
+            registrarTentativaLoginFalha('reset_envio:' . $email);
+
+            if ($existe) {
+                $codigo = sprintf('%06d', random_int(0, 999999));
+                $_SESSION['recuperacao_email'] = $email;
+                $_SESSION['recuperacao_codigo'] = $codigo;
+                $_SESSION['recuperacao_expira'] = time() + (15 * 60);
+
+                // Falha de envio (SMTP fora do ar, etc.) não muda a resposta -- só o log,
+                // senão a diferença de resposta já volta a entregar se o e-mail existe.
+                if (!enviarEmailCodigo($email, $codigo)) {
+                    error_log("Falha ao enviar código de recuperação pra $email");
+                }
             }
         } catch (Exception $e) {
-            echo json_encode(['sucesso' => false, 'erro' => 'Erro interno']);
+            error_log('Erro ao gerar código de recuperação de senha: ' . $e->getMessage());
         }
+
+        echo json_encode($resposta_padrao);
         exit;
     }
     
