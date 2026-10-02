@@ -207,6 +207,23 @@ Substitui `capacidade.md`, `teste-de-estresse-25-09.md` e `capacidade-vendas-dia
   desse porte resolveria o gargalo medido hoje (~20 req/s → 503) com folga de ~20x, mas não é
   "infinito" — numa VPS maior (mais vCPU) o número sobe mais; o teto deixa de ser o banco e
   passa a ser hardware, que é dimensionável por dinheiro, diferente do teto artificial de hoje.
+- **🟢 Correção aplicada e confirmada ao vivo (02/10).** `conexao.php` ganhou
+  `PDO::ATTR_PERSISTENT => true` (reaproveita a conexão TCP entre requisições em vez de abrir
+  uma nova sempre) e um retry curto (3 tentativas, 100ms) antes de desistir e devolver 503.
+  Deploy direto dos 2 arquivos por `pscp` (não por `git pull` — o servidor tinha 51 arquivos
+  com divergência de git não relacionada, ver "Estado do git no servidor" abaixo; os 2 arquivos
+  da correção estavam limpos). **Antes/depois, mesmo `load.mjs`, mesmo `/login`:**
+
+  | Concorrência | Antes (02/10, antes da correção) | Depois (02/10, pós-correção) |
+  |---|---|---|
+  | 20 simultâneos | ~70% virava 503 | **0% erro**, ~63 req/s |
+  | 40 simultâneos | não testado (já quebrava bem antes disso) | **0% erro**, ~54 req/s, p50 685ms |
+  | 60 simultâneos | não testado | **0% erro**, ~54 req/s, p50 983ms (fila, não erro) |
+
+  Latência sobe com a concorrência (fila no PHP do plano compartilhado), mas não há mais erro de
+  conexão — o sintoma que a correção mirava (SQLSTATE[HY000][2002]) desapareceu nos níveis
+  testados. Não tentei achar o novo teto (ficaria em risco de banir o IP de novo na CDN, como em
+  02/10 mais cedo) — o objetivo era confirmar que o 503 sumiu, não achar o próximo limite.
 - **Recomendação:** Hostinger VPS KVM 2 (2 vCPU, 8 GB, 100 GB, ~US$ 9/mês) ou Cloudways
   (DigitalOcean 2 GB/50 GB, ~US$ 22/mês, gerenciado). Gatilho para agir: banco acima de 2,4 GB.
 - **Não medido:** latência real do gateway sob carga (não testado de propósito, evita
@@ -219,6 +236,29 @@ Substitui `capacidade.md`, `teste-de-estresse-25-09.md` e `capacidade-vendas-dia
 ---
 
 ## Incidentes
+
+**🔴 Estado do git no servidor de teste, achado em 02/10/2026 (não investigado a fundo,
+decisão do Caio).** Ao tentar `git pull` pra fazer o deploy das 2 correções desta rodada, o
+servidor recusou com "divergent branches" — o histórico local tem uma sequência longa de
+commits `Merge remote-tracking branch origin/new into new` e pelo menos 2 commits `WIP:
+trabalho feito direto no servidor via SSH antes de sincronizar com git -- commit local de
+segurança, não será enviado ao GitHub` (`b5fbab5`, `8e0e866`). Isso parece ser um padrão já
+existente (histórico cheio desses merges), não algo que eu causei. Mais sério: `git status`
+no servidor mostra **51 arquivos com diferença não commitada** contra o próprio índice do git
+(~4.700 linhas adicionadas, ~6.100 removidas) — incluindo `webhook.php` (1.973 linhas),
+`cron/cron_verificar_pix.php` (695 linhas) e referência a `assets/css/coyote.css` (já removido
+há tempos segundo o `HISTORICO-CONSOLIDADO.md`) num arquivo (`bots.php`) que no disco já usa
+`painel.css` — ou seja, o **índice do git** no servidor parece desatualizado/dessincronizado
+do que está realmente no ar, não o contrário. **Não tentei resolver isso** (`pull`/`merge`/
+`reset` às cegas é exatamente o que causou o incidente do `config.php` sobrescrito em 19/09) —
+só diagnostiquei por leitura (`git status`, `git log`, `git diff` de um arquivo pequeno) e
+decidi **não** rodar nada que mudasse o estado do git. Pra entregar as 2 correções desta
+rodada sem mexer nisso, copiei os 2 arquivos direto por `pscp` (sem passar pelo git) —
+confirmado que nenhum dos dois estava na lista de arquivos sujos antes de copiar. **Fica como
+pendência pro Caio decidir**: ou esse estado é intencional (snapshot de segurança que nunca
+deveria ir pro GitHub mesmo) e não precisa de ação, ou o servidor perdeu sincronia com o
+histórico real e merece uma investigação com mais calma antes do próximo `git pull` de
+verdade (que vai falhar do mesmo jeito até alguém resolver a divergência).
 
 **Banco estourou a cota (18/09/2026).** Teste de 2 anos (5 mi de vendas + 5 mi de leads
 sintéticos) levou o banco a 4.435 MB de uma cota de 3.072 MB. A Hostinger revoga

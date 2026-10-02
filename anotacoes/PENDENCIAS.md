@@ -34,11 +34,6 @@ Arquivos que continuam em `anotacoes/`:
    `cron_verificar_pix`.
 4. Token de integração (Facebook/TikTok/UTMify) em texto claro no formulário de
    `traqueamento.php` (mesmo caso do token do bot: falta decidir, ver abaixo).
-4a. 🔴 **Recuperação de senha** (`funcoes/usuario.php`, ação `enviar_codigo_senha_login`):
-   enumera e-mail cadastrado pela mensagem de erro (diferente se existe ou não, ao contrário do
-   que o comentário no código promete) e não tem rate limit no envio do código (só no código
-   errado) — permite descobrir quem tem conta e espamar e-mail de qualquer usuário. Confirmado
-   ao vivo em 02/10 (ver `HISTORICO-CONSOLIDADO.md`, Rodada 12).
 5. `webhook.php` ainda cria link de convite e manda mensagem antes do
    `http_response_code(200)`. Menos pesado que na era InfoPago, mas em volume alto ainda
    segura o worker.
@@ -74,6 +69,16 @@ Arquivos que continuam em `anotacoes/`:
 
 ## ❓ Falta definir (decisão do Caio)
 
+- 🔴 **Estado do git no servidor de teste** (achado em 02/10 tentando dar deploy): `git status`
+  mostra 51 arquivos com diferença não commitada contra o próprio índice do git (~4.700
+  linhas adicionadas, ~6.100 removidas, incluindo `webhook.php` e
+  `cron/cron_verificar_pix.php` quase inteiros), e `git pull` recusa com "divergent branches".
+  Não mexi em nada (nem `pull`, nem `merge`, nem `reset`) — só diagnostiquei por leitura. Pode
+  ser intencional (os commits `WIP: ... commit local de segurança, não será enviado ao GitHub`
+  já existentes sugerem que isso é um padrão de uso, não um erro meu) ou pode ser sinal de que
+  o servidor perdeu sincronia de verdade. Ver detalhe em `HISTORICO-CONSOLIDADO.md` →
+  Incidentes. Até decidir, evitar `git pull` nesse servidor (uso `pscp` pra arquivo avulso
+  nesse meio tempo).
 - Mascarar o token do bot (e os tokens de integração) na tela ou deixar visível.
 - Blocos do editor de fluxo em português ou inglês.
 - Escopo do modo Básico (em 29/09 ganhou menu de seções, Upsell/Downsell/Order Bump, Suporte, Ativo/Desligado, Resumo e vínculo de bots): ainda faltam Packs, Prévias, Assinatura/renovação fora do grafo, Top Assinantes (redundante com Ranking?), Conversões (duplica Traqueamento?) e Cache de mídia. (Botões coloridos, estilo do Telegram, já estão feitos.)
@@ -107,11 +112,13 @@ Arquivos que continuam em `anotacoes/`:
   testado por falta de um campo de plano/preço editável pelo usuário encontrado no código (talvez
   se refira a outra tela — confirmar com o Caio o que é). XSS em `admin/logs`, abuso de regra de
   negócio (split acima de 100% em `gateways.php`), rate limit da recuperação de senha e
-  escalonamento em `editar_usuario` já testados ao vivo em 02/10, todos sem brecha exceto a
-  recuperação de senha — ver `HISTORICO-CONSOLIDADO.md` Rodada 12 e item 4a acima.
-- Estresse: tráfego misto, latência real do gateway (não testados). Carga sustentada, teto de
-  ~20 req/s e crons durante a carga testados em 02/10 (achou também que a CDN da Hostinger bane
-  o IP depois de carga sustentada — segunda camada de proteção; crons seguiram rodando sem
-  atraso/erro durante a carga) — ver "Escala e capacidade" no `HISTORICO-CONSOLIDADO.md`. Parei o
-  teste de carga aí de propósito (IP bloqueado pela CDN).
+  escalonamento em `editar_usuario` já testados ao vivo em 02/10, todos sem brecha. Recuperação
+  de senha (enumeração + sem rate limit) **corrigida e confirmada ao vivo em 02/10** — ver
+  `HISTORICO-CONSOLIDADO.md` Rodada 12.
+- Estresse: tráfego misto, latência real do gateway, achar o novo teto pós-correção (não
+  testados). Teto de ~20 req/s **corrigido** em 02/10 (conexão persistente + retry em
+  `conexao.php`) e confirmado ao vivo sem erro até 60 simultâneos (não tentei achar o próximo
+  limite, pra não arriscar banir o IP de novo); CDN da Hostinger bane IP sob carga sustentada
+  (segunda camada de proteção) e crons seguiram rodando sem atraso/erro durante a carga — ver
+  "Escala e capacidade" no `HISTORICO-CONSOLIDADO.md`.
 - `cron_metricas_admin.php --completo` nunca foi executado no servidor.
