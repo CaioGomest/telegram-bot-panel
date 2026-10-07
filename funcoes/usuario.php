@@ -16,6 +16,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 require_once __DIR__ . '/../conexao.php';
 require_once __DIR__ . '/email.php';
+require_once __DIR__ . '/verificacao_email.php';
 require_once __DIR__ . '/log.php';
 require_once __DIR__ . '/csrf.php';
 require_once __DIR__ . '/configuracoes.php';
@@ -397,6 +398,12 @@ function criarUsuario(string $nome, string $email, string $senha): array {
         if ($stmt->execute([$nome, $email, $senha_hash])) {
             $id_novo_usuario = (int)$pdo->lastInsertId();
             registrarAtividade($id_novo_usuario, 'sistema', 'Cadastro', 'Novo usuário cadastrado.');
+            // E-mail de boas-vindas com o link de confirmação (vai pela fila): falha aqui nunca derruba o cadastro.
+            try {
+                enviarVerificacaoParaUsuario($id_novo_usuario, true);
+            } catch (\Throwable $e) {
+                error_log('Falha ao enviar e-mail de boas-vindas: ' . $e->getMessage());
+            }
             return ['sucesso' => true];
         } else {
             return ['sucesso' => false, 'erro' => 'Erro ao criar usuário. Tente novamente.'];
@@ -642,6 +649,31 @@ if ($api_endpoint === 'usuario') {
         exit;
     }
     
+    if ($acao_api === 'reenviar_verificacao_email') {
+        if (!usuarioLogado()) {
+            http_response_code(401);
+            echo json_encode(['sucesso' => false, 'erro' => 'Faça login novamente.']);
+            exit;
+        }
+        verificarCsrf();
+        $id_logado = (int) $_SESSION['usuario_id'];
+        if (emailVerificado($id_logado)) {
+            echo json_encode(['sucesso' => true, 'mensagem' => 'Seu e-mail já está confirmado.']);
+            exit;
+        }
+        // Mesmo limite do login/recuperação: 5 pedidos / 15 min por conta.
+        if (loginEstaBloqueado('verif_envio:' . $id_logado)) {
+            echo json_encode(['sucesso' => false, 'erro' => 'Muitos pedidos. Aguarde alguns minutos e tente de novo.']);
+            exit;
+        }
+        registrarTentativaLoginFalha('verif_envio:' . $id_logado);
+        $ok = enviarVerificacaoParaUsuario($id_logado, false);
+        echo json_encode($ok
+            ? ['sucesso' => true, 'mensagem' => 'Enviamos um novo e-mail de confirmação. Pode levar um minuto para chegar.']
+            : ['sucesso' => false, 'erro' => 'Não foi possível enviar agora. Tente de novo em instantes.']);
+        exit;
+    }
+
     if ($acao_api === 'trocar_senha_login') {
         $email = trim($dados['email'] ?? '');
         $codigo = trim($dados['codigo'] ?? '');
@@ -678,6 +710,14 @@ if ($api_endpoint === 'usuario') {
             $senha_hash = password_hash($nova_senha, PASSWORD_DEFAULT);
             $stmt = $pdo->prepare("UPDATE usuarios SET senha = ? WHERE email = ?");
             $stmt->execute([$senha_hash, $email]);
+
+            // Receber o código no e-mail prova que a pessoa é dona dele: marca como verificado e avisa da troca.
+            $stmt = $pdo->prepare("SELECT id, nome FROM usuarios WHERE email = ?");
+            $stmt->execute([$email]);
+            if ($dono_conta = $stmt->fetch()) {
+                marcarEmailVerificado((int) $dono_conta['id']);
+                enviarEmailSenhaAlterada((string) $dono_conta['nome'], $email);
+            }
             
             unset($_SESSION['recuperacao_email']);
             unset($_SESSION['recuperacao_codigo']);

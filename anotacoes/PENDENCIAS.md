@@ -122,3 +122,25 @@ Arquivos que continuam em `anotacoes/`:
   (segunda camada de proteção) e crons seguiram rodando sem atraso/erro durante a carga — ver
   "Escala e capacidade" no `HISTORICO-CONSOLIDADO.md`.
 - `cron_metricas_admin.php --completo` nunca foi executado no servidor.
+
+## Fluxo Guiado / Editor Visual — o que ainda está aberto (atualizado em 06/10/2026)
+
+**Só foi testado em ambiente simulado (Telegram e gateway falsos) — falta ver ao vivo:**
+- Delay (espera na hora com "digitando…" e esperas longas retomadas pela cron), ofertas do visual mudando o valor do Pix, auto-deletar (imagem/vídeo/áudio), "sumir após o clique", prévias que somem (inclusive 30 s), packs, avisos de Assinatura, QR Code local e botão "Copiar código" (`copy_text`). Os QR foram lidos por um decodificador independente, mas ainda não por um celular.
+- Entrega no grupo de plano/pack/renovação depende de escolher o grupo no plano e o bot estar no grupo como administrador (a lista de grupos só preenche depois que o webhook do bot aponta pra este servidor e o bot é (re)adicionado ao grupo).
+- Pagamento real de ponta a ponta (pagar um Pix, ver a confirmação e o split cair) e o 1º ciclo de uma assinatura recorrente (o split nos ciclos seguintes não está confirmado).
+
+**Decisões / melhorias pendentes:**
+- Os limites da OmegaPayments (mínimo R$ 1,50, tarifa R$ 0,70, split + tarifa ≤ valor) foram **medidos** em 06/10/2026 e podem mudar; o sistema só sabe disso por constantes em `funcoes/gateways.php`.
+- Fluxos já salvos com preço abaixo do mínimo (ex.: "Clube VIP", id 42, tinha plano de R$ 1,00) não podem mais ser salvos sem corrigir o preço.
+- Fluxo guiado: texto livre do cliente (fora dos botões) não tem resposta; considerar mensagem padrão apontando pro /start.
+- Conversões: `taxa_lead_pix` pode passar de 100% (vários Pix por lead); funil de ofertas (quem aceitou upsell/downsell/order bump) exige tabela de eventos.
+- Não feito: "Entrega específica para renovação", `{uf}` nos avisos (não há UF do lead) e Top Assinantes.
+- Auto-deletar do editor visual tem até ~1 min de atraso (cron de 1 minuto); prazos menores exigem outra estratégia.
+- O fluxo visual de teste #41 tem o Início ligado a um bloco de botões sem saídas (o caminho principal não está ligado ao Início) — é só dado de teste.
+- Fluxos de teste criados nesta rodada ficam na conta caiogomesteodoro: #59 (guiado) e #60 (visual), sem bot ligado; o fluxo #44 teve o Semanal subido pra R$ 2,50. Apagar quando não servirem mais.
+## E-mail — pendências (06/10/2026)
+
+- **Configurar o SMTP** (Admin → Configurações → Envio de e-mail): criar a caixa `no-reply@stackcode.com.br` no hPanel (E-mails) e usar smtp.hostinger.com:465 SSL. Depois usar "Enviar teste" e conferir spam/SPF/DKIM.
+- Testar ao vivo: cadastro real (e-mail de boas-vindas + link), recuperação de senha, aviso "E-mail não confirmado" no menu e o "Reenviar".
+- Decidir se verificar o e-mail deve ser obrigatório para usar o painel (hoje é só aviso).

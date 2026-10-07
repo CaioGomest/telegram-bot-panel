@@ -225,3 +225,68 @@ function contarGatewaysUsuario(): int {
     global $pdo;
     return (int)$pdo->query("SELECT COUNT(*) FROM gateways WHERE ativo = 1 AND nome IN ('" . implode("','", gatewaysSuportados()) . "')")->fetchColumn();
 }
+
+/**
+ * Limites da OmegaPayments medidos em 06/10/2026 (não estão na documentação pública e podem mudar):
+ * a API recusa cobrança abaixo de R$ 1,50, cobra R$ 0,70 por Pix e recusa a cobrança se split + tarifa
+ * passar do valor da venda. Usado pra avisar usuário/admin e, futuramente, validar preço de plano/pack.
+ */
+const OMEGAPAYMENTS_PRECO_MINIMO_API = 1.50;
+const OMEGAPAYMENTS_TARIFA_PIX = 0.70;
+
+/** Menor valor de venda aceito com o split informado (linha de getGatewaySplit) — sem split, só o mínimo da API. */
+function precoMinimoOmegaPayments(?array $split): float {
+    $minimo = OMEGAPAYMENTS_PRECO_MINIMO_API;
+    $taxa = (float)($split['taxa_split'] ?? 0);
+    if ($taxa <= 0) {
+        return $minimo;
+    }
+    if (($split['tipo_split'] ?? 'percentual') === 'fixo') {
+        return max($minimo, ceil(($taxa + OMEGAPAYMENTS_TARIFA_PIX) * 100) / 100);
+    }
+    if ($taxa >= 100) {
+        return PHP_FLOAT_MAX;
+    }
+    return max($minimo, ceil(OMEGAPAYMENTS_TARIFA_PIX / (1 - $taxa / 100) * 100) / 100);
+}
+
+/**
+ * Confere se todo preço vendável do Fluxo Guiado (planos, packs e planos de upsell/downsell já com desconto)
+ * é aceito pelo gateway com o split atual. Retorna a mensagem de erro (pronta pra mostrar) ou null se está tudo certo.
+ */
+function validarPrecosFluxoGuiado(array $dados, float $minimo): ?string {
+    $reais = static fn(float $v): string => 'R$ ' . number_format($v, 2, ',', '.');
+    $problemas = [];
+    $planos_por_id = [];
+    foreach ((array)($dados['planos'] ?? []) as $p) {
+        $valor = (float)($p['valor'] ?? 0);
+        $planos_por_id[(string)($p['id'] ?? '')] = $p;
+        if ($valor > 0 && $valor < $minimo) {
+            $problemas[] = 'o plano "' . trim((string)($p['nome'] ?? 'sem nome')) . '" (' . $reais($valor) . ')';
+        }
+    }
+    $packs = $dados['packs'] ?? [];
+    if (!empty($packs['ativo'])) {
+        foreach ((array)($packs['itens'] ?? []) as $item) {
+            $preco = (float)($item['preco'] ?? 0);
+            if (($item['ativo'] ?? true) !== false && $preco > 0 && $preco < $minimo) {
+                $problemas[] = 'o pack "' . trim((string)($item['nome'] ?? 'sem nome')) . '" (' . $reais($preco) . ')';
+            }
+        }
+    }
+    foreach (['upsell' => 'Upsell', 'downsell' => 'Downsell'] as $tipo => $rotulo) {
+        $oferta = $dados['ofertas'][$tipo] ?? [];
+        $destino = $planos_por_id[(string)($oferta['id_plano_destino'] ?? '')] ?? null;
+        if (!empty($oferta['ativo']) && $destino) {
+            $desconto = max(0.0, min(100.0, (float)($oferta['desconto_percentual'] ?? 0)));
+            $final = round((float)($destino['valor'] ?? 0) * (1 - $desconto / 100), 2);
+            if ($final > 0 && $final < $minimo) {
+                $problemas[] = 'o ' . $rotulo . ' (plano "' . trim((string)($destino['nome'] ?? '')) . '" com ' . rtrim(rtrim(number_format($desconto, 2, ',', ''), '0'), ',') . '% sai por ' . $reais($final) . ')';
+            }
+        }
+    }
+    if (!$problemas) {
+        return null;
+    }
+    return 'A OmegaPayments só aceita Pix a partir de ' . $reais($minimo) . ' com a comissão atual da plataforma. Ajuste: ' . implode('; ', array_slice($problemas, 0, 4)) . '.';
+}

@@ -9,6 +9,32 @@ require_once __DIR__ . '/funcoes/paginador.php';
 verificarLogin();
 
 $is_admin = ehAdmin();
+
+/** Caixa com os limites da OmegaPayments (valor mínimo, tarifa e efeito do split da plataforma). */
+function avisoLimitesOmegaPayments(bool $para_admin): string {
+    $dinheiro = static fn(float $v): string => 'R$ ' . number_format($v, 2, ',', '.');
+    $split = getGatewaySplit('omegapayments');
+    $minimo = precoMinimoOmegaPayments($split);
+    $html = '<div style="margin:12px 0;padding:12px 14px;border-radius:10px;background:var(--wasoft);border:1px solid var(--wa);font-size:12.5px;line-height:1.6;">'
+        . '<strong style="display:block;margin-bottom:6px;color:var(--wa);">Valores mínimos da OmegaPayments</strong>'
+        . '<ul style="margin:0;padding-left:18px;">'
+        . '<li>Valor mínimo de um Pix: <strong>' . $dinheiro(OMEGAPAYMENTS_PRECO_MINIMO_API) . '</strong> (limite da API — abaixo disso a cobrança é recusada).</li>'
+        . '<li>Tarifa da OmegaPayments: <strong>' . $dinheiro(OMEGAPAYMENTS_TARIFA_PIX) . ' por Pix</strong>.</li>';
+    if ($split) {
+        $descricao_split = ($split['tipo_split'] ?? 'percentual') === 'fixo'
+            ? $dinheiro((float) $split['taxa_split']) . ' fixo'
+            : rtrim(rtrim(number_format((float) $split['taxa_split'], 2, ',', ''), '0'), ',') . '%';
+        $html .= '<li>Comissão da plataforma ativa (' . $descricao_split . ') somada à tarifa não pode passar do valor da venda: '
+            . 'o <strong>menor preço aceito agora é ' . ($minimo >= PHP_FLOAT_MAX ? 'inviável (split de 100%)' : $dinheiro($minimo)) . '</strong>.</li>';
+    } else {
+        $html .= '<li>Sem comissão da plataforma ativa: o menor preço aceito é ' . $dinheiro($minimo) . '.</li>';
+    }
+    $html .= '</ul>'
+        . '<span style="display:block;margin-top:6px;color:var(--m);">Planos, packs, ofertas e renovações com preço menor que isso <strong>não geram Pix</strong> (o cliente recebe “não foi possível gerar seu Pix”). '
+        . ($para_admin ? 'Ao subir o split, confira o preço dos planos dos usuários. ' : '')
+        . 'Valores medidos em 06/10/2026; podem mudar na OmegaPayments.</span></div>';
+    return $html;
+}
 $user_id = $_SESSION['usuario_id'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'reordenar_gateways') {
@@ -290,8 +316,17 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                                     </div>
                                     <input type="text" name="chave_pix_split[<?php echo $g_id; ?>]"
                                            value="<?php echo htmlspecialchars((string) ($g['chave_pix_split'] ?? '')); ?>"
-                                           placeholder="Chave Pix destino (CPF, CNPJ, e-mail...)" style="margin-top:8px;">
-                                    <small>0 ou chave vazia = nenhum split é feito.</small>
+                                           placeholder="ID do produtor que recebe (producerId da OmegaPayments)" style="margin-top:8px;" autocomplete="off">
+                                    <small>
+                                        Quem recebe a comissão, pelo <strong>ID do produtor</strong> na OmegaPayments (<span class="mono">producerId</span>) — não é chave Pix, CPF nem telefone.
+                                        0 ou ID vazio = nenhum split é feito.
+                                    </small>
+                                    <?php if (preg_match('/^\+?[\d.\-\/\s]{10,18}$/', (string) ($g['chave_pix_split'] ?? ''))): ?>
+                                        <small style="color:var(--wa);display:block;margin-top:4px;">
+                                            O valor salvo parece um CPF/CNPJ/telefone. A OmegaPayments recusa a venda com “Produtor … não encontrado” — troque pelo producerId.
+                                        </small>
+                                    <?php endif; ?>
+                                    <?php if (($g['nome'] ?? '') === 'omegapayments') { echo avisoLimitesOmegaPayments(true); } ?>
                                 </div>
 
                                 <div class="linha-acoes" style="margin-top:12px;"><button type="submit" class="botao botao-primario">Salvar Split</button></div>
@@ -350,6 +385,9 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                         $nome           = $g['nome'];
                         $id = (int)$g['id'];
                         $cfg = $g['user_config'];
+                        if ($nome === 'omegapayments') {
+                            echo avisoLimitesOmegaPayments(false);
+                        }
                         ?>
                         <form method="POST" enctype="multipart/form-data">
                             <?php echo campoCsrf(); ?>

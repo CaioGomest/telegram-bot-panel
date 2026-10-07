@@ -8,6 +8,11 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../conexao.php';
 require_once __DIR__ . '/../funcoes/log.php';
+require_once __DIR__ . '/../funcoes/fluxo_blocos.php';
+require_once __DIR__ . '/../funcoes/previas.php';
+require_once __DIR__ . '/../funcoes/assinatura.php';
+require_once __DIR__ . '/../funcoes/execucao_fluxo.php';
+require_once __DIR__ . '/../funcoes/email.php';
 
 date_default_timezone_set('America/Sao_Paulo');
 
@@ -49,6 +54,47 @@ $agora = date('Y-m-d H:i:s');
 logAviso("Iniciando verificação de avisos de vencimento em $agora...");
 echo "Iniciando verificação de avisos de vencimento em $agora...\n";
 
+// Fila de mensagens a apagar (previas que somem): roda antes do resto porque o script
+// sai cedo quando nao ha nenhum aviso de vencimento pendente.
+try {
+    $apagadas = apagarMensagensAgendadasVencidas($pdo);
+    if ($apagadas > 0) {
+        logAviso("Previas: $apagadas mensagem(ns) apagada(s).");
+    }
+} catch (Throwable $e) {
+    logAviso('Erro ao apagar mensagens agendadas: ' . $e->getMessage());
+}
+
+// Fila de e-mails (boas-vindas, verificação, reenvio de recuperação de senha).
+try {
+    [$emails_enviados, $emails_com_falha] = processarFilaEmails($pdo);
+    if ($emails_enviados > 0 || $emails_com_falha > 0) {
+        logAviso("E-mails: $emails_enviados enviado(s), $emails_com_falha com falha nesta rodada.");
+    }
+} catch (Throwable $e) {
+    logAviso('Erro na fila de e-mails: ' . $e->getMessage());
+}
+
+// Esperas do bloco Delay (Editor Visual) que venceram: retoma o fluxo do cliente de onde parou.
+try {
+    $continuacoes = processarContinuacoesFluxo($pdo);
+    if ($continuacoes > 0) {
+        logAviso("Delay: $continuacoes continuação(ões) de fluxo retomada(s).");
+    }
+} catch (Throwable $e) {
+    logAviso('Erro ao retomar esperas de fluxo: ' . $e->getMessage());
+}
+
+// Avisos configurados na aba Assinatura do Fluxo Guiado (antes do vencimento e no dia).
+try {
+    $avisos_assinatura = processarAvisosAssinaturaBasico($pdo);
+    if ($avisos_assinatura > 0) {
+        logAviso("Assinatura: $avisos_assinatura aviso(s) de renovação enviado(s).");
+    }
+} catch (Throwable $e) {
+    logAviso('Erro nos avisos de assinatura: ' . $e->getMessage());
+}
+
 try {
     // Busca membros ativos que ainda não venceram e não foram avisados.
     // Apenas pagamentos ÚNICOS (não recorrentes) — assinaturas têm seu próprio
@@ -58,7 +104,7 @@ try {
         SELECT
             m.id, m.id_telegram, m.id_grupo_telegram, m.data_expiracao, m.bot_id,
             b.token, b.nome_usuario, b.id_usuario,
-            v.tipo_cobranca, v.dias_acesso, v.tempo_acesso_minutos, f.link_suporte
+            v.tipo_cobranca, v.dias_acesso, v.tempo_acesso_minutos, f.link_suporte, f.dados_fluxograma
         FROM membros_grupos m
         JOIN bots b ON m.bot_id = b.id
         LEFT JOIN vendas v ON m.venda_id = v.id
@@ -87,6 +133,11 @@ try {
         $token_bot = $membro['token'];
         $data_expiracao = strtotime($membro['data_expiracao']);
         $tempo_restante = $data_expiracao - time();
+
+        // Fluxo com avisos configurados na aba Assinatura: eles substituem este aviso genérico.
+        if (!empty(configAssinaturaBasico($membro['dados_fluxograma'] ?? null)['avisos_antes']['ativo'])) {
+            continue;
+        }
 
         $dias_acesso = (int)($membro['dias_acesso'] ?? 0);
         $minutos_acesso = (int)($membro['tempo_acesso_minutos'] ?? 0);

@@ -153,7 +153,7 @@
                 '  <div class="linha-flex"><input class="campo-spoiler" type="checkbox"' + chk(!!props.spoiler) + '> <label style="margin:0">Spoiler</label></div>' +
                 '  <div class="linha-flex"><input class="campo-auto-deletar" type="checkbox"' + chk(!!props.auto_delete) + '> <label style="margin:0">Auto-deletar</label></div>' +
                 '  <div class="grupo-auto-delete" style="' + (!props.auto_delete ? 'display:none;' : '') + '">' +
-                '    <label>Segundos</label>' +
+                '    <label>Segundos (apagado em até ~1 min depois do prazo)</label>' +
                 '    <input class="campo-auto-segundos" type="number" min="0" value="' + (props.auto_delete_seconds || 0) + '">' +
                 '  </div>' +
                 '  <input class="campo-imagem-arquivo" type="file" accept="image/*" style="display:none">' +
@@ -172,7 +172,7 @@
                 '  <div class="linha-flex"><input class="campo-spoiler" type="checkbox"' + chk(!!props.spoiler) + '> <label style="margin:0">Spoiler</label></div>' +
                 '  <div class="linha-flex"><input class="campo-auto-deletar" type="checkbox"' + chk(!!props.auto_delete) + '> <label style="margin:0">Auto-deletar</label></div>' +
                 '  <div class="grupo-auto-delete" style="' + (!props.auto_delete ? 'display:none;' : '') + '">' +
-                '    <label>Segundos</label>' +
+                '    <label>Segundos (apagado em até ~1 min depois do prazo)</label>' +
                 '    <input class="campo-auto-segundos" type="number" min="0" value="' + (props.auto_delete_seconds || 0) + '">' +
                 '  </div>' +
                 '  <input class="campo-video-arquivo" type="file" accept="video/*" style="display:none">' +
@@ -190,7 +190,7 @@
                 '  <input class="campo-legenda" type="text" value="' + escaparHtml(props.caption || '') + '" placeholder="Digite uma legenda...">' +
                 '  <div class="linha-flex"><input class="campo-auto-deletar" type="checkbox"' + chk(!!props.auto_delete) + '> <label style="margin:0">Auto-deletar</label></div>' +
                 '  <div class="grupo-auto-delete" style="' + (!props.auto_delete ? 'display:none;' : '') + '">' +
-                '    <label>Segundos</label>' +
+                '    <label>Segundos (apagado em até ~1 min depois do prazo)</label>' +
                 '    <input class="campo-auto-segundos" type="number" min="0" value="' + (props.auto_delete_seconds || 0) + '">' +
                 '  </div>' +
                 '  <input class="campo-audio-arquivo" type="file" accept="audio/*" style="display:none">' +
@@ -287,6 +287,7 @@
                 '    <option value="min"' + opt((props.delay_unidade || '') === 'min') + '>Minutos</option>' +
                 '  </select></div>' +
                 '  <div class="linha-flex"><input type="checkbox" class="campo-delay-digitando"' + chk(!!props.delay_digitando) + '> <label style="margin:0">Mostrar "digitando..."</label></div>' +
+                '  <small style="display:block;margin-top:6px;opacity:.7;">Sorteia entre o mínimo e o máximo (máximo 0 = sempre o mínimo). Esperas de até 10 s são na hora; acima disso o fluxo continua sozinho (precisão de cerca de 1 minuto).</small>' +
                 '</div>';
         }
         if (tipo === 'link') {

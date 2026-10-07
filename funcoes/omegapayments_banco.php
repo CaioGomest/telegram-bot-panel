@@ -128,6 +128,21 @@ class OmegaPaymentsBanco {
      * de verdade (não só não-vazio), e se usa esse e-mail pra mandar algo pro comprador
      * (nesse caso, o placeholder seria um problema real, não só cosmético).
      */
+    /**
+     * splits[] no formato da API ({producerId, amount em reais}). Vale igual pro Pix avulso e pra assinatura:
+     * a API valida o campo nos dois endpoints (testado em 06/10/2026 — recebedor inexistente e soma acima do valor são recusados).
+     */
+    private function montaSplits(float $valor, array $split_config): array {
+        return array_map(static function (array $s) use ($valor): array {
+            $taxa = (float)($s['valor'] ?? 0);
+            $fatia = ($s['tipo'] ?? 'percentual') === 'fixo' ? $taxa : $valor * $taxa / 100;
+            return [
+                'producerId' => (string)($s['chave'] ?? ''),
+                'amount'     => round(min($fatia, $valor), 2),
+            ];
+        }, $split_config);
+    }
+
     public function montaPayloadCobranca(
         float $valor,
         string $chave_pix,
@@ -176,16 +191,14 @@ class OmegaPaymentsBanco {
             'metadata'    => ['origem' => 'telegram-bot-panel'],
         ];
 
-        // splits[] — schema exato de cada item [A CONFIRMAR EM SANDBOX]. Mapeamento abaixo é
-        // o palpite mais provável (chave Pix do destino + valor), a validar contra uma
-        // chamada real antes de habilitar em produção.
+        // splits[] — a API recusa (HTTP 400, GATEWAY_INVALID_DATA, achado em 04/10) o formato
+        // antigo {pixKey, value}: cada item exige `producerId` (string) e `amount` (número, em
+        // reais -- mesma unidade de `amount`/`price` do resto do payload). O destino do split
+        // (campo "chave" da config do gateway) agora tem que ser o producerId do recebedor na
+        // OmegaPayments. `tipo` 'percentual' calcula a fatia sobre o valor da cobrança; 'fixo' usa
+        // o valor como está.
         if (!empty($split_config)) {
-            $payload['splits'] = array_map(static function (array $s): array {
-                return [
-                    'pixKey' => $s['chave'] ?? '',
-                    'value'  => (float)($s['valor'] ?? 0),
-                ];
-            }, $split_config);
+            $payload['splits'] = $this->montaSplits($valor, $split_config);
         }
 
         return $payload;
@@ -242,12 +255,13 @@ class OmegaPaymentsBanco {
         string $id_produto,
         string $nome_produto,
         string $nome_cliente = 'Cliente Telegram',
-        string $documento_cliente = ''
+        string $documento_cliente = '',
+        ?array $split_config = null
     ): array {
         $documento_limpo = preg_replace('/\D/', '', $documento_cliente) ?: '65915116000104';
         $periodo = $this->mapeiaPeriodicidade($periodicidade);
 
-        return [
+        $payload = [
             'identifier' => bin2hex(random_bytes(16)),
             'amount'     => round($valor, 2),
             'product'    => [
@@ -267,6 +281,11 @@ class OmegaPaymentsBanco {
             ],
             'callbackUrl' => $this->montaCallbackUrl(),
         ];
+        // Comissão da plataforma também na assinatura (antes saía sem split e a comissão não era cobrada).
+        if (!empty($split_config)) {
+            $payload['splits'] = $this->montaSplits($valor, $split_config);
+        }
+        return $payload;
     }
 
     /**

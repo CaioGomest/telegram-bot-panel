@@ -5,6 +5,10 @@ require_once 'conexao.php';
 require_once __DIR__ . '/funcoes/gateways.php';
 require_once __DIR__ . '/funcoes/webhooks.php';
 require_once __DIR__ . '/funcoes/fluxo_blocos.php';
+require_once __DIR__ . '/funcoes/execucao_fluxo.php';
+require_once __DIR__ . '/funcoes/previas.php';
+require_once __DIR__ . '/funcoes/packs.php';
+require_once __DIR__ . '/funcoes/assinatura.php';
 function buscarProximoDoInicio(array $dados): ?string
 {
     $operadores = $dados['operators'] ?? [];
@@ -175,6 +179,7 @@ if (strpos($texto, 'saida::') === 0) {
             $dados_fluxo_saida = json_decode($dados_json_saida, true);
             $dados_fluxo_saida = is_array($dados_fluxo_saida) ? $dados_fluxo_saida : ['operators' => [], 'links' => []];
             $conector = 'output_' . ($saida_escolhida === 'aceito' ? 'aceito' : 'recusado');
+            registrarRespostaOferta($pdo, (int) $bot['id'], (string) $id_chat, $dados_fluxo_saida['operators'][$id_operador_origem]['properties'] ?? [], $saida_escolhida === 'aceito');
             $proximo_id_saida = obterProximoNoPorConector($dados_fluxo_saida['links'] ?? [], $id_operador_origem, $conector);
             caminharFluxoAPartirDe($token, $id_chat, $dados_fluxo_saida, $proximo_id_saida);
         }
@@ -198,6 +203,11 @@ if (strpos($texto, 'btn::') === 0) {
         if ($dados_json_btn && $id_operador_botao !== '' && $indice_botao !== '') {
             $dados_fluxo_btn = json_decode($dados_json_btn, true);
             $dados_fluxo_btn = is_array($dados_fluxo_btn) ? $dados_fluxo_btn : ['operators' => [], 'links' => []];
+            // Bloco com "sumir após o clique": apaga a mensagem dos botões assim que o cliente escolhe.
+            $id_msg_botoes = (int) ($atualizacao['callback_query']['message']['message_id'] ?? 0);
+            if ($id_msg_botoes > 0 && !empty($dados_fluxo_btn['operators'][$id_operador_botao]['properties']['sumir_apos_clique'])) {
+                requisicaoTelegram($token, 'deleteMessage', ['chat_id' => $id_chat, 'message_id' => $id_msg_botoes]);
+            }
             $proximo_id_btn = obterProximoNoPorConector($dados_fluxo_btn['links'] ?? [], $id_operador_botao, 'output_' . $indice_botao);
             caminharFluxoAPartirDe($token, $id_chat, $dados_fluxo_btn, $proximo_id_btn);
         }
@@ -272,7 +282,10 @@ if (strpos($texto, 'verificar_pagamento_') === 0) {
                             'gateway' => $nome_gw_venda,
                         ]);
 
-                         $msg = "✅ *Pagamento Confirmado!*\n\nObrigado pela sua compra.";
+                         $texto_confirmado = textoConfirmacaoPagamentoConfigurado($pdo, $venda);
+                         $msg = $texto_confirmado !== null
+                             ? escaparMarkdownTelegram($texto_confirmado)
+                             : "✅ *Pagamento Confirmado!*\n\nObrigado pela sua compra.";
                         if (!empty($venda['id_grupo_telegram'])) {
                             $id_grupo = $venda['id_grupo_telegram'];
                             // Usa a mesma lógica de cálculo de minutos que foi usada na criação da venda
@@ -434,8 +447,8 @@ if ($texto === '/start') {
             // origem_rastreio guarda de qual link o lead veio. Antes o $start_param so
             // incrementava contador e era descartado -- sem ele nao da pra dizer depois
             // qual campanha gerou a venda.
-            $stmt_insert_lead = $pdo->prepare("INSERT INTO leads (id_telegram, nome, nome_usuario_telegram, origem_rastreio, bot_id, criado_em) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt_insert_lead->execute([$id_chat, $nome_usuario, $username_remetente, $start_param ?: null, $bot['id'], $data_criacao]);
+            $stmt_insert_lead = $pdo->prepare("INSERT INTO leads (id_telegram, nome, nome_usuario_telegram, origem_rastreio, bot_id, criado_em, id_fluxo) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $stmt_insert_lead->execute([$id_chat, $nome_usuario, $username_remetente, $start_param ?: null, $bot['id'], $data_criacao, $bot['id_fluxo_conectado'] ?: null]);
             $id_lead_novo = (int) $pdo->lastInsertId();
             $stmt_insert_ativ = $pdo->prepare("INSERT INTO atividades (id_usuario, tipo, titulo, descricao, icone, criado_em) VALUES (?, ?, ?, ?, ?, ?)");
             $stmt_insert_ativ->execute([$bot['id_usuario'], 'lead', 'Novo Lead', $nome_usuario . ' iniciou conversa', 'user', $data_criacao]);
@@ -474,22 +487,6 @@ if ($texto === '/start') {
         // Ignora erro para não quebrar o webhook
     }
 }
-function obterProximoNo(array $links, string $id_atual): ?string {
-    foreach ($links as $link) {
-        if (($link['fromOperator'] ?? '') === $id_atual) {
-            return $link['toOperator'] ?? null;
-        }
-    }
-    return null;
-}
-function obterProximoNoPorConector(array $links, string $id_atual, string $conector): ?string {
-    foreach ($links as $link) {
-        if (($link['fromOperator'] ?? '') === $id_atual && ($link['fromConnector'] ?? '') === $conector) {
-            return $link['toOperator'] ?? null;
-        }
-    }
-    return null;
-}
 /**
  * Resolve o próximo nó considerando tipos que decidem a saída sozinhos (hoje só o
  * randomizer, que sorteia por peso em vez de seguir o único link que existe). Os outros
@@ -497,30 +494,6 @@ function obterProximoNoPorConector(array $links, string $id_atual, string $conec
  * eles param a execução (break no loop) e são resolvidos por evento externo (pagamento
  * confirmado, clique de botão), não pela caminhada sequencial.
  */
-function proximoNoConsiderandoTipo(array $dados_fluxo, string $id_atual, array $propriedades_atual): ?string {
-    if (($propriedades_atual['type'] ?? '') === 'randomizer') {
-        $caminhos = $propriedades_atual['caminhos'] ?? [];
-        $peso_total = 0.0;
-        foreach ($caminhos as $c) {
-            $peso_total += max(0, (float) ($c['peso'] ?? 0));
-        }
-        if ($peso_total <= 0 || empty($caminhos)) {
-            return obterProximoNo($dados_fluxo['links'] ?? [], $id_atual);
-        }
-        $sorteio = (mt_rand() / mt_getrandmax()) * $peso_total;
-        $acumulado = 0.0;
-        $indice_escolhido = 0;
-        foreach (array_values($caminhos) as $i => $c) {
-            $acumulado += max(0, (float) ($c['peso'] ?? 0));
-            if ($sorteio <= $acumulado) {
-                $indice_escolhido = $i;
-                break;
-            }
-        }
-        return obterProximoNoPorConector($dados_fluxo['links'] ?? [], $id_atual, 'output_path_' . $indice_escolhido);
-    }
-    return obterProximoNo($dados_fluxo['links'] ?? [], $id_atual);
-}
 /**
  * Continua a caminhada do fluxo a partir de $id_partida, mesma mecânica repetida nos 3
  * pontos que já existiam (start, resposta de botão, pagamento confirmado): processa cada
@@ -535,18 +508,47 @@ function proximoNoConsiderandoTipo(array $dados_fluxo, string $id_atual, array $
  * como null), então a confirmação de pagamento entrega o acesso normalmente sem tentar
  * continuar um grafo que não existe.
  */
-function enviarBoasVindasBasico(string $token, $id_chat, array $boas_vindas): void {
+/**
+ * Cache de mídia: o Telegram só aceita upload "do zero" no primeiro envio; depois reaproveita o
+ * file_id. Quando o fluxo tem um canal/grupo de cache, a mídia sobe uma vez pra lá, o file_id fica
+ * guardado em storage/cache_midia.json (chave = bot + arquivo + data de modificação, então trocar a
+ * mídia gera um file_id novo) e os envios seguintes pros leads usam só o file_id.
+ */
+function obterFileIdCacheMidia(string $token, string $id_cache, string $metodo, string $campo, string $caminho): ?string {
+    $arquivo_cache = __DIR__ . '/storage/cache_midia.json';
+    $chave = sha1($token . '|' . $id_cache . '|' . $caminho . '|' . (string) @filemtime($caminho));
+    $mapa = is_file($arquivo_cache) ? (json_decode((string) file_get_contents($arquivo_cache), true) ?: []) : [];
+    if (!empty($mapa[$chave])) {
+        return (string) $mapa[$chave];
+    }
+    $resposta = requisicaoTelegram($token, $metodo, ['chat_id' => $id_cache], [$campo => $caminho]);
+    $resultado = $resposta['result'] ?? [];
+    $file_id = $campo === 'photo' ? (end($resultado['photo'])['file_id'] ?? null) : ($resultado['video']['file_id'] ?? null);
+    if (!$file_id) {
+        return null;
+    }
+    $mapa[$chave] = $file_id;
+    @file_put_contents($arquivo_cache, json_encode($mapa), LOCK_EX);
+    return $file_id;
+}
+function enviarBoasVindasBasico(string $token, $id_chat, array $boas_vindas, string $id_cache = ''): void {
     $mensagem = trim((string) ($boas_vindas['mensagem'] ?? '')) ?: 'Bem-vindo(a)!';
     $texto_cta = trim((string) ($boas_vindas['texto_cta'] ?? '')) ?: 'Ver Planos';
     $teclado = json_encode(['inline_keyboard' => [[['text' => $texto_cta, 'callback_data' => 'basico::ver_planos'] + estiloBotaoBasicoValor((string) ($boas_vindas['cor_cta'] ?? ''))]]]);
     $midia_tipo = $boas_vindas['midia_tipo'] ?? 'none';
     $midia_path = resolverCaminhoUploadSeguro((string) ($boas_vindas['midia_path'] ?? ''));
-    if ($midia_tipo === 'image' && $midia_path) {
-        requisicaoTelegram($token, 'sendPhoto', ['chat_id' => $id_chat, 'caption' => $mensagem, 'reply_markup' => $teclado], ['photo' => $midia_path]);
-        return;
-    }
-    if ($midia_tipo === 'video' && $midia_path) {
-        requisicaoTelegram($token, 'sendVideo', ['chat_id' => $id_chat, 'caption' => $mensagem, 'reply_markup' => $teclado], ['video' => $midia_path]);
+    if (in_array($midia_tipo, ['image', 'video'], true) && $midia_path) {
+        $metodo = $midia_tipo === 'image' ? 'sendPhoto' : 'sendVideo';
+        $campo = $midia_tipo === 'image' ? 'photo' : 'video';
+        $parametros = ['chat_id' => $id_chat, 'caption' => $mensagem, 'reply_markup' => $teclado];
+        $file_id = $id_cache !== '' ? obterFileIdCacheMidia($token, $id_cache, $metodo, $campo, $midia_path) : null;
+        if ($file_id) {
+            $resposta = requisicaoTelegram($token, $metodo, $parametros + [$campo => $file_id]);
+            if ($resposta['ok'] ?? false) {
+                return;
+            }
+        }
+        requisicaoTelegram($token, $metodo, $parametros, [$campo => $midia_path]);
         return;
     }
     requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => $mensagem, 'reply_markup' => $teclado]);
@@ -573,7 +575,7 @@ function localizarPlanoBasico(array $planos, string $id_plano): ?array {
     }
     return null;
 }
-function enviarListaPlanosBasico(string $token, $id_chat, array $planos, string $suporte = '', string $cor_suporte = ''): void {
+function enviarListaPlanosBasico(string $token, $id_chat, array $planos, string $suporte = '', string $cor_suporte = '', array $previas = [], array $dados_packs = []): void {
     if (empty($planos)) {
         requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Nenhum plano disponível no momento.']);
         return;
@@ -582,6 +584,12 @@ function enviarListaPlanosBasico(string $token, $id_chat, array $planos, string 
     foreach ($planos as $p) {
         $rotulo = trim((string) ($p['nome'] ?? 'Plano')) . ' — R$ ' . number_format((float) ($p['valor'] ?? 0), 2, ',', '.');
         $botoes[] = [['text' => $rotulo, 'callback_data' => 'basico::plano::' . ($p['id'] ?? '')] + estiloBotaoBasicoValor((string) ($p['cor'] ?? ''))];
+    }
+    if (!empty($previas['ativo']) && previasMidiasEnviaveis($previas)) {
+        $botoes[] = [['text' => trim((string) ($previas['texto_botao'] ?? '')) ?: '🔥 Prévias Grátis', 'callback_data' => 'basico::previa']];
+    }
+    if (packsDisponiveis(['packs' => $dados_packs])) {
+        $botoes[] = [['text' => trim((string) ($dados_packs['texto_botao'] ?? '')) ?: '📦 Packs Disponíveis', 'callback_data' => 'basico::packs']];
     }
     $url_suporte = urlSuporteBasico($suporte);
     if ($url_suporte !== '') {
@@ -701,11 +709,38 @@ function executarFluxoBasico(string $token, $id_chat, array $dados_basico, strin
         return;
     }
     if ($texto === '/start') {
-        enviarBoasVindasBasico($token, $id_chat, $boas_vindas);
+        enviarBoasVindasBasico($token, $id_chat, $boas_vindas, (string) ($dados_basico['cache_chat_id'] ?? ''));
         return;
     }
     if ($texto === 'basico::ver_planos') {
-        enviarListaPlanosBasico($token, $id_chat, $planos, (string) ($dados_basico['suporte'] ?? ''), (string) ($dados_basico['suporte_cor'] ?? ''));
+        enviarListaPlanosBasico($token, $id_chat, $planos, (string) ($dados_basico['suporte'] ?? ''), (string) ($dados_basico['suporte_cor'] ?? ''), $dados_basico['previas'] ?? [], $dados_basico['packs'] ?? []);
+        return;
+    }
+    if ($texto === 'basico::renovar') {
+        enviarOfertaRenovacaoBasico($token, $id_chat, $dados_basico);
+        return;
+    }
+    if (strpos($texto, 'basico::renovplano::') === 0) {
+        gerarPixRenovacaoBasico($token, $id_chat, $dados_basico, substr($texto, strlen('basico::renovplano::')));
+        return;
+    }
+    if ($texto === 'basico::packs') {
+        enviarListaPacksBasico($token, $id_chat, $dados_basico);
+        return;
+    }
+    if (strpos($texto, 'basico::pack::') === 0 || strpos($texto, 'basico::packbuy::') === 0) {
+        $comprar = strpos($texto, 'basico::packbuy::') === 0;
+        $pack = localizarPackBasico($dados_basico, substr($texto, strlen($comprar ? 'basico::packbuy::' : 'basico::pack::')));
+        if (!$pack) {
+            requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Esse pack não está mais disponível.']);
+            return;
+        }
+        $comprar ? gerarPixPackBasico($token, $id_chat, $dados_basico, $pack) : enviarPreviaPackBasico($token, $id_chat, $pack);
+        return;
+    }
+    if ($texto === 'basico::previa') {
+        global $pdo, $bot;
+        enviarPreviasBasico($pdo, $token, $bot, (string) $id_chat, $dados_basico);
         return;
     }
     if (strpos($texto, 'basico::plano::') === 0) {
@@ -735,23 +770,10 @@ function executarFluxoBasico(string $token, $id_chat, array $dados_basico, strin
         return;
     }
 }
+/** Continua o fluxo do bot a partir de $id_partida (a lógica de verdade fica em funcoes/execucao_fluxo.php). */
 function caminharFluxoAPartirDe(string $token, $id_chat, array $dados_fluxo, ?string $id_partida): void {
-    $proximo_id = $id_partida;
-    while ($proximo_id && isset($dados_fluxo['operators'][$proximo_id])) {
-        $operador = $dados_fluxo['operators'][$proximo_id];
-        processarEEnviarBloco($token, $id_chat, $operador, $proximo_id);
-        $tipo_atual = $operador['properties']['type'] ?? '';
-        if (in_array($tipo_atual, ['botoes', 'pix', 'upsell', 'downsell', 'order_bump'], true)) {
-            break;
-        }
-        if ($tipo_atual === 'delay') {
-            $segundos = (int) ($operador['properties']['delay_min'] ?? 0);
-            if ($segundos > 0 && $segundos <= 5) {
-                sleep($segundos);
-            }
-        }
-        $proximo_id = proximoNoConsiderandoTipo($dados_fluxo, $proximo_id, $operador['properties'] ?? []);
-    }
+    global $bot;
+    executarFluxoDesde($token, $id_chat, (int) $bot['id'], (int) ($bot['id_fluxo_conectado'] ?? 0), $dados_fluxo, $id_partida);
 }
 if (!empty($bot['id_fluxo_conectado'])) {
     try {
@@ -765,6 +787,8 @@ if (!empty($bot['id_fluxo_conectado'])) {
             $dados_fluxo = json_decode($fluxo['dados_fluxograma'] ?? '{}', true);
             $dados_fluxo = is_array($dados_fluxo) ? $dados_fluxo : ['operators' => [], 'links' => []];
             if ($texto === '/start') {
+                cancelarContinuacoesDoLead($pdo, (int) $bot['id'], (string) $id_chat);
+                limparOfertasDoLead($pdo, (int) $bot['id'], (string) $id_chat);
                 caminharFluxoAPartirDe($token, $id_chat, $dados_fluxo, buscarProximoDoInicio($dados_fluxo));
             } else {
                 // Tenta identificar resposta a botões (lógica sem estado)

@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../funcoes/usuario.php';
 require_once __DIR__ . '/../funcoes/google_auth.php';
 require_once __DIR__ . '/../funcoes/redirecionadores.php';
+require_once __DIR__ . '/../funcoes/email.php';
 verificarAdmin();
 $caminho_base = '../';
 
@@ -11,6 +12,8 @@ $mensagem = '';
 $tipo_mensagem = '';
 $mensagem_google = '';
 $tipo_mensagem_google = '';
+$mensagem_email = '';
+$tipo_mensagem_email = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'identidade') {
     verificarCsrf();
@@ -71,6 +74,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'google'
         $mensagem_google = 'Erro ao salvar as credenciais.';
         $tipo_mensagem_google = 'erro';
     }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['acao'] ?? '', ['email', 'email_teste', 'email_fila_reprocessar'], true)) {
+    verificarCsrf();
+    $acao_email = $_POST['acao'];
+    if ($acao_email === 'email') {
+        $host = trim($_POST['smtp_host'] ?? '');
+        $porta = (int) ($_POST['smtp_porta'] ?? 0);
+        $seguranca = $_POST['smtp_seguranca'] ?? 'ssl';
+        $usuario_smtp = trim($_POST['smtp_usuario'] ?? '');
+        $senha_smtp = (string) ($_POST['smtp_senha'] ?? '');
+        $remetente = trim($_POST['email_remetente'] ?? '');
+        $remetente_nome = trim($_POST['email_remetente_nome'] ?? '');
+        $url_base = rtrim(trim($_POST['url_base'] ?? ''), '/');
+        if ($host !== '' && !preg_match('/^[A-Za-z0-9.\-]+$/', $host)) {
+            $mensagem_email = 'Servidor SMTP inválido (use só o endereço, ex.: smtp.hostinger.com).';
+        } elseif ($host !== '' && ($porta < 1 || $porta > 65535)) {
+            $mensagem_email = 'Porta inválida.';
+        } elseif (!in_array($seguranca, ['ssl', 'tls', 'nenhuma'], true)) {
+            $mensagem_email = 'Segurança inválida.';
+        } elseif ($remetente !== '' && !filter_var($remetente, FILTER_VALIDATE_EMAIL)) {
+            $mensagem_email = 'E-mail do remetente inválido.';
+        } elseif ($url_base !== '' && !preg_match('#^https?://[^\s/]+(/[^\s]*)?$#i', $url_base)) {
+            $mensagem_email = 'URL do painel inválida (ex.: https://painel.seusite.com.br).';
+        } else {
+            $ok = definirConfigSistema('smtp_host', $host)
+                && definirConfigSistema('smtp_porta', $porta > 0 ? (string) $porta : '')
+                && definirConfigSistema('smtp_seguranca', $seguranca)
+                && definirConfigSistema('smtp_usuario', $usuario_smtp)
+                && definirConfigSistema('email_remetente', $remetente)
+                && definirConfigSistema('email_remetente_nome', $remetente_nome)
+                && definirConfigSistema('url_base', $url_base);
+            if ($ok && $senha_smtp !== '') {
+                $ok = definirConfigSistema('smtp_senha', criptografarSegredo($senha_smtp));
+            }
+            if ($ok) {
+                registrarAtividade((int) $_SESSION['usuario_id'], 'sistema', 'E-mail', 'Configurações de envio de e-mail atualizadas.');
+                header('Location: configuracoes?salvo_email=1#email');
+                exit;
+            }
+            $mensagem_email = 'Erro ao salvar as configurações de e-mail.';
+        }
+        $tipo_mensagem_email = 'erro';
+    } elseif ($acao_email === 'email_teste') {
+        $destino_teste = trim($_POST['email_teste_destino'] ?? '');
+        if (!filter_var($destino_teste, FILTER_VALIDATE_EMAIL)) {
+            $mensagem_email = 'Informe um e-mail válido para o teste.';
+            $tipo_mensagem_email = 'erro';
+        } elseif (enviarEmail($destino_teste, 'Teste de e-mail - ' . nomeSistema(), emailLayout('Teste de envio', '<p style="margin:0;">Se você está lendo isto, o envio de e-mail do painel está funcionando. ✅</p>'))) {
+            $mensagem_email = 'E-mail de teste enviado para ' . $destino_teste . '. Confira a caixa de entrada (e o spam).';
+            $tipo_mensagem_email = 'sucesso';
+        } else {
+            $mensagem_email = 'Falha no envio: ' . (emailUltimoErro() ?: 'erro desconhecido') . '.';
+            $tipo_mensagem_email = 'erro';
+        }
+    } else {
+        try {
+            $pdo->exec("UPDATE fila_emails SET status = 'pendente', tentativas = 0, proximo_envio = NOW() WHERE status = 'falhou'");
+            $mensagem_email = 'E-mails com falha recolocados na fila: o cron tenta de novo no próximo minuto.';
+            $tipo_mensagem_email = 'sucesso';
+        } catch (Throwable $e) {
+            $mensagem_email = 'Fila de e-mails indisponível (rode "Atualizar Banco").';
+            $tipo_mensagem_email = 'erro';
+        }
+    }
+}
+
+if (isset($_GET['salvo_email'])) {
+    $mensagem_email = 'Configurações de e-mail salvas.';
+    $tipo_mensagem_email = 'sucesso';
 }
 
 if (isset($_GET['salvo'])) {
@@ -222,6 +295,118 @@ if (isset($_GET['salvo_google'])) {
                 </div>
             </form>
         </div>
+        <div class="painel" id="email" style="max-width: 700px; margin-top: 20px;">
+            <div class="painel-cabecalho">
+                <h2>Envio de e-mail</h2>
+                <span class="badge <?php echo emailSmtpConfigurado() ? 'badge-sucesso' : 'badge-neutro'; ?>">
+                    <?php echo emailSmtpConfigurado() ? 'SMTP ativo' : 'SMTP não configurado'; ?>
+                </span>
+            </div>
+
+            <?php if ($mensagem_email): ?>
+                <div class="aviso aviso-<?php echo $tipo_mensagem_email; ?>"><?php echo htmlspecialchars($mensagem_email); ?></div>
+            <?php endif; ?>
+
+            <p class="texto-suave" style="margin:0 0 16px;line-height:1.6;">
+                Usado no cadastro (boas-vindas e confirmação de e-mail), na recuperação de senha e no aviso de senha alterada.
+                <strong>Sem o SMTP configurado nenhum e-mail sai</strong> (a Hostinger bloqueia o envio nativo do PHP): os e-mails ficam esperando na fila e saem sozinhos assim que o SMTP estiver certo.
+                Na Hostinger: crie uma conta de e-mail do seu domínio (ex.: <span class="mono">no-reply@seudominio.com.br</span>) em hPanel → E-mails,
+                e use <span class="mono">smtp.hostinger.com</span>, porta <span class="mono">465</span> com SSL, o próprio e-mail como usuário e a senha dessa conta.
+            </p>
+
+            <form method="POST" id="form-email" data-confirmar="Confirma salvar as configurações de e-mail? Se estiverem erradas, ninguém recebe e-mail de cadastro nem de recuperação de senha (os e-mails ficam na fila e saem quando o SMTP estiver certo).">
+                <?php echo campoCsrf(); ?>
+                <input type="hidden" name="acao" value="email">
+
+                <div class="grade grade-2 grade-compacta">
+                    <div class="campo">
+                        <label for="smtp_host">Servidor SMTP</label>
+                        <input type="text" id="smtp_host" name="smtp_host" autocomplete="off" value="<?php echo htmlspecialchars(configSistema('smtp_host')); ?>" placeholder="smtp.hostinger.com">
+                    </div>
+                    <div class="campo">
+                        <label for="smtp_porta">Porta</label>
+                        <input type="number" id="smtp_porta" name="smtp_porta" min="1" max="65535" value="<?php echo htmlspecialchars(configSistema('smtp_porta') ?: '465'); ?>">
+                    </div>
+                    <div class="campo">
+                        <label for="smtp_seguranca">Segurança</label>
+                        <select id="smtp_seguranca" name="smtp_seguranca">
+                            <?php $seg_atual = configSistema('smtp_seguranca') ?: 'ssl'; ?>
+                            <option value="ssl" <?php echo $seg_atual === 'ssl' ? 'selected' : ''; ?>>SSL (porta 465)</option>
+                            <option value="tls" <?php echo $seg_atual === 'tls' ? 'selected' : ''; ?>>STARTTLS (porta 587)</option>
+                            <option value="nenhuma" <?php echo $seg_atual === 'nenhuma' ? 'selected' : ''; ?>>Nenhuma (não recomendado)</option>
+                        </select>
+                    </div>
+                    <div class="campo">
+                        <label for="smtp_usuario">Usuário</label>
+                        <input type="text" id="smtp_usuario" name="smtp_usuario" autocomplete="off" value="<?php echo htmlspecialchars(configSistema('smtp_usuario')); ?>" placeholder="no-reply@seudominio.com.br">
+                    </div>
+                </div>
+
+                <div class="campo" style="margin-top:16px;">
+                    <label for="smtp_senha">Senha</label>
+                    <input type="password" id="smtp_senha" name="smtp_senha" autocomplete="new-password" data-lpignore="true" data-1p-ignore
+                           placeholder="<?php echo configSistema('smtp_senha') !== '' ? '•••••••• (salva)' : ''; ?>">
+                    <?php if (configSistema('smtp_senha') !== ''): ?>
+                        <small>Deixe em branco para manter a atual.</small>
+                    <?php endif; ?>
+                </div>
+
+                <div class="grade grade-2 grade-compacta" style="margin-top:16px;">
+                    <div class="campo">
+                        <label for="email_remetente">E-mail do remetente</label>
+                        <input type="email" id="email_remetente" name="email_remetente" value="<?php echo htmlspecialchars(configSistema('email_remetente')); ?>" placeholder="igual ao usuário SMTP">
+                    </div>
+                    <div class="campo">
+                        <label for="email_remetente_nome">Nome do remetente</label>
+                        <input type="text" id="email_remetente_nome" name="email_remetente_nome" value="<?php echo htmlspecialchars(configSistema('email_remetente_nome')); ?>" placeholder="<?php echo htmlspecialchars(nomeSistema()); ?>">
+                    </div>
+                </div>
+
+                <div class="campo" style="margin-top:16px;">
+                    <label for="url_base">URL do painel (usada nos links dos e-mails)</label>
+                    <input type="text" id="url_base" name="url_base" value="<?php echo htmlspecialchars(configSistema('url_base')); ?>" placeholder="<?php echo htmlspecialchars(urlBasePainel()); ?>">
+                    <small>Preencha com o endereço fixo do painel (https://…). Sem isso o link sai do endereço da requisição, que pode ser forjado.</small>
+                </div>
+
+                <div class="linha-acoes" style="margin-top: 22px;">
+                    <button type="submit" class="botao botao-primario">Salvar</button>
+                </div>
+            </form>
+
+            <hr style="border:0;border-top:1px solid var(--bd);margin:26px 0;">
+
+            <form method="POST" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+                <?php echo campoCsrf(); ?>
+                <input type="hidden" name="acao" value="email_teste">
+                <div class="campo" style="flex:1;min-width:220px;margin:0;">
+                    <label for="email_teste_destino">Enviar e-mail de teste para</label>
+                    <input type="email" id="email_teste_destino" name="email_teste_destino" required value="<?php echo htmlspecialchars($_SESSION['usuario_email'] ?? ''); ?>">
+                </div>
+                <button type="submit" class="botao">Enviar teste</button>
+            </form>
+
+            <?php $fila = resumoFilaEmails(); ?>
+            <div style="margin-top:22px;">
+                <strong style="display:block;margin-bottom:8px;">Fila de e-mails</strong>
+                <?php if (!$fila['disponivel']): ?>
+                    <p class="texto-suave" style="margin:0;">A fila ainda não existe. Rode “Atualizar Banco”.</p>
+                <?php else: ?>
+                    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+                        <span class="badge badge-neutro">Aguardando: <?php echo $fila['pendente'] + $fila['processando']; ?></span>
+                        <span class="badge badge-sucesso">Enviados (7 dias): <?php echo $fila['enviado']; ?></span>
+                        <span class="badge <?php echo $fila['falhou'] > 0 ? 'badge-perigo' : 'badge-neutro'; ?>">Com falha: <?php echo $fila['falhou']; ?></span>
+                    </div>
+                    <p class="texto-suave" style="margin:0 0 10px;line-height:1.6;">Cadastro e confirmação saem pela fila (o cron de 1 minuto envia; cada e-mail é tentado até 5 vezes). A recuperação de senha sai na hora e só entra na fila se falhar.</p>
+                    <?php if ($fila['falhou'] > 0): ?>
+                        <form method="POST">
+                            <?php echo campoCsrf(); ?>
+                            <input type="hidden" name="acao" value="email_fila_reprocessar">
+                            <button type="submit" class="botao">Tentar de novo os que falharam</button>
+                        </form>
+                    <?php endif; ?>
+                <?php endif; ?>
+            </div>
+        </div>
     </main>
 </div>
 
@@ -265,7 +450,7 @@ if (isset($_GET['salvo_google'])) {
         modal.classList.remove('aberto');
     }
 
-    ['form-identidade', 'form-google'].forEach(function (id) {
+    ['form-identidade', 'form-google', 'form-email'].forEach(function (id) {
         var form = document.getElementById(id);
         if (!form) return;
         form.addEventListener('submit', function (e) {

@@ -62,7 +62,7 @@
                             <div class="miniatura-fluxo">${miniatura_fluxo}</div>
                             <div class="cartao-cabecalho">
                                 <h3>${escaparHtml(flow.nome || 'Sem nome')}</h3>
-                                <span class="badge-modo-fluxo${eh_basico ? ' basico' : ''}">${rotulo_modo}</span>
+                                <span class="badge-modo-fluxo${eh_basico ? ' basico' : ' visual'}">${rotulo_modo}</span>
                             </div>
                             <div class="cartao-corpo">
                                 <p>${escaparHtml(flow.descricao || 'Sem descrição')}</p>

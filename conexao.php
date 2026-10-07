@@ -84,3 +84,28 @@ try {
        . 'Tente de novo em alguns minutos.</p></div></body></html>';
     exit;
 }
+
+/**
+ * O MySQL desta hospedagem fecha conexões ociosas depois de 20 s (wait_timeout = 20). Quem espera mais que isso no meio
+ * de um processamento — apagar prévia depois de 30 s, delay, envio de e-mail lento — volta com "MySQL server has gone away".
+ * Chame antes de voltar a usar o banco depois de uma espera: confere a conexão e, se caiu, abre uma nova (sem reaproveitar
+ * a persistente, que é justamente a que morreu). Atualiza o $pdo global; em funções que recebem $pdo por parâmetro,
+ * refaça `$pdo = $GLOBALS['pdo'];` em seguida.
+ */
+function garantirConexaoBanco(): void
+{
+    global $pdo;
+    try {
+        $pdo->query('SELECT 1');
+        return;
+    } catch (\Throwable $e) {
+        // caiu: abre outra abaixo
+    }
+    $pdo = new PDO(
+        'mysql:host=' . BANCO_HOST . ';dbname=' . BANCO_NOME . ';charset=utf8mb4',
+        BANCO_USUARIO,
+        BANCO_SENHA,
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, PDO::ATTR_EMULATE_PREPARES => false]
+    );
+    $pdo->exec("SET time_zone = '-03:00'");
+}

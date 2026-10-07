@@ -144,6 +144,25 @@ function sanitizarCaminhosMidiaFluxo(array $dados_grafico): array
             $dados_grafico['boas_vindas']['midia_path'] = '';
         }
     }
+    // Prévias (lista de mídias), Packs (mídia de prévia de cada pack) e Assinatura (mídia dos avisos):
+    // mesma regra, só "uploads/nome.ext".
+    foreach (['previas' => 'midias'] as $secao => $lista) {
+        foreach ((array) ($dados_grafico[$secao][$lista] ?? []) as $i => $item) {
+            if (!is_array($item) || !caminhoUploadValido((string) ($item['path'] ?? ''))) {
+                $dados_grafico[$secao][$lista][$i]['path'] = '';
+            }
+        }
+    }
+    foreach ((array) ($dados_grafico['packs']['itens'] ?? []) as $i => $item) {
+        if (!is_array($item) || !caminhoUploadValido((string) ($item['midia_path'] ?? ''))) {
+            $dados_grafico['packs']['itens'][$i]['midia_path'] = '';
+        }
+    }
+    foreach (['avisos_antes', 'avisos_no_dia', 'ao_expirar'] as $bloco) {
+        if (isset($dados_grafico['assinatura'][$bloco]) && !caminhoUploadValido((string) ($dados_grafico['assinatura'][$bloco]['midia_path'] ?? ''))) {
+            $dados_grafico['assinatura'][$bloco]['midia_path'] = '';
+        }
+    }
     if (!isset($dados_grafico['operators']) || !is_array($dados_grafico['operators'])) {
         return $dados_grafico;
     }
@@ -374,6 +393,14 @@ try {
                 responder(false, ['mensagem' => 'dados_fluxograma inválido.'], 422);
             }
             $dados_grafico = sanitizarCaminhosMidiaFluxo($dados_grafico);
+            if (isset($dados_grafico['planos'])) {
+                // Fluxo Guiado: preço que a OmegaPayments recusaria com a comissão atual não pode ser salvo.
+                require_once __DIR__ . '/funcoes/gateways.php';
+                $erro_preco = validarPrecosFluxoGuiado($dados_grafico, precoMinimoOmegaPayments(getGatewaySplit('omegapayments')));
+                if ($erro_preco !== null) {
+                    responder(false, ['mensagem' => $erro_preco], 422);
+                }
+            }
             $json_grafico = json_encode($dados_grafico, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
             if ($id_fluxo > 0) {
@@ -538,26 +565,82 @@ try {
             break;
 
         case 'resumo_fluxo':
+            // Números do FLUXO (leads/vendas gravados com id_fluxo), não do bot: mover um bot de
+            // fluxo não leva o histórico junto. Dados anteriores à coluna id_fluxo ficam sem fluxo.
             $id_fluxo_resumo = (int) ($_GET['id'] ?? 0);
             if ($id_fluxo_resumo <= 0) {
                 responder(false, ['mensagem' => 'ID do fluxo inválido.'], 422);
             }
-            $stmt = $pdo->prepare("SELECT id FROM bots WHERE id_fluxo_conectado = ? AND id_usuario = ?");
+            $stmt = $pdo->prepare("SELECT id FROM fluxos WHERE id = ? AND id_usuario = ?");
             $stmt->execute([$id_fluxo_resumo, $usuario_id]);
-            $ids_bots_resumo = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
-            $resumo = ['leads' => 0, 'vips' => 0, 'receita' => 0.0];
-            if ($ids_bots_resumo) {
-                $marcadores = implode(',', array_fill(0, count($ids_bots_resumo), '?'));
-                $stmt = $pdo->prepare("SELECT COUNT(*) FROM leads WHERE bot_id IN ($marcadores)");
-                $stmt->execute($ids_bots_resumo);
-                $resumo['leads'] = (int) $stmt->fetchColumn();
-                $stmt = $pdo->prepare("SELECT COUNT(DISTINCT id_telegram), COALESCE(SUM(valor), 0) FROM vendas WHERE status = 'pago' AND bot_id IN ($marcadores)");
-                $stmt->execute($ids_bots_resumo);
-                $linha_resumo = $stmt->fetch(PDO::FETCH_NUM);
-                $resumo['vips'] = (int) ($linha_resumo[0] ?? 0);
-                $resumo['receita'] = (float) ($linha_resumo[1] ?? 0);
+            if (!$stmt->fetchColumn()) {
+                responder(false, ['mensagem' => 'Fluxo não encontrado.'], 404);
             }
+            $resumo = ['leads' => 0, 'vips' => 0, 'receita' => 0.0];
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM leads WHERE id_fluxo = ?");
+            $stmt->execute([$id_fluxo_resumo]);
+            $resumo['leads'] = (int) $stmt->fetchColumn();
+            $stmt = $pdo->prepare("SELECT COUNT(DISTINCT id_telegram), COALESCE(SUM(valor), 0) FROM vendas WHERE status = 'pago' AND id_fluxo = ?");
+            $stmt->execute([$id_fluxo_resumo]);
+            $linha_resumo = $stmt->fetch(PDO::FETCH_NUM);
+            $resumo['vips'] = (int) ($linha_resumo[0] ?? 0);
+            $resumo['receita'] = (float) ($linha_resumo[1] ?? 0);
             responder(true, ['resumo' => $resumo]);
+            break;
+
+        case 'limites_pagamento':
+            // Menor preço de venda aceito pela OmegaPayments com a comissão atual (o editor valida planos/packs com isso).
+            require_once __DIR__ . '/funcoes/gateways.php';
+            responder(true, ['minimo' => precoMinimoOmegaPayments(getGatewaySplit('omegapayments')), 'tarifa' => OMEGAPAYMENTS_TARIFA_PIX, 'minimo_api' => OMEGAPAYMENTS_PRECO_MINIMO_API]);
+            break;
+
+        case 'conversoes_fluxo':
+            // Funil do fluxo (leads -> Pix gerado -> pago) no período, só do fluxo do usuário logado.
+            $id_fluxo_conv = (int) ($_GET['id'] ?? 0);
+            if ($id_fluxo_conv <= 0) {
+                responder(false, ['mensagem' => 'ID do fluxo inválido.'], 422);
+            }
+            $stmt = $pdo->prepare("SELECT id FROM fluxos WHERE id = ? AND id_usuario = ?");
+            $stmt->execute([$id_fluxo_conv, $usuario_id]);
+            if (!$stmt->fetchColumn()) {
+                responder(false, ['mensagem' => 'Fluxo não encontrado.'], 404);
+            }
+            $dias_periodo = ['hoje' => 0, '7' => 6, '30' => 29];
+            $periodo_conv = (string) ($_GET['periodo'] ?? 'tudo');
+            $filtro_leads = '';
+            if (isset($dias_periodo[$periodo_conv])) {
+                $filtro_leads = ' AND criado_em >= CURDATE() - INTERVAL ' . $dias_periodo[$periodo_conv] . ' DAY';
+            }
+            $filtro_vendas = $filtro_leads;
+            $conv = ['leads' => 0, 'gerados' => 0, 'pagos' => 0, 'pendentes' => 0, 'expirados' => 0, 'compradores' => 0, 'receita' => 0.0, 'dias' => []];
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM leads WHERE id_fluxo = ?$filtro_leads");
+            $stmt->execute([$id_fluxo_conv]);
+            $conv['leads'] = (int) $stmt->fetchColumn();
+            $stmt = $pdo->prepare("SELECT status, COUNT(*) AS qtd, COALESCE(SUM(valor), 0) AS total, COUNT(DISTINCT id_telegram) AS pessoas
+                                   FROM vendas WHERE id_fluxo = ?$filtro_vendas GROUP BY status");
+            $stmt->execute([$id_fluxo_conv]);
+            foreach ($stmt->fetchAll() as $linha_conv) {
+                $conv['gerados'] += (int) $linha_conv['qtd'];
+                if ($linha_conv['status'] === 'pago') {
+                    $conv['pagos'] = (int) $linha_conv['qtd'];
+                    $conv['receita'] = (float) $linha_conv['total'];
+                    $conv['compradores'] = (int) $linha_conv['pessoas'];
+                } elseif ($linha_conv['status'] === 'gerado') {
+                    $conv['pendentes'] = (int) $linha_conv['qtd'];
+                } elseif ($linha_conv['status'] === 'expirado') {
+                    $conv['expirados'] = (int) $linha_conv['qtd'];
+                }
+            }
+            $stmt = $pdo->prepare("SELECT DATE(pago_em) AS dia, COUNT(*) AS vendas, COALESCE(SUM(valor), 0) AS receita
+                                   FROM vendas WHERE status = 'pago' AND pago_em IS NOT NULL AND id_fluxo = ?" . str_replace('criado_em', 'pago_em', $filtro_vendas) . "
+                                   GROUP BY DATE(pago_em) ORDER BY dia DESC LIMIT 30");
+            $stmt->execute([$id_fluxo_conv]);
+            $conv['dias'] = array_reverse($stmt->fetchAll());
+            $conv['taxa_lead_pix'] = $conv['leads'] > 0 ? round($conv['gerados'] / $conv['leads'] * 100, 1) : 0;
+            $conv['taxa_pix_pago'] = $conv['gerados'] > 0 ? round($conv['pagos'] / $conv['gerados'] * 100, 1) : 0;
+            $conv['taxa_lead_pago'] = $conv['leads'] > 0 ? round($conv['compradores'] / $conv['leads'] * 100, 1) : 0;
+            $conv['ticket_medio'] = $conv['pagos'] > 0 ? round($conv['receita'] / $conv['pagos'], 2) : 0;
+            responder(true, ['conversoes' => $conv]);
             break;
 
         case 'obter_bot':

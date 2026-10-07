@@ -63,6 +63,7 @@ $icones = [
     'atualizar_banco' => 'M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5',
     'consultar_venda' => 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3',
     'testes_desempenho' => 'M18 20V10M12 20V4M6 20v-6',
+    'checklist_testes' => 'M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11',
     'debug' => 'M12 8v8M8 12h8M4 4h16v16H4z',
     'sair' => 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
 ];
@@ -88,10 +89,10 @@ $grupo_admin = [];
 if ($is_admin) {
     $grupo_admin[] = ['href' => 'admin/dashboard', 'label' => 'Visão Geral', 'icone' => 'visao_geral'];
     $grupo_admin[] = ['href' => 'admin/transacoes', 'label' => 'Transações', 'icone' => 'transacoes'];
-    $grupo_admin[] = ['href' => 'admin/logs', 'label' => 'Logs', 'icone' => 'logs'];
     $grupo_admin[] = ['href' => 'admin/usuarios', 'label' => 'Usuários', 'icone' => 'usuarios'];
     $grupo_admin[] = ['href' => 'admin/ranking', 'label' => 'Campanhas', 'icone' => 'campanhas'];
     $grupo_admin[] = ['href' => 'admin/comunidade', 'label' => 'Comunidade', 'icone' => 'comunidade'];
+    $grupo_admin[] = ['href' => 'admin/logs', 'label' => 'Logs', 'icone' => 'logs'];
     $grupo_admin[] = ['href' => 'admin/configuracoes', 'label' => 'Configurações', 'icone' => 'identidade'];
 }
 
@@ -100,7 +101,12 @@ if ($is_admin) {
     $grupo_debug[] = ['href' => 'admin/atualiza_banco', 'label' => 'Atualizar Banco', 'icone' => 'atualizar_banco'];
     $grupo_debug[] = ['href' => 'admin/consultar_venda', 'label' => 'Consultar Venda', 'icone' => 'consultar_venda'];
     $grupo_debug[] = ['href' => 'admin/testes_desempenho', 'label' => 'Testes de Desempenho', 'icone' => 'testes_desempenho'];
+    $grupo_debug[] = ['href' => 'admin/checklist_testes', 'label' => 'Checklist de Testes', 'icone' => 'checklist_testes'];
 }
+
+$grupos_menu = $is_admin
+    ? ['Administração' => $grupo_admin, 'Operação' => $grupo_operacao, 'Debug' => $grupo_debug]
+    : ['Operação' => $grupo_operacao];
 
 function itemNavAtivo(string $href, string $pagina_atual): bool
 {
@@ -134,6 +140,13 @@ function renderizarItemNav(array $item, string $pagina_atual, array $icones, str
 $nome_usuario = $_SESSION['usuario_nome'] ?? 'Usuário';
 $email_usuario = $_SESSION['usuario_email'] ?? '';
 $iniciais = mb_strtoupper(mb_substr($nome_usuario, 0, 1), 'UTF-8');
+
+// Aviso de e-mail ainda não confirmado (não bloqueia nada): botão reenvia o e-mail de confirmação.
+$aviso_email_html = '';
+if (usuarioLogado() && function_exists('emailVerificado') && !emailVerificado((int) $_SESSION['usuario_id'])) {
+    $aviso_email_html = '<div class="aviso-email" data-aviso-email><span>E-mail não confirmado</span>'
+        . '<button type="button" data-reenviar-verificacao>Reenviar</button></div>';
+}
 $foto_usuario = function_exists('fotoPerfilDaSessao') ? fotoPerfilDaSessao() : '';
 ?>
 <aside class="barra-lateral">
@@ -146,32 +159,17 @@ $foto_usuario = function_exists('fotoPerfilDaSessao') ? fotoPerfilDaSessao() : '
     </div>
 
     <nav class="nav-lateral">
+        <?php foreach ($grupos_menu as $titulo_grupo => $itens_grupo): if (!$itens_grupo) continue; ?>
         <div class="nav-grupo">
-            <span class="nav-grupo-titulo">Operação</span>
-            <?php foreach ($grupo_operacao as $item) {
+            <span class="nav-grupo-titulo"><?php echo $titulo_grupo; ?></span>
+            <?php foreach ($itens_grupo as $item) {
                 renderizarItemNav($item, $pagina_atual, $icones, $caminho_base);
             } ?>
         </div>
-
-        <?php if ($grupo_admin): ?>
-        <div class="nav-grupo">
-            <span class="nav-grupo-titulo">Administração</span>
-            <?php foreach ($grupo_admin as $item) {
-                renderizarItemNav($item, $pagina_atual, $icones, $caminho_base);
-            } ?>
-        </div>
-        <?php endif; ?>
-
-        <?php if ($grupo_debug): ?>
-        <div class="nav-grupo">
-            <span class="nav-grupo-titulo">Debug</span>
-            <?php foreach ($grupo_debug as $item) {
-                renderizarItemNav($item, $pagina_atual, $icones, $caminho_base);
-            } ?>
-        </div>
-        <?php endif; ?>
+        <?php endforeach; ?>
     </nav>
 
+    <?php echo $aviso_email_html; ?>
     <div class="barra-lateral-rodape">
         <div class="usuario-rodape">
             <?php echo htmlAvatarUsuario($iniciais, $foto_usuario, 'usuario-avatar', $caminho_base); ?>
@@ -236,31 +234,16 @@ $foto_usuario = function_exists('fotoPerfilDaSessao') ? fotoPerfilDaSessao() : '
             <button type="button" class="fechar-modal" data-fechar-menu aria-label="Fechar">✕</button>
         </div>
 
+        <?php echo $aviso_email_html; ?>
         <nav class="folha-menu-nav">
+            <?php foreach ($grupos_menu as $titulo_grupo => $itens_grupo): if (!$itens_grupo) continue; ?>
             <div class="nav-grupo">
-                <span class="nav-grupo-titulo">Operação</span>
-                <?php foreach ($grupo_operacao as $item) {
+                <span class="nav-grupo-titulo"><?php echo $titulo_grupo; ?></span>
+                <?php foreach ($itens_grupo as $item) {
                     renderizarItemNav($item, $pagina_atual, $icones, $caminho_base);
                 } ?>
             </div>
-
-            <?php if ($grupo_admin): ?>
-            <div class="nav-grupo">
-                <span class="nav-grupo-titulo">Administração</span>
-                <?php foreach ($grupo_admin as $item) {
-                    renderizarItemNav($item, $pagina_atual, $icones, $caminho_base);
-                } ?>
-            </div>
-            <?php endif; ?>
-
-            <?php if ($grupo_debug): ?>
-            <div class="nav-grupo">
-                <span class="nav-grupo-titulo">Debug</span>
-                <?php foreach ($grupo_debug as $item) {
-                    renderizarItemNav($item, $pagina_atual, $icones, $caminho_base);
-                } ?>
-            </div>
-            <?php endif; ?>
+            <?php endforeach; ?>
 
             <div class="nav-grupo">
                 <a href="<?php echo $caminho_base; ?>logout" class="nav-item">
@@ -302,6 +285,30 @@ $foto_usuario = function_exists('fotoPerfilDaSessao') ? fotoPerfilDaSessao() : '
     // usar em chamadas a api.php/ajax -- páginas que chamam api.php via $.ajax fazem
     // $.ajaxSetup({headers:{'X-CSRF-Token': window.CSRF_TOKEN}}) logo após carregar o jQuery.
     window.CSRF_TOKEN = <?php echo json_encode(csrfToken()); ?>;
+</script>
+<?php endif; ?>
+<?php if ($aviso_email_html !== ''): ?>
+<script>
+(function () {
+    document.addEventListener('click', function (e) {
+        var botao = e.target.closest('[data-reenviar-verificacao]');
+        if (!botao) return;
+        botao.disabled = true;
+        var rotulo = botao.textContent;
+        botao.textContent = 'Enviando…';
+        fetch('<?php echo htmlspecialchars($caminho_base, ENT_QUOTES); ?>funcoes/usuario.php?api=usuario&acao=reenviar_verificacao_email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN || '' },
+            body: '{}'
+        }).then(function (r) { return r.json(); }).then(function (j) {
+            botao.textContent = j.sucesso ? 'Enviado ✓' : (j.erro || 'Falhou');
+            if (!j.sucesso) setTimeout(function () { botao.disabled = false; botao.textContent = rotulo; }, 4000);
+        }).catch(function () {
+            botao.textContent = 'Falhou';
+            setTimeout(function () { botao.disabled = false; botao.textContent = rotulo; }, 4000);
+        });
+    });
+})();
 </script>
 <?php endif; ?>
 <?php include __DIR__ . '/parciais/sino_notificacoes.php'; ?>

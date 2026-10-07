@@ -87,6 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ja_instalado) {
             apelido_publico VARCHAR(40) DEFAULT NULL,
             foto_perfil VARCHAR(255) DEFAULT NULL,
             email VARCHAR(150) NOT NULL UNIQUE,
+            email_verificado_em DATETIME DEFAULT NULL,
             google_id VARCHAR(255) DEFAULT NULL UNIQUE,
             senha VARCHAR(255) NOT NULL,
             perfil ENUM('admin', 'usuario') DEFAULT 'usuario',
@@ -421,6 +422,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ja_instalado) {
             chave VARCHAR(50) NOT NULL PRIMARY KEY,
             valor TEXT,
             atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS tokens_email (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            id_usuario INT NOT NULL,
+            tipo VARCHAR(20) NOT NULL,
+            token_hash CHAR(64) NOT NULL,
+            expira_em DATETIME NOT NULL,
+            usado_em DATETIME DEFAULT NULL,
+            criado_em DATETIME NOT NULL,
+            UNIQUE KEY unico_token (token_hash),
+            INDEX idx_tokens_usuario (id_usuario, tipo),
+            FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS fila_emails (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            para VARCHAR(190) NOT NULL,
+            assunto VARCHAR(255) NOT NULL,
+            html MEDIUMTEXT NOT NULL,
+            tipo VARCHAR(30) NOT NULL DEFAULT 'geral',
+            status ENUM('pendente','processando','enviado','falhou') NOT NULL DEFAULT 'pendente',
+            tentativas TINYINT NOT NULL DEFAULT 0,
+            ultimo_erro VARCHAR(255) DEFAULT NULL,
+            proximo_envio DATETIME NOT NULL,
+            valido_ate DATETIME DEFAULT NULL,
+            criado_em DATETIME NOT NULL,
+            enviado_em DATETIME DEFAULT NULL,
+            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_fila_pendentes (status, proximo_envio)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
         $pdo->exec("CREATE TABLE IF NOT EXISTS tentativas_login (

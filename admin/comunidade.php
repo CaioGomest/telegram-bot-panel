@@ -104,6 +104,7 @@ $links = $disponivel ? listarLinksComunidade(false) : [];
 $tipos = tiposComunidade();
 // Não usar $icones: barra_lateral.php declara a variável de novo pros ícones do menu
 // e apagava esta lista. O formulário morria no primeiro item e sumia o campo de link.
+$abrir_modal = $disponivel && ($editando !== null || $erro !== '');
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -125,8 +126,8 @@ $tipos = tiposComunidade();
                 <p>Publique os links que aparecem na aba Comunidade de todos os usuários.</p>
             </div>
             <div class="acoes-cabecalho">
-                <?php if ($editando || $form['id'] !== ''): ?>
-                    <a href="comunidade.php" class="botao">Novo link</a>
+                <?php if ($disponivel): ?>
+                    <button type="button" class="botao botao-primario" onclick="abrirModalForm()">+ Novo link</button>
                 <?php endif; ?>
                 <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>
@@ -148,10 +149,13 @@ $tipos = tiposComunidade();
             <div class="painel"><div class="aviso aviso-erro"><?php echo htmlspecialchars($erro); ?></div></div>
         <?php endif; ?>
 
-        <div class="painel">
-            <div class="painel-cabecalho">
-                <h2><?php echo $form['id'] !== '' ? 'Editar link' : 'Novo link'; ?></h2>
-            </div>
+        <div id="modal-form" class="sobreposicao-modal<?php echo $abrir_modal ? ' aberto' : ''; ?>">
+            <div class="modal-gateway modal-largo">
+                <div class="cabecalho-modal">
+                    <div class="titulo-modal"><?php echo $form['id'] !== '' ? 'Editar link' : 'Novo link'; ?></div>
+                    <button type="button" class="fechar-modal" onclick="fecharModalForm()" aria-label="Fechar">✕</button>
+                </div>
+                <div class="corpo-modal">
             <form method="POST">
                 <?php echo campoCsrf(); ?>
                 <input type="hidden" name="acao" value="salvar">
@@ -213,10 +217,12 @@ $tipos = tiposComunidade();
                 </label>
 
                 <div class="linha-acoes" style="margin-top:20px;">
-                    <?php if ($form['id'] !== ''): ?><a href="comunidade.php" class="botao">Cancelar edição</a><?php endif; ?>
+                    <button type="button" class="botao" onclick="fecharModalForm()">Cancelar</button>
                     <button type="submit" class="botao botao-primario"><?php echo $form['id'] !== '' ? 'Salvar alterações' : 'Publicar link'; ?></button>
                 </div>
             </form>
+                </div>
+            </div>
         </div>
 
         <div class="painel">
@@ -328,6 +334,15 @@ $tipos = tiposComunidade();
 
 <script src="../assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/../assets/js/tema.js'); ?>"></script>
 <?php if ($disponivel): ?>
+<script>
+function abrirModalForm() { document.getElementById('modal-form').classList.add('aberto'); }
+function fecharModalForm() {
+    <?php if ($abrir_modal && !empty($_GET['editar'])): ?>location.href = 'comunidade.php'; return;<?php endif; ?>
+    document.getElementById('modal-form').classList.remove('aberto');
+}
+document.getElementById('modal-form').addEventListener('click', function (e) { if (e.target === this) fecharModalForm(); });
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') fecharModalForm(); });
+</script>
 <script>
 (function () {
     var mapa = <?php echo json_encode(iconePadraoPorTipoComunidade(), JSON_UNESCAPED_UNICODE); ?>;

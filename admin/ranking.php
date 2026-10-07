@@ -138,6 +138,7 @@ function campoPremio(int $posicao, array $premios_edicao): array
         'descricao' => $premios_edicao[$posicao]['descricao'] ?? '',
     ];
 }
+$abrir_modal = $campanha_edicao !== null || $erro !== '';
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -159,7 +160,7 @@ function campoPremio(int $posicao, array $premios_edicao): array
                 <p>Crie e gerencie as campanhas que alimentam a tela de Ranking.</p>
             </div>
             <div class="acoes-cabecalho">
-                <a href="ranking" class="botao">Nova campanha</a>
+                <button type="button" class="botao botao-primario" onclick="abrirModalForm()">+ Nova campanha</button>
                 <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>
                     Tema
@@ -174,8 +175,13 @@ function campoPremio(int $posicao, array $premios_edicao): array
             <div class="painel"><div class="aviso aviso-erro"><?php echo htmlspecialchars($erro); ?></div></div>
         <?php endif; ?>
 
-        <div class="painel" id="form-campanha">
-            <div class="painel-cabecalho"><h2><?php echo $campanha_edicao ? 'Editar campanha' : 'Nova campanha'; ?></h2></div>
+        <div id="modal-form" class="sobreposicao-modal<?php echo $abrir_modal ? ' aberto' : ''; ?>">
+            <div class="modal-gateway modal-largo">
+                <div class="cabecalho-modal">
+                    <div class="titulo-modal"><?php echo $campanha_edicao ? 'Editar campanha' : 'Nova campanha'; ?></div>
+                    <button type="button" class="fechar-modal" onclick="fecharModalForm()" aria-label="Fechar">✕</button>
+                </div>
+                <div class="corpo-modal">
             <form method="POST" enctype="multipart/form-data">
                 <?php echo campoCsrf(); ?>
                 <input type="hidden" name="acao" value="salvar_campanha">
@@ -244,10 +250,12 @@ function campoPremio(int $posicao, array $premios_edicao): array
                 </div>
 
                 <div class="linha-acoes" style="margin-top:20px;">
-                    <?php if ($campanha_edicao): ?><a href="ranking" class="botao">Cancelar edição</a><?php endif; ?>
+                    <button type="button" class="botao" onclick="fecharModalForm()">Cancelar</button>
                     <button type="submit" class="botao botao-primario"><?php echo $campanha_edicao ? 'Salvar alterações' : 'Criar campanha'; ?></button>
                 </div>
             </form>
+                </div>
+            </div>
         </div>
 
         <div class="painel">
@@ -308,5 +316,14 @@ function campoPremio(int $posicao, array $premios_edicao): array
 </div>
 
 <script src="../assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/../assets/js/tema.js'); ?>"></script>
+<script>
+function abrirModalForm() { document.getElementById('modal-form').classList.add('aberto'); }
+function fecharModalForm() {
+    <?php if ($abrir_modal && !empty($_GET['editar'])): ?>location.href = 'ranking'; return;<?php endif; ?>
+    document.getElementById('modal-form').classList.remove('aberto');
+}
+document.getElementById('modal-form').addEventListener('click', function (e) { if (e.target === this) fecharModalForm(); });
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') fecharModalForm(); });
+</script>
 </body>
 </html>

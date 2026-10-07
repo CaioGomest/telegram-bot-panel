@@ -208,3 +208,14 @@ do provedor.
 - `varredura-03-webhooks-credenciais-logs.md` — webhooks e logs.
 - `criticas/conta-infopago-unica-compartilhada.md` — risco do modelo antigo de
   credencial única/compartilhada, marcado resolvido pela remoção.
+
+## Split e limites da OmegaPayments — confirmado em 06/10/2026 (testes na API real)
+
+Isto substitui o que estiver como "[A CONFIRMAR]" ou "chave Pix" acima sobre o split.
+
+- **Formato:** `splits: [{producerId, amount}]`. `producerId` é o **ID da conta** do recebedor na OmegaPayments (tela Perfil → "ID da conta", algo como `cmuo5a56…`) — **não** é chave Pix, CPF nem telefone (com chave Pix a API responde "Produtor … não encontrado"). `amount` é em **reais**: o painel calcula o valor quando o split é percentual (`montaSplits()` em `funcoes/omegapayments_banco.php`). O campo `chave_pix_split` do banco guarda esse producerId (o nome da coluna ficou por história).
+- **Vale também na assinatura:** o endpoint `/gateway/pix/subscription` aceita e valida `splits` (recusa produtor inexistente e soma acima do valor). Não confirmado: se os ciclos seguintes, cobrados pela própria OmegaPayments, repetem o split — só dá pra ver com um pagamento real de assinatura.
+- **Limites medidos (podem mudar; não estão na documentação pública):** valor mínimo de um Pix **R$ 1,50**; tarifa de **R$ 0,70 por Pix** (campo `fee` da resposta); a API recusa a cobrança se **split + tarifa > valor da venda** ("A soma dos splits com as taxas não pode ser maior que o valor total"). Logo, com split fixo de R$ 1,40 o menor preço vendável é **R$ 2,10**.
+- **No código:** `precoMinimoOmegaPayments()` e `validarPrecosFluxoGuiado()` (`funcoes/gateways.php`). Salvar plano/pack/oferta do Fluxo Guiado abaixo do mínimo é recusado (servidor e editor); a renovação limita o desconto ao mínimo; a tela Gateways (usuário e admin) mostra o aviso com o mínimo atual.
+- **Endpoint de conta:** `GET /gateway/producer` existe, mas exige a permissão "Consultar dados da conta/ver saldo" na credencial (a credencial usada hoje pelo sistema não tem).
+- **Webhook do bot** (não do gateway): um bot só aceita um webhook no Telegram; se ele apontar pra outra plataforma, o painel não recebe nada (nem "bot entrou no grupo").

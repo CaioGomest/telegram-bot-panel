@@ -78,7 +78,7 @@ try {
             //    satisfazer a coluna NOT NULL -- não muda o schema existente por causa disso.
             //    Perfil sempre 'usuario': nenhuma conta admin nasce por aqui.
             $senha_inutilizavel = password_hash(bin2hex(random_bytes(32)), PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare("INSERT INTO usuarios (nome, email, google_id, senha, perfil) VALUES (?, ?, ?, ?, 'usuario')");
+            $stmt = $pdo->prepare("INSERT INTO usuarios (nome, email, google_id, senha, perfil, email_verificado_em) VALUES (?, ?, ?, ?, 'usuario', NOW())");
             $stmt->execute([$nome, $email, $google_id, $senha_inutilizavel]);
             $usuario = [
                 'id' => (int) $pdo->lastInsertId(),

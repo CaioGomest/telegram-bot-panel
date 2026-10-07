@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/qrcode.php';
+require_once __DIR__ . '/previas.php';
+
 if (!defined('DIRETORIO_UPLOADS')) {
     define('DIRETORIO_UPLOADS', dirname(__DIR__) . '/uploads');
 }
@@ -64,6 +67,67 @@ function resolverCaminhoUploadSeguro(string $caminho): ?string
 }
 
 /**
+ * "Auto-deletar" dos blocos Imagem e Vídeo: grava a mensagem enviada na fila de mensagens a apagar (a mesma das prévias).
+ * Quem apaga é a cron de 1 minuto — o prazo vale com até ~1 min de atraso. O Telegram só deixa o bot apagar até 48 h depois.
+ */
+function agendarAutoExclusaoDoBloco(string $token, $id_chat, array $propriedades, array $resposta): void
+{
+    $segundos = (int) ($propriedades['auto_delete_seconds'] ?? 0);
+    $id_mensagem = (int) ($resposta['result']['message_id'] ?? 0);
+    if (empty($propriedades['auto_delete']) || $segundos <= 0 || $id_mensagem <= 0) {
+        return;
+    }
+    global $pdo;
+    try {
+        $stmt = $pdo->prepare("SELECT id FROM bots WHERE token = ?");
+        $stmt->execute([$token]);
+        $bot_id = (int) $stmt->fetchColumn();
+        if ($bot_id > 0) {
+            agendarApagarMensagem($pdo, $bot_id, (string) $id_chat, $id_mensagem, min($segundos, 172800));
+        }
+    } catch (\Throwable $e) {
+        error_log('[auto_delete] ' . $e->getMessage());
+    }
+}
+
+/** Escapa os caracteres que quebram o Markdown legado do Telegram (nome de plano/pack com "_" ou "*" derrubava a mensagem do Pix). */
+function escaparMarkdownTelegram(string $texto): string
+{
+    return preg_replace('/([_*`\[])/', '\\\\$1', $texto);
+}
+
+/**
+ * Mensagem de "pagamento confirmado" configurada pra venda: seção Pagamentos do Fluxo Guiado ou
+ * propriedade msg_confirmado do bloco Pix (editor visual). Null = usar o texto padrão.
+ * Lê o fluxo gravado na própria venda (id_fluxo) e, na falta, o fluxo atual do bot.
+ */
+function textoConfirmacaoPagamentoConfigurado(PDO $pdo, array $venda): ?string
+{
+    try {
+        $id_fluxo = (int) ($venda['id_fluxo'] ?? 0);
+        if ($id_fluxo > 0) {
+            $stmt = $pdo->prepare("SELECT modo, dados_fluxograma FROM fluxos WHERE id = ?");
+            $stmt->execute([$id_fluxo]);
+        } else {
+            $stmt = $pdo->prepare("SELECT f.modo, f.dados_fluxograma FROM bots b JOIN fluxos f ON f.id = b.id_fluxo_conectado WHERE b.id = ?");
+            $stmt->execute([(int) ($venda['bot_id'] ?? 0)]);
+        }
+        $fluxo = $stmt->fetch();
+        $dados = $fluxo ? json_decode((string) $fluxo['dados_fluxograma'], true) : null;
+        if (!is_array($dados)) {
+            return null;
+        }
+        $texto = ($fluxo['modo'] ?? '') === 'basico'
+            ? ($dados['pagamentos']['msg_confirmado'] ?? '')
+            : ($dados['operators'][$venda['id_operador_fluxo'] ?? '']['properties']['msg_confirmado'] ?? '');
+        $texto = trim((string) $texto);
+        return $texto !== '' ? mb_substr($texto, 0, 1000) : null;
+    } catch (\Throwable $e) {
+        return null;
+    }
+}
+
+/**
  * Cor por botão (Bot API 9.4+, "style" em InlineKeyboardButton -- só aceita um destes três
  * valores predefinidos, sem hex livre). Cada botão guarda a própria cor; não existe mais
  * uma cor "geral" compartilhada por todos os botões de um mesmo papel.
@@ -113,13 +177,14 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
         }
         $modo = $propriedades['mode'] ?? 'foto';
         if ($modo === 'documento') {
-            requisicaoTelegram($token, 'sendDocument', $parametros, ['document' => $caminho_absoluto]);
+            $resposta = requisicaoTelegram($token, 'sendDocument', $parametros, ['document' => $caminho_absoluto]);
         } else {
             if (!empty($propriedades['spoiler'])) {
                 $parametros['has_spoiler'] = true;
             }
-            requisicaoTelegram($token, 'sendPhoto', $parametros, ['photo' => $caminho_absoluto]);
+            $resposta = requisicaoTelegram($token, 'sendPhoto', $parametros, ['photo' => $caminho_absoluto]);
         }
+        agendarAutoExclusaoDoBloco($token, $id_chat, $propriedades, $resposta);
         return;
     }
     if ($tipo === 'video') {
@@ -135,7 +200,8 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
         if (!empty($propriedades['spoiler'])) {
             $parametros['has_spoiler'] = true;
         }
-        requisicaoTelegram($token, 'sendVideo', $parametros, ['video' => $caminho_absoluto]);
+        $resposta = requisicaoTelegram($token, 'sendVideo', $parametros, ['video' => $caminho_absoluto]);
+        agendarAutoExclusaoDoBloco($token, $id_chat, $propriedades, $resposta);
         return;
     }
     if ($tipo === 'audio') {
@@ -154,8 +220,9 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
         $resposta = requisicaoTelegram($token, 'sendVoice', $parametros, ['voice' => $caminho_absoluto]);
         // Se falhar o envio como voice (ex: formato inválido para voice), tenta como áudio normal
         if (!($resposta['ok'] ?? false)) {
-             requisicaoTelegram($token, 'sendAudio', $parametros, ['audio' => $caminho_absoluto]);
+             $resposta = requisicaoTelegram($token, 'sendAudio', $parametros, ['audio' => $caminho_absoluto]);
         }
+        agendarAutoExclusaoDoBloco($token, $id_chat, $propriedades, $resposta);
         return;
     }
     if ($tipo === 'grupo') {
@@ -293,6 +360,10 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
         $stmt_nome->execute([$id_chat, $id_bot_insert]);
         $nome_usuario = $stmt_nome->fetchColumn() ?: "Cliente Telegram";
         $nome_usuario = substr($nome_usuario, 0, 50);
+        // Editor Visual: upsell/downsell aceitos reduzem o valor e o order bump soma o extra (o Fluxo Guiado calcula isso sozinho).
+        if ($id_operador !== '' && $id_bot_insert && function_exists('aplicarOfertasAceitasAoPix')) {
+            $propriedades = aplicarOfertasAceitasAoPix($pdo, $id_bot_insert, (string) $id_chat, $propriedades);
+        }
 
         if (empty($gateways_usuario)) {
             requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Erro: Nenhum gateway configurado para este usuário.']);
@@ -373,7 +444,7 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
                     // igual ao avulso; as cobranças seguintes do ciclo a própria OmegaPayments
                     // gera sozinha). id_operador identifica o "produto" de forma estável entre
                     // assinantes diferentes do mesmo bloco Pix do fluxo.
-                    $payload = $provedor->montaPayloadAssinatura($valor, $periodicidade_recorrente, 'produto_' . ($id_operador ?: bin2hex(random_bytes(4))), $nome_produto_recorrente, $nome_usuario, $documento_limpo);
+                    $payload = $provedor->montaPayloadAssinatura($valor, $periodicidade_recorrente, 'produto_' . ($id_operador ?: bin2hex(random_bytes(4))), $nome_produto_recorrente, $nome_usuario, $documento_limpo, $split_data);
                     $resp = $provedor->criarAssinatura($payload);
                 } else {
                     $payload = $provedor->montaPayloadCobranca($valor, $chave_pix, $split_data, $expiracao_segundos, $nome_usuario, $documento_limpo);
@@ -427,21 +498,26 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
 
         if ($resp['sucesso']) {
             $msg = "✅ *Pedido Criado com Sucesso!*\n\n";
-            $msg .= "🛒 *Produto:* $nome_produto\n";
+            $msg .= "🛒 *Produto:* " . escaparMarkdownTelegram((string) $nome_produto) . "\n";
             $msg .= "💲 *Valor:* R$ " . number_format($valor, 2, ',', '.') . "\n\n";
-            $msg .= "⏳ *Aguardando pagamento...*\n";
-            $msg .= "Seu acesso será liberado automaticamente em até 1 minuto após a confirmação do pagamento.\n\n";
-            $msg .= "👇 *Toque no código abaixo para copiar e pague no app do seu banco:*";
-            $teclado_pix = null;
-            if (!empty($propriedades['mostrar_confirmar'])) {
-                $teclado_pix = [
-                    'inline_keyboard' => [
-                        [
-                            ['text' => 'Já fiz o pagamento ✅', 'callback_data' => 'verificar_pagamento_' . $txid]
-                        ]
-                    ]
-                ];
+            $instrucoes_pix = trim((string) ($propriedades['msg_instrucoes'] ?? ''));
+            if ($instrucoes_pix !== '') {
+                // Mensagem escolhida em Pagamentos (Fluxo Guiado) ou no bloco Pix: substitui o texto padrão.
+                $msg .= escaparMarkdownTelegram($instrucoes_pix);
+            } else {
+                $msg .= "⏳ *Aguardando pagamento...*\n";
+                $msg .= "Seu acesso será liberado automaticamente em até 1 minuto após a confirmação do pagamento.\n\n";
+                $msg .= "👇 *Toque no código abaixo para copiar e pague no app do seu banco:*";
             }
+            $linhas_teclado_pix = [];
+            // Botão "Copiar código" (copy_text aceita até 256 caracteres; código maior só segue em texto).
+            if (!empty($propriedades['mostrar_copiar']) && $pix_copia_cola !== '' && strlen($pix_copia_cola) <= 256) {
+                $linhas_teclado_pix[] = [['text' => '📋 Copiar código Pix', 'copy_text' => ['text' => $pix_copia_cola]]];
+            }
+            if (!empty($propriedades['mostrar_confirmar'])) {
+                $linhas_teclado_pix[] = [['text' => 'Já fiz o pagamento ✅', 'callback_data' => 'verificar_pagamento_' . $txid]];
+            }
+            $teclado_pix = $linhas_teclado_pix ? ['inline_keyboard' => $linhas_teclado_pix] : null;
             try {
                 $dias_acesso = isset($propriedades['dias_acesso']) ? (int)$propriedades['dias_acesso'] : 30;
                 $unidade_acesso = $propriedades['unidade_acesso'] ?? 'dias';
@@ -488,13 +564,15 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
                 // Na tabela vendas, a coluna 'bot_id' deve receber o ID do bot, e não o ID do usuário dono do bot.
                 // Mas não temos o ID do bot na função processarEEnviarBloco.
                 // Vamos buscar o ID real do bot usando o token
-                $stmt_bot_real = $pdo->prepare("SELECT id FROM bots WHERE token = ?");
+                $stmt_bot_real = $pdo->prepare("SELECT id, id_fluxo_conectado FROM bots WHERE token = ?");
                 $stmt_bot_real->execute([$token]);
-                $id_bot_real = $stmt_bot_real->fetchColumn();
+                $linha_bot_real = $stmt_bot_real->fetch();
+                $id_bot_real = $linha_bot_real['id'] ?? false;
+                $id_fluxo_insert = ($linha_bot_real['id_fluxo_conectado'] ?? null) ?: null;
                 $id_bot_insert = $id_bot_real ? (int)$id_bot_real : null;
                 file_put_contents(dirname(__DIR__) . '/logs/vendas_debug.log', "[" . date('Y-m-d H:i:s') . "] TENTANDO INSERIR VENDA - TXID: $txid | OPERADOR: $id_operador | BOT_ID: $id_bot_insert\n", FILE_APPEND);
                 $data_criacao = date('Y-m-d H:i:s');
-                $stmt_venda = $pdo->prepare("INSERT INTO vendas (id_telegram, bot_id, valor, status, transacao_id, id_grupo_telegram, dias_acesso, tempo_acesso_minutos, id_operador_fluxo, id_gateway, tempo_expiracao_minutos, criado_em, tipo_cobranca, id_assinatura) VALUES (?, ?, ?, 'gerado', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt_venda = $pdo->prepare("INSERT INTO vendas (id_telegram, bot_id, valor, status, transacao_id, id_grupo_telegram, dias_acesso, tempo_acesso_minutos, id_operador_fluxo, id_gateway, tempo_expiracao_minutos, criado_em, tipo_cobranca, id_assinatura, id_fluxo) VALUES (?, ?, ?, 'gerado', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $executou = $stmt_venda->execute([
                     $id_chat,
                     $id_bot_insert,
@@ -508,7 +586,8 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
                     $tempo_expiracao_insert,
                     $data_criacao,
                     $eh_recorrente_oficial ? 'assinatura' : 'unica',
-                    $id_assinatura
+                    $id_assinatura,
+                    $id_fluxo_insert
                 ]);
                 if (!$executou) {
                      file_put_contents(dirname(__DIR__) . '/logs/vendas_debug.log', "[" . date('Y-m-d H:i:s') . "] ERRO PDO: " . print_r($stmt_venda->errorInfo(), true) . "\n", FILE_APPEND);
@@ -549,26 +628,19 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
                 'parse_mode' => 'Markdown'
             ]);
             if (!empty($propriedades['mostrar_qrcode'])) {
-                 $url_qr_code = '';
-                 // Prioriza gerar o QR Code a partir do Copia e Cola para garantir compatibilidade
-                 if (!empty($pix_copia_cola)) {
-                     $url_qr_code = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' . urlencode($pix_copia_cola);
-                     file_put_contents(dirname(__DIR__) . "/logs/vendas_debug.log", "[" . date("Y-m-d H:i:s") . "] GERANDO QR CODE VIA API: $url_qr_code\n", FILE_APPEND);
-                 } elseif (!empty($link_pagamento) && strpos($link_pagamento, '/loc//') === false) {
-                     $url_qr_code = $link_pagamento;
-                     file_put_contents(dirname(__DIR__) . "/logs/vendas_debug.log", "[" . date("Y-m-d H:i:s") . "] USANDO LINK DE PAGAMENTO: $url_qr_code\n", FILE_APPEND);
-                 }
-
-                 if ($url_qr_code) {
-                     $res = requisicaoTelegram($token, 'sendPhoto', [
+                // QR gerado aqui mesmo (funcoes/qrcode.php): o código do Pix não sai mais do servidor em direção a um site de terceiros.
+                $png_qr = $pix_copia_cola !== '' ? qrCodePng($pix_copia_cola) : null;
+                if ($png_qr !== null) {
+                    $arquivo_qr = sys_get_temp_dir() . '/qrpix_' . bin2hex(random_bytes(6)) . '.png';
+                    file_put_contents($arquivo_qr, $png_qr);
+                    requisicaoTelegram($token, 'sendPhoto', [
                         'chat_id' => $id_chat,
-                        'photo' => $url_qr_code,
-                        'caption' => 'Escaneie o QR Code acima para pagar.'
-                     ]);
-                     file_put_contents(dirname(__DIR__) . "/logs/vendas_debug.log", "[" . date("Y-m-d H:i:s") . "] SEND PHOTO RES: " . json_encode($res) . "\n", FILE_APPEND);
-                 } else {
-                     file_put_contents(dirname(__DIR__) . "/logs/vendas_debug.log", "[" . date("Y-m-d H:i:s") . "] SEM URL QR CODE\n", FILE_APPEND);
-                 }
+                        'caption' => 'Escaneie o QR Code para pagar.'
+                    ], ['photo' => $arquivo_qr]);
+                    @unlink($arquivo_qr);
+                } else {
+                    file_put_contents(dirname(__DIR__) . "/logs/vendas_debug.log", "[" . date("Y-m-d H:i:s") . "] QR CODE NAO GERADO (sem codigo copia e cola ou texto grande demais)\n", FILE_APPEND);
+                }
             }
             if ($pix_copia_cola) {
                 $params = [
@@ -579,7 +651,16 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
                 if ($teclado_pix) {
                     $params['reply_markup'] = json_encode($teclado_pix);
                 }
-                requisicaoTelegram($token, 'sendMessage', $params);
+                $resposta_codigo = requisicaoTelegram($token, 'sendMessage', $params);
+                if (!($resposta_codigo['ok'] ?? false) && $teclado_pix) {
+                    $sem_copiar = array_values(array_filter($teclado_pix['inline_keyboard'], static fn($linha) => !isset($linha[0]['copy_text'])));
+                    if ($sem_copiar) {
+                        $params['reply_markup'] = json_encode(['inline_keyboard' => $sem_copiar]);
+                    } else {
+                        unset($params['reply_markup']);
+                    }
+                    requisicaoTelegram($token, 'sendMessage', $params);
+                }
             }
         } else {
             requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Erro ao gerar Pix: ' . ($resp['erro'] ?? 'Desconhecido')]);

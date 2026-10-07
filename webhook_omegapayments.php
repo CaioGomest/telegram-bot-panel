@@ -7,6 +7,7 @@ require_once __DIR__ . '/funcoes/omegapayments_banco.php';
 require_once __DIR__ . '/funcoes/gateways.php';
 require_once __DIR__ . '/funcoes/webhooks.php';
 require_once __DIR__ . '/funcoes/fluxo_blocos.php';
+require_once __DIR__ . '/funcoes/execucao_fluxo.php';
 
 date_default_timezone_set('America/Sao_Paulo');
 
@@ -52,9 +53,10 @@ function obterProximoNoOmegapayments(array $links, string $id_atual, string $con
 
 function executarFluxoOmegapayments(string $token, string $id_chat, int $bot_id, string $id_operador_inicial, int $id_usuario_dono, string $conector = 'output_pago'): void {
     global $pdo;
-    $stmt = $pdo->prepare("SELECT f.dados_fluxograma FROM bots b JOIN fluxos f ON b.id_fluxo_conectado = f.id WHERE b.id = ?");
+    $stmt = $pdo->prepare("SELECT f.id, f.dados_fluxograma FROM bots b JOIN fluxos f ON b.id_fluxo_conectado = f.id WHERE b.id = ?");
     $stmt->execute([$bot_id]);
-    $dados_json = $stmt->fetchColumn();
+    $fluxo_linha = $stmt->fetch();
+    $dados_json = $fluxo_linha['dados_fluxograma'] ?? '';
     if (!$dados_json) return;
 
     $dados_fluxo = json_decode($dados_json, true);
@@ -69,14 +71,7 @@ function executarFluxoOmegapayments(string $token, string $id_chat, int $bot_id,
 
     logWebhookOmegapayments("Executando fluxo ($conector) para chat $id_chat a partir de $proximo_id");
 
-    while ($proximo_id && isset($operadores[$proximo_id])) {
-        $operador = $operadores[$proximo_id];
-        processarEEnviarBloco($token, $id_chat, $operador, $proximo_id);
-        $tipo = $operador['properties']['type'] ?? '';
-        if (in_array($tipo, ['botoes', 'pix', 'upsell', 'downsell', 'order_bump'], true)) break;
-        if ($tipo === 'delay') sleep(1);
-        $proximo_id = obterProximoNoOmegapayments($links, $proximo_id, 'output_1');
-    }
+    executarFluxoDesde($token, $id_chat, $bot_id, (int) ($fluxo_linha['id'] ?? 0), $dados_fluxo, $proximo_id);
 }
 
 /**
@@ -236,12 +231,12 @@ function criarVendaCicloOmegapayments(array $notificacao, string $txid): ?array 
         $pdo->prepare("
             INSERT INTO vendas (id_telegram, bot_id, valor, status, transacao_id, id_grupo_telegram, dias_acesso,
                 tempo_acesso_minutos, id_gateway, tempo_expiracao_minutos, criado_em, tipo_cobranca, id_assinatura,
-                venda_pai_id, id_plano)
-            VALUES (?, ?, ?, 'gerado', ?, ?, ?, ?, ?, ?, ?, 'assinatura', ?, ?, ?)
+                venda_pai_id, id_plano, id_fluxo)
+            VALUES (?, ?, ?, 'gerado', ?, ?, ?, ?, ?, ?, ?, 'assinatura', ?, ?, ?, ?)
         ")->execute([
             $pai['id_telegram'], $pai['bot_id'], $valor, $txid, $pai['id_grupo_telegram'], $pai['dias_acesso'],
             $pai['tempo_acesso_minutos'], $pai['id_gateway'], $minutos_expiracao, date('Y-m-d H:i:s'), $id_assinatura,
-            $pai['venda_pai_id'] ?: $pai['id'], $pai['id_plano'],
+            $pai['venda_pai_id'] ?: $pai['id'], $pai['id_plano'], $pai['id_fluxo'] ?? null,
         ]);
     } catch (\PDOException $e) {
         // Entrega duplicada/simultânea do mesmo evento: o índice único em transacao_id barra.
@@ -472,7 +467,9 @@ if (!$token_bot) {
 
 $msg = $venda_ciclo_nova || !empty($venda['venda_pai_id'])
     ? "✅ <b>Renovação confirmada!</b>\n\nObrigado, sua assinatura continua ativa."
-    : "✅ <b>Pagamento Confirmado!</b>\n\nObrigado pela sua compra.";
+    : (($texto_confirmado = textoConfirmacaoPagamentoConfigurado($pdo, $venda)) !== null
+        ? htmlspecialchars($texto_confirmado)
+        : "✅ <b>Pagamento Confirmado!</b>\n\nObrigado pela sua compra.");
 
 if (!empty($venda['id_grupo_telegram'])) {
     $expiracao_minima = $assinatura_payload ? fimCicloAssinaturaOmegapayments($assinatura_payload) : null;

@@ -907,6 +907,109 @@ try {
     try { $pdo->exec("ALTER TABLE webhooks_envios ADD INDEX idx_webhooks_envios_webhook (webhook_id, criado_em)"); } catch (PDOException $e) {}
     echo "Tabela 'webhooks_envios' OK.<br>";
 
+    $pdo->exec("CREATE TABLE IF NOT EXISTS mensagens_agendadas (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        bot_id INT NOT NULL,
+        id_telegram VARCHAR(50) NOT NULL,
+        message_id BIGINT NOT NULL,
+        apagar_em DATETIME NOT NULL,
+        apagada TINYINT(1) NOT NULL DEFAULT 0,
+        depois_json TEXT DEFAULT NULL,
+        INDEX idx_agendadas_pendentes (apagada, apagar_em),
+        FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+    echo "Tabela 'mensagens_agendadas' OK.<br>";
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS previas_vistas (
+        bot_id INT NOT NULL,
+        id_telegram VARCHAR(50) NOT NULL,
+        visto_em DATETIME NOT NULL,
+        PRIMARY KEY (bot_id, id_telegram),
+        FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+    echo "Tabela 'previas_vistas' OK.<br>";
+    $pdo->exec("CREATE TABLE IF NOT EXISTS avisos_assinatura_enviados (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        membro_id INT NOT NULL,
+        marco VARCHAR(40) NOT NULL,
+        enviado_em DATETIME NOT NULL,
+        UNIQUE KEY unico_aviso (membro_id, marco),
+        INDEX idx_avisos_enviado_em (enviado_em),
+        FOREIGN KEY (membro_id) REFERENCES membros_grupos(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+    echo "Tabela 'avisos_assinatura_enviados' OK.<br>";
+    // Fluxo de origem de cada lead/venda: as telas do Fluxo Guiado (Resumo, Conversões) contam por fluxo,
+    // não por bot. Tabelas grandes: coluna nullable no fim (INSTANT) e índice online, sem travar escrita.
+    foreach (['leads' => 'idx_leads_fluxo', 'vendas' => 'idx_vendas_fluxo'] as $tabela => $indice) {
+        try { $pdo->exec("ALTER TABLE $tabela ADD COLUMN id_fluxo INT DEFAULT NULL, ALGORITHM=INSTANT"); echo "Coluna 'id_fluxo' adicionada em '$tabela'.<br>"; } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE $tabela ADD INDEX $indice (id_fluxo, criado_em), ALGORITHM=INPLACE, LOCK=NONE"); echo "Índice '$indice' criado.<br>"; } catch (PDOException $e) {}
+    }
+    // E-mail: verificação (coluna + tokens) e fila de envio.
+    $coluna_nova = false;
+    try { $pdo->exec("ALTER TABLE usuarios ADD COLUMN email_verificado_em DATETIME DEFAULT NULL AFTER email"); $coluna_nova = true; echo "Coluna 'email_verificado_em' adicionada em 'usuarios'.<br>"; } catch (PDOException $e) {}
+    if ($coluna_nova) {
+        // Só na criação da coluna: quem já tinha conta antes do recurso nasce verificado (não vira "pendente" do nada).
+        $pdo->exec("UPDATE usuarios SET email_verificado_em = criado_em WHERE email_verificado_em IS NULL");
+        echo "Usuários existentes marcados como verificados.<br>";
+    }
+    $pdo->exec("CREATE TABLE IF NOT EXISTS tokens_email (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        id_usuario INT NOT NULL,
+        tipo VARCHAR(20) NOT NULL,
+        token_hash CHAR(64) NOT NULL,
+        expira_em DATETIME NOT NULL,
+        usado_em DATETIME DEFAULT NULL,
+        criado_em DATETIME NOT NULL,
+        UNIQUE KEY unico_token (token_hash),
+        INDEX idx_tokens_usuario (id_usuario, tipo),
+        FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+    echo "Tabela 'tokens_email' OK.<br>";
+    $pdo->exec("CREATE TABLE IF NOT EXISTS fila_emails (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        para VARCHAR(190) NOT NULL,
+        assunto VARCHAR(255) NOT NULL,
+        html MEDIUMTEXT NOT NULL,
+        tipo VARCHAR(30) NOT NULL DEFAULT 'geral',
+        status ENUM('pendente','processando','enviado','falhou') NOT NULL DEFAULT 'pendente',
+        tentativas TINYINT NOT NULL DEFAULT 0,
+        ultimo_erro VARCHAR(255) DEFAULT NULL,
+        proximo_envio DATETIME NOT NULL,
+        valido_ate DATETIME DEFAULT NULL,
+        criado_em DATETIME NOT NULL,
+        enviado_em DATETIME DEFAULT NULL,
+        atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_fila_pendentes (status, proximo_envio)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+    echo "Tabela 'fila_emails' OK.<br>";
+    // Editor Visual: esperas do bloco Delay (retomadas pela cron) e ofertas aceitas (aplicadas no próximo Pix).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS fluxo_continuacoes (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        bot_id INT NOT NULL,
+        id_telegram VARCHAR(50) NOT NULL,
+        id_fluxo INT NOT NULL,
+        id_operador_destino VARCHAR(60) NOT NULL,
+        executar_em DATETIME NOT NULL,
+        status ENUM('pendente','processando','feito','falhou','cancelado') NOT NULL DEFAULT 'pendente',
+        criado_em DATETIME NOT NULL,
+        atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_continuacoes_pendentes (status, executar_em),
+        INDEX idx_continuacoes_lead (bot_id, id_telegram, status),
+        FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+    echo "Tabela 'fluxo_continuacoes' OK.<br>";
+    $pdo->exec("CREATE TABLE IF NOT EXISTS fluxo_ofertas_aceitas (
+        bot_id INT NOT NULL,
+        id_telegram VARCHAR(50) NOT NULL,
+        tipo ENUM('upsell','downsell','order_bump') NOT NULL,
+        desconto_percentual DECIMAL(5,2) NOT NULL DEFAULT 0,
+        valor_extra DECIMAL(10,2) NOT NULL DEFAULT 0,
+        nome VARCHAR(100) DEFAULT NULL,
+        criado_em DATETIME NOT NULL,
+        PRIMARY KEY (bot_id, id_telegram, tipo),
+        FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+    echo "Tabela 'fluxo_ofertas_aceitas' OK.<br>";
     $stmt = $pdo->query("SELECT COUNT(*) FROM usuarios");
     $total = $stmt->fetchColumn();
 

@@ -27,6 +27,13 @@ O layout novo (redesign do painel, handoff de design fora do repositório) foi a
 - `funcoes/relatorio_debug.php` (`exibirRelatorioDebug()`) envolve a saída em texto das rotinas de manutenção no layout novo, sem mudar o que cada rotina calcula ou grava no banco.
 - Pendências que dependem de backend novo (fora do escopo de layout): badge "Online"/mini-painel "Leads 7d" nos cards de bot, "N blocos"/status Publicado-Rascunho nos cards de fluxo, paginação real de `leads.php`, painel "Top usuários" no admin.
 
+## Armadilhas desta hospedagem (Hostinger) — descobertas em teste
+
+- **MySQL `wait_timeout` = 20 s.** Qualquer espera maior que isso no meio de um processamento (sleep, envio lento de e-mail, SMTP) deixa a conexão morta ("MySQL server has gone away"). Depois de esperar, chame `garantirConexaoBanco()` (em `conexao.php`) e, se a função recebeu `$pdo` por parâmetro, faça `$pdo = $GLOBALS['pdo'];`.
+- **`mail()` do PHP é bloqueado** ("Local sendmail disabled"): e-mail só sai por SMTP configurado em Admin → Configurações. **`shell_exec` está desativado** no PHP; automação de servidor é por SSH/bash.
+- **Arquivos com CRLF:** `webhook.php`, `cron_aviso_vencimento.php` e outros usam quebras de linha do Windows; scripts de substituição de texto multilinha precisam respeitar isso (e `grep -c $'\r'` no Git Bash engana).
+- **A cron real corre junto de qualquer teste com o mesmo banco** (ela também processa continuações/mensagens vencidas do cliente de teste e usa o mesmo arquivo de trava em `/tmp`).
+- **Método de teste de fluxos sem tocar no Telegram:** cópia do painel em `/tmp` com `requisicaoTelegram()` e o gateway trocados por simuladores que só registram o que seria enviado — ver "Rodada de testes de fluxos com Telegram simulado" em `anotacoes/HISTORICO-CONSOLIDADO.md`. Cliente fictício sempre com chat id inventado; apagar tudo no fim.
 ## Ranking
 
 `ranking.php` já é dado real (não é mais mock). Arquitetura pensada pra plataforma grande (700+ usuários): nada de agregar `vendas` ao vivo a cada carregamento de página.

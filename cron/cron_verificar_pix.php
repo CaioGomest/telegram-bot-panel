@@ -62,9 +62,10 @@ function obterProximoNoLocal(array $links, string $id_atual, string $conector_sa
 function executarFluxoContinuacao(string $token, string $id_chat, int $bot_id, string $id_operador_inicial, int $id_usuario_dono, string $conector = 'output_pago') {
     global $pdo;
     
-    $stmt = $pdo->prepare("SELECT f.dados_fluxograma FROM bots b JOIN fluxos f ON b.id_fluxo_conectado = f.id WHERE b.id = ?");
+    $stmt = $pdo->prepare("SELECT f.id, f.dados_fluxograma FROM bots b JOIN fluxos f ON b.id_fluxo_conectado = f.id WHERE b.id = ?");
     $stmt->execute([$bot_id]);
-    $dados_json = $stmt->fetchColumn();
+    $fluxo_linha = $stmt->fetch();
+    $dados_json = $fluxo_linha['dados_fluxograma'] ?? '';
     
     if (!$dados_json) return;
     
@@ -81,21 +82,12 @@ function executarFluxoContinuacao(string $token, string $id_chat, int $bot_id, s
     
     logCron("Executando fluxo ($conector) para chat $id_chat a partir de $proximo_id");
     
-    while ($proximo_id && isset($operadores[$proximo_id])) {
-        $operador = $operadores[$proximo_id];
-        processarEEnviarBloco($token, $id_chat, $operador, $proximo_id);
-
-        $tipo = $operador['properties']['type'] ?? '';
-        if (in_array($tipo, ['botoes', 'pix', 'upsell', 'downsell', 'order_bump'], true)) break;
-
-        if ($tipo === 'delay') sleep(1);
-
-        $proximo_id = obterProximoNoLocal($links, $proximo_id, 'output_1');
-    }
+    executarFluxoDesde($token, $id_chat, $bot_id, (int) ($fluxo_linha['id'] ?? 0), $dados_fluxo, $proximo_id);
 }
 
 require_once __DIR__ . '/../funcoes/gateways.php';
 require_once __DIR__ . '/../funcoes/fluxo_blocos.php';
+require_once __DIR__ . '/../funcoes/execucao_fluxo.php';
 
 // LIMIT mantém cada rodada rápida e previsível mesmo com muitas vendas pendentes
 // de uma vez — o que sobrar fica pra próxima execução (roda de novo em instantes).
@@ -179,7 +171,10 @@ foreach ($vendas_pendentes as $venda) {
                 'gateway' => (string) $nome_gateway,
             ]);
 
-            $msg = "✅ *Pagamento Confirmado!*\n\nObrigado pela sua compra.";
+            $texto_confirmado = textoConfirmacaoPagamentoConfigurado($pdo, $venda);
+            $msg = $texto_confirmado !== null
+                ? escaparMarkdownTelegram($texto_confirmado)
+                : "✅ *Pagamento Confirmado!*\n\nObrigado pela sua compra.";
 
             if (!empty($venda['id_grupo_telegram'])) {
                 $id_grupo = $venda['id_grupo_telegram'];
@@ -299,6 +294,16 @@ $stmt_ciclos = $pdo->prepare("
     AND TIMESTAMPDIFF(SECOND, criado_em, ?) >= tempo_expiracao_minutos * 60
 ");
 $stmt_ciclos->execute([$agora_php]);
+
+// Vendas sem bloco de fluxo (Fluxo Guiado: planos, packs e renovação; e vendas avulsas): não há caminho
+// "não pago" pra executar, então só expiram em silêncio. Sem isso ficavam 'gerado' pra sempre — inflando
+// "aguardando pagamento" em Conversões e sendo consultadas na OmegaPayments a cada minuto.
+$stmt_sem_fluxo = $pdo->prepare("
+    UPDATE vendas SET status = 'expirado'
+    WHERE status = 'gerado' AND id_operador_fluxo IS NULL AND venda_pai_id IS NULL AND id_assinatura IS NULL
+    AND TIMESTAMPDIFF(SECOND, criado_em, ?) >= tempo_expiracao_minutos * 60
+");
+$stmt_sem_fluxo->execute([$agora_php]);
 
 flock($lock, LOCK_UN);
 fclose($lock);

@@ -496,3 +496,57 @@ paginação em `admin/transacoes.php` e `remarketing.php`; documentação intern
 (`CLAUDE.md`, `README.md`, `anotacoes/*`) bloqueada por URL via `.htaccess`; páginas
 `teste_gateway_infopago*.php` apagadas; sino de notificações no ar; `flock` em todos os
 crons; INSERT do ranking; bloqueio de `/instalacao`; cabeçalho de fuso (`date_default_timezone_set`).
+
+## Fluxo Guiado: editor em tela cheia + seções novas (04/10/2026)
+
+- `fluxo_basico.php` virou editor em tela cheia (sem barra lateral do painel; botão ← Fluxos, menu de seções à esquerda, Cache de mídia + Suporte à direita). Sem a barra lateral a página perde o `window.CSRF_TOKEN` — ele é definido na própria página (sem isso vincular bot/salvar davam 403).
+- Seções novas, todas dentro de `dados_fluxograma` (sem migração de fluxo): **Conversões** (`api.php?action=conversoes_fluxo`, só leitura), **Prévias** (`funcoes/previas.php`), **Packs** (`funcoes/packs.php`), **Assinatura** (`funcoes/assinatura.php`). "Botões" saiu do menu (cada botão já tem a própria config); "Top Assinantes" ficou "Em breve".
+- Tabelas novas (em `admin/atualiza_banco.php`): `mensagens_agendadas` (fila de mensagens a apagar), `previas_vistas` (1 visualização por lead), `avisos_assinatura_enviados` (UNIQUE(membro_id, marco) — evita aviso duplicado; o marco leva a data de vencimento, então renovar reinicia os avisos).
+- Prévias: até 60s o próprio webhook espera (`litespeed_finish_request` existe na Hostinger) e apaga; acima disso, ou se a requisição não puder ser liberada, o `cron_aviso_vencimento.php` (1 min) esvazia a fila. Esse cron agora também roda os avisos da aba Assinatura e, nos fluxos configurados, substitui o aviso genérico antigo de "vence em <24h".
+- Assinatura: `cron_verificar_acessos.php` usa a mensagem/mídia de expiração do fluxo e respeita "Expulsar do grupo" desligado. Renovação = botão "Renovar agora" (`basico::renovar`) com os planos do fluxo e desconto; paga como compra nova.
+- Armadilha: `webhook.php` e `cron_aviso_vencimento.php` têm quebras de linha CRLF — substituição de texto multilinha por script precisa respeitar isso.
+- Descoberto na investigação dos grupos: o bot de teste estava com o webhook apontando para `sharkbot.com.br` (um bot só aceita um webhook) e cadastrado duas vezes (contas 36 e 38); a duplicata de QA foi removida e o webhook voltou para este servidor.
+
+## Sistema de e-mail (06/10/2026)
+
+- `funcoes/email.php`: cliente SMTP próprio (SSL 465 / STARTTLS 587, sem biblioteca), modelos (boas-vindas + confirmação, código de redefinição, senha alterada) e **fila** (`fila_emails`). Config em `admin/configuracoes.php` → "Envio de e-mail" (chaves em `configuracoes`: smtp_host/porta/seguranca/usuario/senha[cifrada], email_remetente(_nome), url_base).
+- **A Hostinger bloqueia o `mail()` do PHP** nesta conta ("Local sendmail disabled") — sem SMTP configurado nada sai. Sem SMTP a fila só espera (não gasta tentativas); com SMTP, cada e-mail é tentado 5x (1/5/15/60 min) e depois vira "falhou" (botão "Tentar de novo" no admin).
+- Quem envia: `processarFilaEmails()` dentro do `cron_aviso_vencimento.php` (1 min). Cadastro/confirmação/aviso de senha vão pela fila; o código de redefinição sai direto e só cai na fila se falhar (vale 15 min).
+- Verificação: `usuarios.email_verificado_em` + `tokens_email` (só o hash SHA-256 do token no banco, validade 48h). Não bloqueia o painel: aviso "E-mail não confirmado — Reenviar" no menu lateral. Contas existentes e login Google já nascem verificados; redefinir a senha pelo código também marca como verificado. Link público: `verificar_email.php`.
+- `url_base` fixa em `configuracoes` (evita forjar o link pelo cabeçalho Host).
+
+## Rodada de testes de fluxos com Telegram simulado (06/10/2026)
+
+- Método: cópia do painel em `/tmp` no servidor com `requisicaoTelegram()` (e as funções de Telegram das crons/webhook de pagamento) trocadas por um simulador que **registra** tudo que o bot enviaria, e `criarCobranca`/`consultarCobranca`/`criarAssinatura` simulados (Pix falso, "pago" só o que o teste marca). Banco real, mas só um cliente fictício (chat 777000111) e um bot/fluxo temporários, apagados no fim. Nada foi enviado ao Telegram nem à OmegaPayments. `shell_exec` é desativado no PHP da Hostinger: o orquestrador é bash por SSH.
+- Coberto: Fluxo Guiado inteiro (boas-vindas, planos, upsell/downsell/order bump com valores, prévias com apagar, packs, renovação, Pix, confirmação por gateway e pelo botão, duplicidade, entrega no grupo, avisos e expiração com/sem expulsar, renovação paga, cache de mídia, fluxo desligado, `/start` com campanha) e o Editor Visual (mensagem, foto, imagem como documento, vídeo, áudio, delay, link, grupo, sorteio nos 2 caminhos, upsell/downsell/bump, botões, PIX recorrente pago e não pago).
+- **Bugs corrigidos:** (1) a seção Pagamentos (mensagem do Pix, mensagem de confirmado, botão Copiar) e os mesmos campos do bloco Pix do editor visual eram ignorados — agora valem (`escaparMarkdownTelegram`, `textoConfirmacaoPagamentoConfigurado` em `funcoes/fluxo_blocos.php`; botão usa `copy_text`, só até 256 caracteres); (2) venda sem bloco de fluxo (guiado, packs, renovação) nunca expirava e ficava "gerado" pra sempre, sendo consultada na OmegaPayments todo minuto — `cron_verificar_pix.php` agora expira em silêncio; (3) nome de plano/pack com `_`/`*`/`[` quebrava a mensagem do Pix (Markdown).
+
+## Seis correções do Editor Visual / Pix / Assinatura (06/10/2026)
+
+Cada uma foi testada na cópia com Telegram simulado (ver rodada de testes acima) e conferida em produção.
+
+1. **Delay**: `funcoes/execucao_fluxo.php` virou a única "caminhada" do grafo (antes havia 3 cópias — webhook, webhook de pagamento e cron do Pix — e duas ignoravam sorteio/delay). O bloco respeita mín./máx. sorteado, segundos ou minutos e "digitando…" (`sendChatAction`). Até 5 s dorme na hora; de 6 a 10 s solta o Telegram (`litespeed_finish_request`) e dorme; acima de 10 s grava em `fluxo_continuacoes` e o `cron_aviso_vencimento.php` (1 min) retoma — precisão ~1 minuto, máx. 7 dias. `/start` novo cancela as esperas pendentes do cliente. Esperas "processando" esquecidas viram "falhou" (não repete mensagem).
+2. **Ofertas do visual**: a resposta do cliente fica em `fluxo_ofertas_aceitas` (12 h, limpa no `/start`); o próximo bloco Pix aplica o último desconto aceito (upsell/downsell) e soma o `valor_extra` do order bump ao valor e ao nome do produto, sem passar abaixo do mínimo do gateway.
+3. **Split na assinatura**: o endpoint `/gateway/pix/subscription` aceita e valida `splits` (testado: recusa recebedor inexistente e soma acima do valor). `montaSplits()` agora serve ao Pix avulso e à assinatura. Não confirmado: se os ciclos seguintes cobrados pela OmegaPayments repetem o split.
+4. **QR Code**: `funcoes/qrcode.php` (PHP puro, modo byte, correção M→L, versões 1–40, PNG 1 bit com zlib). Conferido: 30 matrizes idênticas às da biblioteca `qrcode` do npm (mesma máscara, versões 1 a 29) e 11/11 PNGs decodificados com `jsqr`. O código do Pix não sai mais do servidor.
+5. **Preço mínimo**: `precoMinimoOmegaPayments()` + `validarPrecosFluxoGuiado()` (`funcoes/gateways.php`). Salvar fluxo guiado com plano/pack/oferta abaixo do mínimo é recusado (servidor e editor; endpoint `limites_pagamento`); a renovação limita o desconto ao mínimo e esconde plano mais barato que o mínimo.
+6. **Avisos**: variável `{prazo}` ("hoje", "amanhã", "em N dias") e `{dias}` passou a contar dias de calendário (0 = hoje). Texto padrão usa `{prazo}`.
+
+## 2ª rodada de testes (06/10/2026): fluxos novos do zero, wait_timeout e dois recursos do editor
+
+- Criados pela API real (`api.php` rodando na cópia de teste com sessão simulada): **#59 Teste 2 · Guiado — Curso de Fotografia** e **#60 Teste 2 · Visual — Funil com delays** (ficam na conta caiogomesteodoro, sem bot ligado). A API recusou salvar plano de R$ 1,99 / pack de R$ 1,80 com a mensagem do preço mínimo e não gravou nada.
+- **`wait_timeout` do MySQL é 20 s** nesta hospedagem: qualquer espera maior dentro de um processamento (prévia que apaga em 30 s, delay, envio lento de e-mail) volta com "MySQL server has gone away". Corrigido com `garantirConexaoBanco()` (em `conexao.php`; reabre a conexão se caiu, sem reaproveitar a persistente morta) chamada depois de esperas e dentro dos laços das filas (e-mails, continuações, mensagens a apagar). Quem receber `$pdo` por parâmetro refaz `$pdo = $GLOBALS['pdo'];` depois.
+- **Auto-deletar (imagem, vídeo, áudio)** e **"sumir após o clique" (botões)** do Editor Visual existiam no editor mas não na execução. Agora: o auto-deletar usa a fila `mensagens_agendadas` (a cron apaga até ~1 min depois do prazo; Telegram só deixa apagar até 48 h) e o clique apaga a mensagem dos botões (`deleteMessage`).
+- Conferido: delays agendados em 3 contextos (webhook do Telegram, webhook de pagamento, cron do Pix), ofertas combinadas no valor do Pix (guiado e visual), packs inativos escondidos, regra de prévia "1 vez por 24 h", marcos de aviso 5/2/0 dias e horários 10h/20h, renovação com desconto limitado ao mínimo, números reais de Resumo/Conversões pela API.
+- Observação de teste: ao validar com a cópia, a cron REAL do servidor também processa continuações vencidas do cliente fictício (mesmo banco) e pode "ganhar" da cópia — não é bug do sistema.
+- Métrica a rever: `taxa_lead_pix` pode passar de 100% (vários Pix por lead); a tela usa `taxa_pix_pago` e `taxa_lead_pago`.
+
+## 3ª rodada de testes (06/10/2026): reteste do guiado #59 e do visual #60
+
+Mesmos roteiros da 2ª rodada, com o código atual e a mesma cópia simulada em `/tmp` (Telegram e Pix falsos, cliente 777000222). **Nenhum bug novo no sistema.**
+
+- **Guiado #59:** saída idêntica à da 2ª rodada (boas-vindas, planos, prévias com regra diária, packs com e sem mídia, pack inativo recusado, downsell + order bump = R$ 27,80, upsell 15% = R$ 126,65, pagamento confirmado, renovação 10% = R$ 17,91, marcos de aviso, números de Resumo/Conversões). Diferença única, pra melhor: as prévias agora são apagadas e a "mensagem de depois" sai dentro do próprio webhook (efeito da correção do `wait_timeout`).
+- **Visual #60:** delay de 8 s com "digitando", foto com spoiler e auto-deletar em 15 s, upsell −30% + bump +R$ 5 = R$ 25,93, "sumir após o clique", QR local + botão Copiar, caminho PAGO com espera de 2 min retomada pela cron, Pix expirado → espera de 1 min → remarketing com o downsell aplicado (R$ 26,91). Tudo certo.
+- **Falso alarme:** na rodada completa o "Lembrete" (Ver depois → espera 3 min) não apareceu, e na 2ª rodada também não ("nenhuma chamada ao Telegram", passou despercebido). Causa: a **cron real** do servidor pegou a continuação vencida do cliente fictício antes da cron da cópia e tentou enviar com o token falso do bot de teste. Repetido isolado (vencer e rodar a cron da cópia longe da virada do minuto): o lembrete chega certo.
+- **Armadilha do roteiro:** o `h2.php` do roteiro guiado usava `require` (não `require_once`) e quebrava em silêncio — o bot de teste não era criado, os passos caíam no bot padrão (#15/fluxo #44) e a limpeza do fim também falhava. Corrigido no roteiro; resíduos apagados.
+- Limpeza conferida: zero leads/vendas/membros/esperas/ofertas/mensagens/bots de teste; 4 atividades de teste apagadas; cópia em `/tmp` removida. Fluxos #59 e #60 continuam na conta.

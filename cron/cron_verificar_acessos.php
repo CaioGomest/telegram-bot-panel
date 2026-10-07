@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../conexao.php';
 require_once __DIR__ . '/../funcoes/log.php';
+require_once __DIR__ . '/../funcoes/fluxo_blocos.php';
+require_once __DIR__ . '/../funcoes/assinatura.php';
 
 date_default_timezone_set('America/Sao_Paulo');
 
@@ -51,7 +53,8 @@ try {
     // Inclui id_assinatura para identificar recorrentes nativos.
     // link_suporte vem do fluxo atualmente conectado ao bot (cada fluxo pode ter o seu).
     $stmt = $pdo->prepare("
-        SELECT m.*, b.token, b.nome_usuario, v.tipo_cobranca, v.dias_acesso, v.id_assinatura, f.link_suporte
+        SELECT m.*, b.token, b.nome_usuario, v.tipo_cobranca, v.dias_acesso, v.id_assinatura, v.valor, f.link_suporte, f.dados_fluxograma,
+               (SELECT l.nome FROM leads l WHERE l.bot_id = m.bot_id AND l.id_telegram = m.id_telegram ORDER BY l.id DESC LIMIT 1) AS nome
         FROM membros_grupos m
         JOIN bots b ON m.bot_id = b.id
         LEFT JOIN vendas v ON m.venda_id = v.id
@@ -144,6 +147,18 @@ try {
             echo " - Cobrança única (sem recorrência). Removendo imediatamente.\n";
         }
 
+        // Aba Assinatura do Fluxo Guiado: mensagem de expiração própria e opção de NÃO remover do grupo.
+        $mensagem_expirou = mensagemAoExpirarBasico($membro['dados_fluxograma'] ?? null, $membro);
+        $expulsar = (configAssinaturaBasico($membro['dados_fluxograma'] ?? null)['acoes']['expulsar'] ?? true) !== false;
+        if (!$expulsar) {
+            echo " - Fluxo configurado para não expulsar. Encerrando o acesso sem remover do grupo.\n";
+            $pdo->prepare("UPDATE membros_grupos SET status = 'expirado' WHERE id = ?")->execute([$membro['id']]);
+            if ($mensagem_expirou) {
+                enviarMensagemAssinatura($token, (string) $id_chat, $mensagem_expirou['texto'], $mensagem_expirou['bloco'], tecladoRenovacaoAssinatura());
+            }
+            continue;
+        }
+
         if (!empty($membro['invite_link'])) {
              $revoke = telegramRequest($token, 'revokeChatInviteLink', [
                  'chat_id' => $id_grupo,
@@ -178,7 +193,9 @@ try {
             $stmt_update = $pdo->prepare("UPDATE membros_grupos SET status = 'expirado' WHERE id = ?");
             $stmt_update->execute([$membro['id']]);
 
-            telegramRequest($token, 'sendMessage', array_merge([
+            if ($mensagem_expirou) {
+                enviarMensagemAssinatura($token, (string) $id_chat, $mensagem_expirou['texto'], $mensagem_expirou['bloco'], tecladoRenovacaoAssinatura());
+            } else telegramRequest($token, 'sendMessage', array_merge([
                 'chat_id' => $id_chat,
                 'text' => "⚠️ *Seu acesso ao grupo expirou!*\n\nVocê foi removido automaticamente pois seu período de acesso acabou.\nPara voltar, realize uma nova assinatura ou compra no bot.",
                 'parse_mode' => 'Markdown'
