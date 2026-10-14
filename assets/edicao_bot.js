@@ -11,6 +11,11 @@
         window.__toastTimeout = setTimeout(() => $toast.removeClass('visivel'), tempo);
     }
 
+    // O servidor responde 4xx com {mensagem} (ex.: "Token inválido."); sem isto o usuário só via "Erro ao...".
+    function mensagemDoErro(xhr, padrao) {
+        return (xhr && xhr.responseJSON && xhr.responseJSON.mensagem) || padrao;
+    }
+
     function escaparHtml(value) {
         return String(value || '')
             .replace(/&/g, '&amp;')
@@ -211,8 +216,9 @@
             }, true);
             
             exibirAviso('Conexão bem sucedida! Bot Online.');
-        }).fail(function () {
-            exibirAviso('Erro ao testar conexão.', 'erro');
+        }).fail(function (xhr) {
+            exibirAviso(mensagemDoErro(xhr, 'Erro ao testar conexão.'), 'erro');
+            atualizarCardStatus({ first_name: 'Erro de Conexão' }, false);
         }).always(function() {
             $btn.text(original_text).prop('disabled', false);
         });
@@ -251,8 +257,8 @@
                 const new_url = window.location.pathname + '?id=' + response.bot.id;
                 window.history.pushState({path:new_url},'',new_url);
             }
-        }).fail(function () {
-            exibirAviso('Erro ao salvar bot.', 'erro');
+        }).fail(function (xhr) {
+            exibirAviso(mensagemDoErro(xhr, 'Erro ao salvar bot.'), 'erro');
         }).always(function() {
             $btn.text(original_text).prop('disabled', false);
         });
@@ -297,8 +303,8 @@
             }
             $('#photo').val('');
             exibirAviso(response.mensagem || 'Perfil atualizado no Telegram!');
-        }).fail(function () {
-            exibirAviso('Erro de conexão ao atualizar perfil.', 'erro');
+        }).fail(function (xhr) {
+            exibirAviso(mensagemDoErro(xhr, 'Erro de conexão ao atualizar perfil.'), 'erro');
         }).always(function() {
             $btn.text(original_text).prop('disabled', false);
         });
@@ -347,8 +353,10 @@
 
                 alert(mensagem);
             } else {
-                exibirAviso('Erro ao obter info.', 'erro');
+                exibirAviso(response.mensagem || 'Erro ao obter info.', 'erro');
             }
+        }).fail(function (xhr) {
+            exibirAviso(mensagemDoErro(xhr, 'Erro ao obter info do webhook.'), 'erro');
         });
     });
 
@@ -374,8 +382,8 @@
             } else {
                 exibirAviso(response.mensagem || 'Erro ao reiniciar.', 'erro');
             }
-        }).fail(function () {
-            exibirAviso('Erro de conexão.', 'erro');
+        }).fail(function (xhr) {
+            exibirAviso(mensagemDoErro(xhr, 'Erro de conexão.'), 'erro');
         }).always(function() {
             $btn.prop('disabled', false).html(original_text);
         });

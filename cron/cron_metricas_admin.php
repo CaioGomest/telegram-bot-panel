@@ -14,10 +14,10 @@ function logCronMetricas(string $msg): void {
 }
 
 // Só libera via CLI (crontab chamando "php cron_metricas_admin.php" direto) ou HTTP com a
-// chave certa (?chave=...) — ver anotacoes/HISTORICO-CONSOLIDADO.md.
+// chave certa (?chave=...) — ver anotacoes/OBSERVACOES.md.
 if (php_sapi_name() !== 'cli') {
     $chave_informada = (string) ($_GET['chave'] ?? '');
-    if (!hash_equals(CHAVE_SECRETA_CRON, $chave_informada)) {
+    if (!defined('CHAVE_SECRETA_CRON') || !hash_equals((string) CHAVE_SECRETA_CRON, $chave_informada)) {
         logCronMetricas('Acesso HTTP negado (chave ausente ou incorreta).');
         http_response_code(403);
         exit('Acesso negado.');
@@ -89,7 +89,7 @@ try {
     $stmt2 = $pdo->prepare("
         INSERT INTO metricas_horarias_usuario (id_usuario, data, hora, qtd_leads, atualizado_em)
         SELECT b.id_usuario, DATE(l.criado_em), HOUR(l.criado_em), COUNT(*), NOW()
-        FROM leads l
+        FROM leads_starts l
         JOIN bots b ON l.bot_id = b.id
         WHERE $janela_leads
         GROUP BY b.id_usuario, DATE(l.criado_em), HOUR(l.criado_em)

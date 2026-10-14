@@ -2,6 +2,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../conexao.php';
+require_once __DIR__ . '/../funcoes/cron_guarda.php';
+exigirChamadaDeCron('cron_verificar_pix');
 require_once __DIR__ . '/../funcoes/log.php';
 require_once __DIR__ . '/../funcoes/webhooks.php';
 
@@ -37,8 +39,9 @@ function requisicaoTelegramLocal(string $token, string $metodo, array $parametro
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
     curl_setopt($ch, CURLOPT_TIMEOUT, 15);
     $resposta = curl_exec($ch);
-    curl_close($ch);
-    return json_decode($resposta ?: '', true) ?: ['ok' => false];
+    $r = json_decode($resposta ?: '', true) ?: ['ok' => false];
+    registrarRespostaTelegram($token, $r);
+    return $r;
 }
 
 function obterProximoNoLocal(array $links, string $id_atual, string $conector_saida = 'output_1'): ?string {
@@ -161,6 +164,22 @@ foreach ($vendas_pendentes as $venda) {
 
             logCron("Venda #{$venda['id']} encontrada como PAGA no gateway $nome_gateway.");
             $pagos_count++;
+            aposPagamentoConfirmado($venda);
+
+            // Mesmo registro que o webhook da gateway faz (antes, pagamento achado só pelo cron não
+            // aparecia em Atividade/notificações e não enviava o evento de compra pro Facebook/TikTok).
+            registrarAtividade((int) $venda['id_dono'], 'venda', 'Venda Aprovada', 'PIX R$ ' . number_format((float) $venda['valor'], 2, ',', '.') . ' pago (confirmado pelo cron, identificador=' . $venda['transacao_id'] . ').');
+            require_once __DIR__ . '/../funcoes/traqueamento.php';
+            enviarEventosTraqueamento((int) $venda['id_dono'], 'compra', [
+                'valor'        => (float) $venda['valor'],
+                'comissao'     => (float) ($venda['comissao_admin'] ?? 0),
+                'plano_id'     => $venda['id_plano'] ?? null,
+                'nome_produto' => $venda['nome_produto'] ?? null,
+                'pago_em'      => $pago_em,
+                'transacao_id' => (string) $venda['transacao_id'],
+                'event_id'     => (string) $venda['transacao_id'],
+                'criado_em'    => $venda['criado_em'] ?? null,
+            ], montarUserDataTraqueamento($pdo, $venda['id_telegram'], $venda['bot_id']));
 
             dispararWebhooks((int) $venda['id_dono'], 'payment_approved', [
                 'bot_id' => (int) $venda['bot_id'],
@@ -226,7 +245,9 @@ foreach ($vendas_pendentes as $venda) {
 
                 if ($link) {
                     $msg .= "\n\n🚀 *Acesso Liberado!*\nClique no link abaixo para entrar no grupo exclusivo:\n\n$link\n\n⚠️ Este link é válido apenas para você.";
-                    if ($tempo_minutos < 60) {
+                    if (acessoVitalicio($tempo_minutos)) {
+                        $msg .= "\n♾️ *Acesso vitalício.*";
+                    } elseif ($tempo_minutos < 60) {
                         $msg .= "\n⏳ *Seu acesso expira em {$tempo_minutos} minutos.*";
                     } elseif ($tempo_minutos < 1440) {
                         $horas = floor($tempo_minutos / 60);
@@ -235,7 +256,9 @@ foreach ($vendas_pendentes as $venda) {
                         $dias = floor($tempo_minutos / 1440);
                         $msg .= "\n⏳ *Seu acesso expira em {$dias} dias.*";
                     }
-                    $msg .= "\n*(Data exata: " . date('d/m/Y \\à\\s H:i', strtotime($data_expiracao)) . ")*";
+                    if (!acessoVitalicio($tempo_minutos)) {
+                        $msg .= "\n*(Data exata: " . date('d/m/Y \\à\\s H:i', strtotime($data_expiracao)) . ")*";
+                    }
                 } else {
                     $msg .= "\n\n⚠️ Não foi possível gerar o link do grupo automaticamente. O administrador entrará em contato.";
                     $erro_link = $invite['description'] ?? 'Erro desconhecido';
@@ -287,9 +310,11 @@ foreach ($vendas_expiradas as $venda) {
 // Cobranças de ciclo de assinatura (criadas pelo webhook, sem bloco de fluxo) que o
 // assinante não pagou: expira em silêncio pra não ficarem 'gerado' pra sempre e ocuparem o
 // LIMIT do polling. O acesso em si é cortado pelo cron_verificar_acessos.
+// Também cobre o Pix de renovação manual do cron_renovacao (tem venda_pai_id mas não id_assinatura): antes nunca
+// expirava, era consultado no gateway a cada minuto pra sempre e, por ordem de criação, ocupava o LIMIT do polling.
 $stmt_ciclos = $pdo->prepare("
     UPDATE vendas SET status = 'expirado'
-    WHERE status = 'gerado' AND id_assinatura IS NOT NULL AND venda_pai_id IS NOT NULL
+    WHERE status = 'gerado' AND venda_pai_id IS NOT NULL
     AND id_operador_fluxo IS NULL
     AND TIMESTAMPDIFF(SECOND, criado_em, ?) >= tempo_expiracao_minutos * 60
 ");
@@ -300,7 +325,7 @@ $stmt_ciclos->execute([$agora_php]);
 // "aguardando pagamento" em Conversões e sendo consultadas na OmegaPayments a cada minuto.
 $stmt_sem_fluxo = $pdo->prepare("
     UPDATE vendas SET status = 'expirado'
-    WHERE status = 'gerado' AND id_operador_fluxo IS NULL AND venda_pai_id IS NULL AND id_assinatura IS NULL
+    WHERE status = 'gerado' AND id_operador_fluxo IS NULL AND venda_pai_id IS NULL
     AND TIMESTAMPDIFF(SECOND, criado_em, ?) >= tempo_expiracao_minutos * 60
 ");
 $stmt_sem_fluxo->execute([$agora_php]);

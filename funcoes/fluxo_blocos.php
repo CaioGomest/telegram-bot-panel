@@ -34,9 +34,37 @@ function requisicaoTelegram(string $token, string $metodo, array $parametros = [
     // Upload de mídia (foto/vídeo/áudio do fluxo) precisa de mais tempo que uma mensagem de texto simples.
     curl_setopt($ch, CURLOPT_TIMEOUT, !empty($arquivos) ? 30 : 15);
     $resposta = curl_exec($ch);
-    curl_close($ch);
     $decodificado = json_decode($resposta ?: '', true);
+    registrarRespostaTelegram($token, $decodificado);
     return is_array($decodificado) ? $decodificado : ['ok' => false, 'description' => 'resposta inválida'];
+}
+
+/**
+ * Telegram recusa mensagem com mais de 4096 caracteres (e legenda de mídia com mais de 1024). Em vez de o cliente
+ * não receber nada, o texto é dividido em partes (corta de preferência numa quebra de linha ou espaço).
+ */
+function dividirTextoTelegram(string $texto, int $limite = 4096): array
+{
+    $partes = [];
+    $texto = trim($texto);
+    while (mb_strlen($texto) > $limite) {
+        $corte = mb_substr($texto, 0, $limite);
+        $pos = max((int) mb_strrpos($corte, "\n"), (int) mb_strrpos($corte, ' '));
+        $pos = $pos > $limite / 2 ? $pos : $limite;
+        $partes[] = trim(mb_substr($texto, 0, $pos));
+        $texto = trim(mb_substr($texto, $pos));
+    }
+    if ($texto !== '') {
+        $partes[] = $texto;
+    }
+    return $partes;
+}
+
+function enviarTextoLongoTelegram(string $token, $id_chat, string $texto): void
+{
+    foreach (dividirTextoTelegram($texto) as $parte) {
+        requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => $parte]);
+    }
 }
 
 /**
@@ -91,6 +119,12 @@ function agendarAutoExclusaoDoBloco(string $token, $id_chat, array $propriedades
 }
 
 /** Escapa os caracteres que quebram o Markdown legado do Telegram (nome de plano/pack com "_" ou "*" derrubava a mensagem do Pix). */
+/** Pack (e qualquer acesso de 36500 dias ou mais) não vence: a confirmação diz "vitalício" em vez de "expira em 36500 dias". */
+function acessoVitalicio($minutos): bool
+{
+    return (int) $minutos >= 36500 * 1440;
+}
+
 function escaparMarkdownTelegram(string $texto): string
 {
     return preg_replace('/([_*`\[])/', '\\\\$1', $texto);
@@ -161,7 +195,7 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
     if ($tipo === 'message') {
         $texto = trim((string) ($propriedades['conteudo'] ?? $propriedades['body'] ?? ''));
         if ($texto !== '') {
-            requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => $texto]);
+            enviarTextoLongoTelegram($token, $id_chat, $texto);
         }
         return;
     }
@@ -172,7 +206,8 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
         }
         $parametros = ['chat_id' => $id_chat];
         $legenda = trim((string) ($propriedades['caption'] ?? ''));
-        if ($legenda !== '') {
+        $legenda_longa = mb_strlen($legenda) > 1024; // não cabe na legenda: o texto segue logo depois, numa mensagem normal
+        if ($legenda !== '' && !$legenda_longa) {
             $parametros['caption'] = $legenda;
         }
         $modo = $propriedades['mode'] ?? 'foto';
@@ -185,6 +220,9 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
             $resposta = requisicaoTelegram($token, 'sendPhoto', $parametros, ['photo' => $caminho_absoluto]);
         }
         agendarAutoExclusaoDoBloco($token, $id_chat, $propriedades, $resposta);
+        if ($legenda_longa) {
+            enviarTextoLongoTelegram($token, $id_chat, $legenda);
+        }
         return;
     }
     if ($tipo === 'video') {
@@ -194,7 +232,8 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
         }
         $parametros = ['chat_id' => $id_chat];
         $legenda = trim((string) ($propriedades['caption'] ?? ''));
-        if ($legenda !== '') {
+        $legenda_longa = mb_strlen($legenda) > 1024; // não cabe na legenda: o texto segue logo depois, numa mensagem normal
+        if ($legenda !== '' && !$legenda_longa) {
             $parametros['caption'] = $legenda;
         }
         if (!empty($propriedades['spoiler'])) {
@@ -202,6 +241,9 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
         }
         $resposta = requisicaoTelegram($token, 'sendVideo', $parametros, ['video' => $caminho_absoluto]);
         agendarAutoExclusaoDoBloco($token, $id_chat, $propriedades, $resposta);
+        if ($legenda_longa) {
+            enviarTextoLongoTelegram($token, $id_chat, $legenda);
+        }
         return;
     }
     if ($tipo === 'audio') {
@@ -211,7 +253,8 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
         }
         $parametros = ['chat_id' => $id_chat];
         $legenda = trim((string) ($propriedades['caption'] ?? ''));
-        if ($legenda !== '') {
+        $legenda_longa = mb_strlen($legenda) > 1024; // não cabe na legenda: o texto segue logo depois, numa mensagem normal
+        if ($legenda !== '' && !$legenda_longa) {
             $parametros['caption'] = $legenda;
         }
         // Tenta enviar como Note de Voz (sendVoice) para parecer gravado na hora
@@ -223,11 +266,14 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
              $resposta = requisicaoTelegram($token, 'sendAudio', $parametros, ['audio' => $caminho_absoluto]);
         }
         agendarAutoExclusaoDoBloco($token, $id_chat, $propriedades, $resposta);
+        if ($legenda_longa) {
+            enviarTextoLongoTelegram($token, $id_chat, $legenda);
+        }
         return;
     }
     if ($tipo === 'grupo') {
         $id_grupo = $propriedades['id_grupo'] ?? '';
-        $texto_botao = $propriedades['texto_botao'] ?? 'Entrar no Grupo';
+        $texto_botao = trim((string) ($propriedades['texto_botao'] ?? '')) ?: 'Entrar no Grupo';
         if (empty($id_grupo)) {
             requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Erro: Grupo não configurado.']);
             return;
@@ -444,7 +490,7 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
                     // igual ao avulso; as cobranças seguintes do ciclo a própria OmegaPayments
                     // gera sozinha). id_operador identifica o "produto" de forma estável entre
                     // assinantes diferentes do mesmo bloco Pix do fluxo.
-                    $payload = $provedor->montaPayloadAssinatura($valor, $periodicidade_recorrente, 'produto_' . ($id_operador ?: bin2hex(random_bytes(4))), $nome_produto_recorrente, $nome_usuario, $documento_limpo, $split_data);
+                    $payload = $provedor->montaPayloadAssinatura($valor, $periodicidade_recorrente, 'produto_' . ($id_operador ?: ($propriedades['id_produto'] ?? '') ?: bin2hex(random_bytes(4))), $nome_produto_recorrente, $nome_usuario, $documento_limpo, $split_data);
                     $resp = $provedor->criarAssinatura($payload);
                 } else {
                     $payload = $provedor->montaPayloadCobranca($valor, $chave_pix, $split_data, $expiracao_segundos, $nome_usuario, $documento_limpo);
@@ -471,6 +517,11 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
                 continue;
             }
         }
+
+        // A gateway pode ter levado mais que o wait_timeout (20 s) do MySQL para responder (09/10: timeout de 30 s e depois "server has gone away"
+        // ao gravar a venda, deixando um Pix sem venda correspondente): confere a conexão antes de voltar ao banco.
+        garantirConexaoBanco();
+        $pdo = $GLOBALS['pdo'];
 
         if (!$gateway_selecionado || !($resp['sucesso'] ?? false)) {
             // O rastro completo (nome do gateway, "não configurado", erro cru da API do
@@ -518,6 +569,8 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
                 $linhas_teclado_pix[] = [['text' => 'Já fiz o pagamento ✅', 'callback_data' => 'verificar_pagamento_' . $txid]];
             }
             $teclado_pix = $linhas_teclado_pix ? ['inline_keyboard' => $linhas_teclado_pix] : null;
+            $venda_gravada = false;
+            $sql_venda = $params_venda = null;
             try {
                 $dias_acesso = isset($propriedades['dias_acesso']) ? (int)$propriedades['dias_acesso'] : 30;
                 $unidade_acesso = $propriedades['unidade_acesso'] ?? 'dias';
@@ -572,8 +625,9 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
                 $id_bot_insert = $id_bot_real ? (int)$id_bot_real : null;
                 file_put_contents(dirname(__DIR__) . '/logs/vendas_debug.log', "[" . date('Y-m-d H:i:s') . "] TENTANDO INSERIR VENDA - TXID: $txid | OPERADOR: $id_operador | BOT_ID: $id_bot_insert\n", FILE_APPEND);
                 $data_criacao = date('Y-m-d H:i:s');
-                $stmt_venda = $pdo->prepare("INSERT INTO vendas (id_telegram, bot_id, valor, status, transacao_id, id_grupo_telegram, dias_acesso, tempo_acesso_minutos, id_operador_fluxo, id_gateway, tempo_expiracao_minutos, criado_em, tipo_cobranca, id_assinatura, id_fluxo) VALUES (?, ?, ?, 'gerado', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $executou = $stmt_venda->execute([
+                $sql_venda = "INSERT INTO vendas (id_telegram, bot_id, valor, status, transacao_id, id_grupo_telegram, dias_acesso, tempo_acesso_minutos, id_operador_fluxo, id_gateway, tempo_expiracao_minutos, criado_em, tipo_cobranca, id_assinatura, id_fluxo) VALUES (?, ?, ?, 'gerado', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                $stmt_venda = $pdo->prepare($sql_venda);
+                $params_venda = [
                     $id_chat,
                     $id_bot_insert,
                     $valor_insert,
@@ -588,12 +642,16 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
                     $eh_recorrente_oficial ? 'assinatura' : 'unica',
                     $id_assinatura,
                     $id_fluxo_insert
-                ]);
+                ];
+                $executou = $stmt_venda->execute($params_venda);
                 if (!$executou) {
                      file_put_contents(dirname(__DIR__) . '/logs/vendas_debug.log', "[" . date('Y-m-d H:i:s') . "] ERRO PDO: " . print_r($stmt_venda->errorInfo(), true) . "\n", FILE_APPEND);
                 } else {
+                     $venda_gravada = true;
                      file_put_contents(dirname(__DIR__) . '/logs/vendas_debug.log', "[" . date('Y-m-d H:i:s') . "] VENDA INSERIDA COM SUCESSO!\n", FILE_APPEND);
                      $id_venda_criada = (int) $pdo->lastInsertId();
+                     require_once __DIR__ . '/traqueamento.php';
+                     registrarNomeProdutoVenda($pdo, $id_venda_criada, (string) $nome_produto);
                      if ($id_usuario_dono_insert) {
                          require_once __DIR__ . '/log.php';
                          $valor_formatado = number_format($valor_insert, 2, ',', '.');
@@ -605,9 +663,10 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
                              'valor' => $valor_insert,
                              'nome_produto' => $nome_produto,
                              'transacao_id' => $txid,
-                             'event_id' => $txid
+                             'event_id' => $txid,
+                             'criado_em' => $data_criacao
                          ];
-                         $user_data = montarUserDataTraqueamento($pdo, $id_chat, $bot['id']);
+                         $user_data = montarUserDataTraqueamento($pdo, $id_chat, $id_bot_insert);
                          enviarEventosTraqueamento($id_usuario_dono_insert, 'pix_gerado', $dados_evento, $user_data);
                          dispararWebhooks($id_usuario_dono_insert, 'payment_created', [
                              'bot_id' => (int) $id_bot_insert,
@@ -621,6 +680,30 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
                 }
             } catch (Exception $e) {
                 file_put_contents(dirname(__DIR__) . '/logs/vendas_debug.log', "[" . date('Y-m-d H:i:s') . "] EXCECAO: " . $e->getMessage() . "\n", FILE_APPEND);
+                // Conexão que caiu na hora de gravar: abre outra e tenta uma vez mais (o Pix já existe na gateway).
+                if (!$venda_gravada && $sql_venda !== null && $params_venda !== null) {
+                    try {
+                        garantirConexaoBanco();
+                        $pdo = $GLOBALS['pdo'];
+                        $pdo->prepare($sql_venda)->execute($params_venda);
+                        $venda_gravada = true;
+                        registrarNomeProdutoVenda($pdo, (int) $pdo->lastInsertId(), (string) $nome_produto);
+                        file_put_contents(dirname(__DIR__) . '/logs/vendas_debug.log', "[" . date('Y-m-d H:i:s') . "] VENDA INSERIDA NA 2a TENTATIVA (txid $txid)\n", FILE_APPEND);
+                    } catch (Throwable $e2) {
+                        file_put_contents(dirname(__DIR__) . '/logs/vendas_debug.log', "[" . date('Y-m-d H:i:s') . "] 2a TENTATIVA FALHOU: " . $e2->getMessage() . "\n", FILE_APPEND);
+                    }
+                }
+            }
+            if (!$venda_gravada) {
+                // Sem venda gravada o pagamento não seria reconhecido: não entrega o Pix ao cliente e avisa o dono.
+                file_put_contents(dirname(__DIR__) . '/logs/vendas_debug.log', "[" . date('Y-m-d H:i:s') . "] PIX NAO ENTREGUE: venda nao gravada (txid $txid, dono $id_usuario_dono)\n", FILE_APPEND);
+                try {
+                    require_once __DIR__ . '/log.php';
+                    registrarAtividade((int) $id_usuario_dono, 'sistema', 'Falha ao gravar venda', "Um Pix (código $txid) foi criado na gateway mas a venda não pôde ser gravada; o cliente não recebeu o código. Se ele chegou a pagar, o valor aparece só na gateway.");
+                } catch (Throwable $e3) {
+                }
+                requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => "Não foi possível gerar seu Pix agora. Tente novamente em instantes."]);
+                return;
             }
             requisicaoTelegram($token, 'sendMessage', [
                 'chat_id' => $id_chat,

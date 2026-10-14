@@ -88,7 +88,7 @@ function gerarPixPackBasico(string $token, $id_chat, array $dados_basico, array 
         'unidade_acesso' => 'dias',
         'id_grupo' => $pack['id_grupo'] ?? '',
         'mostrar_copiar' => $pagamentos['mostrar_copiar'] ?? true,
-        'mostrar_qrcode' => false,
+        'mostrar_qrcode' => !empty($pagamentos['qrcode_definido']) ? !empty($pagamentos['mostrar_qrcode']) : true,
         'mostrar_confirmar' => $pagamentos['mostrar_confirmar'] ?? true,
         'msg_instrucoes' => $pagamentos['msg_instrucoes'] ?? '',
         'msg_confirmado' => $pagamentos['msg_confirmado'] ?? '',

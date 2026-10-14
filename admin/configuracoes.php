@@ -22,13 +22,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'identid
         if ($nome === '') {
             throw new RuntimeException('O nome do sistema não pode ficar vazio.');
         }
-        definirConfigSistema('nome_sistema', mb_substr($nome, 0, 60));
 
         $cor_primaria = trim($_POST['cor_primaria'] ?? '');
         if (!preg_match('/^#[0-9a-f]{6}$/i', $cor_primaria)) {
             throw new RuntimeException('Cor inválida.');
         }
-        definirConfigSistema('cor_primaria', strtolower($cor_primaria));
 
         $dominios_validos = [];
         foreach (preg_split('/[\r\n,;\s]+/', (string) ($_POST['dominios_redirecionamento'] ?? '')) ?: [] as $dominio) {
@@ -41,6 +39,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'identid
             }
             $dominios_validos[$dominio] = $dominio;
         }
+
+        // Tudo validado: só agora grava. Antes cada campo era gravado assim que passava, então um erro em
+        // cor/domínio deixava o nome já alterado ("Cor inválida" e mesmo assim o nome mudava).
+        definirConfigSistema('nome_sistema', mb_substr($nome, 0, 60));
+        definirConfigSistema('cor_primaria', strtolower($cor_primaria));
         definirConfigSistema('dominios_redirecionamento', implode("\n", $dominios_validos));
 
         if (isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {

@@ -5,6 +5,7 @@ require_once __DIR__ . '/conexao.php';
 require_once __DIR__ . '/funcoes/usuario.php';
 require_once __DIR__ . '/funcoes/gateways.php';
 require_once __DIR__ . '/funcoes/paginador.php';
+require_once __DIR__ . '/funcoes/icones.php';
 
 verificarLogin();
 
@@ -20,19 +21,21 @@ function avisoLimitesOmegaPayments(bool $para_admin): string {
         . '<ul style="margin:0;padding-left:18px;">'
         . '<li>Valor mínimo de um Pix: <strong>' . $dinheiro(OMEGAPAYMENTS_PRECO_MINIMO_API) . '</strong> (limite da API — abaixo disso a cobrança é recusada).</li>'
         . '<li>Tarifa da OmegaPayments: <strong>' . $dinheiro(OMEGAPAYMENTS_TARIFA_PIX) . ' por Pix</strong>.</li>';
+    // A taxa da plataforma é o split padrão que o admin configura na tela de gateways: aqui ela aparece com o valor de agora.
     if ($split) {
-        $descricao_split = ($split['tipo_split'] ?? 'percentual') === 'fixo'
-            ? $dinheiro((float) $split['taxa_split']) . ' fixo'
-            : rtrim(rtrim(number_format((float) $split['taxa_split'], 2, ',', ''), '0'), ',') . '%';
-        $html .= '<li>Comissão da plataforma ativa (' . $descricao_split . ') somada à tarifa não pode passar do valor da venda: '
-            . 'o <strong>menor preço aceito agora é ' . ($minimo >= PHP_FLOAT_MAX ? 'inviável (split de 100%)' : $dinheiro($minimo)) . '</strong>.</li>';
+        $taxa_plataforma = ($split['tipo_split'] ?? 'percentual') === 'fixo'
+            ? $dinheiro((float) $split['taxa_split']) . ' por venda'
+            : rtrim(rtrim(number_format((float) $split['taxa_split'], 2, ',', ''), '0'), ',') . '% do valor da venda';
     } else {
-        $html .= '<li>Sem comissão da plataforma ativa: o menor preço aceito é ' . $dinheiro($minimo) . '.</li>';
+        $taxa_plataforma = 'nenhuma no momento';
     }
+    $html .= '<li>Taxa da plataforma: <strong>' . $taxa_plataforma . '</strong>.</li>'
+        . '<li>Menor preço aceito agora: <strong>' . ($minimo >= PHP_FLOAT_MAX ? 'inviável (split de 100%)' : $dinheiro($minimo)) . '</strong>'
+        . ($split && $minimo < PHP_FLOAT_MAX ? ' (a tarifa somada à taxa da plataforma não pode passar do valor da venda).' : '.') . '</li>';
     $html .= '</ul>'
         . '<span style="display:block;margin-top:6px;color:var(--m);">Planos, packs, ofertas e renovações com preço menor que isso <strong>não geram Pix</strong> (o cliente recebe “não foi possível gerar seu Pix”). '
-        . ($para_admin ? 'Ao subir o split, confira o preço dos planos dos usuários. ' : '')
-        . 'Valores medidos em 06/10/2026; podem mudar na OmegaPayments.</span></div>';
+        . ($para_admin ? 'Ao subir o split, confira o preço dos planos dos usuários.' : '') . '</span>'
+        . '<span style="display:block;margin-top:6px;color:var(--m);">Valores medidos em 06/10/2026; podem mudar na OmegaPayments.</span></div>';
     return $html;
 }
 $user_id = $_SESSION['usuario_id'];
@@ -203,7 +206,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-if (!isset($mensagem) && !empty($_SESSION['gw_mensagem'])) {
+// $mensagem já vem definido como '' lá em cima, então isset() era sempre verdadeiro e o aviso guardado na
+// sessão (credenciais salvas, gateway ativado/desativado) nunca aparecia depois do redirecionamento.
+if ($mensagem === '' && !empty($_SESSION['gw_mensagem'])) {
     $mensagem = $_SESSION['gw_mensagem'];
     unset($_SESSION['gw_mensagem']);
 }
@@ -212,11 +217,15 @@ if ($is_admin) {
     $total_gateways = contarGatewaysAdmin();
     $gateways = listarGatewaysAdmin($por_pagina, $offset);
 }
-// O admin também é dono de bots e precisa configurar suas próprias credenciais de gateway,
-// então a listagem "de usuário" é sempre carregada (para a própria conta do admin), além do
-// painel de toggle admin-only acima.
-$total_gateways_usuario = contarGatewaysUsuario();
-$gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
+// Credenciais, "Gateways Ativos" e "Gateways Disponíveis" são de quem opera bot. O admin não opera
+// (bloquearAdmin() barra bots, fluxos e vendas dele, e a cobrança sempre usa a credencial do DONO do
+// bot): ele só liga o gateway para todo mundo e define o split, no bloco de cima.
+$total_gateways_usuario = 0;
+$gateways_usuario = [];
+if (!$is_admin) {
+    $total_gateways_usuario = contarGatewaysUsuario();
+    $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
+}
 
 ?>
 <!DOCTYPE html>
@@ -236,7 +245,7 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
         <div class="cabecalho-pagina">
             <div>
                 <h1>Gateways de Pagamento</h1>
-                <p>Gerencie as integrações de pagamento.</p>
+                <p><?php echo $is_admin ? 'Ative os gateways para os usuários e defina o split da plataforma.' : 'Gerencie as integrações de pagamento.'; ?></p>
             </div>
             <div class="acoes-cabecalho">
                 <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
@@ -296,6 +305,9 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                                     <span class="badge <?php echo $is_ativo ? 'badge-sucesso' : 'badge-neutro'; ?>" id="badge-<?php echo $g_id; ?>">
                                         <?php echo $is_ativo ? 'Ativo' : 'Inativo'; ?>
                                     </span>
+                                    <span class="texto-suave" id="dica-<?php echo $g_id; ?>" style="font-size:12px;">
+                                        <?php echo $is_ativo ? 'Liberado para os usuários.' : 'Os usuários não veem este gateway.'; ?>
+                                    </span>
                                 </div>
 
                                 <?php
@@ -349,6 +361,7 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                         card.classList.toggle('ativo', ativo);
                         badge.className = 'badge ' + (ativo ? 'badge-sucesso' : 'badge-neutro');
                         badge.textContent = ativo ? 'Ativo' : 'Inativo';
+                        document.getElementById('dica-' + id).textContent = ativo ? 'Liberado para os usuários.' : 'Os usuários não veem este gateway.';
                         // submit() primeiro (já captura os valores atuais dos checkboxes), só
                         // depois desabilita -- desabilitar antes tiraria os checkboxes do POST
                         // (campo disabled não é enviado) e zeraria todo mundo pra "inativo".
@@ -359,11 +372,9 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
 
             <?php endif; ?>
 
-            <?php if ($is_admin): ?>
-                <hr style="margin:28px 0;">
-            <?php endif; ?>
+            <?php if (!$is_admin): ?>
             <?php
-                // USER VIEW: sempre visível — inclusive para admin, para sua própria conta
+                // USER VIEW: só para quem opera bot (o admin não tem credencial própria de gateway)
                 $gateways = $gateways_usuario;
                     $gw_ativos      = array_filter($gateways, fn($g) => !empty($g['user_config']['ativo']));
                     $gw_disponiveis = array_filter($gateways, fn($g) =>  empty($g['user_config']['ativo']));
@@ -537,13 +548,11 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                                 </div>
 
                                 <div class="acoes-cartao-gateway">
-                                    <button type="button" class="botao" onclick="openModal('<?php echo $modal_id; ?>')">
-                                        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.1 4.9A10 10 0 0 0 4.9 19.1M19.1 19.1A10 10 0 0 0 4.9 4.9"/></svg>
-                                        Configurar
-                                    </button>
-                                    <button type="button" class="btn-icon desativar" title="Desativar" onclick="desativarGateway(<?php echo $g['id']; ?>, '<?php echo htmlspecialchars($g['titulo'], ENT_QUOTES); ?>', this)">
-                                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                                    </button>
+                                    <button type="button" class="btn-icon editar" title="Configurar" aria-label="Configurar" onclick="openModal('<?php echo $modal_id; ?>')"><?php echo iconeAcao('config'); ?></button>
+                                    <label class="chave-gateway chave-cartao" title="Ativo — clique para desativar">
+                                        <input type="checkbox" checked aria-label="Gateway ativo" onchange="desativarGateway(<?php echo $g['id']; ?>, '<?php echo htmlspecialchars($g['titulo'], ENT_QUOTES); ?>', this)">
+                                        <span class="chave-gateway-trilho"></span>
+                                    </label>
                                 </div>
                             </div>
 
@@ -595,15 +604,11 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                                     PIX
                                 </span>
                                 <div class="acoes-gateway-disponivel">
-                                    <button type="button" class="botao" onclick="openModal('<?php echo $modal_id; ?>')">
-                                        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.1 4.9A10 10 0 0 0 4.9 19.1M19.1 19.1A10 10 0 0 0 4.9 4.9"/></svg>
-                                        Configurar
-                                    </button>
-                                    <?php if ($tem_credenciais): ?>
-                                    <button type="button" class="btn-icon ativar" title="Ativar" onclick="ativarGateway(<?php echo $g['id']; ?>, this)">
-                                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-                                    </button>
-                                    <?php endif; ?>
+                                    <button type="button" class="btn-icon editar" title="Configurar" aria-label="Configurar" onclick="openModal('<?php echo $modal_id; ?>')"><?php echo iconeAcao('config'); ?></button>
+                                    <label class="chave-gateway chave-cartao" title="<?php echo $tem_credenciais ? 'Desligado — clique para ativar' : 'Configure as credenciais para ativar'; ?>">
+                                        <input type="checkbox" aria-label="Ativar gateway" onchange="<?php echo $tem_credenciais ? 'ativarGateway(' . (int) $g['id'] . ', this)' : "this.checked=false; openModal('" . $modal_id . "')"; ?>">
+                                        <span class="chave-gateway-trilho"></span>
+                                    </label>
                                 </div>
                             </div>
 
@@ -642,6 +647,7 @@ $gateways_usuario = listarGatewaysUsuario($user_id, $por_pagina, $offset);
                 <?php endif; ?>
 
             <?php echo paginador($total_gateways_usuario, $por_pagina); ?>
+            <?php endif; ?>
         </div>
     </main>
 </div>
@@ -656,7 +662,7 @@ function closeModal(id) { document.getElementById(id).classList.remove('aberto')
 // em andamento e, nesse servidor, isso às vezes deixa a conexão HTTP/2 reaproveitada num
 // estado ruim (ERR_HTTP2_PROTOCOL_ERROR até o navegador abrir uma conexão nova).
 function desativarGateway(id, nome, btn) {
-    if (!confirm('Desativar "' + nome + '"? Seus bots deixarão de usar este gateway.')) return;
+    if (!confirm('Desativar "' + nome + '"? Seus bots deixarão de usar este gateway.')) { if (btn) btn.checked = true; return; }
     if (btn) btn.disabled = true;
     document.getElementById('desativar-gw-id').value = id;
     document.getElementById('form-desativar').submit();

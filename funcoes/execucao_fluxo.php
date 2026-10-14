@@ -105,12 +105,17 @@ function liberarRequisicaoSePossivel(): bool
 /** Dorme $segundos; com $digitando, mostra "digitando…" no Telegram (a ação dura ~5 s, então repete). */
 function esperarComDigitando(string $token, $id_chat, int $segundos, bool $digitando): void
 {
-    $fim = time() + $segundos;
-    while (($restante = $fim - time()) > 0) {
+    // microtime: com time() (segundos inteiros) uma espera de 1 s podia durar só ~0,1 s se começasse no fim do segundo.
+    $fim = microtime(true) + $segundos;
+    while (($restante = $fim - microtime(true)) > 0) {
         if ($digitando) {
             requisicaoTelegram($token, 'sendChatAction', ['chat_id' => $id_chat, 'action' => 'typing']);
+            $restante = $fim - microtime(true);
+            if ($restante <= 0) {
+                break;
+            }
         }
-        sleep(min($restante, 4));
+        usleep((int) (min($restante, 4) * 1000000));
     }
 }
 

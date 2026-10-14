@@ -468,7 +468,6 @@ function enviarLoteWebhooks(array $webhooks, string $corpo): array
             }
             $resultados[$indice] = resultadoEnvioWebhook($webhooks[$indice], $http ?: null, $ok, $erro);
             curl_multi_remove_handle($multi, $ch);
-            curl_close($ch);
         }
     }
     curl_multi_close($multi);

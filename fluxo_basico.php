@@ -1,5 +1,6 @@
 <?php declare(strict_types=1);
 require_once __DIR__ . '/funcoes/usuario.php';
+require_once __DIR__ . '/funcoes/icones.php';
 bloquearAdmin();
 $icone_cadeado = '<svg class="editor-fluxo-cadeado" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
 ?>
@@ -30,25 +31,16 @@ $icone_cadeado = '<svg class="editor-fluxo-cadeado" width="12" height="12" viewB
                 </div>
                 <span class="editor-fluxo-sub">Editor de fluxo</span>
             </div>
-            <div class="editor-fluxo-traducao" title="Em breve">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
-                <div><small>Tradução automática</small><strong>Desligada</strong></div>
-                <label class="basico-interruptor-mini"><input type="checkbox" disabled aria-label="Tradução automática (em breve)"></label>
-            </div>
         </div>
         <div class="editor-fluxo-topo-dir">
             <span class="basico-status" id="status-salvo">Tudo salvo</span>
             <label class="basico-interruptor" title="Desligado: o bot responde que o atendimento está indisponível">
                 <input type="checkbox" id="fluxo-ativo" checked> <span id="fluxo-ativo-rotulo">Ativo</span>
             </label>
-            <button class="botao" id="btn-excluir-fluxo-basico" style="display:none;">Excluir</button>
+            <button type="button" class="btn-icon excluir" id="btn-excluir-fluxo-basico" style="display:none;" title="Excluir fluxo" aria-label="Excluir fluxo"><?php echo iconeAcao('excluir'); ?></button>
             <button class="botao botao-primario" id="btn-salvar-fluxo-basico">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8"/></svg>
                 Salvar alterações
-            </button>
-            <button class="botao" type="button" disabled title="Em breve">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
-                Compartilhar
             </button>
         </div>
     </header>
@@ -281,6 +273,9 @@ $icone_cadeado = '<svg class="editor-fluxo-cadeado" width="12" height="12" viewB
                             <input type="checkbox" id="pg-mostrar-copiar" checked> <label style="margin:0">Botão Copiar código</label>
                         </div>
                         <div class="linha-flex">
+                            <input type="checkbox" id="pg-mostrar-qrcode" checked> <label style="margin:0">Enviar também o QR Code (foto)</label>
+                        </div>
+                        <div class="linha-flex">
                             <input type="checkbox" id="pg-mostrar-confirmar" checked> <label style="margin:0">Botão "Já fiz o pagamento"</label>
                         </div>
                     </div>
@@ -416,6 +411,7 @@ $icone_cadeado = '<svg class="editor-fluxo-cadeado" width="12" height="12" viewB
                 <div class="painel">
                     <div class="painel-cabecalho"><h2>Avisos antes de expirar</h2></div>
                     <label class="basico-interruptor sem-caixa"><input type="checkbox" id="as-antes-ativo"> <span>Ativar avisos</span></label>
+                    <p class="texto-ajuda" id="as-antes-padrao"><strong>Desligado = aviso padrão do sistema.</strong><br>O cliente recebe uma mensagem automática (texto fixo) quando falta pouco para vencer, com o botão "Recomeçar / Renovar".<br>• Planos de 1 dia ou mais: nas últimas 24 horas.<br>• Planos em minutos: com 15 minutos restantes (5 minutos se o plano for de 15 min ou menos).<br>Ligue para escolher dias, texto e mídia.</p>
                     <div class="of-detalhes" id="as-antes-detalhes" hidden>
                         <div class="campo">
                             <label>Dias antes de expirar</label>
@@ -478,6 +474,7 @@ $icone_cadeado = '<svg class="editor-fluxo-cadeado" width="12" height="12" viewB
                 <div class="painel">
                     <div class="painel-cabecalho"><h2>Mensagem quando expirar</h2></div>
                     <label class="basico-interruptor sem-caixa"><input type="checkbox" id="as-exp-ativo"> <span>Ativar mensagem de expiração</span></label>
+                    <p class="texto-ajuda" id="as-exp-padrao"><strong>Desligado = mensagem padrão do sistema.</strong><br>Ao vencer, o cliente recebe "Seu acesso ao grupo expirou!" com o botão "Recomeçar / Renovar" (se "Expulsar do grupo" estiver desligado, a versão sem remoção).<br>Ligue para usar seu texto e mídia.</p>
                     <div class="of-detalhes" id="as-exp-detalhes" hidden>
                         <div class="campo">
                             <label>Mídia (opcional)</label>
@@ -530,26 +527,6 @@ $icone_cadeado = '<svg class="editor-fluxo-cadeado" width="12" height="12" viewB
         </div>
 
         <aside class="editor-fluxo-lateral">
-            <div class="painel">
-                <div class="painel-cabecalho"><h2>Cache de mídia</h2></div>
-<p class="texto-ajuda">O Telegram só envia uma mídia (foto/vídeo) do zero na primeira vez; depois reaproveita o arquivo já enviado, o que deixa o bot bem mais rápido. Para isso o bot precisará de um canal ou grupo seu para guardar essas mídias.</p>
-                <div class="basico-vincular" style="margin-top:0;">
-                    <select id="cache-chat-id" aria-label="Canal ou grupo de cache"><option value="">Nenhum (sem cache)</option></select>
-                    <button type="button" class="editor-fluxo-icone-btn quadrado" id="btn-atualizar-cache" aria-label="Atualizar lista de canais e grupos">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15 6.7L3 16M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M3 21v-5h5"/></svg>
-                    </button>
-                </div>
-                <p class="texto-ajuda" id="cache-aviso" style="margin-top:8px;"></p>
-                <div class="editor-fluxo-como">
-                    <strong>Como configurar:</strong>
-                    <ol>
-                        <li>Crie um <b>canal ou grupo</b> privado no Telegram</li>
-                        <li>Adicione o bot como <b>administrador</b></li>
-                        <li>Dê permissão de <b>postar mensagens</b></li>
-                        <li>Selecione o canal aqui e clique em “Atualizar”</li>
-                    </ol>
-                </div>
-            </div>
             <div class="painel">
                 <div class="painel-cabecalho"><h2>@ Suporte <small class="texto-ajuda">(opcional)</small></h2></div>
                 <p class="texto-ajuda">Se preencher, a lista de planos ganha um botão “Falar com o suporte” que abre esse contato no Telegram.</p>

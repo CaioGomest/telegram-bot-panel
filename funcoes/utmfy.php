@@ -6,7 +6,7 @@
  * Quem configura esse campo é o próprio dono do bot (não confiável do ponto de vista do
  * servidor) e a requisição é feita pelo próprio servidor da plataforma — sem essa checagem,
  * dava pra usar o servidor como ponte pra alcançar rede interna. Ver
- * anotacoes/HISTORICO-CONSOLIDADO.md.
+ * anotacoes/OBSERVACOES.md.
  */
 function urlPostbackEhSegura(string $url): bool
 {
@@ -102,6 +102,9 @@ function enviarEventoUtmfy($token, $evento, $dados, $user_data = []) {
         $valor_centavos = (int)round((float)($dados['valor'] ?? 0) * 100);
         $comissao_centavos = (int)round((float)($dados['comissao'] ?? 0) * 100);
         $data_atual = gmdate('Y-m-d H:i:s'); // API Utmify exige UTC
+        $data_criacao = !empty($dados['criado_em']) && strtotime((string) $dados['criado_em']) !== false
+            ? gmdate('Y-m-d H:i:s', strtotime((string) $dados['criado_em']))
+            : $data_atual;
         $data_pagamento = !empty($dados['pago_em'])
             ? gmdate('Y-m-d H:i:s', strtotime($dados['pago_em']))
             : null;
@@ -127,7 +130,7 @@ function enviarEventoUtmfy($token, $evento, $dados, $user_data = []) {
             'platform' => 'BotTelegram',
             'paymentMethod' => 'pix',
             'status' => $status,
-            'createdAt' => $data_atual,
+            'createdAt' => $data_criacao,
             // Usa a data real do pagamento quando ela existe; cair sempre em "agora" datava
             // errado todo pagamento processado com atraso (webhook lento, cron de retry).
             'approvedDate' => $status === 'paid' ? ($data_pagamento ?: $data_atual) : null,
@@ -181,13 +184,12 @@ function enviarEventoUtmfy($token, $evento, $dados, $user_data = []) {
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);  // faltava: isto roda dentro do webhook,
-    curl_setopt($ch, CURLOPT_TIMEOUT, 15);        // que precisa responder rapido
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);  // roda dentro do webhook de pagamento,
+    curl_setopt($ch, CURLOPT_TIMEOUT, 6);         // que precisa responder rapido
     
     $resposta = curl_exec($ch);
     $codigo_http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $erro_curl = curl_error($ch);
-    curl_close($ch);
 
     return [
         'sucesso' => $codigo_http >= 200 && $codigo_http < 300,

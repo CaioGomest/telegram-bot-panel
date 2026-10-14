@@ -26,6 +26,18 @@ if (!in_array($perfil, ['usuario', 'admin'], true)) {
     $perfil = 'usuario';
 }
 
+// Rebaixar o ÚLTIMO administrador deixaria o sistema sem admin, e sem admin o instalador (instalacao.php) volta a
+// abrir para qualquer visitante. Quem precisa trocar de admin promove o novo antes.
+if ($perfil !== 'admin') {
+    global $pdo;
+    $stmt_perfil = $pdo->prepare("SELECT perfil FROM usuarios WHERE id = ?");
+    $stmt_perfil->execute([$id]);
+    if ($stmt_perfil->fetchColumn() === 'admin' && (int) $pdo->query("SELECT COUNT(*) FROM usuarios WHERE perfil = 'admin'")->fetchColumn() <= 1) {
+        echo json_encode(['sucesso' => false, 'erro' => 'Este é o único administrador. Promova outro usuário a administrador antes de rebaixar este.']);
+        exit;
+    }
+}
+
 $resultado = atualizarPerfilUsuario($id, $nome, $email, $senha ?: null);
 
 if ($resultado['sucesso']) {

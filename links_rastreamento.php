@@ -84,7 +84,7 @@ bloquearAdmin();
 
                 <div class="campo" style="margin-top:14px;">
                     <label for="link-identificador">Identificador *</label>
-                    <input type="text" id="link-identificador" placeholder="Insira um identificador para o seu rastreamento" maxlength="100">
+                    <input type="text" id="link-identificador" placeholder="Insira um identificador para o seu rastreamento" maxlength="64">
                     <small>Somente letras, números e hifens. Será usado como parâmetro UTM.</small>
                 </div>
 

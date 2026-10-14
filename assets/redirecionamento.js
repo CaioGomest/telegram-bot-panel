@@ -389,11 +389,18 @@
         const atualPlat = $plat.val();
 
         if (!links.length) {
-            $link.html('<option value="">Nenhum link criado</option>');
+            // Sem link não há o que preparar: esconde os seletores (antes sobrava uma "Plataforma" vazia) e leva direto à criação.
+            $('.rd-prep-linha').hide();
+            $link.html('');
             $plat.html('');
-            $('#rd-prep-resultado').html('<p class="texto-suave">Crie um link primeiro na aba "Meus links".</p>');
+            $('#rd-prep-resultado').html(
+                '<div class="estado-vazio"><strong>Você ainda não tem nenhum link</strong>' +
+                '<div style="margin:6px 0 14px;">Crie um link curto primeiro. Depois é só escolher a plataforma aqui e copiar as UTMs e a URL pro anúncio.</div>' +
+                '<button type="button" class="botao botao-primario" id="rd-prep-criar">+ Criar link</button></div>'
+            );
             return;
         }
+        $('.rd-prep-linha').show();
         $link.html(links.map(function (l) { return '<option value="' + l.id + '">' + esc(l.titulo) + '</option>'; }).join(''));
         if (atualLink && links.some(function (l) { return l.id === atualLink; })) { $link.val(String(atualLink)); }
         $plat.html(Object.keys(opcoes.plataformas).map(function (k) { return '<option value="' + esc(k) + '">' + esc(opcoes.plataformas[k].nome) + '</option>'; }).join(''));
@@ -450,6 +457,7 @@
 
         $('#rd-btn-novo').on('click', novoLink);
         $(document).on('click', '#rd-btn-primeiro', novoLink);
+        $(document).on('click', '#rd-prep-criar', novoLink);
         $(document).on('click', '.rd-copiar', function () { copiar($(this).attr('data-url')); });
         $(document).on('click', '.rd-editar', function () { editarLink(parseInt($(this).data('id'), 10)); });
         $(document).on('click', '.rd-excluir', function () { excluir(parseInt($(this).data('id'), 10)); });

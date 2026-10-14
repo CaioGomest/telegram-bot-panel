@@ -2,6 +2,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../conexao.php';
+require_once __DIR__ . '/../funcoes/cron_guarda.php';
+exigirChamadaDeCron('cron_verificar_acessos');
 require_once __DIR__ . '/../funcoes/log.php';
 require_once __DIR__ . '/../funcoes/fluxo_blocos.php';
 require_once __DIR__ . '/../funcoes/assinatura.php';
@@ -14,6 +16,10 @@ $log_file_verificacao = __DIR__ . '/../logs/cron_verificar_acessos.log';
 ob_start();
 register_shutdown_function(function () use ($log_file_verificacao) {
     $conteudo = ob_get_contents();
+    // Rodada ociosa (nenhum acesso vencido) não vira linha de log: a cada minuto isso enchia o arquivo à toa.
+    if (!preg_match('/Encontrados|Erro|Falha|Removido|Processando|tolerância/i', (string) $conteudo)) {
+        return;
+    }
     file_put_contents(
         $log_file_verificacao,
         '[' . date('Y-m-d H:i:s') . "] Execução iniciada\n" . $conteudo . str_repeat('-', 60) . "\n",
@@ -30,8 +36,9 @@ function telegramRequest(string $token, string $metodo, array $parametros = []):
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
     curl_setopt($ch, CURLOPT_TIMEOUT, 15);
     $resposta = curl_exec($ch);
-    curl_close($ch);
-    return json_decode($resposta ?: '', true) ?: ['ok' => false];
+    $r = json_decode($resposta ?: '', true) ?: ['ok' => false];
+    registrarRespostaTelegram($token, $r);
+    return $r;
 }
 
 // Trava contra execução concorrente -- mesmo padrão de cron_verificar_pix.php/cron_remarketing.php.
@@ -53,7 +60,7 @@ try {
     // Inclui id_assinatura para identificar recorrentes nativos.
     // link_suporte vem do fluxo atualmente conectado ao bot (cada fluxo pode ter o seu).
     $stmt = $pdo->prepare("
-        SELECT m.*, b.token, b.nome_usuario, v.tipo_cobranca, v.dias_acesso, v.id_assinatura, v.valor, f.link_suporte, f.dados_fluxograma,
+        SELECT m.*, b.token, b.nome_usuario, b.id_usuario AS id_dono, v.tipo_cobranca, v.dias_acesso, v.id_assinatura, v.valor, f.link_suporte, f.dados_fluxograma,
                (SELECT l.nome FROM leads l WHERE l.bot_id = m.bot_id AND l.id_telegram = m.id_telegram ORDER BY l.id DESC LIMIT 1) AS nome
         FROM membros_grupos m
         JOIN bots b ON m.bot_id = b.id
@@ -147,6 +154,16 @@ try {
             echo " - Cobrança única (sem recorrência). Removendo imediatamente.\n";
         }
 
+        // A lista de vencidos foi lida no início da rodada; uma renovação confirmada desde então (webhook/cron de Pix)
+        // já estendeu a data. Relê a linha antes de agir pra não remover quem acabou de pagar.
+        $stmt_atual = $pdo->prepare("SELECT status, data_expiracao FROM membros_grupos WHERE id = ?");
+        $stmt_atual->execute([$membro['id']]);
+        $atual = $stmt_atual->fetch();
+        if (!$atual || $atual['status'] !== 'ativo' || strtotime((string) $atual['data_expiracao']) >= strtotime($hoje)) {
+            echo " - Acesso renovado durante a rodada. Não removendo.\n";
+            continue;
+        }
+
         // Aba Assinatura do Fluxo Guiado: mensagem de expiração própria e opção de NÃO remover do grupo.
         $mensagem_expirou = mensagemAoExpirarBasico($membro['dados_fluxograma'] ?? null, $membro);
         $expulsar = (configAssinaturaBasico($membro['dados_fluxograma'] ?? null)['acoes']['expulsar'] ?? true) !== false;
@@ -190,8 +207,8 @@ try {
                 'only_if_banned' => true
             ]);
 
-            $stmt_update = $pdo->prepare("UPDATE membros_grupos SET status = 'expirado' WHERE id = ?");
-            $stmt_update->execute([$membro['id']]);
+            $stmt_update = $pdo->prepare("UPDATE membros_grupos SET status = 'expirado' WHERE id = ? AND data_expiracao < ?");
+            $stmt_update->execute([$membro['id'], $hoje]);
 
             if ($mensagem_expirou) {
                 enviarMensagemAssinatura($token, (string) $id_chat, $mensagem_expirou['texto'], $mensagem_expirou['bloco'], tecladoRenovacaoAssinatura());
@@ -201,7 +218,7 @@ try {
                 'parse_mode' => 'Markdown'
             ], $teclado_suporte));
 
-            registrarAtividade($membro['bot_id'], 'sistema', 'Acesso', "Usuário $id_chat removido do grupo $id_grupo por expiração.");
+            registrarAtividade((int) $membro['id_dono'], 'sistema', 'Acesso', "Usuário $id_chat removido do grupo $id_grupo por expiração.");
 
         } else {
             $erro_desc = $ban['description'] ?? 'Desconhecido';
@@ -216,6 +233,19 @@ try {
                 if (stripos($erro_desc, $padrao) !== false) {
                     $eh_erro_permanente = true;
                     break;
+                }
+            }
+
+            // Bot sem permissão de banir no grupo: não é permanente (o dono pode corrigir), mas sem avisar ninguém o cron
+            // tentava a cada minuto pra sempre e a pessoa vencida seguia no grupo sem o dono saber. Avisa o dono no sino,
+            // no máximo uma vez por dia por grupo, e continua tentando (assim que o bot virar admin, a remoção acontece).
+            if (stripos($erro_desc, 'not enough rights') !== false || stripos($erro_desc, 'CHAT_ADMIN_REQUIRED') !== false) {
+                $aviso_dono = "O bot @{$membro['nome_usuario']} não tem permissão para remover membros do grupo $id_grupo, então quem venceu continua lá. Deixe o bot como administrador do grupo com a permissão \"Banir usuários\".";
+                $stmt_ja = $pdo->prepare("SELECT 1 FROM atividades WHERE id_usuario = ? AND titulo = 'Remoção do grupo falhou' AND descricao = ? AND criado_em > NOW() - INTERVAL 1 DAY LIMIT 1");
+                $stmt_ja->execute([(int) $membro['id_dono'], $aviso_dono]);
+                if (!$stmt_ja->fetchColumn()) {
+                    registrarAtividade((int) $membro['id_dono'], 'sistema', 'Remoção do grupo falhou', $aviso_dono);
+                    echo " - Dono avisado: bot sem permissão de banir no grupo.\n";
                 }
             }
 

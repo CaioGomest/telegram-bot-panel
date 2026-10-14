@@ -34,6 +34,10 @@ O layout novo (redesign do painel, handoff de design fora do repositório) foi a
 - **Arquivos com CRLF:** `webhook.php`, `cron_aviso_vencimento.php` e outros usam quebras de linha do Windows; scripts de substituição de texto multilinha precisam respeitar isso (e `grep -c $'\r'` no Git Bash engana).
 - **A cron real corre junto de qualquer teste com o mesmo banco** (ela também processa continuações/mensagens vencidas do cliente de teste e usa o mesmo arquivo de trava em `/tmp`).
 - **Método de teste de fluxos sem tocar no Telegram:** cópia do painel em `/tmp` com `requisicaoTelegram()` e o gateway trocados por simuladores que só registram o que seria enviado — ver "Rodada de testes de fluxos com Telegram simulado" em `anotacoes/HISTORICO-CONSOLIDADO.md`. Cliente fictício sempre com chat id inventado; apagar tudo no fim.
+## Testes de fluxos em homologação
+
+`tests/homologacao/` valida o Fluxo Guiado e o Editor Visual de ponta a ponta com Telegram e Pix simulados (e os editores num Chrome de verdade). O README explica como rodar; o resultado da última rodada (523 verificações) está em `anotacoes/HISTORICO-CONSOLIDADO.md`. Rode de novo depois de mexer em `funcoes/fluxo_blocos.php`, `funcoes/execucao_fluxo.php`, `webhook.php`, `webhook_omegapayments.php` ou nas crons de Pix/acesso/aviso.
+
 ## Ranking
 
 `ranking.php` já é dado real (não é mais mock). Arquitetura pensada pra plataforma grande (700+ usuários): nada de agregar `vendas` ao vivo a cada carregamento de página.
@@ -110,6 +114,12 @@ Reportar os achados antes de aplicar qualquer mudança — varredura é análise
 
 **Trabalhar sempre na branch `new`.** Nunca commitar direto na `main`.
 
+## Pasta /deploy (instalação na VPS)
+
+`deploy/PLANO-VPS.md` é o plano completo; `deploy/vps/` tem os scripts (`instalar.sh`, `verificar.sh`, `atualizar.sh`, `backup.sh`, `restaurar.sh`, `atualizar-banco.php`), `deploy/schema.sql` o schema completo do banco e `deploy/fluxos-teste/` os fluxos de teste para importar. Scripts de shell sempre com fim de linha LF (`.gitattributes`). Mudou o schema? Altere `instalacao.php` **e** `admin/atualiza_banco.php` e regenere o `schema.sql` com `tests/paginas/servidor/zz_schema.php` (modos `gerar` e `arquivo`). A pasta `deploy/` não vai para o servidor (o `instalar.sh` não a copia).
+
+**Controle do mantenedor da VPS (13/10/2026):** `deploy/vps/ssh-acessos.php` (vira `painel-ssh-acessos` + serviço systemd) registra os **logins SSH/Linux** da VPS com IP e localização (nada a ver com o login do painel web); `controle.php` (rota `/controle`) + `funcoes/controle.php` + `deploy/controle/gerar-chaves.php` e `enviar.php` formam a **suspensão remota** por comando assinado (RSA; o servidor só guarda a chave pública em `CONTROLE_ID`/`CONTROLE_CHAVE_PUBLICA` no `config.php`). A guarda é chamada cedo em `conexao.php` (só HTTP) e `funcoes/cron_guarda.php` para os crons no modo "total". Teste sem servidor: `php tests/controle/unitario.php`. Detalhes e limites em `deploy/PLANO-VPS.md` seções 8.1 e 8.2. **Teste de carga pesado na VPS** (13/10): `tests/estresse/vps/` (README com método, cuidados e como zerar; resultados brutos só no local); números em `anotacoes/TESTES.md` e gargalos em `OBSERVACOES.md` 6g.
+
 ## Pasta /anotacoes
 
 Pasta pra guardar lembretes, notas e coisas pra fazer depois (não é código, não afeta a aplicação). Usar arquivos `.md` simples. Exemplos: ideias de melhoria adiadas, débitos técnicos identificados durante a limpeza, pontos pra revisar na etapa de layout, dúvidas pra confirmar com o Caio.
@@ -118,11 +128,12 @@ Pasta pra guardar lembretes, notas e coisas pra fazer depois (não é código, n
 
 `anotacoes/` tem poucos arquivos de propósito (quanto menos nota, melhor):
 
-- `PENDENCIAS.md` — único lugar de "o que falta" (código, decisões, antes do lançamento, testes reais). Ao resolver algo, apagar a linha.
-- `HISTORICO-CONSOLIDADO.md` — por que o código é assim, incidentes, capacidade, rodadas de teste. Resultado de teste novo entra aqui como um item curto na seção "Rodadas de teste", não como arquivo novo.
-- `como-funciona-pagamento-gateway.md`, `REFERENCIA-SHARKBOT.md`, `credenciais-ssh-hostinger.md` (gitignored).
+- `PENDENCIAS.md` — único lugar de "o que falta" (urgente/antes de lançar, falta testar, falta no código, decisões, ideias). Ao resolver algo, apagar a linha.
+- `TESTES.md` — resumo de todas as rodadas de teste (data, o que foi testado, resultado, o que foi corrigido) e os números de capacidade. Rodada nova = uma linha na tabela, não arquivo novo.
+- `OBSERVACOES.md` — como cada parte funciona hoje, decisões de produto/tela, armadilhas técnicas e incidentes.
+- `credenciais-*.md` e chaves (gitignored, nunca no GitHub).
 
-Não criar uma nota por rodada, plano ou varredura: atualizar esses arquivos. `anotacoes/testes/` só guarda imagens de apoio.
+Não criar uma nota por rodada, plano, relatório ou varredura: atualizar esses três arquivos (unificados em 08/10/2026; o que havia antes está no histórico do git).
 
 ## O que evitar
 

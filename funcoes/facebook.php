@@ -33,6 +33,12 @@ function enviarEventoFacebook($pixel_id, $access_token, $evento, $dados, $user_d
         }
         $user_params['ph'] = hash('sha256', $fone);
     }
+    if (!empty($user_data['first_name'])) {
+        $primeiro_nome = mb_strtolower(trim(explode(' ', trim((string) $user_data['first_name']))[0]), 'UTF-8');
+        if ($primeiro_nome !== '') {
+            $user_params['fn'] = hash('sha256', $primeiro_nome);
+        }
+    }
     if (!empty($user_data['ip'])) {
         $user_params['client_ip_address'] = $user_data['ip'];
     }
@@ -52,29 +58,31 @@ function enviarEventoFacebook($pixel_id, $access_token, $evento, $dados, $user_d
                 'event_time' => $timestamp,
                 'action_source' => 'system_generated', // Como é bot, system_generated ou website se tiver link
                 'user_data' => $user_params,
-                'custom_data' => [
+                'custom_data' => array_filter([
                     'currency' => 'BRL',
                     'value' => (float)($dados['valor'] ?? 0),
                     'content_name' => $dados['nome_produto'] ?? 'Produto',
                     'order_id' => $dados['transacao_id'] ?? null
-                ],
+                ], fn($v) => $v !== null),
                 'event_id' => $dados['event_id'] ?? ($dados['transacao_id'] ?? null)
             ]
         ]
     ];
+    if ($payload['data'][0]['event_id'] === null) {
+        unset($payload['data'][0]['event_id']);
+    }
 
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 6);
 
     $resposta = curl_exec($ch);
     $codigo_http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $erro_curl = curl_error($ch);
-    curl_close($ch);
 
     return [
         'sucesso' => $codigo_http >= 200 && $codigo_http < 300,

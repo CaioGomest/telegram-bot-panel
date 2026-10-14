@@ -29,8 +29,9 @@ function requisicaoTelegramOmegapayments(string $token, string $metodo, array $p
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
     curl_setopt($ch, CURLOPT_TIMEOUT, 15);
     $resposta = curl_exec($ch);
-    curl_close($ch);
-    return json_decode($resposta ?: '', true) ?: ['ok' => false];
+    $r = json_decode($resposta ?: '', true) ?: ['ok' => false];
+    registrarRespostaTelegram($token, $r);
+    return $r;
 }
 
 function obterProximoNoOmegapayments(array $links, string $id_atual, string $conector_saida = 'output_1'): ?string {
@@ -238,6 +239,8 @@ function criarVendaCicloOmegapayments(array $notificacao, string $txid): ?array 
             $pai['tempo_acesso_minutos'], $pai['id_gateway'], $minutos_expiracao, date('Y-m-d H:i:s'), $id_assinatura,
             $pai['venda_pai_id'] ?: $pai['id'], $pai['id_plano'], $pai['id_fluxo'] ?? null,
         ]);
+        require_once __DIR__ . '/funcoes/traqueamento.php';
+        herdarNomeProdutoVenda($pdo, (string) $txid, (int) $pai['id']);
     } catch (\PDOException $e) {
         // Entrega duplicada/simultânea do mesmo evento: o índice único em transacao_id barra.
         logWebhookOmegapayments("Venda de ciclo para $txid já criada por outra entrega (" . $e->getMessage() . ").");
@@ -290,7 +293,7 @@ if (empty($entrada)) {
     exit;
 }
 
-logWebhookOmegapayments("Payload recebido: " . $entrada);
+logWebhookOmegapayments("Payload recebido: " . resumoPayloadGateway($entrada));
 
 $notificacao = json_decode($entrada, true);
 
@@ -334,6 +337,16 @@ if (!$venda && $assinatura_payload) {
 
 if (!$venda) {
     logWebhookOmegapayments("Venda não encontrada para identificador=$txid.");
+    // Pagamento aprovado sem venda correspondente (ex.: venda não gravada por queda do banco): avisa os admins no sino.
+    if ($payload_diz_pago) {
+        try {
+            foreach ($pdo->query("SELECT id FROM usuarios WHERE perfil = 'admin'")->fetchAll(PDO::FETCH_COLUMN) as $id_admin) {
+                registrarAtividade((int) $id_admin, 'sistema', 'Pagamento sem venda', "A gateway confirmou um pagamento (código $txid) que não tem venda no sistema. Confira o cliente e libere o acesso manualmente.");
+            }
+        } catch (Throwable $e) {
+            logWebhookOmegapayments('Falha ao avisar admins do pagamento sem venda: ' . $e->getMessage());
+        }
+    }
     http_response_code(200);
     exit;
 }
@@ -426,6 +439,7 @@ if ($stmt_marca->rowCount() === 0) {
     exit;
 }
 logWebhookOmegapayments("Venda #{$venda['id']} marcada como PAGO (confirmado direto na API OmegaPayments).");
+aposPagamentoConfirmado($venda);
 
 // Sem chamada de split pós-pagamento aqui: o split da OmegaPayments já aconteceu dentro
 // da própria cobrança (splits[] no payload de criação), não tem passo separado depois.
@@ -446,9 +460,10 @@ if ($id_dono) {
         'comissao'     => (float)($venda['comissao_admin'] ?? 0),
         'plano_id'     => $venda['id_plano'] ?? null,
         'nome_produto' => $venda['nome_produto'] ?? null,
-        'pago_em'      => $venda['pago_em'] ?? null,
+        'pago_em'      => date('Y-m-d H:i:s'),
         'transacao_id' => $txid,
-        'event_id'     => $txid
+        'event_id'     => $txid,
+        'criado_em'    => $venda['criado_em'] ?? null
     ], montarUserDataTraqueamento($pdo, $venda['id_telegram'], $venda['bot_id']));
     dispararWebhooks($id_dono, 'payment_approved', [
         'bot_id' => (int) $venda['bot_id'],
@@ -478,7 +493,9 @@ if (!empty($venda['id_grupo_telegram'])) {
 
     if ($link) {
         $msg .= "\n\n🚀 <b>Acesso Liberado!</b>\nClique no link abaixo para entrar no grupo exclusivo:\n\n$link\n\n⚠️ Este link é válido apenas para você.";
-        if ($tempo_minutos < 60) {
+        if (acessoVitalicio($tempo_minutos)) {
+            $msg .= "\n♾️ <b>Acesso vitalício.</b>";
+        } elseif ($tempo_minutos < 60) {
             $msg .= "\n⏳ <b>Seu acesso expira em {$tempo_minutos} minutos.</b>";
         } elseif ($tempo_minutos < 1440) {
             $msg .= "\n⏳ <b>Seu acesso expira em " . floor($tempo_minutos / 60) . " horas.</b>";

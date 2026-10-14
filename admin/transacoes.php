@@ -59,7 +59,7 @@ $sql_base = "
 // com bots/usuarios quando não há filtro por usuário -- só existem ali pra dar suporte
 // a filtros que podem nem estar ativos. Sem filtro nenhum (visão padrão), juntar tudo
 // pra só contar forçava o MySQL a escanear vendas inteira (testado: full table scan
-// mesmo sem WHERE nenhum). Ver anotacoes/HISTORICO-CONSOLIDADO.md.
+// mesmo sem WHERE nenhum). Ver anotacoes/OBSERVACOES.md.
 if ($usuario_id > 0) {
     $sql_count_base = "FROM vendas v JOIN bots b ON v.bot_id = b.id JOIN usuarios u ON b.id_usuario = u.id WHERE $where_sql";
 } else {
@@ -68,7 +68,7 @@ if ($usuario_id > 0) {
 if ($where_sql === '1=1') {
     // Visão padrão (sem nenhum filtro): um COUNT(*) exato aqui é full table scan --
     // medido em 2026-09-17 a 6,8 milhões de linhas: 1,57s, escala linear com o total
-    // acumulado na plataforma (ver anotacoes/HISTORICO-CONSOLIDADO.md secao 11).
+    // acumulado na plataforma (ver anotacoes/OBSERVACOES.md).
     // $total_transacoes só alimenta o paginador() (numeração de página), nunca é
     // exibido como "X resultados" -- uma estimativa instantânea das estatísticas do
     // InnoDB é suficiente pra isso, não precisa ser exata.
@@ -79,9 +79,13 @@ if ($where_sql === '1=1') {
 } else {
     // Com filtro ativo, a query já cai num índice (status/criado_em/usuario) e fica
     // rápida mesmo em tabela grande -- COUNT(*) exato aqui não tem o mesmo custo.
-    $stmt_total = $pdo->prepare("SELECT COUNT(*) $sql_count_base");
-    $stmt_total->execute($params);
-    $total_transacoes = (int)$stmt_total->fetchColumn();
+    // O COUNT exato de um filtro (ex.: só "pago") varre centenas de milhares de linhas e cresce junto com a base (390 ms com
+    // 809 mil vendas): fica guardado por 60 s, o que só atrasa o número de páginas em até 1 minuto.
+    $total_transacoes = contagemEmCache('transacoes|' . $sql_count_base . '|' . json_encode($params), static function () use ($pdo, $sql_count_base, $params) {
+        $stmt_total = $pdo->prepare("SELECT COUNT(*) $sql_count_base");
+        $stmt_total->execute($params);
+        return (int) $stmt_total->fetchColumn();
+    }, 60);
 }
 
 $por_pagina = 25;
@@ -101,7 +105,7 @@ $limite_ids = $visao_padrao ? $por_pagina + 1 : $por_pagina;
 // usando o índice em criado_em -- e só faz o JOIN pesado pras poucas linhas que
 // sobraram, não pra tabela inteira. Sem isso, com muitas vendas acumuladas o MySQL
 // materializa a junção inteira antes de ordenar (testado: 5,75s -> 0,002s com 1M de
-// vendas). Ver anotacoes/HISTORICO-CONSOLIDADO.md.
+// vendas). Ver anotacoes/OBSERVACOES.md.
 $sql_ids = "
     SELECT v.id
     FROM vendas v
@@ -211,14 +215,14 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
         fputcsv($output, [
             $linha['id'],
             date('d/m/Y H:i', strtotime($linha['criado_em'])),
-            $linha['nome_usuario'],
-            $linha['nome_bot'],
+            csvSeguro($linha['nome_usuario']),
+            csvSeguro($linha['nome_bot']),
             number_format((float)$linha['valor'], 2, ',', '.'),
             $linha['status'],
-            $linha['titulo_gateway'] ?? '-',
-            $linha['transacao_id'] ?? '-',
+            csvSeguro($linha['titulo_gateway'] ?? '-'),
+            csvSeguro($linha['transacao_id'] ?? '-'),
             $status_split,
-            $detalhe_split,
+            csvSeguro($detalhe_split),
         ]);
     }
     fclose($output);
@@ -311,41 +315,41 @@ function celulaSplit(array $venda, array $linhas_split): string {
         </div>
 
 
-        <div class="painel">
-            <div class="barra-filtros" style="flex-wrap:wrap;">
-                <form method="GET" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;flex:1;">
-                    <select name="usuario_id" id="usuario_id">
-                        <option value="">Todos os usuários</option>
-                        <?php foreach ($usuarios_filtro as $u): ?>
-                            <option value="<?php echo $u['id']; ?>" <?php echo $usuario_id === (int)$u['id'] ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($u['nome'] . ' — ' . $u['email']); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                    <select name="status" id="status">
-                        <option value="">Todos os status</option>
-                        <option value="pago" <?php echo $status === 'pago' ? 'selected' : ''; ?>>Pago</option>
-                        <option value="gerado" <?php echo $status === 'gerado' ? 'selected' : ''; ?>>Aguardando Pix</option>
-                        <option value="cancelado" <?php echo $status === 'cancelado' ? 'selected' : ''; ?>>Cancelado</option>
-                        <option value="expirado" <?php echo $status === 'expirado' ? 'selected' : ''; ?>>Expirado</option>
-                    </select>
-                    <select name="split_status" id="split_status">
-                        <option value="">Split: todos</option>
-                        <option value="pago" <?php echo $split_status === 'pago' ? 'selected' : ''; ?>>Pago (todos)</option>
-                        <option value="parcial" <?php echo $split_status === 'parcial' ? 'selected' : ''; ?>>Parcial (alguns falharam)</option>
-                        <option value="pendente" <?php echo $split_status === 'pendente' ? 'selected' : ''; ?>>Pendente</option>
-                        <option value="falhou" <?php echo $split_status === 'falhou' ? 'selected' : ''; ?>>Falhou (todos)</option>
-                        <option value="sem_split" <?php echo $split_status === 'sem_split' ? 'selected' : ''; ?>>Sem split configurado</option>
-                        <option value="sem_credenciais" <?php echo $split_status === 'sem_credenciais' ? 'selected' : ''; ?>>Sem credenciais de Cash-Out</option>
-                    </select>
-                    <input type="date" name="data_inicio" id="data_inicio" aria-label="Data inicial" value="<?php echo htmlspecialchars($data_inicio); ?>" style="width:150px;">
-                    <input type="date" name="data_fim" id="data_fim" aria-label="Data final" value="<?php echo htmlspecialchars($data_fim); ?>" style="width:150px;">
-                    <input type="text" name="busca" id="busca" placeholder="TXID ou ID do Telegram" value="<?php echo htmlspecialchars($busca); ?>" style="min-width:180px;">
-                    <button type="submit" class="botao botao-primario">Filtrar</button>
-                    <a href="transacoes" class="botao">Limpar</a>
-                </form>
-            </div>
+        <div class="barra-filtros" style="flex-wrap:wrap;">
+            <form method="GET" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;flex:1;">
+                <select name="usuario_id" id="usuario_id">
+                    <option value="">Todos os usuários</option>
+                    <?php foreach ($usuarios_filtro as $u): ?>
+                        <option value="<?php echo $u['id']; ?>" <?php echo $usuario_id === (int)$u['id'] ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($u['nome'] . ' — ' . $u['email']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <select name="status" id="status">
+                    <option value="">Todos os status</option>
+                    <option value="pago" <?php echo $status === 'pago' ? 'selected' : ''; ?>>Pago</option>
+                    <option value="gerado" <?php echo $status === 'gerado' ? 'selected' : ''; ?>>Aguardando Pix</option>
+                    <option value="cancelado" <?php echo $status === 'cancelado' ? 'selected' : ''; ?>>Cancelado</option>
+                    <option value="expirado" <?php echo $status === 'expirado' ? 'selected' : ''; ?>>Expirado</option>
+                </select>
+                <select name="split_status" id="split_status">
+                    <option value="">Split: todos</option>
+                    <option value="pago" <?php echo $split_status === 'pago' ? 'selected' : ''; ?>>Pago (todos)</option>
+                    <option value="parcial" <?php echo $split_status === 'parcial' ? 'selected' : ''; ?>>Parcial (alguns falharam)</option>
+                    <option value="pendente" <?php echo $split_status === 'pendente' ? 'selected' : ''; ?>>Pendente</option>
+                    <option value="falhou" <?php echo $split_status === 'falhou' ? 'selected' : ''; ?>>Falhou (todos)</option>
+                    <option value="sem_split" <?php echo $split_status === 'sem_split' ? 'selected' : ''; ?>>Sem split configurado</option>
+                    <option value="sem_credenciais" <?php echo $split_status === 'sem_credenciais' ? 'selected' : ''; ?>>Sem credenciais de Cash-Out</option>
+                </select>
+                <input type="date" name="data_inicio" id="data_inicio" aria-label="Data inicial" value="<?php echo htmlspecialchars($data_inicio); ?>" style="width:150px;">
+                <input type="date" name="data_fim" id="data_fim" aria-label="Data final" value="<?php echo htmlspecialchars($data_fim); ?>" style="width:150px;">
+                <input type="text" name="busca" id="busca" placeholder="TXID ou ID do Telegram" value="<?php echo htmlspecialchars($busca); ?>" style="min-width:180px;">
+                <button type="submit" class="botao botao-primario">Filtrar</button>
+                <a href="transacoes" class="botao">Limpar</a>
+            </form>
+        </div>
 
+        <div class="painel">
             <div class="tabela-dados">
                 <table>
                     <thead>

@@ -10,6 +10,9 @@
     let zoom_level = 1;
     let lista_grupos_usuario = [];
     let gateway_suporta_recorrente = false;
+    // Assinatura recorrente: o motor (backend) continua funcionando, mas a opção fica oculta na tela por enquanto (decisão de 09/10/2026, ainda sem teste real).
+    // Para liberar de novo, troque para true. Fluxos que JÁ têm recorrência continuam mostrando a opção, para o editor não trocar o tipo sem querer.
+    const RECORRENCIA_LIBERADA_NA_TELA = false;
     let ultimo_salvo_em = null;
 
     function tempoRelativoSalvo() {
@@ -150,11 +153,12 @@
                 '  <div class="area-previa" title="Clique para trocar">' + preview + '</div>' +
                 '  <label>Legenda</label>' +
                 '  <input class="campo-legenda" type="text" value="' + escaparHtml(props.caption || '') + '" placeholder="Digite uma legenda...">' +
-                '  <div class="linha-flex"><input class="campo-spoiler" type="checkbox"' + chk(!!props.spoiler) + '> <label style="margin:0">Spoiler</label></div>' +
-                '  <div class="linha-flex"><input class="campo-auto-deletar" type="checkbox"' + chk(!!props.auto_delete) + '> <label style="margin:0">Auto-deletar</label></div>' +
+                '  <label class="linha-flex"><input class="campo-spoiler" type="checkbox"' + chk(!!props.spoiler) + '><span>Spoiler</span></label>' +
+                '  <label class="linha-flex"><input class="campo-auto-deletar" type="checkbox"' + chk(!!props.auto_delete) + '><span>Auto-deletar</span></label>' +
                 '  <div class="grupo-auto-delete" style="' + (!props.auto_delete ? 'display:none;' : '') + '">' +
-                '    <label>Segundos (apagado em até ~1 min depois do prazo)</label>' +
+                '    <label>Apagar após (segundos)</label>' +
                 '    <input class="campo-auto-segundos" type="number" min="0" value="' + (props.auto_delete_seconds || 0) + '">' +
+                '    <small class="dica-bloco">A mensagem some até ~1 min depois do prazo.</small>' +
                 '  </div>' +
                 '  <input class="campo-imagem-arquivo" type="file" accept="image/*" style="display:none">' +
                 '</div>';
@@ -169,11 +173,12 @@
                 '  <div class="area-previa" title="Clique para trocar">' + preview + '</div>' +
                 '  <label>Legenda</label>' +
                 '  <input class="campo-legenda" type="text" value="' + escaparHtml(props.caption || '') + '" placeholder="Digite uma legenda...">' +
-                '  <div class="linha-flex"><input class="campo-spoiler" type="checkbox"' + chk(!!props.spoiler) + '> <label style="margin:0">Spoiler</label></div>' +
-                '  <div class="linha-flex"><input class="campo-auto-deletar" type="checkbox"' + chk(!!props.auto_delete) + '> <label style="margin:0">Auto-deletar</label></div>' +
+                '  <label class="linha-flex"><input class="campo-spoiler" type="checkbox"' + chk(!!props.spoiler) + '><span>Spoiler</span></label>' +
+                '  <label class="linha-flex"><input class="campo-auto-deletar" type="checkbox"' + chk(!!props.auto_delete) + '><span>Auto-deletar</span></label>' +
                 '  <div class="grupo-auto-delete" style="' + (!props.auto_delete ? 'display:none;' : '') + '">' +
-                '    <label>Segundos (apagado em até ~1 min depois do prazo)</label>' +
+                '    <label>Apagar após (segundos)</label>' +
                 '    <input class="campo-auto-segundos" type="number" min="0" value="' + (props.auto_delete_seconds || 0) + '">' +
+                '    <small class="dica-bloco">A mensagem some até ~1 min depois do prazo.</small>' +
                 '  </div>' +
                 '  <input class="campo-video-arquivo" type="file" accept="video/*" style="display:none">' +
                 '</div>';
@@ -188,10 +193,11 @@
                 '  <div class="area-previa" title="Clique para trocar">' + preview + '</div>' +
                 '  <label>Legenda</label>' +
                 '  <input class="campo-legenda" type="text" value="' + escaparHtml(props.caption || '') + '" placeholder="Digite uma legenda...">' +
-                '  <div class="linha-flex"><input class="campo-auto-deletar" type="checkbox"' + chk(!!props.auto_delete) + '> <label style="margin:0">Auto-deletar</label></div>' +
+                '  <label class="linha-flex"><input class="campo-auto-deletar" type="checkbox"' + chk(!!props.auto_delete) + '><span>Auto-deletar</span></label>' +
                 '  <div class="grupo-auto-delete" style="' + (!props.auto_delete ? 'display:none;' : '') + '">' +
-                '    <label>Segundos (apagado em até ~1 min depois do prazo)</label>' +
+                '    <label>Apagar após (segundos)</label>' +
                 '    <input class="campo-auto-segundos" type="number" min="0" value="' + (props.auto_delete_seconds || 0) + '">' +
+                '    <small class="dica-bloco">A mensagem some até ~1 min depois do prazo.</small>' +
                 '  </div>' +
                 '  <input class="campo-audio-arquivo" type="file" accept="audio/*" style="display:none">' +
                 '</div>';
@@ -212,7 +218,7 @@
                 '  <label>Botões</label>' +
                 '  <div class="lista-botoes">' + lista + '</div>' +
                 '  <button type="button" class="botao botao-claro btn-adicionar-botao">+ Adicionar botão</button>' +
-                '  <div class="linha-flex"><input type="checkbox" class="campo-sumir-apos-clique"' + chk(!!props.sumir_apos_clique) + '> <label style="margin:0">Sumir após clique</label></div>' +
+                '  <label class="linha-flex"><input type="checkbox" class="campo-sumir-apos-clique"' + chk(!!props.sumir_apos_clique) + '><span>Sumir após clique</span></label>' +
                 '</div>';
         }
         if (tipo === 'pix') {
@@ -226,9 +232,9 @@
                 '  <div class="campo"><label>Tipo de Cobrança</label>' +
                 '    <select class="campo-pix-tipo-cobranca">' +
                 '      <option value="unica"' + opt(!eh_recorrente) + '>Pagamento Único</option>' +
-                (gateway_suporta_recorrente ? '      <option value="recorrente"' + opt(eh_recorrente) + '>Assinatura (Recorrente)</option>' : '') +
+                ((eh_recorrente || (RECORRENCIA_LIBERADA_NA_TELA && gateway_suporta_recorrente)) ? '      <option value="recorrente"' + opt(eh_recorrente) + '>Assinatura (Recorrente)</option>' : '') +
                 '    </select>' +
-                (!gateway_suporta_recorrente ? '    <p style="font-size:10px;color:#f59e0b;margin-top:4px;">⚠️ PIX Recorrente disponível apenas para contas PJ. Configure o tipo de conta em <a href="gateways" target="_blank">Gateways de Pagamento</a>.</p>' : '') +
+                (RECORRENCIA_LIBERADA_NA_TELA && !gateway_suporta_recorrente ? '    <p class="dica-bloco dica-aviso">⚠️ PIX Recorrente disponível apenas para contas PJ. Configure o tipo de conta em <a href="gateways" target="_blank">Gateways de Pagamento</a>.</p>' : '') +
                 '  </div>' +
                 '  <div class="campo"><label>Nome do Produto/Plano</label><input type="text" class="campo-pix-nome" value="' + escaparHtml(props.nome || '') + '"></div>' +
                 '  <div class="campo"><label>Valor (R$)</label><input type="number" step="0.01" min="0" class="campo-pix-valor" value="' + (props.valor || 0) + '"></div>' +
@@ -265,12 +271,12 @@
                     return '<option value="' + escaparHtml(g.id_telegram) + '"' + (g.id_telegram == props.id_grupo ? ' selected' : '') + '>' + escaparHtml(g.titulo) + '</option>';
                 }).join('') +
                 '    </select>' +
-                '    <p style="font-size:10px; color:#666; margin-top:2px;">O bot deve ser admin do grupo para gerar link e remover membros.</p>' +
+                '    <p class="dica-bloco">O bot deve ser admin do grupo para gerar link e remover membros.</p>' +
                 '  </div>' +
 
-                '  <div class="linha-flex"><input type="checkbox" class="campo-pix-mostrar-copiar"' + chk(!!props.mostrar_copiar) + '> <label style="margin:0">Botão Copiar</label></div>' +
-                '  <div class="linha-flex"><input type="checkbox" class="campo-pix-mostrar-qrcode"' + chk(!!props.mostrar_qrcode) + '> <label style="margin:0">Botão QR Code</label></div>' +
-                '  <div class="linha-flex"><input type="checkbox" class="campo-pix-mostrar-confirmar"' + chk(!!props.mostrar_confirmar) + '> <label style="margin:0">Botão Confirmar</label></div>' +
+                '  <label class="linha-flex"><input type="checkbox" class="campo-pix-mostrar-copiar"' + chk(!!props.mostrar_copiar) + '><span>Botão Copiar</span></label>' +
+                '  <label class="linha-flex"><input type="checkbox" class="campo-pix-mostrar-qrcode"' + chk(!!props.mostrar_qrcode) + '><span>Botão QR Code</span></label>' +
+                '  <label class="linha-flex"><input type="checkbox" class="campo-pix-mostrar-confirmar"' + chk(!!props.mostrar_confirmar) + '><span>Botão Confirmar</span></label>' +
                 '  <label>Instruções</label>' +
                 '  <textarea class="campo-pix-msg-instrucoes" rows="1">' + escaparHtml(props.msg_instrucoes || '') + '</textarea>' +
                 '  <label>Msg Confirmação</label>' +
@@ -286,8 +292,8 @@
                 '    <option value="seg"' + opt((props.delay_unidade || 'seg') === 'seg') + '>Segundos</option>' +
                 '    <option value="min"' + opt((props.delay_unidade || '') === 'min') + '>Minutos</option>' +
                 '  </select></div>' +
-                '  <div class="linha-flex"><input type="checkbox" class="campo-delay-digitando"' + chk(!!props.delay_digitando) + '> <label style="margin:0">Mostrar "digitando..."</label></div>' +
-                '  <small style="display:block;margin-top:6px;opacity:.7;">Sorteia entre o mínimo e o máximo (máximo 0 = sempre o mínimo). Esperas de até 10 s são na hora; acima disso o fluxo continua sozinho (precisão de cerca de 1 minuto).</small>' +
+                '  <label class="linha-flex"><input type="checkbox" class="campo-delay-digitando"' + chk(!!props.delay_digitando) + '><span>Mostrar "digitando..."</span></label>' +
+                '  <small class="dica-bloco">Sorteia entre o mínimo e o máximo (máximo 0 = sempre o mínimo). Esperas de até 10 s são na hora; acima disso o fluxo continua sozinho (precisão de cerca de 1 minuto).</small>' +
                 '</div>';
         }
         if (tipo === 'link') {
@@ -317,7 +323,7 @@
                 '    <option value="">Selecione...</option>' +
                 opcoes +
                 '  </select>' +
-                '  <p style="font-size:10px; color:#666; margin-top:4px;">Se o grupo não aparecer, adicione o bot ao grupo novamente.</p>' +
+                '  <p class="dica-bloco">Se o grupo não aparecer, adicione o bot ao grupo novamente.</p>' +
                 '  <label>Texto do Botão</label>' +
                 '  <input class="campo-grupo-texto" type="text" value="' + escaparHtml(props.texto_botao || '') + '" placeholder="Entrar no Grupo">' +
                 '</div>';
@@ -337,7 +343,7 @@
             }).join('');
             return '' +
                 '<div class="bloco-config bloco-randomizer">' +
-                '  <p style="font-size:10px; color:#666; margin:0 0 6px;">Sorteia um caminho a cada execução, conforme o peso de cada um.</p>' +
+                '  <p class="dica-bloco">Sorteia um caminho a cada execução, conforme o peso de cada um.</p>' +
                 '  <div class="lista-caminhos">' + lista + '</div>' +
                 '  <button type="button" class="botao botao-claro btn-adicionar-caminho">+ Adicionar caminho</button>' +
                 '</div>';
@@ -349,12 +355,12 @@
                 '  <label>Mensagem da oferta</label>' +
                 '  <textarea class="campo-oferta-mensagem" rows="3" placeholder="Digite a mensagem...">' + escaparHtml(props.mensagem || '') + '</textarea>' +
                 '  <label>' + rotulo_valor + '</label>' +
-                '  <input type="number" step="0.01" min="0" class="campo-oferta-valor" value="' + (props.valor_extra != null ? props.valor_extra : (props.desconto_percentual != null ? props.desconto_percentual : 0)) + '">' +
+                '  <input type="number" step="0.01" min="0" class="campo-oferta-valor" value="' + (tipo === 'order_bump' ? (props.valor_extra != null ? props.valor_extra : 0) : (props.desconto_percentual != null ? props.desconto_percentual : 0)) + '">' +
                 '  <div class="grade grade-2 grade-compacta">' +
-                '    <div class="campo"><label>Texto (aceitar)</label><input type="text" class="campo-oferta-aceitar" value="' + escaparHtml(props.texto_aceitar || '') + '"></div>' +
-                '    <div class="campo"><label>Cor (aceitar)</label>' + selectCorBotao('campo-oferta-cor-aceitar', props.cor_aceitar) + '</div>' +
-                '    <div class="campo"><label>Texto (recusar)</label><input type="text" class="campo-oferta-recusar" value="' + escaparHtml(props.texto_recusar || '') + '"></div>' +
-                '    <div class="campo"><label>Cor (recusar)</label>' + selectCorBotao('campo-oferta-cor-recusar', props.cor_recusar) + '</div>' +
+                '    <div class="campo"><label>Aceitar</label><input type="text" class="campo-oferta-aceitar" value="' + escaparHtml(props.texto_aceitar || '') + '"></div>' +
+                '    <div class="campo"><label>Cor</label>' + selectCorBotao('campo-oferta-cor-aceitar', props.cor_aceitar) + '</div>' +
+                '    <div class="campo"><label>Recusar</label><input type="text" class="campo-oferta-recusar" value="' + escaparHtml(props.texto_recusar || '') + '"></div>' +
+                '    <div class="campo"><label>Cor</label>' + selectCorBotao('campo-oferta-cor-recusar', props.cor_recusar) + '</div>' +
                 '  </div>' +
                 '</div>';
         }
@@ -491,6 +497,10 @@
                     }
                 }
             }
+
+            // Fluxos salvos com os nomes antigos (Delay, Oferta extra...) passam a mostrar os nomes em português do Guiado.
+            const titulos_antigos = { 'Delay': 'Espera', 'Oferta extra': 'Upsell', 'Oferta menor': 'Downsell', 'Extra no pagamento': 'Order bump' };
+            if (titulos_antigos[props.title]) { props.title = titulos_antigos[props.title]; }
 
             // Garante que o body seja renderizado com o novo HTML
             props.body = renderCorpoDoBloco(props);
@@ -692,7 +702,7 @@
             };
         }
         if (type === 'delay') {
-            base.properties.title = 'Delay';
+            base.properties.title = 'Espera';
             base.properties.class = 'no-delay';
             base.properties.delay_min = 1;
             base.properties.delay_max = 2;
@@ -721,7 +731,7 @@
             };
         }
         if (type === 'upsell' || type === 'downsell' || type === 'order_bump') {
-            const rotulos = { upsell: 'Oferta extra', downsell: 'Oferta menor', order_bump: 'Extra no pagamento' };
+            const rotulos = { upsell: 'Upsell', downsell: 'Downsell', order_bump: 'Order bump' };
             base.properties.title = rotulos[type];
             base.properties.class = 'no-' + type.replace('_', '-');
             base.properties.mensagem = '';

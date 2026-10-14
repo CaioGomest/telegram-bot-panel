@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../funcoes/usuario.php';
+require_once __DIR__ . '/../funcoes/icones.php';
 verificarAdmin();
 $caminho_base = '../';
 
@@ -166,7 +167,7 @@ foreach ($grupos as $itens) {
                             <span><?php echo htmlspecialchars($descricao); ?></span>
                         </label>
                         <?php if ($link): ?>
-                            <a class="botao botao-claro" href="../<?php echo htmlspecialchars($link); ?>" target="_blank" rel="noopener">Abrir</a>
+                            <a class="btn-icon abrir" href="../<?php echo htmlspecialchars($link); ?>" target="_blank" rel="noopener" title="Abrir a página" aria-label="Abrir a página"><?php echo iconeAcao('abrir'); ?></a>
                         <?php endif; ?>
                     </div>
                 <?php endforeach; ?>

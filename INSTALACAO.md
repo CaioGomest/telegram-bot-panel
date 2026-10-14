@@ -1,5 +1,7 @@
 # Como instalar o painel
 
+> **Instalando numa VPS (Ubuntu)?** Use o plano completo e os scripts automáticos em [`deploy/PLANO-VPS.md`](deploy/PLANO-VPS.md) — um comando instala tudo (Apache, PHP, MariaDB, HTTPS, cron, backup, firewall). Este arquivo é o guia manual/genérico (hospedagem compartilhada, XAMPP).
+
 Guia simples pra colocar o sistema no ar do zero, seja num servidor novo (Hostinger ou
 qualquer hospedagem PHP+MySQL) ou local (XAMPP/similar). Leva uns 10 minutos.
 
@@ -89,7 +91,7 @@ Vá em **Gateways** (menu lateral):
 
 ## 7. Configure os cron jobs
 
-O sistema depende de 8 rotinas agendadas pra funcionar de verdade (confirmar pagamento,
+O sistema depende de 10 rotinas agendadas pra funcionar de verdade (confirmar pagamento,
 liberar/cortar acesso a grupo, avisos, remarketing, etc.). Na maioria das hospedagens
 isso se cadastra num painel tipo "Cron Jobs" (na Hostinger: hPanel → Avançado → Cron
 Jobs). O comando de cada um é sempre no formato:
@@ -104,13 +106,41 @@ php /caminho/completo/do/site/cron/NOME_DO_ARQUIVO.php
 | `cron_verificar_acessos.php` | a cada 1 minuto | Remove quem venceu o acesso ao grupo |
 | `cron_aviso_vencimento.php` | a cada 1 minuto | Avisa cliente antes do acesso vencer |
 | `cron_ranking.php` | a cada 1 minuto | Recalcula o placar do ranking |
-| `cron_renovacao.php` | 1x por dia | Gera Pix de renovação pra quem está perto de vencer |
-| `cron_remarketing.php` | a cada 5 minutos | Envia campanhas de remarketing agendadas |
-| `cron_metricas_admin.php` | 1x por hora | Recalcula o cache de métricas do dashboard admin |
+| `cron_renovacao.php` | 1x por hora | Gera Pix de renovação pra quem está perto de vencer |
+| `cron_remarketing.php` | a cada 1 minuto | Envia campanhas de remarketing agendadas (com 5 min a campanha pode sair até 5 min depois do horário) |
+| `cron_metricas_admin.php` | a cada 5 minutos | Recalcula o cache de métricas do dashboard e do ranking mensal |
 | `cron_limpar_stories.php` | 1x por dia | Apaga stories expirados (arquivo + banco) |
+| `cron_limpar_remarketing_envios.php` | 1x por dia | Apaga o log antigo de envios de remarketing (a tabela cresce rápido) |
+| `cron_rotacionar_logs.php` | 1x por dia | Rotaciona `logs/*.log` acima de 5 MB (guarda 3 versões) |
+
+Obs.: `cron_aviso_vencimento.php` também esvazia a fila de e-mails e retoma os "delays" dos
+fluxos — por isso precisa ser a cada 1 minuto.
 
 Rodando via linha de comando (CLI, que é como cron normalmente chama), nenhum desses
-precisa de configuração extra — funcionam direto.
+precisa de configuração extra — funcionam direto. **Pela web eles não rodam** (respondem
+"Acesso negado"), a não ser com a chave secreta da seção 9: qualquer pessoa que descobrisse o
+endereço conseguiria disparar o processamento à vontade.
+
+### Na VPS (crontab)
+
+Com o painel em `/var/www/painel` e o PHP em `/usr/bin/php` (ajuste os dois caminhos),
+`crontab -e` do usuário que roda o site:
+
+```
+* * * * *   /usr/bin/php /var/www/painel/cron/cron_verificar_pix.php      >/dev/null 2>&1
+* * * * *   /usr/bin/php /var/www/painel/cron/cron_verificar_acessos.php  >/dev/null 2>&1
+* * * * *   /usr/bin/php /var/www/painel/cron/cron_aviso_vencimento.php   >/dev/null 2>&1
+* * * * *   /usr/bin/php /var/www/painel/cron/cron_ranking.php            >/dev/null 2>&1
+* * * * *   /usr/bin/php /var/www/painel/cron/cron_remarketing.php        >/dev/null 2>&1
+*/5 * * * * /usr/bin/php /var/www/painel/cron/cron_metricas_admin.php     >/dev/null 2>&1
+0 * * * *   /usr/bin/php /var/www/painel/cron/cron_renovacao.php          >/dev/null 2>&1
+30 3 * * *  /usr/bin/php /var/www/painel/cron/cron_limpar_stories.php     >/dev/null 2>&1
+45 3 * * *  /usr/bin/php /var/www/painel/cron/cron_limpar_remarketing_envios.php >/dev/null 2>&1
+15 4 * * *  /usr/bin/php /var/www/painel/cron/cron_rotacionar_logs.php    >/dev/null 2>&1
+```
+
+O fuso do servidor deve ser `America/Sao_Paulo` (os crons já fixam isso no PHP, mas o
+MySQL usa o do sistema). Os próprios crons gravam seus logs em `logs/`.
 
 ## 8. (Opcional) Login com Google
 

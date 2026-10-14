@@ -1,15 +1,12 @@
-# Bloqueia a execução de scripts PHP dentro desta pasta.
-# Mesmo que algum arquivo malicioso consiga ser enviado com extensão .php,
-# ele não pode ser executado a partir daqui — só servido como arquivo estático.
+# Esta pasta guarda certificados de gateway (.pem/.p12/.pfx) que contêm CHAVE PRIVADA.
+# O PHP lê esses arquivos direto do disco (gateways.php); ninguém precisa baixá-los pela URL.
+# Antes só scripts PHP eram bloqueados, então cert_<usuario>_<gateway>.pem (nome previsível)
+# podia ser baixado por qualquer pessoa. Agora NENHUM arquivo daqui é servido pelo navegador.
 
 <IfModule mod_authz_core.c>
-    <FilesMatch "\.(php|php\d|phtml|pht|phar)$">
-        Require all denied
-    </FilesMatch>
+    Require all denied
 </IfModule>
 <IfModule !mod_authz_core.c>
-    <FilesMatch "\.(php|php\d|phtml|pht|phar)$">
-        Order allow,deny
-        Deny from all
-    </FilesMatch>
+    Order allow,deny
+    Deny from all
 </IfModule>

@@ -21,6 +21,11 @@ bloquearAdmin();
                 <p>Crie e edite os fluxos de conversa dos seus bots.</p>
             </div>
             <div class="acoes-cabecalho">
+                <button type="button" class="botao" id="btn-importar-fluxo-lista" title="Importar um fluxo exportado (.json)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    Importar Fluxo
+                </button>
+                <input type="file" id="arquivo-importar-fluxo-lista" accept="application/json,.json" hidden>
                 <button type="button" class="botao botao-primario" id="btn-abrir-escolha-modo">+ Novo Fluxo</button>
                 <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>

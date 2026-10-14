@@ -145,7 +145,7 @@ $url_foto_conta = urlFotoPerfil($foto_conta);
                                 <input type="text" id="apelido_publico" name="apelido_publico" maxlength="40"
                                        placeholder="Ex: @seuapelido"
                                        value="<?php echo htmlspecialchars($dados_usuario['apelido_publico'] ?? ''); ?>">
-                                <span class="texto-ajuda">É esse nome (não seu nome real nem e-mail) que os outros usuários veem no Ranking. Deixe em branco pra aparecer como "Usuário #<?php echo (int) $usuario_id; ?>".</span>
+                                <span class="texto-ajuda">Nome que os outros usuários veem.</span>
                             </div>
                         </div>
                         <div class="linha-acoes" style="margin-top:16px;"><button type="submit" class="botao botao-primario">Salvar alterações</button></div>

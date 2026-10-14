@@ -1,0 +1,177 @@
+{
+    "nome": "TESTE REAL 1 · Guiado — planos, ofertas e packs com grupo",
+    "descricao": "Fluxo de teste (R$ 2,10 por plano). Escolha o grupo de entrega em cada plano/bloco Grupo antes de usar.",
+    "modo": "basico",
+    "dados_fluxograma": {
+        "ativo": true,
+        "suporte": "",
+        "suporte_cor": "",
+        "cache_chat_id": "",
+        "boas_vindas": {
+            "mensagem": "🧪 *TESTE REAL 1 — Guiado*\nCada plano custa R$ 2,10 e testa uma situação:\n1) 30 minutos com grupo (vence e remove rápido)\n2) Mensal com grupo\n3) Vitalício com grupo\n4) Sem grupo (controle: paga e não recebe link)\n\nToque abaixo para escolher.",
+            "midia_tipo": "none",
+            "midia_path": "",
+            "texto_cta": "Ver os planos de teste",
+            "cor_cta": "success"
+        },
+        "planos": [
+            {
+                "id": "t1_30min",
+                "nome": "1) 30 minutos · com grupo",
+                "valor": 2.1,
+                "dias_acesso": 30,
+                "unidade_acesso": "minutos",
+                "id_grupo": "",
+                "cor": "primary"
+            },
+            {
+                "id": "t1_mensal",
+                "nome": "2) Mensal · com grupo",
+                "valor": 2.1,
+                "dias_acesso": 30,
+                "unidade_acesso": "dias",
+                "id_grupo": "",
+                "cor": "success"
+            },
+            {
+                "id": "t1_vital",
+                "nome": "3) Vitalício · com grupo",
+                "valor": 2.1,
+                "dias_acesso": 36500,
+                "unidade_acesso": "dias",
+                "id_grupo": "",
+                "cor": ""
+            },
+            {
+                "id": "t1_semgrupo",
+                "nome": "4) Sem grupo · controle",
+                "valor": 2.1,
+                "dias_acesso": 30,
+                "unidade_acesso": "dias",
+                "id_grupo": "",
+                "cor": "danger"
+            },
+            {
+                "id": "t1_trim",
+                "nome": "5) Trimestral · alvo do upsell",
+                "valor": 4.2,
+                "dias_acesso": 90,
+                "unidade_acesso": "dias",
+                "id_grupo": "",
+                "cor": ""
+            }
+        ],
+        "ofertas": {
+            "upsell": {
+                "ativo": true,
+                "id_plano_destino": "t1_trim",
+                "desconto_percentual": 15,
+                "mensagem": "🔝 Leve o TRIMESTRAL com 15% de desconto?",
+                "texto_aceitar": "Quero o trimestral",
+                "cor_aceitar": "success",
+                "texto_recusar": "Fico no que escolhi",
+                "cor_recusar": ""
+            },
+            "downsell": {
+                "ativo": true,
+                "id_plano_destino": "t1_30min",
+                "desconto_percentual": 0,
+                "mensagem": "⬇️ Quer começar pelo plano de 30 minutos?",
+                "texto_aceitar": "Começar por 30 min",
+                "cor_aceitar": "primary",
+                "texto_recusar": "Não, obrigado",
+                "cor_recusar": ""
+            },
+            "order_bump": {
+                "ativo": true,
+                "nome": "Bônus de teste",
+                "valor_extra": 1,
+                "mensagem": "🎁 Adicione o bônus por só R$ 1,00?",
+                "texto_aceitar": "Adicionar",
+                "cor_aceitar": "success",
+                "texto_recusar": "Sem o bônus",
+                "cor_recusar": ""
+            }
+        },
+        "previas": {
+            "ativo": false,
+            "texto_botao": "🎬 Aula grátis",
+            "midias": [],
+            "apagar_apos": 30,
+            "rever": "diario",
+            "proteger": false,
+            "mensagem_junto": "",
+            "mensagem_depois": "",
+            "botao_planos": true
+        },
+        "packs": {
+            "ativo": true,
+            "texto_botao": "📦 Aulas avulsas",
+            "mensagem": "Escolha uma aula:",
+            "itens": [
+                {
+                    "id": "k1",
+                    "ativo": true,
+                    "emoji": "📷",
+                    "nome": "Aula 1 · com grupo",
+                    "preco": 2.1,
+                    "descricao": "Pack com entrega no grupo.",
+                    "midia_tipo": "none",
+                    "midia_path": "",
+                    "id_grupo": ""
+                },
+                {
+                    "id": "k2",
+                    "ativo": true,
+                    "emoji": "🎧",
+                    "nome": "Aula 2 · sem grupo",
+                    "preco": 2.1,
+                    "descricao": "Pack sem grupo (controle).",
+                    "midia_tipo": "none",
+                    "midia_path": "",
+                    "id_grupo": ""
+                }
+            ]
+        },
+        "assinatura": {
+            "avisos_antes": {
+                "ativo": false,
+                "dias": [
+                    5,
+                    2,
+                    0
+                ],
+                "midia_tipo": "none",
+                "midia_path": "",
+                "mensagem": ""
+            },
+            "avisos_no_dia": {
+                "ativo": false,
+                "horarios": [
+                    "10:00",
+                    "20:00"
+                ]
+            },
+            "ao_expirar": {
+                "ativo": false,
+                "midia_tipo": "none",
+                "midia_path": "",
+                "mensagem": ""
+            },
+            "renovacao": {
+                "desconto": 10
+            },
+            "acoes": {
+                "expulsar": true
+            }
+        },
+        "pagamentos": {
+            "msg_instrucoes": "",
+            "msg_confirmado": "✅ Pagamento aprovado! (TESTE REAL 1 · Guiado — planos, ofertas e packs com grupo) Se o plano tem grupo, o link de entrada vem logo abaixo.",
+            "mostrar_copiar": true,
+            "mostrar_qrcode": true,
+            "qrcode_definido": true,
+            "mostrar_confirmar": true
+        }
+    }
+}

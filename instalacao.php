@@ -69,13 +69,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ja_instalado) {
         $pdo->exec("CREATE DATABASE IF NOT EXISTS `$nome_banco` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
         $pdo->exec("USE `$nome_banco`");
 
-        // Schema completo (28 tabelas), consolidado a partir de admin/atualiza_banco.php em
+        // Schema completo (39 tabelas; conferido de novo em 11/10/2026 contra o banco de homologação com tests/paginas/servidor/zz_schema.php), consolidado a partir de admin/atualiza_banco.php em
         // 2026-09-17 e reconferido em 2026-09-25 (fechada a lacuna de comunidade_links/
         // webhooks/webhooks_envios, que só o atualiza_banco.php criava até então) -- antes
         // disso, um install novo só criava usuarios/fluxos/bots e dependia de rodar
         // atualiza_banco.php manualmente depois pra chegar no schema atual (o que também já
         // tinha ficado lento demais pra rodar de uma vez com muito dado acumulado, ver
-        // anotacoes/HISTORICO-CONSOLIDADO.md seção 4). Conferido campo a campo contra
+        // anotacoes/OBSERVACOES.md). Conferido campo a campo contra
         // `SHOW CREATE TABLE` do ambiente de teste em produção pra garantir que bate exatamente
         // com o schema real depois de anos de ALTER TABLE incrementais. Convenção: toda
         // mudança de schema nova entra primeiro em admin/atualiza_banco.php (como ALTER
@@ -121,6 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ja_instalado) {
             caminho_foto VARCHAR(255),
             url_webhook VARCHAR(255),
             webhook_secret VARCHAR(64) NULL,
+            token_invalido_em DATETIME NULL,
             criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
             atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE,
@@ -134,11 +135,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ja_instalado) {
             telefone VARCHAR(30) DEFAULT NULL,
             nome_usuario_telegram VARCHAR(32) DEFAULT NULL,
             origem_rastreio VARCHAR(100) DEFAULT NULL,
+            pagou TINYINT(1) NOT NULL DEFAULT 0,
             bot_id INT,
             criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            id_fluxo INT DEFAULT NULL,
             FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE SET NULL,
             INDEX idx_leads_bot (bot_id, id_telegram),
-            INDEX idx_leads_bot_criado_em (bot_id, criado_em DESC)
+            INDEX idx_leads_bot_criado_em (bot_id, criado_em DESC),
+            INDEX idx_leads_bot_pagou_criado (bot_id, pagou, criado_em DESC),
+            INDEX idx_leads_fluxo (id_fluxo, criado_em)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+        // Um registro por /start (lead novo ou que voltou): base da contagem de "starts" do dashboard.
+        $pdo->exec("CREATE TABLE IF NOT EXISTS leads_starts (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            lead_id INT NOT NULL,
+            bot_id INT NOT NULL,
+            criado_em DATETIME NOT NULL,
+            INDEX idx_starts_bot_data (bot_id, criado_em),
+            INDEX idx_starts_lead (lead_id, criado_em),
+            FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
         $pdo->exec("CREATE TABLE IF NOT EXISTS vendas (
@@ -166,12 +182,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ja_instalado) {
             id_assinatura VARCHAR(100) DEFAULT NULL,
             id_plano INT DEFAULT NULL,
             ultimo_txid_renovacao VARCHAR(255) DEFAULT NULL,
+            id_fluxo INT DEFAULT NULL,
+            nome_produto VARCHAR(150) DEFAULT NULL,
             FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE SET NULL,
             UNIQUE INDEX idx_transacao_id (transacao_id),
             INDEX idx_id_assinatura (id_assinatura),
             INDEX idx_vendas_lookup (id_telegram, bot_id, status),
             INDEX idx_vendas_ranking (status, criado_em, bot_id),
-            INDEX idx_vendas_criado_em (criado_em DESC)
+            INDEX idx_vendas_criado_em (criado_em DESC),
+            INDEX idx_vendas_fluxo (id_fluxo, criado_em),
+            INDEX idx_vendas_bot_criado (bot_id, criado_em)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
         $pdo->exec("CREATE TABLE IF NOT EXISTS atividades (
@@ -215,7 +235,67 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ja_instalado) {
             aviso_enviado TINYINT(1) DEFAULT 0,
             FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE,
             FOREIGN KEY (venda_id) REFERENCES vendas(id) ON DELETE SET NULL,
-            UNIQUE KEY unico_membro (id_telegram, id_grupo_telegram, bot_id)
+            UNIQUE KEY unico_membro (id_telegram, id_grupo_telegram, bot_id),
+            INDEX idx_membros_plano_ativo (id_telegram, bot_id, status, data_expiracao)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+        // Tabelas do motor de fluxos, avisos de assinatura e prévias: antes só o Atualizar Banco criava (instalação nova ficava sem elas).
+        $pdo->exec("CREATE TABLE IF NOT EXISTS avisos_assinatura_enviados (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            membro_id INT NOT NULL,
+            marco VARCHAR(40) NOT NULL,
+            enviado_em DATETIME NOT NULL,
+            UNIQUE KEY unico_aviso (membro_id, marco),
+            INDEX idx_avisos_enviado_em (enviado_em),
+            FOREIGN KEY (membro_id) REFERENCES membros_grupos(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS fluxo_continuacoes (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            bot_id INT NOT NULL,
+            id_telegram VARCHAR(50) NOT NULL,
+            id_fluxo INT NOT NULL,
+            id_operador_destino VARCHAR(60) NOT NULL,
+            executar_em DATETIME NOT NULL,
+            status ENUM('pendente', 'processando', 'feito', 'falhou', 'cancelado') NOT NULL DEFAULT 'pendente',
+            criado_em DATETIME NOT NULL,
+            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_continuacoes_pendentes (status, executar_em),
+            INDEX idx_continuacoes_lead (bot_id, id_telegram, status),
+            FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS fluxo_ofertas_aceitas (
+            bot_id INT NOT NULL,
+            id_telegram VARCHAR(50) NOT NULL,
+            tipo ENUM('upsell', 'downsell', 'order_bump') NOT NULL,
+            desconto_percentual DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+            valor_extra DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+            nome VARCHAR(100) DEFAULT NULL,
+            criado_em DATETIME NOT NULL,
+            PRIMARY KEY (bot_id, id_telegram, tipo),
+            FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS mensagens_agendadas (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            bot_id INT NOT NULL,
+            id_telegram VARCHAR(50) NOT NULL,
+            message_id BIGINT NOT NULL,
+            apagar_em DATETIME NOT NULL,
+            apagada TINYINT(1) NOT NULL DEFAULT 0,
+            depois_json TEXT DEFAULT NULL,
+            INDEX idx_agendadas_pendentes (apagada, apagar_em),
+            INDEX bot_id (bot_id),
+            FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS previas_vistas (
+            bot_id INT NOT NULL,
+            id_telegram VARCHAR(50) NOT NULL,
+            visto_em DATETIME NOT NULL,
+            PRIMARY KEY (bot_id, id_telegram),
+            FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
         $pdo->exec("CREATE TABLE IF NOT EXISTS gateways (
@@ -553,6 +633,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ja_instalado) {
         // Chave própria e aleatória desta instalação, usada só pra criptografar
         // client_secret/cert_password/chave_pix dos gateways de pagamento no banco.
         $config_content .= "define('CHAVE_CRIPTOGRAFIA_GATEWAYS', '" . bin2hex(random_bytes(32)) . "');\n";
+        // Chave dos crons chamados por URL (?chave=...). Sem ela, o cron pela web é recusado (403); na VPS os crons rodam pela linha de comando e não usam.
+        $config_content .= "define('CHAVE_SECRETA_CRON', '" . bin2hex(random_bytes(16)) . "');\n";
 
         file_put_contents('config.php', $config_content);
 

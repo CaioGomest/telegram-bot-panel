@@ -7,7 +7,7 @@ declare(strict_types=1);
  *
  * Modo byte, correção de erro M (15%) com queda pra L se o texto for grande, versões 1 a 40, escolha automática da
  * máscara. Saída: matriz de módulos ou PNG de 1 bit (só zlib, sem GD). Algoritmo conferido contra a biblioteca
- * `qrcode` do npm (matriz idêntica com a mesma máscara) e decodificado com jsQR — ver anotacoes/HISTORICO-CONSOLIDADO.md.
+ * `qrcode` do npm (matriz idêntica com a mesma máscara) e decodificado com jsQR — ver anotacoes/OBSERVACOES.md.
  */
 final class CodigoQr
 {

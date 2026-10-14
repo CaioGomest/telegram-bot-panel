@@ -32,7 +32,65 @@
         trash: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>'
     };
 
-    const miniatura_fluxo = '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--m)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="7" height="6" rx="1.5"></rect><rect x="15" y="2" width="7" height="6" rx="1.5"></rect><rect x="15" y="14" width="7" height="6" rx="1.5"></rect><path d="M9 7h3a2 2 0 0 1 2 2v0"></path><path d="M14 5h1M14 17h1"></path></svg>';
+    const miniatura_fluxo = '<svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="var(--m)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="9" width="6.5" height="6" rx="1.5"></rect><rect x="15.5" y="3" width="7" height="6" rx="1.5"></rect><rect x="15.5" y="15" width="7" height="6" rx="1.5"></rect><path d="M8 12h3.75M11.75 6v12M11.75 6h3.75M11.75 18h3.75"></path></svg>';
+
+    let limite_fluxos = 50;
+
+    // Contador no botão de criar ("+ Novo Fluxo (2/50)"); no limite, criar e importar ficam desativados.
+    function atualizarContadorFluxos(total) {
+        const no_limite = total >= limite_fluxos;
+        const aviso = 'Limite de ' + limite_fluxos + ' fluxos atingido. Exclua um para criar ou importar outro.';
+        $('#btn-abrir-escolha-modo').text('+ Novo Fluxo (' + total + '/' + limite_fluxos + ')');
+        $('#btn-abrir-escolha-modo, #btn-importar-fluxo-lista').prop('disabled', no_limite).attr('title', no_limite ? aviso : null);
+    }
+
+    function base64Utf8(obj) {
+        const bytes = new TextEncoder().encode(JSON.stringify(obj));
+        let bin = '';
+        for (let i = 0; i < bytes.length; i++) {
+            bin += String.fromCharCode(bytes[i]);
+        }
+        return btoa(bin);
+    }
+
+    function importarFluxoDeArquivo(arquivo) {
+        const leitor = new FileReader();
+        leitor.onload = function (ev) {
+            let json;
+            try {
+                json = JSON.parse(ev.target.result);
+            } catch (err) {
+                exibirAviso('Arquivo JSON inválido.', 'erro');
+                return;
+            }
+            if (!json || typeof json !== 'object' || !json.dados_fluxograma) {
+                exibirAviso('Esse arquivo não é um fluxo exportado.', 'erro');
+                return;
+            }
+            $.ajax({
+                url: url_api + '?action=importar_fluxo',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    nome: json.nome,
+                    descricao: json.descricao,
+                    link_suporte: json.link_suporte || '',
+                    modo: json.modo || '',
+                    dados_fluxograma_b64: base64Utf8(json.dados_fluxograma)
+                })
+            }).done(function (resp) {
+                if (!resp.sucesso) {
+                    exibirAviso(resp.mensagem || 'Erro ao importar fluxo.', 'erro');
+                    return;
+                }
+                exibirAviso('Fluxo importado com sucesso.');
+                carregarFluxos();
+            }).fail(function (xhr) {
+                exibirAviso((xhr.responseJSON && xhr.responseJSON.mensagem) || 'Falha ao importar fluxo.', 'erro');
+            });
+        };
+        leitor.readAsText(arquivo);
+    }
 
     function carregarFluxos() {
         const $list = $('#lista-fluxos');
@@ -46,6 +104,8 @@
                 }
 
                 const fluxos = response.fluxos || [];
+                limite_fluxos = Number(response.limite_fluxos) || limite_fluxos;
+                atualizarContadorFluxos(fluxos.length);
                 $list.empty();
 
                 if (!fluxos.length) {
@@ -69,7 +129,7 @@
                                 <p class="texto-suave mono">Atualizado: ${escaparHtml(formatarDataFluxo(flow.atualizado_em))}</p>
                             </div>
                             <div class="cartao-acoes">
-                                <a href="${pagina_editar}?id=${encodeURIComponent(flow.id)}" class="botao botao-editar-fluxo">Editar fluxo</a>
+                                <a href="${pagina_editar}?id=${encodeURIComponent(flow.id)}" class="btn-icon editar" title="Editar fluxo" aria-label="Editar fluxo">${icons.edit}</a>
                                 <button type="button" class="btn-icon excluir btn-excluir-fluxo" data-id="${escaparHtml(flow.id)}" title="Excluir">${icons.trash}</button>
                             </div>
                         </div>
@@ -109,6 +169,15 @@
         $(document).on('click', '.btn-excluir-fluxo', function() {
             const id = $(this).data('id');
             excluirFluxo(id);
+        });
+
+        $('#btn-importar-fluxo-lista').on('click', function () {
+            $('#arquivo-importar-fluxo-lista').click();
+        });
+        $('#arquivo-importar-fluxo-lista').on('change', function (e) {
+            const arquivo = e.target.files && e.target.files[0];
+            if (arquivo) importarFluxoDeArquivo(arquivo);
+            $(this).val('');
         });
 
         $('#btn-abrir-escolha-modo').on('click', function () {

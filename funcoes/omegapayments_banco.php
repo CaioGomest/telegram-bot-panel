@@ -13,7 +13,7 @@ declare(strict_types=1);
  * autenticação) em 28/09/2026. A documentação tem bot-detection agressivo (403) na maior
  * parte das páginas, então outros pontos ainda não confirmados continuam como palpite: o
  * path exato do endpoint de consulta de transação, e o schema completo de cada item do array
- * `splits[]`. Ver `anotacoes/HISTORICO-CONSOLIDADO.md` antes de considerar
+ * `splits[]`. Ver `anotacoes/OBSERVACOES.md` antes de considerar
  * isso 100% pronto pra produção.
  */
 class OmegaPaymentsBanco {
@@ -73,7 +73,6 @@ class OmegaPaymentsBanco {
         $response   = curl_exec($ch);
         $http_code  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curl_error = curl_error($ch);
-        curl_close($ch);
 
         if ($curl_error) {
             $this->writeLog("cURL Error ($method $uri): $curl_error");
@@ -105,6 +104,18 @@ class OmegaPaymentsBanco {
      * limite, então essa URL tem que ser sempre a mesma (nunca gerada por venda).
      */
     private function montaCallbackUrl(): string {
+        // "URL do painel" configurada (Admin → Configurações): vale também para cobranças criadas por cron (renovação), que rodam em linha de
+        // comando e não têm HTTP_HOST — sem isso a gateway recebia http://localhost/... e o aviso de pagamento dessas cobranças nunca chegava
+        // (só o cron de verificação, de minuto em minuto, confirmava).
+        try {
+            require_once __DIR__ . '/configuracoes.php';
+            $configurada = rtrim(trim(configSistema('url_base')), '/');
+            if ($configurada !== '' && preg_match('#^https?://[^\s/]+(/[^\s]*)?$#i', $configurada)) {
+                return $configurada . '/webhook_omegapayments.php';
+            }
+        } catch (\Throwable $e) {
+            // sem banco/configuração: cai na URL derivada da requisição, abaixo
+        }
         $esquema = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
         $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
         $caminho_base = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/\\');

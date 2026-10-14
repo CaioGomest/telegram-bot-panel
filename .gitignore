@@ -29,3 +29,15 @@ storage/*
 anotacoes/credenciais-ssh-hostinger.md
 anotacoes/credenciais-vps-easypanel.md
 anotacoes/id_ed25519_vps_easypanel
+
+# chaves da suspensao remota nunca no repositorio
+*.pem
+.painel-controle/
+
+# resultados brutos do teste de carga na VPS (so no local)
+tests/estresse/vps/resultados/
+
+# saidas geradas pelos testes (prints e JSON de resultado): so no local. Um JSON de erro ja chegou a guardar a linha de
+# comando do plink com a senha SSH -- nunca versionar.
+tests/paginas/pg/
+tests/estresse/saida/

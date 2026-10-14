@@ -66,7 +66,10 @@ function tecladoRenovacaoAssinatura(): array
     return ['inline_keyboard' => [[['text' => '🔄 Renovar agora', 'callback_data' => 'basico::renovar']]]];
 }
 
-/** Nome do plano do fluxo cujo valor bate com a venda (a venda não guarda o nome do plano). */
+/**
+ * Nome do plano do fluxo cujo valor bate com a venda (a venda não guarda o nome do plano). Venda com upsell/bump/desconto
+ * não bate com nenhum plano: devolve "atual" pra frase continuar certa ("Seu plano atual expira...", e não "Seu plano seu plano").
+ */
 function nomePlanoDaVenda(array $dados_fluxo, float $valor): string
 {
     foreach ((array) ($dados_fluxo['planos'] ?? []) as $p) {
@@ -74,7 +77,7 @@ function nomePlanoDaVenda(array $dados_fluxo, float $valor): string
             return trim((string) $p['nome']);
         }
     }
-    return 'seu plano';
+    return 'atual';
 }
 
 /** Dias de calendário até o vencimento (0 = vence hoje, 1 = amanhã). Conta pela data, não por blocos de 24h. */
@@ -256,7 +259,7 @@ function gerarPixRenovacaoBasico(string $token, $id_chat, array $dados_basico, s
             'unidade_acesso' => $i['plano']['unidade_acesso'] ?? 'dias',
             'id_grupo' => $i['plano']['id_grupo'] ?? '',
             'mostrar_copiar' => $pagamentos['mostrar_copiar'] ?? true,
-            'mostrar_qrcode' => false,
+            'mostrar_qrcode' => !empty($pagamentos['qrcode_definido']) ? !empty($pagamentos['mostrar_qrcode']) : true,
             'mostrar_confirmar' => $pagamentos['mostrar_confirmar'] ?? true,
             'msg_instrucoes' => $pagamentos['msg_instrucoes'] ?? '',
             'msg_confirmado' => $pagamentos['msg_confirmado'] ?? '',

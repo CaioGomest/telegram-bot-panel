@@ -1,4 +1,4 @@
-<script>(function(){try{var t=localStorage.getItem('tema')||'dark';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+<script>(function(){try{var t=localStorage.getItem('tema')||'dark';document.documentElement.setAttribute('data-theme',t);if(localStorage.getItem('barra_fixa')==='1'){document.documentElement.classList.add('barra-fixa');}}catch(e){}})();</script>
 
 <?php
 // Identidade visual vem do banco (white-label). Aqui no <head> porque é o único include

@@ -422,3 +422,104 @@ html[data-theme] .grupo-auto-delete {
     margin-bottom: 6px;
     border: 1px solid var(--bd);
 }
+
+/* ===== Campos dentro dos blocos: alinhamento e espaçamento ===== */
+/* Opção com caixa de marcar ("Spoiler", "Auto-deletar", "Mostrar digitando"...): uma linha só, caixa à esquerda
+   e texto ao lado, a linha inteira clicável. Antes a regra genérica de input (width:100%) esticava a caixa e
+   jogava o texto pro canto direito. */
+html[data-theme] .flowchart-operator .linha-flex {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin: 0 0 8px;
+    padding: 8px 10px;
+    background: var(--p2);
+    border: 1px solid var(--bd);
+    border-radius: 8px;
+    cursor: pointer;
+    text-transform: none;
+    letter-spacing: normal;
+    transition: border-color .12s;
+}
+html[data-theme] .flowchart-operator .linha-flex:hover { border-color: var(--bd2); }
+html[data-theme] .flowchart-operator .linha-flex input[type="checkbox"] {
+    flex: none;
+    width: 15px;
+    height: 15px;
+    margin: 0;
+    padding: 0;
+    accent-color: var(--or);
+    cursor: pointer;
+}
+html[data-theme] .flowchart-operator .linha-flex span {
+    flex: 1;
+    min-width: 0;
+    font: 700 11px/1.25 'Manrope', sans-serif;
+    color: var(--t);
+}
+
+/* Texto de ajuda dentro do bloco (um estilo só pra todos). */
+html[data-theme] .flowchart-operator .dica-bloco {
+    display: block;
+    margin: 0 0 8px;
+    font: 500 10px/1.45 'Manrope', sans-serif;
+    color: var(--m);
+}
+html[data-theme] .flowchart-operator .dica-aviso { color: var(--wa); }
+html[data-theme] .flowchart-operator .dica-bloco a { color: var(--or); text-decoration: underline; }
+html[data-theme] .flowchart-operator .grupo-auto-delete .dica-bloco { margin: -2px 0 0; }
+html[data-theme] .flowchart-operator .grupo-auto-delete input { margin-bottom: 6px; }
+
+/* Ofertas (upsell/downsell/extra): botão + cor lado a lado, em duas linhas (aceitar / recusar). */
+html[data-theme] .flowchart-operator .bloco-oferta .grade-2 {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 84px;
+    gap: 0 8px;
+    margin: 0;
+}
+html[data-theme] .flowchart-operator .bloco-oferta .grade-2 .campo { min-width: 0; margin: 0; }
+html[data-theme] .flowchart-operator .bloco-oferta .grade-2 label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Botões: texto (ocupa o que sobra) + cor + remover, alinhados. */
+html[data-theme] .flowchart-operator .item-botao {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 30px;
+    gap: 5px;
+    align-items: stretch;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed var(--bd);
+}
+/* texto do botão numa linha só dele; embaixo a cor e o remover */
+html[data-theme] .flowchart-operator .item-botao .campo-botao-texto { grid-column: 1 / -1; }
+html[data-theme] .flowchart-operator .item-botao input,
+html[data-theme] .flowchart-operator .item-botao select { margin: 0; min-width: 0; }
+html[data-theme] .flowchart-operator .item-botao .remover-botao { width: auto; font-size: 12px; }
+
+/* Sorteio: "Caminho N", peso, porcentagem e remover numa linha só. */
+html[data-theme] .flowchart-operator .bloco-randomizer .item-caminho {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 50px 30px 26px;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 6px;
+}
+html[data-theme] .flowchart-operator .bloco-randomizer .rotulo-caminho { white-space: nowrap; font: 700 11px 'Manrope', sans-serif; color: var(--t); opacity: 1; }
+html[data-theme] .flowchart-operator .bloco-randomizer .campo-caminho-peso { width: 100%; margin: 0; }
+html[data-theme] .flowchart-operator .bloco-randomizer .pct-caminho { min-width: 0; text-align: right; font: 600 10px 'JetBrains Mono', monospace; opacity: .8; }
+html[data-theme] .flowchart-operator .bloco-randomizer .remover-caminho,
+html[data-theme] .flowchart-operator .item-botao .remover-botao {
+    height: 100%;
+    min-height: 28px;
+    background: var(--dasoft);
+    color: var(--da);
+    border: 0;
+    border-radius: 6px;
+    opacity: 1;
+    cursor: pointer;
+}
+html[data-theme] .flowchart-operator .bloco-randomizer .remover-caminho:hover,
+html[data-theme] .flowchart-operator .item-botao .remover-botao:hover { filter: brightness(1.2); }
+
+/* Título longo do bloco "Extra no pagamento" cabe sem virar "PAGA…". */
+html[data-theme] .flowchart-operator.no-order-bump .texto-titulo { font-size: 10px; letter-spacing: 0; }

@@ -1,0 +1,4 @@
+# Scripts de shell e arquivos da VPS: fim de linha LF sempre (com CRLF o bash na VPS falha com "\r: command not found").
+*.sh text eol=lf
+deploy/** text eol=lf
+*.sql text eol=lf

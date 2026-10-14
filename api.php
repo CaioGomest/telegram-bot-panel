@@ -82,7 +82,6 @@ function requisicaoTelegram(string $token, string $metodo, array $parametros = [
     $resposta = curl_exec($ch);
     $erro_curl = curl_error($ch);
     $codigo_http = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
 
     if ($resposta === false) {
         return [
@@ -102,8 +101,47 @@ function requisicaoTelegram(string $token, string $metodo, array $parametros = [
         ];
     }
 
+    registrarRespostaTelegram($token, $decodificado);
     $decodificado['http_code'] = $codigo_http;
     return $decodificado;
+}
+
+const LIMITE_FLUXOS_POR_USUARIO = 50;
+const LIMITE_BOTS_POR_USUARIO = 50;
+
+/** Responde 422 e encerra se o usuário já tem o máximo de bots (só vale pra bot novo, não pra editar). */
+function exigirVagaParaNovoBot(PDO $pdo, int $usuario_id): void
+{
+    $stmt = $pdo->prepare('SELECT COUNT(*) FROM bots WHERE id_usuario = ?');
+    $stmt->execute([$usuario_id]);
+    if ((int) $stmt->fetchColumn() >= LIMITE_BOTS_POR_USUARIO) {
+        responder(false, ['mensagem' => 'Limite de ' . LIMITE_BOTS_POR_USUARIO . ' bots atingido. Exclua um bot para conectar outro.'], 422);
+    }
+}
+
+/** Responde 422 e encerra se o usuário já tem o máximo de fluxos (vale pra criar e pra importar). */
+function exigirVagaParaNovoFluxo(PDO $pdo, int $usuario_id): void
+{
+    $stmt = $pdo->prepare('SELECT COUNT(*) FROM fluxos WHERE id_usuario = ?');
+    $stmt->execute([$usuario_id]);
+    if ((int) $stmt->fetchColumn() >= LIMITE_FLUXOS_POR_USUARIO) {
+        responder(false, ['mensagem' => 'Limite de ' . LIMITE_FLUXOS_POR_USUARIO . ' fluxos atingido. Exclua um fluxo para criar ou importar outro.'], 422);
+    }
+}
+
+/**
+ * O formato de dados_fluxograma depende do modo (Guiado = seções e planos; Editor Visual = nós e links). Aceitar um no
+ * lugar do outro corromperia o fluxo (o guiado ficaria sem planos, o visual sem blocos).
+ */
+function exigirFormatoDoModo(string $modo, array $dados): void
+{
+    $eh_guiado = isset($dados['planos']);
+    if ($modo === 'basico' && !$eh_guiado) {
+        responder(false, ['mensagem' => 'Este fluxo é do tipo Guiado, mas os dados enviados são de um fluxo do Editor Visual.'], 422);
+    }
+    if ($modo !== 'basico' && $eh_guiado) {
+        responder(false, ['mensagem' => 'Este fluxo é do tipo Editor Visual, mas os dados enviados são de um fluxo Guiado.'], 422);
+    }
 }
 
 function sanitizarTexto(?string $valor, int $tamanho_maximo = 0): string
@@ -121,7 +159,7 @@ function sanitizarTexto(?string $valor, int $tamanho_maximo = 0): string
  * subpasta nem "..") antes de gravar no banco. Sem essa checagem, dava pra gravar um
  * caminho arbitrário (ex. "config.php" ou "certificados/cert_5_1.pem") direto via API,
  * pulando a tela do editor, e o bot reenviaria esse arquivo quando o bloco fosse executado
- * — ver anotacoes/HISTORICO-CONSOLIDADO.md. Caminho fora do padrão é zerado
+ * — ver anotacoes/OBSERVACOES.md. Caminho fora do padrão é zerado
  * em vez de rejeitar o fluxo inteiro, pra não travar o resto da edição.
  */
 /** Mesma checagem de "só aceita caminho uploads/nome.ext" usada abaixo pro grafo de nós. */
@@ -281,7 +319,7 @@ try {
         case 'gateway_info':
             // PIX Recorrente era só da InfoPago (PIX Automático) -- nenhum gateway suportado
             // hoje implementa recorrência (a OmegaPayments não tem esse recurso na v1). Ver
-            // anotacoes/HISTORICO-CONSOLIDADO.md. Sempre false até algum gateway
+            // anotacoes/OBSERVACOES.md. Sempre false até algum gateway
             // futuro trazer esse recurso de volta.
             responder(true, ['suporta_recorrente' => false]);
             break;
@@ -294,7 +332,7 @@ try {
             foreach ($fluxos as &$f) {
                 $f['dados_fluxograma'] = json_decode($f['dados_fluxograma'] ?? '{}', true);
             }
-            responder(true, ['fluxos' => $fluxos]);
+            responder(true, ['fluxos' => $fluxos, 'limite_fluxos' => LIMITE_FLUXOS_POR_USUARIO]);
             break;
 
         case 'obter_fluxo':
@@ -318,7 +356,7 @@ try {
             if ($id <= 0) {
                 responder(false, ['mensagem' => 'ID do fluxo inválido.'], 422);
             }
-            $stmt = $pdo->prepare("SELECT id, nome, descricao, link_suporte, dados_fluxograma, atualizado_em FROM fluxos WHERE id = ? AND id_usuario = ?");
+            $stmt = $pdo->prepare("SELECT id, nome, descricao, link_suporte, modo, dados_fluxograma, atualizado_em FROM fluxos WHERE id = ? AND id_usuario = ?");
             $stmt->execute([$id, $usuario_id]);
             $fluxo = $stmt->fetch();
             if (!$fluxo) {
@@ -326,6 +364,7 @@ try {
             }
             $exportado = [
                 'versao' => 1,
+                'modo' => ($fluxo['modo'] ?? 'avancado') === 'basico' ? 'basico' : 'avancado',
                 'id_origem' => (int)($fluxo['id'] ?? 0),
                 'nome' => (string)($fluxo['nome'] ?? ''),
                 'descricao' => (string)($fluxo['descricao'] ?? ''),
@@ -357,13 +396,25 @@ try {
                 $dados = $json['dados_fluxograma'] ?? null;
             }
 
-            if (!is_array($dados) || !isset($dados['operators']) || !isset($dados['links'])) {
+            // Fluxo Guiado (modo basico) tem outro formato: seções/planos em vez de nós e links.
+            $modo = (($json['modo'] ?? '') === 'basico' || (is_array($dados) && isset($dados['planos']))) ? 'basico' : 'avancado';
+            $estrutura_valida = is_array($dados) && ($modo === 'basico' ? isset($dados['planos']) : (isset($dados['operators']) && isset($dados['links'])));
+            if (!$estrutura_valida) {
                 responder(false, ['mensagem' => 'Estrutura do fluxo inválida.'], 422);
             }
+            exigirVagaParaNovoFluxo($pdo, $usuario_id);
             $dados = sanitizarCaminhosMidiaFluxo($dados);
-            $stmt = $pdo->prepare("INSERT INTO fluxos (id_usuario, nome, descricao, link_suporte, dados_fluxograma) VALUES (?, ?, ?, ?, ?)");
-            $stmt->execute([$usuario_id, $nome, $descricao, $link_suporte, json_encode($dados, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]);
+            if ($modo === 'basico') {
+                require_once __DIR__ . '/funcoes/gateways.php';
+                $erro_preco = validarPrecosFluxoGuiado($dados, precoMinimoOmegaPayments(getGatewaySplit('omegapayments')));
+                if ($erro_preco !== null) {
+                    responder(false, ['mensagem' => $erro_preco], 422);
+                }
+            }
+            $stmt = $pdo->prepare("INSERT INTO fluxos (id_usuario, nome, descricao, link_suporte, modo, dados_fluxograma) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$usuario_id, $nome, $descricao, $link_suporte, $modo, json_encode($dados, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]);
             $novo_id = (int)$pdo->lastInsertId();
+            registrarAtividade($usuario_id, 'sistema', 'Fluxo', "Importou o fluxo: $nome");
             $stmt = $pdo->prepare("SELECT * FROM fluxos WHERE id = ? AND id_usuario = ?");
             $stmt->execute([$novo_id, $usuario_id]);
             $fluxo = $stmt->fetch();
@@ -393,6 +444,17 @@ try {
                 responder(false, ['mensagem' => 'dados_fluxograma inválido.'], 422);
             }
             $dados_grafico = sanitizarCaminhosMidiaFluxo($dados_grafico);
+            $modo_destino = ($entrada['modo'] ?? 'avancado') === 'basico' ? 'basico' : 'avancado';
+            if ($id_fluxo > 0) {
+                // Editar: vale o modo que o fluxo já tem (imutável), não o que veio na requisição.
+                $stmt = $pdo->prepare("SELECT modo FROM fluxos WHERE id = ? AND id_usuario = ?");
+                $stmt->execute([$id_fluxo, $usuario_id]);
+                $modo_existente = $stmt->fetchColumn();
+                if ($modo_existente !== false) {
+                    $modo_destino = $modo_existente === 'basico' ? 'basico' : 'avancado';
+                }
+            }
+            exigirFormatoDoModo($modo_destino, $dados_grafico);
             if (isset($dados_grafico['planos'])) {
                 // Fluxo Guiado: preço que a OmegaPayments recusaria com a comissão atual não pode ser salvo.
                 require_once __DIR__ . '/funcoes/gateways.php';
@@ -422,6 +484,7 @@ try {
                 // e basico (seções de formulário); trocar o modo de um fluxo existente
                 // corromperia o conteúdo salvo.
                 $modo = ($entrada['modo'] ?? 'avancado') === 'basico' ? 'basico' : 'avancado';
+                exigirVagaParaNovoFluxo($pdo, $usuario_id);
                 $stmt = $pdo->prepare("INSERT INTO fluxos (id_usuario, nome, descricao, link_suporte, modo, dados_fluxograma) VALUES (?, ?, ?, ?, ?, ?)");
                 $stmt->execute([$usuario_id, $nome, $descricao, $link_suporte, $modo, $json_grafico]);
                 $novo_id = $pdo->lastInsertId();
@@ -508,7 +571,9 @@ try {
                 SELECT b.*,
                        f.nome AS nome_fluxo,
                        (SELECT COUNT(*) FROM leads l
-                         WHERE l.bot_id = b.id AND l.criado_em >= CURDATE() - INTERVAL 7 DAY) AS leads_7d
+                         WHERE l.bot_id = b.id AND l.criado_em >= CURDATE() - INTERVAL 7 DAY) AS leads_7d,
+                       (SELECT COUNT(*) FROM vendas v
+                         WHERE v.bot_id = b.id AND v.status = 'pago' AND v.criado_em >= CURDATE() - INTERVAL 7 DAY) AS vendas_7d
                 FROM bots b
                 LEFT JOIN fluxos f ON f.id = b.id_fluxo_conectado
                 WHERE b.id_usuario = ?
@@ -516,7 +581,7 @@ try {
             ");
             $stmt->execute([$usuario_id]);
             $bots = $stmt->fetchAll();
-            responder(true, ['bots' => $bots]);
+            responder(true, ['bots' => $bots, 'limite_bots' => LIMITE_BOTS_POR_USUARIO]);
             break;
 
         case 'bots_do_fluxo':
@@ -677,6 +742,15 @@ try {
         case 'salvar_bot':
             $token = sanitizarTexto($entrada['token'] ?? '');
             $id_fluxo = !empty($entrada['id_fluxo_conectado']) ? (int)$entrada['id_fluxo_conectado'] : null;
+            // O fluxo precisa ser do próprio usuário: sem isto dava pra ligar o bot ao fluxo de OUTRA conta
+            // (mensagens, preços e grupos de outra pessoa passariam a rodar no bot de quem mandou o id).
+            if ($id_fluxo !== null) {
+                $stmt_dono_fluxo = $pdo->prepare("SELECT id FROM fluxos WHERE id = ? AND id_usuario = ?");
+                $stmt_dono_fluxo->execute([$id_fluxo, $usuario_id]);
+                if (!$stmt_dono_fluxo->fetchColumn()) {
+                    responder(false, ['mensagem' => 'Fluxo não encontrado.'], 404);
+                }
+            }
             $id_bot = (int) ($entrada['id'] ?? 0);
 
             if ($token === '') {
@@ -698,6 +772,9 @@ try {
                 $stmt = $pdo->prepare("SELECT * FROM bots WHERE token = ? AND id_usuario = ?");
                 $stmt->execute([$token, $usuario_id]);
                 $bot_existente = $stmt->fetch();
+            }
+            if (!$bot_existente) {
+                exigirVagaParaNovoBot($pdo, $usuario_id);
             }
 
             $id_bot_telegram = $vivo['result']['id'] ?? null;
@@ -739,6 +816,7 @@ try {
                     $descricao, $descricao_curta, $id_fluxo, $caminho_foto,
                     $id_bot
                 ]);
+                limparTokenInvalido((int) $id_bot);   // token novo colado: some o aviso de "Bot desconectado"
             } else {
                 $stmt = $pdo->prepare("INSERT INTO bots
                     (id_usuario, token, id_bot_telegram, nome_usuario, primeiro_nome, descricao, descricao_curta, id_fluxo_conectado, caminho_foto) 
@@ -786,6 +864,15 @@ try {
             $descricao = sanitizarTexto($entrada['descricao'] ?? '', 512);
             $descricao_curta = sanitizarTexto($entrada['descricao_curta'] ?? '', 120);
             $id_fluxo = !empty($entrada['id_fluxo_conectado']) ? (int)$entrada['id_fluxo_conectado'] : null;
+            // O fluxo precisa ser do próprio usuário: sem isto dava pra ligar o bot ao fluxo de OUTRA conta
+            // (mensagens, preços e grupos de outra pessoa passariam a rodar no bot de quem mandou o id).
+            if ($id_fluxo !== null) {
+                $stmt_dono_fluxo = $pdo->prepare("SELECT id FROM fluxos WHERE id = ? AND id_usuario = ?");
+                $stmt_dono_fluxo->execute([$id_fluxo, $usuario_id]);
+                if (!$stmt_dono_fluxo->fetchColumn()) {
+                    responder(false, ['mensagem' => 'Fluxo não encontrado.'], 404);
+                }
+            }
 
             if ($token === '' && $id_bot === 0) {
                 responder(false, ['mensagem' => 'Informe o token ou selecione um bot salvo.'], 422);
@@ -891,8 +978,10 @@ try {
             }
             $tmp = $_FILES['image']['tmp_name'];
             $tamanho = (int)($_FILES['image']['size'] ?? 0);
-            if ($tamanho <= 0 || !@getimagesize($tmp)) {
-                responder(false, ['mensagem' => 'Arquivo de imagem inválido.'], 422);
+            // getimagesize() sozinho aceita um "GIF89a<?php ...": exige que o TIPO real seja JPEG, PNG ou WebP.
+            $info_imagem = @getimagesize($tmp);
+            if ($tamanho <= 0 || !$info_imagem || !in_array($info_imagem[2] ?? 0, [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP], true)) {
+                responder(false, ['mensagem' => 'Arquivo de imagem inválido. Use JPG, PNG ou WebP.'], 422);
             }
             $extensao = strtolower(pathinfo($_FILES['image']['name'] ?? 'image.jpg', PATHINFO_EXTENSION));
             if (!in_array($extensao, ['jpg', 'jpeg', 'png'], true)) {
@@ -975,7 +1064,8 @@ try {
             $eh_video = in_array($extensao, ['mp4', 'mov', 'mkv', 'webm'], true);
 
             if ($eh_imagem) {
-                if ($tamanho <= 0 || $tamanho > 5 * 1024 * 1024 || !@getimagesize($tmp)) {
+                $info_imagem = @getimagesize($tmp);
+                if ($tamanho <= 0 || $tamanho > 5 * 1024 * 1024 || !$info_imagem || !in_array($info_imagem[2] ?? 0, [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP], true)) {
                     responder(false, ['mensagem' => 'Imagem inválida, vazia ou maior que 5MB.'], 422);
                 }
                 $tipo = 'foto';
@@ -1192,6 +1282,10 @@ try {
             if (!preg_match('/^[a-zA-Z0-9_\-]+$/', $identificador)) {
                 responder(false, ['mensagem' => 'Identificador inválido. Use apenas letras, números, _ e -.'], 422);
             }
+            // O Telegram só entrega ao bot um ?start= de até 64 caracteres: um identificador maior geraria um link que nunca funciona.
+            if (strlen($identificador) > 64) {
+                responder(false, ['mensagem' => 'Identificador muito longo. O Telegram aceita até 64 caracteres.'], 422);
+            }
             $resultado = criarLinkRastreamento($usuario_id, $titulo, $identificador, $bot_id);
             responder($resultado['sucesso'], $resultado, $resultado['sucesso'] ? 200 : 422);
             break;
@@ -1208,6 +1302,10 @@ try {
             }
             if (!preg_match('/^[a-zA-Z0-9_\-]+$/', $identificador)) {
                 responder(false, ['mensagem' => 'Identificador inválido. Use apenas letras, números, _ e -.'], 422);
+            }
+            // O Telegram só entrega ao bot um ?start= de até 64 caracteres: um identificador maior geraria um link que nunca funciona.
+            if (strlen($identificador) > 64) {
+                responder(false, ['mensagem' => 'Identificador muito longo. O Telegram aceita até 64 caracteres.'], 422);
             }
             $resultado = editarLinkRastreamento($usuario_id, $id, $titulo, $identificador, $bot_id);
             responder($resultado['sucesso'], $resultado, $resultado['sucesso'] ? 200 : 422);

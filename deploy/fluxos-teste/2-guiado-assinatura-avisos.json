@@ -1,0 +1,127 @@
+{
+    "nome": "TESTE REAL 2 · Guiado — assinatura, avisos e renovação",
+    "descricao": "Fluxo de teste (R$ 2,10 por plano). Escolha o grupo de entrega em cada plano/bloco Grupo antes de usar.",
+    "modo": "basico",
+    "dados_fluxograma": {
+        "ativo": true,
+        "suporte": "",
+        "suporte_cor": "",
+        "cache_chat_id": "",
+        "boas_vindas": {
+            "mensagem": "🧪 *TESTE REAL 2 — Assinatura*\nPlanos de R$ 2,10 com grupo. Aqui valem os avisos de vencimento (5, 2 e 0 dias), a mensagem ao expirar, a renovação com 10% de desconto e a carência de 2 dias antes da remoção.",
+            "midia_tipo": "none",
+            "midia_path": "",
+            "texto_cta": "Ver os planos de teste",
+            "cor_cta": "success"
+        },
+        "planos": [
+            {
+                "id": "t2_sem",
+                "nome": "Semanal · 7 dias com grupo",
+                "valor": 2.1,
+                "dias_acesso": 7,
+                "unidade_acesso": "dias",
+                "id_grupo": "",
+                "cor": "primary"
+            },
+            {
+                "id": "t2_men",
+                "nome": "Mensal · 30 dias com grupo",
+                "valor": 2.1,
+                "dias_acesso": 30,
+                "unidade_acesso": "dias",
+                "id_grupo": "",
+                "cor": "success"
+            }
+        ],
+        "ofertas": {
+            "upsell": {
+                "ativo": false,
+                "id_plano_destino": "",
+                "desconto_percentual": 0,
+                "mensagem": "",
+                "texto_aceitar": "Quero",
+                "cor_aceitar": "success",
+                "texto_recusar": "Agora não",
+                "cor_recusar": ""
+            },
+            "downsell": {
+                "ativo": false,
+                "id_plano_destino": "",
+                "desconto_percentual": 0,
+                "mensagem": "",
+                "texto_aceitar": "Aceito",
+                "cor_aceitar": "primary",
+                "texto_recusar": "Não, obrigado",
+                "cor_recusar": ""
+            },
+            "order_bump": {
+                "ativo": false,
+                "nome": "Bônus",
+                "valor_extra": 1,
+                "mensagem": "",
+                "texto_aceitar": "Adicionar",
+                "cor_aceitar": "success",
+                "texto_recusar": "Sem o bônus",
+                "cor_recusar": ""
+            }
+        },
+        "previas": {
+            "ativo": false,
+            "texto_botao": "🎬 Aula grátis",
+            "midias": [],
+            "apagar_apos": 30,
+            "rever": "diario",
+            "proteger": false,
+            "mensagem_junto": "",
+            "mensagem_depois": "",
+            "botao_planos": true
+        },
+        "packs": {
+            "ativo": false,
+            "texto_botao": "📦 Aulas avulsas",
+            "mensagem": "Escolha uma aula:",
+            "itens": []
+        },
+        "assinatura": {
+            "avisos_antes": {
+                "ativo": true,
+                "dias": [
+                    5,
+                    2,
+                    0
+                ],
+                "midia_tipo": "none",
+                "midia_path": "",
+                "mensagem": "{saudacao}, {nome}! Seu plano {plano} expira {prazo} ({data_expiracao}). Renove para não perder o acesso."
+            },
+            "avisos_no_dia": {
+                "ativo": true,
+                "horarios": [
+                    "10:00",
+                    "20:00"
+                ]
+            },
+            "ao_expirar": {
+                "ativo": true,
+                "midia_tipo": "none",
+                "midia_path": "",
+                "mensagem": "{nome}, seu plano {plano} acabou. Renove agora com 10% de desconto!"
+            },
+            "renovacao": {
+                "desconto": 10
+            },
+            "acoes": {
+                "expulsar": true
+            }
+        },
+        "pagamentos": {
+            "msg_instrucoes": "",
+            "msg_confirmado": "✅ Pagamento aprovado! (TESTE REAL 2 · Guiado — assinatura, avisos e renovação) Se o plano tem grupo, o link de entrada vem logo abaixo.",
+            "mostrar_copiar": true,
+            "mostrar_qrcode": true,
+            "qrcode_definido": true,
+            "mostrar_confirmar": true
+        }
+    }
+}

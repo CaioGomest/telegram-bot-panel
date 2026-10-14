@@ -12,7 +12,7 @@ if (!isset($pdo)) {
 $is_admin = function_exists('ehAdmin') ? ehAdmin() : false;
 // Sem o .php: os href dos menus agora são limpos (/bots), mas PHP_SELF continua
 // apontando pro arquivo real (bots.php) -- sem normalizar, o item ativo do menu
-// nunca casaria. Ver anotacoes/HISTORICO-CONSOLIDADO.md.
+// nunca casaria. Ver anotacoes/OBSERVACOES.md.
 $pagina_atual = preg_replace('/\.php$/', '', basename($_SERVER['PHP_SELF']));
 $user_id = $_SESSION['usuario_id'] ?? 0;
 
@@ -50,6 +50,7 @@ $icones = [
     'conta' => 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',
     'visao_geral' => 'M3 3v18h18M7 14l4-4 4 4 5-5',
     'transacoes' => 'M8 3L4 7l4 4M4 7h16M16 21l4-4-4-4M20 17H4',
+    'vendas' => 'M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',
     'logs' => 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8',
     'remarketing' => 'M3 11l18-5v12L3 14v-3zM11.6 16.8a3 3 0 1 1-5.8-1.6',
     'traqueamento' => 'M22 12h-4l-3 9L9 3l-3 9H2',
@@ -60,53 +61,60 @@ $icones = [
     'usuarios' => 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM16 11l2 2 4-4',
     'campanhas' => 'M4 22V4a1 1 0 0 1 1-1h13l-2 5 2 5H5',
     'identidade' => 'M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
-    'atualizar_banco' => 'M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5',
     'consultar_venda' => 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3',
     'testes_desempenho' => 'M18 20V10M12 20V4M6 20v-6',
-    'checklist_testes' => 'M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11',
     'debug' => 'M12 8v8M8 12h8M4 4h16v16H4z',
     'sair' => 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
 ];
 
-$grupo_operacao = [];
+// Menu do vendedor em seções (cada uma com título; recolhida, vira só um traço separador entre os ícones).
+// Visão geral = acompanhar o negócio | Automações = o que roda sozinho | Rastreamento = de onde vem e para onde vai o tráfego |
+// Comunidade = ranking e grupos | Conta = pagamento e dados do usuário.
+$grupo_visao = [];
+$grupo_automacoes = [];
+$grupo_rastreamento = [];
+$grupo_comunidade = [];
 if (!$is_admin) {
-    $grupo_operacao[] = ['href' => 'index', 'label' => 'Dashboard', 'icone' => 'dashboard'];
-    $grupo_operacao[] = ['href' => 'bots', 'label' => 'Meus Bots', 'icone' => 'bots', 'badge' => $badge_bots];
-    $grupo_operacao[] = ['href' => 'fluxos', 'label' => 'Fluxos', 'icone' => 'fluxos'];
-    $grupo_operacao[] = ['href' => 'leads', 'label' => 'Leads', 'icone' => 'leads', 'badge' => $badge_leads];
-    $grupo_operacao[] = ['href' => 'ranking', 'label' => 'Ranking', 'icone' => 'ranking'];
-    $grupo_operacao[] = ['href' => 'remarketing', 'label' => 'Remarketing', 'icone' => 'remarketing'];
-    $grupo_operacao[] = ['href' => 'traqueamento', 'label' => 'Traqueamento', 'icone' => 'traqueamento'];
-    $grupo_operacao[] = ['href' => 'links_rastreamento', 'label' => 'Links de Rastreamento', 'icone' => 'links'];
-    $grupo_operacao[] = ['href' => 'redirecionamento', 'label' => 'Redirecionamento', 'icone' => 'redirecionamento'];
-    $grupo_operacao[] = ['href' => 'webhooks', 'label' => 'Webhooks', 'icone' => 'webhooks'];
-    $grupo_operacao[] = ['href' => 'comunidade', 'label' => 'Comunidade', 'icone' => 'comunidade'];
+    $grupo_visao[] = ['href' => 'index', 'label' => 'Dashboard', 'sub' => 'Visão geral', 'icone' => 'dashboard'];
+    $grupo_visao[] = ['href' => 'vendas', 'label' => 'Vendas', 'sub' => 'Registro de vendas', 'icone' => 'vendas'];
+    $grupo_visao[] = ['href' => 'leads', 'label' => 'Leads', 'sub' => 'Quem interagiu', 'icone' => 'leads', 'badge' => $badge_leads];
+
+    $grupo_automacoes[] = ['href' => 'bots', 'label' => 'Meus Bots', 'sub' => 'Seus bots do Telegram', 'icone' => 'bots', 'badge' => $badge_bots];
+    $grupo_automacoes[] = ['href' => 'fluxos', 'label' => 'Fluxos', 'sub' => 'Conversas dos bots', 'icone' => 'fluxos'];
+    $grupo_automacoes[] = ['href' => 'remarketing', 'label' => 'Remarketing', 'sub' => 'Recupere vendas', 'icone' => 'remarketing'];
+    $grupo_automacoes[] = ['href' => 'redirecionamento', 'label' => 'Redirecionamento', 'sub' => 'Links curtos', 'icone' => 'redirecionamento'];
+
+    $grupo_rastreamento[] = ['href' => 'traqueamento', 'label' => 'Traqueamento', 'sub' => 'Pixels e APIs', 'icone' => 'traqueamento'];
+    $grupo_rastreamento[] = ['href' => 'links_rastreamento', 'label' => 'Links de Rastreamento', 'sub' => 'Origem do tráfego', 'icone' => 'links'];
+    $grupo_rastreamento[] = ['href' => 'webhooks', 'label' => 'Webhooks', 'sub' => 'Eventos em tempo real', 'icone' => 'webhooks'];
+
+    $grupo_comunidade[] = ['href' => 'ranking', 'label' => 'Ranking', 'sub' => 'Concurso de faturamento', 'icone' => 'ranking'];
+    $grupo_comunidade[] = ['href' => 'comunidade', 'label' => 'Comunidade', 'sub' => 'Grupos e novidades', 'icone' => 'comunidade', 'nova_aba' => true];
 }
-$grupo_operacao[] = ['href' => 'gateways', 'label' => 'Gateways', 'icone' => 'gateways'];
-$grupo_operacao[] = ['href' => 'configuracao_usuario', 'label' => 'Minha Conta', 'icone' => 'conta'];
+$grupo_conta = [];
+$grupo_conta[] = ['href' => 'gateways', 'label' => 'Gateways', 'sub' => 'Meios de pagamento', 'icone' => 'gateways'];
+$grupo_conta[] = ['href' => 'configuracao_usuario', 'label' => 'Minha Conta', 'sub' => 'Dados e senha', 'icone' => 'conta'];
 
 $grupo_admin = [];
 if ($is_admin) {
-    $grupo_admin[] = ['href' => 'admin/dashboard', 'label' => 'Visão Geral', 'icone' => 'visao_geral'];
-    $grupo_admin[] = ['href' => 'admin/transacoes', 'label' => 'Transações', 'icone' => 'transacoes'];
-    $grupo_admin[] = ['href' => 'admin/usuarios', 'label' => 'Usuários', 'icone' => 'usuarios'];
-    $grupo_admin[] = ['href' => 'admin/ranking', 'label' => 'Campanhas', 'icone' => 'campanhas'];
-    $grupo_admin[] = ['href' => 'admin/comunidade', 'label' => 'Comunidade', 'icone' => 'comunidade'];
-    $grupo_admin[] = ['href' => 'admin/logs', 'label' => 'Logs', 'icone' => 'logs'];
-    $grupo_admin[] = ['href' => 'admin/configuracoes', 'label' => 'Configurações', 'icone' => 'identidade'];
+    $grupo_admin[] = ['href' => 'admin/dashboard', 'label' => 'Visão Geral', 'sub' => 'Plataforma', 'icone' => 'visao_geral'];
+    $grupo_admin[] = ['href' => 'admin/transacoes', 'label' => 'Transações', 'sub' => 'Vendas e splits', 'icone' => 'transacoes'];
+    $grupo_admin[] = ['href' => 'admin/usuarios', 'label' => 'Usuários', 'sub' => 'Contas e acessos', 'icone' => 'usuarios'];
+    $grupo_admin[] = ['href' => 'admin/ranking', 'label' => 'Campanhas', 'sub' => 'Ranking e prêmios', 'icone' => 'campanhas'];
+    $grupo_admin[] = ['href' => 'admin/comunidade', 'label' => 'Comunidade', 'sub' => 'Links oficiais', 'icone' => 'comunidade'];
+    $grupo_admin[] = ['href' => 'admin/logs', 'label' => 'Logs', 'sub' => 'Registros do sistema', 'icone' => 'logs'];
+    $grupo_admin[] = ['href' => 'admin/configuracoes', 'label' => 'Configurações', 'sub' => 'Marca e e-mail', 'icone' => 'identidade'];
 }
 
 $grupo_debug = [];
 if ($is_admin) {
-    $grupo_debug[] = ['href' => 'admin/atualiza_banco', 'label' => 'Atualizar Banco', 'icone' => 'atualizar_banco'];
     $grupo_debug[] = ['href' => 'admin/consultar_venda', 'label' => 'Consultar Venda', 'icone' => 'consultar_venda'];
     $grupo_debug[] = ['href' => 'admin/testes_desempenho', 'label' => 'Testes de Desempenho', 'icone' => 'testes_desempenho'];
-    $grupo_debug[] = ['href' => 'admin/checklist_testes', 'label' => 'Checklist de Testes', 'icone' => 'checklist_testes'];
 }
 
 $grupos_menu = $is_admin
-    ? ['Administração' => $grupo_admin, 'Operação' => $grupo_operacao, 'Debug' => $grupo_debug]
-    : ['Operação' => $grupo_operacao];
+    ? ['Administração' => $grupo_admin, 'Conta' => $grupo_conta, 'Debug' => $grupo_debug]
+    : ['Visão geral' => $grupo_visao, 'Automações' => $grupo_automacoes, 'Rastreamento' => $grupo_rastreamento, 'Comunidade' => $grupo_comunidade, 'Conta' => $grupo_conta];
 
 function itemNavAtivo(string $href, string $pagina_atual): bool
 {
@@ -118,6 +126,7 @@ function itemNavAtivo(string $href, string $pagina_atual): bool
         'bots' => ['bot'],
         'fluxos' => ['fluxo', 'fluxo_basico'],
         'remarketing' => ['remarketing_detalhes'],
+        'ranking' => ['ranking_classificacao'],
     ];
     return in_array($pagina_atual, $filhas[$base] ?? [], true);
 }
@@ -126,9 +135,14 @@ function renderizarItemNav(array $item, string $pagina_atual, array $icones, str
 {
     $ativo = itemNavAtivo($item['href'], $pagina_atual);
     $icone_svg = isset($item['icone']) ? iconeNav($icones[$item['icone']]) : iconeNav($icones['debug']);
-    echo '<a href="' . $caminho_base . htmlspecialchars($item['href']) . '" class="nav-item' . ($ativo ? ' ativo' : '') . '">';
+    $alvo = !empty($item['nova_aba']) ? ' target="_blank" rel="noopener"' : '';
+    echo '<a href="' . $caminho_base . htmlspecialchars($item['href']) . '" class="nav-item' . ($ativo ? ' ativo' : '') . '" title="' . htmlspecialchars($item['label']) . '"' . $alvo . '>';
     echo '<span class="nav-icone">' . $icone_svg . '</span>';
-    echo '<span class="nav-texto">' . htmlspecialchars($item['label']) . '</span>';
+    echo '<span class="nav-texto">' . htmlspecialchars($item['label']);
+    if (!empty($item['sub'])) {
+        echo '<small class="nav-sub">' . htmlspecialchars($item['sub']) . '</small>';
+    }
+    echo '</span>';
     if (!empty($item['badge_texto'])) {
         echo '<span class="nav-badge">' . htmlspecialchars($item['badge_texto']) . '</span>';
     } elseif (isset($item['badge']) && $item['badge'] !== null) {
@@ -149,40 +163,82 @@ if (usuarioLogado() && function_exists('emailVerificado') && !emailVerificado((i
 }
 $foto_usuario = function_exists('fotoPerfilDaSessao') ? fotoPerfilDaSessao() : '';
 ?>
+<?php // Recolhida (só ícones) por padrão; abre ao passar o mouse, por cima do conteúdo. "Fixar sidebar" mantém aberta. ?>
 <aside class="barra-lateral">
-    <div class="barra-lateral-topo">
-        <img src="<?php echo htmlspecialchars(logoSistema($caminho_base)); ?>" alt="" class="logo-marca" onerror="this.style.display='none'">
-        <div class="logo-textos">
-            <span class="logo-titulo"><?php echo htmlspecialchars(nomeSistema()); ?></span>
-            <span class="logo-subtitulo">Painel de automação</span>
+    <div class="barra-lateral-interna">
+        <div class="barra-lateral-topo">
+            <img src="<?php echo htmlspecialchars(logoSistema($caminho_base)); ?>" alt="" class="logo-marca" onerror="this.style.display='none'">
+            <div class="logo-textos">
+                <span class="logo-titulo"><?php echo htmlspecialchars(nomeSistema()); ?></span>
+                <span class="logo-subtitulo">Painel de automação</span>
+            </div>
         </div>
-    </div>
 
-    <nav class="nav-lateral">
-        <?php foreach ($grupos_menu as $titulo_grupo => $itens_grupo): if (!$itens_grupo) continue; ?>
-        <div class="nav-grupo">
-            <span class="nav-grupo-titulo"><?php echo $titulo_grupo; ?></span>
-            <?php foreach ($itens_grupo as $item) {
-                renderizarItemNav($item, $pagina_atual, $icones, $caminho_base);
-            } ?>
-        </div>
-        <?php endforeach; ?>
-    </nav>
-
-    <?php echo $aviso_email_html; ?>
-    <div class="barra-lateral-rodape">
-        <div class="usuario-rodape">
+        <div class="usuario-cartao">
             <?php echo htmlAvatarUsuario($iniciais, $foto_usuario, 'usuario-avatar', $caminho_base); ?>
             <div class="usuario-info">
                 <span class="usuario-nome"><?php echo htmlspecialchars($nome_usuario); ?></span>
                 <span class="usuario-email"><?php echo htmlspecialchars($email_usuario); ?></span>
             </div>
+            <a href="<?php echo $caminho_base; ?>logout" class="botao-sair" title="Sair" aria-label="Sair">
+                <?php echo iconeNav($icones['sair']); ?>
+            </a>
         </div>
-        <a href="<?php echo $caminho_base; ?>logout" class="botao-sair" title="Sair" aria-label="Sair">
-            <?php echo iconeNav($icones['sair']); ?>
-        </a>
+
+        <nav class="nav-lateral">
+            <?php foreach ($grupos_menu as $titulo_grupo => $itens_grupo): if (!$itens_grupo) continue; ?>
+            <div class="nav-grupo">
+                <span class="nav-grupo-titulo"><?php echo $titulo_grupo; ?></span>
+                <?php foreach ($itens_grupo as $item) {
+                    renderizarItemNav($item, $pagina_atual, $icones, $caminho_base);
+                } ?>
+            </div>
+            <?php endforeach; ?>
+        </nav>
+
+        <?php echo $aviso_email_html; ?>
+        <?php /* "Fixar sidebar" desativado por enquanto (o JS e o CSS ficam; é só descomentar):
+        <div class="barra-lateral-rodape">
+            <button type="button" class="botao-fixar-barra" id="botao-fixar-barra" aria-pressed="false">
+                <span class="nav-icone"><?php echo iconeNav('M3 3h18v18H3zM9 3v18'); ?></span>
+                <span class="nav-texto">Fixar sidebar</span>
+            </button>
+        </div>
+        */ ?>
     </div>
 </aside>
+
+<?php if (!$is_admin) {
+    require_once __DIR__ . '/funcoes/topo_painel.php';
+    $faturamento_topo = faturamentoTotalUsuario($pdo, (int) $user_id);
+    $meta_topo = metaFaturamento($faturamento_topo);
+    $percentual_topo = (int) min(100, floor($faturamento_topo / $meta_topo * 100));
+    $primeiro_nome = trim(explode(' ', trim($nome_usuario))[0]) ?: $nome_usuario;
+?>
+<header class="topo-painel">
+    <div class="topo-faturamento" title="Faturamento total até hoje">
+        <span class="topo-faturamento-icone"><?php echo iconeNav('M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6'); ?></span>
+        <div class="topo-faturamento-corpo">
+            <div class="topo-faturamento-linha"><span>FATURAMENTO</span><span><?php echo $percentual_topo; ?>%</span></div>
+            <div class="topo-faturamento-barra"><i style="width: <?php echo $percentual_topo; ?>%"></i></div>
+            <div class="topo-faturamento-linha"><strong>R$ <?php echo number_format($faturamento_topo, 2, ',', '.'); ?></strong><span>/ <?php echo formatarMetaCurta($meta_topo); ?></span></div>
+        </div>
+    </div>
+    <div class="topo-saudacao">
+        <strong><?php echo saudacaoPorHorario(); ?>, <em><?php echo htmlspecialchars($primeiro_nome); ?></em></strong>
+        <span><?php echo dataExtensaPt(); ?></span>
+    </div>
+    <div class="topo-acoes">
+        <a href="<?php echo $caminho_base; ?>comunidade" target="_blank" rel="noopener" class="topo-botao" title="Comunidade" aria-label="Comunidade">
+            <?php echo iconeNav($icones['comunidade']); ?>
+        </a>
+        <button type="button" class="alternador-tema topo-botao" onclick="alternarTema()" aria-label="Alternar tema" title="Alternar tema">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>
+            <span>Tema</span>
+        </button>
+    </div>
+</header>
+<?php } ?>
 
 <nav class="barra-mobile">
     <?php
@@ -215,7 +271,7 @@ $foto_usuario = function_exists('fotoPerfilDaSessao') ? fotoPerfilDaSessao() : '
 
     <?php // As 6 abas acima são as do protótipo. "Mais" existe porque a barra lateral (17 links)
           // some no mobile: sem ele, Remarketing/Traqueamento/Links e a área de admin inteira
-          // ficavam inalcançáveis no celular -- ver anotacoes/HISTORICO-CONSOLIDADO.md. ?>
+          // ficavam inalcançáveis no celular -- ver anotacoes/OBSERVACOES.md. ?>
     <button type="button" class="mobile-item" id="abrir-menu-mobile" aria-label="Mais opções" aria-expanded="false">
         <span class="mobile-icone"><?php echo iconeNav('M4 7h16M4 12h16M4 17h16'); ?></span>
         <span class="mobile-texto">Mais</span>
@@ -255,6 +311,20 @@ $foto_usuario = function_exists('fotoPerfilDaSessao') ? fotoPerfilDaSessao() : '
     </div>
 </div>
 
+<script>
+(function () {
+    const botao = document.getElementById('botao-fixar-barra');
+    if (!botao) return;
+    const raiz = document.documentElement;
+    const marcar = () => botao.setAttribute('aria-pressed', raiz.classList.contains('barra-fixa') ? 'true' : 'false');
+    marcar();
+    botao.addEventListener('click', function () {
+        raiz.classList.toggle('barra-fixa');
+        try { localStorage.setItem('barra_fixa', raiz.classList.contains('barra-fixa') ? '1' : '0'); } catch (e) {}
+        marcar();
+    });
+})();
+</script>
 <script>
 (function () {
     const folha = document.getElementById('folha-menu');

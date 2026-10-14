@@ -53,8 +53,10 @@ if (isset($_GET['bot_id']) && $_GET['bot_id'] !== 'todos') {
 // rodou atualiza_banco.php (sem as tabelas de campanhas_ranking) não pode derrubar a
 // dashboard inteira por causa de um widget que é só um resumo do que já existe em /ranking.
 $campanha_dash = null;
+$ranking_mensal_dash = null;
 $ranking_dash = null;
 try {
+    $ranking_mensal_dash = buscarRankingMensal($user_id);
     $campanha_dash = buscarCampanhaVigente();
     if ($campanha_dash && $campanha_dash['estado'] !== 'agendada') {
         $ranking_dash = buscarRankingCampanha((int) $campanha_dash['id'], $user_id);
@@ -103,7 +105,7 @@ switch ($periodo) {
     case '7dias':
         // Chave interna ficou "7dias" (não vale a pena renomear só por isso), mas o
         // pedido original do Caio foi "8d" -- INTERVAL 7 DAY já cobre 8 dias corridos
-        // (hoje + 7 pra trás). Ver anotacoes/HISTORICO-CONSOLIDADO.md.
+        // (hoje + 7 pra trás). Ver anotacoes/OBSERVACOES.md.
         $where_data_vendas = "AND v.criado_em >= CURDATE() - INTERVAL 7 DAY";
         $where_data_leads = "AND l.criado_em >= CURDATE() - INTERVAL 7 DAY";
         $where_data_metricas = "AND data >= CURDATE() - INTERVAL 7 DAY";
@@ -160,7 +162,7 @@ function montarUrlFiltroDashboard(array $overrides = []): string
 // com muitos anos de histórico (ou o admin vendo a plataforma inteira) pode ter
 // milhões de linhas, e as mesmas 4 consultas rodavam a cada carregamento de página.
 // Com um bot específico selecionado, o cache não serve (só agrega por usuário, não
-// por bot), então cai de volta pra query ao vivo -- ver anotacoes/HISTORICO-CONSOLIDADO.md.
+// por bot), então cai de volta pra query ao vivo -- ver anotacoes/OBSERVACOES.md.
 $usa_cache_metricas = ($bot_id_selecionado === 'todos');
 
 // A lista de atividade e' buscada ANTES do bloco pesado de KPI/grafico de proposito:
@@ -181,6 +183,41 @@ if (pedidoDeBloco('atividade')) {
     exit;
 }
 
+// Bloco "Vendas" do rodapé: as últimas vendas PAGAS dentro do mesmo filtro dos cards (período + bot). Duas etapas (ids, depois os dados)
+// e ids de bot como literais inteiros, o mesmo cuidado de leads.php/vendas.php para tabela grande.
+$vendas_dash = [];
+// Mesmo recorte de $where_data_vendas, mas em faixa de horário (sem DATE() em volta da coluna): com DATE() o MySQL não usa o índice e "hoje"
+// levava ~1 s num vendedor de 766 mil vendas.
+switch ($periodo) {
+    case 'hoje': $where_data_lista_dash = "AND v.criado_em >= CURDATE()"; break;
+    case 'ontem': $where_data_lista_dash = "AND v.criado_em >= CURDATE() - INTERVAL 1 DAY AND v.criado_em < CURDATE()"; break;
+    case 'personalizado': $where_data_lista_dash = $datas_validas ? "AND v.criado_em >= '$data_inicio 00:00:00' AND v.criado_em < '$data_fim 00:00:00' + INTERVAL 1 DAY" : ''; break;
+    default: $where_data_lista_dash = $where_data_vendas; // 7dias, 30dias e total já são faixas
+}
+try {
+    require_once __DIR__ . '/funcoes/vendas_lista.php';
+    $ids_bots_vendas_dash = $bot_id_selecionado === 'todos' ? $ids_bots_permitidos : [(int) $bot_id_selecionado];
+    if ($ids_bots_vendas_dash) {
+        $stmt_ids_dash = $pdo->query("SELECT v.id FROM vendas v WHERE v.bot_id IN (" . implode(',', array_map('intval', $ids_bots_vendas_dash)) . ") AND v.status = 'pago' $where_data_lista_dash ORDER BY v.criado_em DESC, v.id DESC LIMIT 10");
+        $ids_vendas_dash = array_map('intval', $stmt_ids_dash->fetchAll(PDO::FETCH_COLUMN));
+        if ($ids_vendas_dash) {
+            $vendas_dash = $pdo->query(sqlCamposVendasLista(colunaExiste('vendas', 'nome_produto'), colunaExiste('vendas', 'id_fluxo')) . ' WHERE v.id IN (' . implode(',', $ids_vendas_dash) . ') ORDER BY v.criado_em DESC, v.id DESC')->fetchAll(PDO::FETCH_ASSOC);
+        }
+    }
+} catch (\Throwable $e) {
+    error_log('[dashboard] lista de vendas indisponível: ' . $e->getMessage());
+}
+// Link "Ver todas": leva para a página Vendas com o mesmo recorte (datas calculadas como o dashboard calcula).
+$hoje_dash = date('Y-m-d');
+$recorte_vendas_dash = ['aba' => 'pagas'];
+if ($bot_id_selecionado !== 'todos') $recorte_vendas_dash['bot_id'] = $bot_id_selecionado;
+if ($periodo === 'hoje') { $recorte_vendas_dash += ['data_inicio' => $hoje_dash, 'data_fim' => $hoje_dash]; $rotulo_periodo_vendas_dash = 'Hoje'; }
+elseif ($periodo === 'ontem') { $ontem_dash = date('Y-m-d', strtotime('-1 day')); $recorte_vendas_dash += ['data_inicio' => $ontem_dash, 'data_fim' => $ontem_dash]; $rotulo_periodo_vendas_dash = 'Ontem'; }
+elseif ($periodo === '7dias') { $recorte_vendas_dash['data_inicio'] = date('Y-m-d', strtotime('-7 days')); $rotulo_periodo_vendas_dash = 'Últimos 7 dias'; }
+elseif ($periodo === '30dias') { $recorte_vendas_dash['data_inicio'] = date('Y-m-d', strtotime('-29 days')); $rotulo_periodo_vendas_dash = 'Últimos 30 dias'; }
+elseif ($periodo === 'personalizado' && $datas_validas) { $recorte_vendas_dash += ['data_inicio' => $data_inicio, 'data_fim' => $data_fim]; $rotulo_periodo_vendas_dash = date('d/m', strtotime($data_inicio)) . ' a ' . date('d/m', strtotime($data_fim)); }
+else { $rotulo_periodo_vendas_dash = 'Todo o período'; }
+
 try {
     if ($usa_cache_metricas) {
         $where_usuario_metricas = "AND id_usuario = $user_id";
@@ -195,7 +232,7 @@ try {
         $stmt->execute();
         $vendas_aprovadas = (float) $stmt->fetchColumn();
 
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM leads l WHERE 1=1 $where_data_leads $where_user_leads $where_bot_leads");
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM leads_starts l WHERE 1=1 $where_data_leads $where_user_leads $where_bot_leads");
         $stmt->execute();
         $total_starts = (int) $stmt->fetchColumn();
 
@@ -431,6 +468,88 @@ try {
     $texto_grafico = "Erro ao carregar dados";
 }
 
+/**
+ * Starts (leads) por intervalo do gráfico, no mesmo recorte do "Seu desempenho"
+ * (hora / dia / mês), pro mini-gráfico do card "Total starts".
+ */
+function serieStartsDashboard(PDO $pdo, string $periodo, bool $usa_cache, int $user_id, string $where_user_leads, string $where_bot_leads, string $data_inicio, string $data_fim, bool $datas_validas): array
+{
+    $hoje = date('Y-m-d');
+    $granularidade = 'dia';
+    switch ($periodo) {
+        case 'hoje':
+            $granularidade = 'hora';
+            $ini = $fim = $hoje;
+            $chaves = range(0, (int) date('G'));
+            break;
+        case 'ontem':
+            $granularidade = 'hora';
+            $ini = $fim = date('Y-m-d', strtotime('-1 day'));
+            $chaves = range(0, 23);
+            break;
+        case 'total':
+            $granularidade = 'mes';
+            $ini = $fim = $hoje;
+            $chaves = [];
+            for ($i = 11; $i >= 0; $i--) {
+                $chaves[] = date('Y-m', strtotime("-$i months"));
+            }
+            break;
+        default:
+            if ($periodo === 'personalizado' && $datas_validas) {
+                $ini = min($data_inicio, $data_fim);
+                $fim = max($data_inicio, $data_fim);
+            } else {
+                $ini = date('Y-m-d', strtotime($periodo === '30dias' ? '-29 days' : '-7 days'));
+                $fim = $hoje;
+            }
+            $chaves = [];
+            for ($d = new DateTime($ini); $d->format('Y-m-d') <= $fim; $d->modify('+1 day')) {
+                $chaves[] = $d->format('Y-m-d');
+            }
+    }
+
+    if ($usa_cache) {
+        if ($granularidade === 'hora') {
+            $sql = 'SELECT hora AS k, SUM(qtd_leads) AS q FROM metricas_horarias_usuario WHERE data = ? AND id_usuario = ? GROUP BY hora';
+            $params = [$ini, $user_id];
+        } elseif ($granularidade === 'mes') {
+            $sql = "SELECT DATE_FORMAT(data, '%Y-%m') AS k, SUM(qtd_leads) AS q FROM metricas_horarias_usuario WHERE data >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH) AND id_usuario = ? GROUP BY k";
+            $params = [$user_id];
+        } else {
+            $sql = 'SELECT data AS k, SUM(qtd_leads) AS q FROM metricas_horarias_usuario WHERE data BETWEEN ? AND ? AND id_usuario = ? GROUP BY data';
+            $params = [$ini, $fim, $user_id];
+        }
+    } else {
+        if ($granularidade === 'hora') {
+            $sql = "SELECT HOUR(l.criado_em) AS k, COUNT(*) AS q FROM leads_starts l WHERE l.criado_em >= ? AND l.criado_em < ? + INTERVAL 1 DAY $where_user_leads $where_bot_leads GROUP BY k";
+            $params = [$ini, $ini];
+        } elseif ($granularidade === 'mes') {
+            $sql = "SELECT DATE_FORMAT(l.criado_em, '%Y-%m') AS k, COUNT(*) AS q FROM leads_starts l WHERE l.criado_em >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH) $where_user_leads $where_bot_leads GROUP BY k";
+            $params = [];
+        } else {
+            $sql = "SELECT DATE(l.criado_em) AS k, COUNT(*) AS q FROM leads_starts l WHERE l.criado_em >= ? AND l.criado_em < ? + INTERVAL 1 DAY $where_user_leads $where_bot_leads GROUP BY k";
+            $params = [$ini, $fim];
+        }
+    }
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $por_chave = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'q', 'k');
+
+    return array_map(static function ($chave) use ($por_chave): int {
+        return (int) ($por_chave[$chave] ?? 0);
+    }, $chaves);
+}
+
+try {
+    $serie_starts = serieStartsDashboard($pdo, $periodo, $usa_cache_metricas, (int) $user_id, $where_user_leads, $where_bot_leads, $data_inicio, $data_fim, $datas_validas);
+} catch (Throwable $e) {
+    error_log('[dashboard] série de starts indisponível: ' . $e->getMessage());
+    $serie_starts = [];
+}
+
+$taxa_aprovacao_percentual = $pix_gerados > 0 ? ($pix_pagos / $pix_gerados) * 100 : 0;
 
 
 ?>
@@ -457,7 +576,16 @@ try {
                 <h1>Dashboard</h1>
                 <p>Acompanhe vendas, conversão e atividade dos seus bots.</p>
             </div>
-            <div class="acoes-cabecalho">
+        </div>
+
+        <?php include __DIR__ . '/parciais/barra_stories.php'; ?>
+
+        <div class="faixa-filtros">
+            <div class="faixa-filtros-rotulo">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></svg>
+                Período
+            </div>
+            <div class="faixa-filtros-controles">
                 <div class="seletor-periodo">
                     <a href="<?php echo htmlspecialchars(montarUrlFiltroDashboard(['periodo' => 'hoje'])); ?>" class="periodo-item<?php echo ($periodo == 'hoje' ? ' ativo' : ''); ?>">Hoje</a>
                     <a href="<?php echo htmlspecialchars(montarUrlFiltroDashboard(['periodo' => 'ontem'])); ?>" class="periodo-item<?php echo ($periodo == 'ontem' ? ' ativo' : ''); ?>">Ontem</a>
@@ -487,14 +615,8 @@ try {
                         </select>
                     <?php endif; ?>
                 </form>
-                <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>
-                    Tema
-                </button>
             </div>
         </div>
-
-        <?php include __DIR__ . '/parciais/barra_stories.php'; ?>
 
         <?php
         $rotulos_periodo_destaque = [
@@ -531,7 +653,8 @@ try {
                         <span class="rotulo-kpi">Vendas aprovadas</span>
                     </div>
                     <div class="valor-kpi">R$ <?php echo number_format($vendas_aprovadas, 2, ',', '.'); ?></div>
-                    <div class="rodape-kpi"><span><?php echo number_format($pix_pagos, 0, ",", "."); ?> aprovações</span></div>
+                    <div class="kpi-barra"><i style="width: <?php echo min(100, round($taxa_aprovacao_percentual)); ?>%"></i></div>
+                    <div class="kpi-barra-legenda"><span><?php echo number_format($pix_pagos, 0, ",", "."); ?> <?php echo $pix_pagos === 1 ? "aprovação" : "aprovações"; ?></span><span><?php echo number_format($taxa_aprovacao_percentual, 0); ?>% aprov.</span></div>
                 </div>
 
                 <div class="cartao-kpi">
@@ -539,8 +662,11 @@ try {
                         <div class="icone-kpi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg></div>
                         <span class="rotulo-kpi">Conversão</span>
                     </div>
-                    <div class="valor-kpi"><?php echo round($taxa_conversao); ?>%</div>
-                    <div class="rodape-kpi"><span><?php echo number_format($pix_pagos, 0, ",", "."); ?> de <?php echo number_format($pix_gerados, 0, ",", "."); ?> PIX</span></div>
+                    <div class="kpi-medidor">
+                        <canvas id="kpiMedidorConversao"></canvas>
+                        <div class="kpi-medidor-valor"><?php echo number_format($taxa_conversao, 2, ',', '.'); ?>%</div>
+                    </div>
+                    <div class="rodape-kpi" style="justify-content:center;"><span><?php echo number_format($pix_pagos, 0, ",", "."); ?> pagos de <?php echo number_format($pix_gerados, 0, ",", "."); ?> PIX</span></div>
                 </div>
 
                 <div class="cartao-kpi">
@@ -549,7 +675,8 @@ try {
                         <span class="rotulo-kpi">Total starts</span>
                     </div>
                     <div class="valor-kpi"><?php echo number_format($total_starts, 0, ",", "."); ?></div>
-                    <div class="rodape-kpi"><span>Leads iniciaram conversa</span></div>
+                    <div class="rodape-kpi"><span>Inícios de conversa (novos e de quem voltou)</span></div>
+                    <div class="kpi-mini-barras kpi-grafico"><canvas id="kpiBarrasStarts"></canvas></div>
                 </div>
 
                 <div class="cartao-kpi">
@@ -558,7 +685,10 @@ try {
                         <span class="rotulo-kpi">Ticket médio</span>
                     </div>
                     <div class="valor-kpi">R$ <?php echo number_format($ticket_medio, 2, ',', '.'); ?></div>
-                    <div class="rodape-kpi"><span><?php echo number_format($pix_gerados, 0, ",", "."); ?> PIX gerados</span></div>
+                    <div class="rodape-kpi"><span>Vendas: <strong>R$ <?php echo number_format($vendas_aprovadas, 2, ',', '.'); ?></strong></span></div>
+                    <div class="kpi-barra-legenda" style="margin-top:14px;"><span>PIX pagos</span><strong style="color:var(--t);"><?php echo number_format($pix_pagos, 0, ",", "."); ?></strong></div>
+                    <div class="kpi-barra"><i style="width: <?php echo min(100, round($taxa_aprovacao_percentual)); ?>%"></i></div>
+                    <div class="kpi-barra-legenda" style="justify-content:flex-end;"><span>de <?php echo number_format($pix_gerados, 0, ",", "."); ?> PIX gerados</span></div>
                 </div>
             </div>
 
@@ -573,7 +703,7 @@ try {
             </div>
         </div>
 
-        <div class="<?php echo $campanha_dash ? 'grade-dashboard-baixo grade-igual' : ''; ?>" style="margin-top: 14px;">
+        <div class="<?php echo ($campanha_dash || $ranking_mensal_dash) ? 'grade-dashboard-baixo grade-igual' : ''; ?>" style="margin-top: 14px;">
             <div class="painel">
                 <div class="painel-cabecalho">
                     <h2>Atividade</h2>
@@ -583,74 +713,122 @@ try {
                 <?php echo fimBlocoPaginado(); ?>
             </div>
 
-        <?php if ($campanha_dash): ?>
-        <div class="painel">
+        <?php if ($campanha_dash || $ranking_mensal_dash):
+            // Lista compacta (top 5 + "você" se estiver fora) usada pelas duas abas do widget.
+            $desenhar_mini_ranking = function (?array $dados, string $msg_vazio) use ($user_id) {
+                if (!$dados || empty($dados['top3'])) {
+                    echo '<div class="mini-ranking-vazio">' . htmlspecialchars($msg_vazio) . '</div>';
+                    return;
+                }
+                $top5 = array_slice(array_merge($dados['top3'], $dados['linhas']), 0, 5);
+                $fora_do_top5 = $dados['sua_posicao'] && (int) $dados['sua_posicao']['posicao'] > 5;
+                echo '<div class="mini-ranking-lista">';
+                $linha = function (array $item, bool $eh_lider, bool $eh_voce) {
+                    $nome_item = nomeExibicaoRanking($item['apelido_publico'], (int) $item['id_usuario']);
+                    echo '<div class="mini-ranking-item' . ($eh_lider ? ' lider' : '') . ((!$eh_lider && $eh_voce) ? ' voce' : '') . '">'
+                        . '<div class="mini-ranking-avatar">' . htmlspecialchars(iniciaisRanking($nome_item)) . '</div>'
+                        . '<div class="mini-ranking-corpo"><div class="mini-ranking-nome"><span class="mini-ranking-pos">#' . (int) $item['posicao'] . '</span>'
+                        . '<span class="mini-ranking-nome-texto">' . htmlspecialchars($nome_item) . '</span>'
+                        . ($eh_voce ? '<span class="mini-ranking-voce-tag">você</span>' : '') . '</div></div>'
+                        . '<div class="mini-ranking-valor">' . htmlspecialchars(formatarReaisResumido((float) $item['faturamento'])) . '</div></div>';
+                };
+                foreach ($top5 as $item) {
+                    $linha($item, (int) $item['posicao'] === 1, (int) $item['id_usuario'] === $user_id);
+                }
+                if ($fora_do_top5) {
+                    $linha($dados['sua_posicao'], false, true);
+                }
+                echo '</div>';
+            };
+            $aba_mini_inicial = $campanha_dash ? 'concurso' : 'mensal';
+            $msg_vazio_concurso = ($campanha_dash && $campanha_dash['estado'] === 'agendada')
+                ? 'O placar aparece aqui quando a campanha abrir.' : 'Ninguém pontuou ainda nesta campanha.';
+        ?>
+        <div class="painel" id="mini-ranking">
             <div class="painel-cabecalho">
-                <h2><?php echo htmlspecialchars($campanha_dash['titulo']); ?></h2>
-                <span class="texto-suave">
-                    <?php
-                    echo $campanha_dash['estado'] === 'ativa' ? 'Em andamento'
-                       : ($campanha_dash['estado'] === 'encerrada' ? 'Encerrada' : 'Começa em breve');
-                    ?>
-                </span>
+                <h2 id="mini-ranking-titulo"><?php echo htmlspecialchars($campanha_dash ? $campanha_dash['titulo'] : 'Ranking mensal'); ?></h2>
+                <?php if ($campanha_dash): ?>
+                <div class="abas-mini-ranking" role="tablist">
+                    <button type="button" class="ativa" data-aba-mini="concurso" role="tab">Concurso</button>
+                    <button type="button" data-aba-mini="mensal" role="tab">Mensal</button>
+                </div>
+                <?php endif; ?>
             </div>
 
-            <?php if ($campanha_dash['estado'] === 'agendada' || !$ranking_dash || empty($ranking_dash['top3'])): ?>
-                <div class="mini-ranking-vazio">
-                    <?php echo $campanha_dash['estado'] === 'agendada'
-                        ? 'O placar aparece aqui quando a campanha abrir.'
-                        : 'Ninguém pontuou ainda nesta campanha.'; ?>
-                </div>
-            <?php else: ?>
-                <?php
-                // Top 5 pra caber num widget compacto -- o pódio completo (top 3 + linhas 4-10)
-                // e "sua posição" continuam só em /ranking, essa aqui é a vitrine.
-                $top5_dash = array_slice(array_merge($ranking_dash['top3'], $ranking_dash['linhas']), 0, 5);
-                $minha_posicao_fora_do_top5 = $ranking_dash['sua_posicao']
-                    && (int) $ranking_dash['sua_posicao']['posicao'] > 5;
-                ?>
-                <div class="mini-ranking-lista">
-                    <?php foreach ($top5_dash as $item):
-                        $nome_item = nomeExibicaoRanking($item['apelido_publico'], (int) $item['id_usuario']);
-                        $eh_lider = (int) $item['posicao'] === 1;
-                        $eh_voce = (int) $item['id_usuario'] === $user_id;
-                    ?>
-                    <div class="mini-ranking-item<?php echo $eh_lider ? ' lider' : ''; ?><?php echo (!$eh_lider && $eh_voce) ? ' voce' : ''; ?>">
-                        <div class="mini-ranking-avatar"><?php echo htmlspecialchars(iniciaisRanking($nome_item)); ?></div>
-                        <div class="mini-ranking-corpo">
-                            <div class="mini-ranking-nome">
-                                <span class="mini-ranking-pos">#<?php echo (int) $item['posicao']; ?></span>
-                                <span class="mini-ranking-nome-texto"><?php echo htmlspecialchars($nome_item); ?></span>
-                                <?php if ($eh_voce): ?><span class="mini-ranking-voce-tag">você</span><?php endif; ?>
-                            </div>
-                        </div>
-                        <div class="mini-ranking-valor"><?php echo htmlspecialchars(formatarReaisResumido((float) $item['faturamento'])); ?></div>
-                    </div>
-                    <?php endforeach; ?>
-
-                    <?php if ($minha_posicao_fora_do_top5):
-                        $meu_nome_dash = nomeExibicaoRanking($ranking_dash['sua_posicao']['apelido_publico'], $user_id);
-                    ?>
-                    <div class="mini-ranking-item voce">
-                        <div class="mini-ranking-avatar"><?php echo htmlspecialchars(iniciaisRanking($meu_nome_dash)); ?></div>
-                        <div class="mini-ranking-corpo">
-                            <div class="mini-ranking-nome">
-                                <span class="mini-ranking-pos">#<?php echo (int) $ranking_dash['sua_posicao']['posicao']; ?></span>
-                                <span class="mini-ranking-nome-texto"><?php echo htmlspecialchars($meu_nome_dash); ?></span>
-                                <span class="mini-ranking-voce-tag">você</span>
-                            </div>
-                        </div>
-                        <div class="mini-ranking-valor"><?php echo htmlspecialchars(formatarReaisResumido((float) $ranking_dash['sua_posicao']['faturamento'])); ?></div>
-                    </div>
-                    <?php endif; ?>
-                </div>
+            <?php if ($campanha_dash): ?>
+            <div class="mini-ranking-painel" data-aba-painel="concurso" data-titulo="<?php echo htmlspecialchars($campanha_dash['titulo']); ?>">
+                <?php $desenhar_mini_ranking(($campanha_dash['estado'] === 'agendada') ? null : $ranking_dash, $msg_vazio_concurso); ?>
+            </div>
             <?php endif; ?>
+            <div class="mini-ranking-painel" data-aba-painel="mensal" data-titulo="Ranking mensal"<?php echo $campanha_dash ? ' hidden' : ''; ?>>
+                <?php $desenhar_mini_ranking($ranking_mensal_dash, 'Ninguém faturou neste mês ainda.'); ?>
+            </div>
 
             <div class="mini-ranking-rodape">
-                <a href="ranking">Ver ranking completo →</a>
+                <a href="ranking?aba=<?php echo $aba_mini_inicial; ?>" id="mini-ranking-link">Ver ranking completo →</a>
             </div>
         </div>
+        <script>
+        (function () {
+            var caixa = document.getElementById('mini-ranking');
+            if (!caixa) return;
+            caixa.querySelectorAll('[data-aba-mini]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var aba = btn.getAttribute('data-aba-mini');
+                    caixa.querySelectorAll('[data-aba-mini]').forEach(function (b) { b.classList.toggle('ativa', b === btn); });
+                    caixa.querySelectorAll('[data-aba-painel]').forEach(function (p) {
+                        var ativo = p.getAttribute('data-aba-painel') === aba;
+                        p.hidden = !ativo;
+                        if (ativo) document.getElementById('mini-ranking-titulo').textContent = p.getAttribute('data-titulo');
+                    });
+                    document.getElementById('mini-ranking-link').setAttribute('href', 'ranking?aba=' + aba);
+                });
+            });
+        })();
+        </script>
         <?php endif; ?>
+        </div>
+
+        <div class="painel" id="vendas-dashboard" style="margin-top: 14px;">
+            <div class="painel-cabecalho">
+                <h2>Vendas</h2>
+                <span class="texto-suave"><?php echo htmlspecialchars($rotulo_periodo_vendas_dash); ?> · <?php echo number_format((int) $pix_pagos, 0, ',', '.'); ?> <?php echo (int) $pix_pagos === 1 ? 'venda paga' : 'vendas pagas'; ?></span>
+            </div>
+            <div class="tabela-dados">
+                <table id="tabela-vendas-dashboard">
+                    <thead>
+                        <tr><th>Data</th><th>Cliente</th><th>Produto</th><th>Bot</th><th class="col-numerica">Valor</th></tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($vendas_dash)): ?>
+                            <tr><td colspan="5" style="text-align:center;padding:20px;color:var(--m);">Nenhuma venda paga neste período.</td></tr>
+                        <?php else: foreach ($vendas_dash as $vd):
+                            $cliente_vd = trim((string) ($vd['nome_cliente'] ?? '')) ?: 'Cliente ' . $vd['id_telegram'];
+                            $produto_vd = trim((string) ($vd['nome_produto'] ?? ''));
+                            $tipo_vd = tipoDaVenda($vd);
+                        ?>
+                            <tr>
+                                <td class="mono"><?php echo date('d/m/Y H:i', strtotime((string) $vd['pago_em'] ?: (string) $vd['criado_em'])); ?></td>
+                                <td>
+                                    <div><?php echo htmlspecialchars($cliente_vd); ?></div>
+                                    <div class="celula-sub mono">ID: <?php echo htmlspecialchars((string) $vd['id_telegram']); ?></div>
+                                </td>
+                                <td>
+                                    <?php echo $produto_vd !== '' ? htmlspecialchars($produto_vd) : '<span class="texto-suave">—</span>'; ?>
+                                    <?php if ($tipo_vd !== 'primeira'): ?>
+                                        <span class="badge <?php echo $tipo_vd === 'recompra' ? 'badge-neutro' : 'badge-alerta'; ?>"><?php echo $tipo_vd === 'recompra' ? 'Recompra' : 'Renovação'; ?></span>
+                                    <?php endif; ?>
+                                </td>
+                                <td><?php echo htmlspecialchars((string) $vd['nome_bot']); ?></td>
+                                <td class="col-numerica mono">R$ <?php echo number_format((float) $vd['valor'], 2, ',', '.'); ?></td>
+                            </tr>
+                        <?php endforeach; endif; ?>
+                    </tbody>
+                </table>
+            </div>
+            <div class="mini-ranking-rodape">
+                <a href="vendas?<?php echo htmlspecialchars(http_build_query($recorte_vendas_dash)); ?>">Ver todas as vendas →</a>
+            </div>
         </div>
     </main>
 </div>
@@ -748,6 +926,62 @@ document.addEventListener('DOMContentLoaded', function() {
                         ticks: { display: false },
                         beginAtZero: true // Isso evita o bug do gráfico descer infinitamente
                     }
+                }
+            }
+        });
+    }
+
+    // Gráficos dos cards de KPI: medidor da conversão e barras de starts.
+    const raiz_kpi = getComputedStyle(document.documentElement);
+    const cor_kpi = raiz_kpi.getPropertyValue('--or').trim() || '#ff6a1a';
+    const cor_trilho = raiz_kpi.getPropertyValue('--p3').trim() || '#22262f';
+    const ctxMedidor = document.getElementById('kpiMedidorConversao');
+    if (ctxMedidor) {
+        const taxa = Math.max(0, Math.min(100, <?php echo json_encode(round($taxa_conversao, 2)); ?>));
+        new Chart(ctxMedidor.getContext('2d'), {
+            type: 'doughnut',
+            data: { datasets: [{ data: [taxa, 100 - taxa], backgroundColor: [cor_kpi, cor_trilho], borderWidth: 0, borderRadius: 6 }] },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                rotation: -90,
+                circumference: 180,
+                cutout: '78%',
+                plugins: { legend: { display: false }, tooltip: { enabled: false } }
+            }
+        });
+    }
+    const ctxStarts = document.getElementById('kpiBarrasStarts');
+    if (ctxStarts) {
+        const serie_starts = <?php echo json_encode($serie_starts); ?>;
+        const ctx_starts = ctxStarts.getContext('2d');
+        const gradiente_starts = ctx_starts.createLinearGradient(0, 0, 0, 70);
+        gradiente_starts.addColorStop(0, cor_kpi + '55');
+        gradiente_starts.addColorStop(1, cor_kpi + '00');
+        new Chart(ctx_starts, {
+            type: 'line',
+            data: {
+                labels: <?php echo json_encode($grafico_labels); ?>,
+                datasets: [{
+                    data: serie_starts,
+                    borderColor: cor_kpi,
+                    backgroundColor: gradiente_starts,
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                    pointHoverBackgroundColor: cor_kpi
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: { legend: { display: false }, tooltip: { displayColors: false, callbacks: { label: function (c) { return c.parsed.y + (c.parsed.y === 1 ? ' start' : ' starts'); } } } },
+                scales: {
+                    x: { grid: { display: false }, border: { display: false }, ticks: { maxTicksLimit: 4, maxRotation: 0, color: raiz_kpi.getPropertyValue('--m').trim(), font: { size: 10, family: "'JetBrains Mono', monospace" } } },
+                    y: { display: false, beginAtZero: true, suggestedMax: 3 }
                 }
             }
         });

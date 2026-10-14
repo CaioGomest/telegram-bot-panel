@@ -145,7 +145,7 @@ $abrir_modal = $disponivel && ($editando !== null || $erro !== '');
         <?php if ($mensagem): ?>
             <div class="painel"><div class="aviso aviso-sucesso"><?php echo htmlspecialchars($mensagem); ?></div></div>
         <?php endif; ?>
-        <?php if ($erro): ?>
+        <?php if ($erro && !$abrir_modal): ?>
             <div class="painel"><div class="aviso aviso-erro"><?php echo htmlspecialchars($erro); ?></div></div>
         <?php endif; ?>
 
@@ -156,6 +156,9 @@ $abrir_modal = $disponivel && ($editando !== null || $erro !== '');
                     <button type="button" class="fechar-modal" onclick="fecharModalForm()" aria-label="Fechar">✕</button>
                 </div>
                 <div class="corpo-modal">
+            <?php if ($erro && $abrir_modal): ?>
+                <div class="aviso aviso-erro"><?php echo htmlspecialchars($erro); ?></div>
+            <?php endif; ?>
             <form method="POST">
                 <?php echo campoCsrf(); ?>
                 <input type="hidden" name="acao" value="salvar">

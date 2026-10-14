@@ -16,10 +16,10 @@ function logCronRanking(string $msg): void
 
 // Só libera via CLI (crontab chamando "php cron_ranking.php" direto) ou HTTP com a chave
 // certa (?chave=...) — sem isso, qualquer um que descubra a URL podia martelar esse script
-// e derrubar o recálculo do ranking (ver anotacoes/HISTORICO-CONSOLIDADO.md).
+// e derrubar o recálculo do ranking (ver anotacoes/OBSERVACOES.md).
 if (php_sapi_name() !== 'cli') {
     $chave_informada = (string) ($_GET['chave'] ?? '');
-    if (!hash_equals(CHAVE_SECRETA_CRON, $chave_informada)) {
+    if (!defined('CHAVE_SECRETA_CRON') || !hash_equals((string) CHAVE_SECRETA_CRON, $chave_informada)) {
         logCronRanking('Acesso HTTP negado (chave ausente ou incorreta).');
         http_response_code(403);
         exit('Acesso negado.');
@@ -49,7 +49,6 @@ try {
     ")->fetchAll(PDO::FETCH_ASSOC);
 
     if (!$campanhas) {
-        logCronRanking('Nenhuma campanha a recalcular no momento.');
         flock($lock, LOCK_UN);
         fclose($lock);
         exit;

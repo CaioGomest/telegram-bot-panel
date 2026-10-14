@@ -2,13 +2,15 @@ $(function() {
   const $modal = $('#modal-nova-campanha');
   const $form = $('#form-campanha');
   const $feedback = $('#modal-feedback');
-  const $btn_open = $('#btn-nova-campanha');
+  const $btn_open = $('#btn-nova-campanha, #btn-nova-campanha-empty');
   const $btn_close = $('#btn-fechar-modal, #btn-cancelar-campanha');
 
   function openModal() {
     $feedback.hide().text('');
     $form.get(0).reset();
     $('#modal-midia-caminho, #modal-midia-tipo').val('');
+    $('#btn-remover-midia').prop('hidden', true);
+    $('.aviso-arquivo-invalido').remove();
     atualizarLimiteMensagem();
     $modal.css('display', 'flex');
   }
@@ -93,6 +95,27 @@ $(function() {
     }
   });
 
+  // Cancelar uma campanha que ainda está pendente (só ela; depois que a cron começa não dá mais).
+  $(document).on('click', '.btn-cancelar-campanha-lista', function() {
+    const $btn = $(this);
+    if (!confirm('Cancelar esta campanha? Ela não será enviada.')) return;
+    $btn.prop('disabled', true);
+    $.ajax({
+      url: 'remarketing.php',
+      method: 'POST',
+      data: { acao: 'cancelar_campanha', id: $btn.data('id'), csrf_token: $form.find('input[name=csrf_token]').val() },
+      dataType: 'json',
+      headers: { 'Accept': 'application/json' }
+    }).done(function(resp) {
+      if (resp && resp.sucesso) { window.location.reload(); return; }
+      alert((resp && resp.mensagem) || 'Não foi possível cancelar.');
+      $btn.prop('disabled', false);
+    }).fail(function() {
+      alert('Não foi possível cancelar agora. Tente de novo.');
+      $btn.prop('disabled', false);
+    });
+  });
+
   function atualizarContagem() {
     const bot_id = $('#modal-bot_id').val();
     const audiencia = $('#modal-audiencia').val();
@@ -146,7 +169,12 @@ $(function() {
     // Arquivo trocado/removido depois de já ter subido um -- limpa o caminho salvo,
     // senão o submit usaria uma mídia diferente da que aparece selecionada no campo.
     $('#modal-midia-caminho, #modal-midia-tipo').val('');
+    $('#btn-remover-midia').prop('hidden', !(this.files && this.files.length));
     atualizarLimiteMensagem();
+  });
+  $('#btn-remover-midia').on('click', function() {
+    $('.aviso-arquivo-invalido').remove();
+    $('#modal-midia').val('').trigger('change');
   });
   // Inicializa quando abre
   $btn_open.on('click', function() {

@@ -132,7 +132,7 @@ try {
     // Telegram manda o @username em todo /start (message.from.username), mas até aqui
     // nunca era salvo em lugar nenhum -- webhook de saída sempre mandava customer.username
     // = null pra quem integra (achado em rodada de teste, ver
-    // anotacoes/HISTORICO-CONSOLIDADO.md). Username do Telegram tem no máximo
+    // anotacoes/OBSERVACOES.md). Username do Telegram tem no máximo
     // 32 caracteres.
     try { $pdo->exec("ALTER TABLE leads ADD COLUMN nome_usuario_telegram VARCHAR(32) DEFAULT NULL AFTER telefone"); } catch (PDOException $e) {}
     echo "Tabela 'leads' OK.<br>";
@@ -173,6 +173,7 @@ try {
         "ADD COLUMN venda_pai_id INT DEFAULT NULL",
         "ADD COLUMN id_assinatura VARCHAR(100) DEFAULT NULL", // Novo nome (ex-subscription_id)
         "ADD COLUMN id_plano INT DEFAULT NULL",      // Novo nome (ex-plan_id)
+        "ADD COLUMN nome_produto VARCHAR(150) DEFAULT NULL", // Nome do plano na venda: vai no evento de compra (Facebook/UTMify)
         "ADD COLUMN ultimo_txid_renovacao VARCHAR(255) DEFAULT NULL", // Idempotência do webhook de PIX Automático (cobsr)
         "ADD COLUMN split_status ENUM('sem_split', 'sem_credenciais', 'pago', 'falhou') DEFAULT NULL AFTER comissao_admin",
         "ADD COLUMN split_valor DECIMAL(10,2) DEFAULT NULL AFTER split_status",
@@ -228,14 +229,14 @@ try {
 
     // 'atividades' cresce mais rápido que qualquer outra tabela (toda venda/split/login
     // gera pelo menos uma linha) e funcoes/log.php filtra por 'tipo' (tipo=?, tipo IN (...),
-    // tipo NOT IN (...)) -- sem índice, isso é full table scan. Ver anotacoes/HISTORICO-CONSOLIDADO.md.
+    // tipo NOT IN (...)) -- sem índice, isso é full table scan. Ver anotacoes/OBSERVACOES.md.
     try { $pdo->exec("ALTER TABLE atividades ADD INDEX idx_atividades_tipo (tipo)"); } catch (PDOException $e) {}
 
     // Sino de notificações no header: coluna de lido + índice pro contador de não-lidas
     // (id_usuario + lido_em). Sem backfill, o badge estouraria com o histórico inteiro
     // de vendas/leads. O UPDATE só roda na primeira vez que a coluna é criada — nas
     // próximas execuções o ALTER falha e as não-lidas novas ficam intactas.
-    // Ver anotacoes/REFERENCIA-SHARKBOT.md item 4.
+    // Ver anotacoes/OBSERVACOES.md.
     $coluna_lido_criada = false;
     try {
         $pdo->exec("ALTER TABLE atividades ADD COLUMN lido_em DATETIME DEFAULT NULL");
@@ -356,7 +357,7 @@ try {
 
     // Colunas de Cash-Out (API de Contas/transferência) eram só da InfoPago -- simulava split
     // via transferência manual após o Pix cair (removida do sistema, ver
-    // anotacoes/HISTORICO-CONSOLIDADO.md). Dropa se ainda existirem de uma instalação
+    // anotacoes/OBSERVACOES.md). Dropa se ainda existirem de uma instalação
     // anterior; instalação nova nunca chega a criar essas colunas.
     foreach (['cashout_client_id', 'cashout_client_secret', 'cashout_certificado', 'cashout_cert_password'] as $coluna_cashout) {
         try {
@@ -552,7 +553,7 @@ try {
     echo "Tabela 'usuarios_traqueamento' OK.<br>";
 
 
-    // InfoPago saiu do sistema (ver anotacoes/HISTORICO-CONSOLIDADO.md) -- não semeia
+    // InfoPago saiu do sistema (ver anotacoes/OBSERVACOES.md) -- não semeia
     // mais essa linha. A linha antiga (se existir de uma instalação anterior) fica só de
     // histórico pras vendas antigas continuarem mostrando o nome do gateway corretamente;
     // gatewaysSuportados() já não inclui 'infopago', então ela some sozinha de toda UI.
@@ -736,7 +737,7 @@ try {
 
     // Preenchimento único do histórico existente — daqui em diante o cron cuida só das
     // últimas 48h a cada execução (vendas pagas nunca mudam de valor depois de confirmadas,
-    // não existe fluxo de estorno neste projeto — ver como-funciona-pagamento-gateway.md).
+    // não existe fluxo de estorno neste projeto — ver anotacoes/OBSERVACOES.md).
     execComRetryDeColisao($pdo, "
         INSERT INTO metricas_horarias_admin (data, hora, faturamento, comissao, quantidade, atualizado_em)
         SELECT DATE(v.criado_em), HOUR(v.criado_em), SUM(v.valor), SUM(v.comissao_admin), COUNT(*), NOW()
@@ -753,14 +754,62 @@ try {
 
     // Suporta ORDER BY criado_em DESC em listagens paginadas (admin/transacoes.php,
     // leads.php) sem filesort mesmo com milhões de linhas -- ver
-    // anotacoes/HISTORICO-CONSOLIDADO.md.
+    // anotacoes/OBSERVACOES.md.
     try { $pdo->exec("ALTER TABLE vendas ADD INDEX idx_vendas_criado_em (criado_em DESC)"); } catch (PDOException $e) {}
     try { $pdo->exec("ALTER TABLE leads ADD INDEX idx_leads_bot_criado_em (bot_id, criado_em DESC)"); } catch (PDOException $e) {}
+
+    // leads.pagou (08/10/2026): "esse lead já pagou?" guardado no próprio lead, com índice (bot, pagou, data). Antes os filtros
+    // "Pagou/Não pagou" de Leads e o público do remarketing procuravam venda por lead (EXISTS por linha): com 200 mil leads
+    // levava 1 a 5 s e piora junto com o volume. Mantido por aposPagamentoConfirmado() (funcoes/operacao.php) nos 3 caminhos
+    // que confirmam pagamento. O preenchimento do histórico roda uma vez, bot a bot (leads sem venda paga nem são tocados).
+    $criou_pagou = !colunaExiste('leads', 'pagou');
+    if ($criou_pagou) {
+        try { $pdo->exec("ALTER TABLE leads ADD COLUMN pagou TINYINT(1) NOT NULL DEFAULT 0 AFTER origem_rastreio"); echo "Coluna 'pagou' adicionada em 'leads'.<br>"; } catch (PDOException $e) { echo "Falha ao criar leads.pagou: " . htmlspecialchars($e->getMessage()) . "<br>"; }
+    }
+    try { $pdo->exec("ALTER TABLE leads ADD INDEX idx_leads_bot_pagou_criado (bot_id, pagou, criado_em DESC)"); echo "Índice 'idx_leads_bot_pagou_criado' criado em 'leads'.<br>"; } catch (PDOException $e) {}
+    if ($criou_pagou && colunaExiste('leads', 'pagou')) {
+        @set_time_limit(0);
+        $marcados = 0;
+        foreach ($pdo->query("SELECT DISTINCT bot_id FROM vendas WHERE status = 'pago' AND bot_id IS NOT NULL")->fetchAll(PDO::FETCH_COLUMN) as $bot_id_hist) {
+            $st = $pdo->prepare("UPDATE leads l SET l.pagou = 1 WHERE l.bot_id = ? AND l.pagou = 0 AND EXISTS (SELECT 1 FROM vendas v WHERE v.bot_id = l.bot_id AND v.id_telegram = l.id_telegram AND v.status = 'pago')");
+            $st->execute([(int) $bot_id_hist]);
+            $marcados += $st->rowCount();
+        }
+        echo "Histórico: $marcados lead(s) marcado(s) como pagantes.<br>";
+    }
+
+    // bots.token_invalido_em (08/10/2026): preenchido quando o Telegram recusa o token (revogado/trocado); o dono é avisado
+    // no sino e o campo é limpo ao salvar um token novo.
+    if (!colunaExiste('bots', 'token_invalido_em')) {
+        try { $pdo->exec("ALTER TABLE bots ADD COLUMN token_invalido_em DATETIME NULL AFTER webhook_secret"); echo "Coluna 'token_invalido_em' adicionada em 'bots'.<br>"; } catch (PDOException $e) {}
+    }
 
     // Cache pré-calculado do dashboard do cliente (index.php) -- mesmo raciocínio de
     // metricas_horarias_admin, só que por usuário (cada usuário só vê o próprio
     // faturamento, então não faz sentido guardar por bot também). Ver
-    // cron/cron_metricas_admin.php (mantém em dia) e anotacoes/HISTORICO-CONSOLIDADO.md.
+    // cron/cron_metricas_admin.php (mantém em dia) e anotacoes/OBSERVACOES.md.
+    // Um registro por /start (lead novo ou que voltou): base da contagem de "starts" do dashboard (antes contava só leads novos,
+    // então vendas de quem já era lead apareciam com 0 starts). Na criação, cada lead existente vira 1 start na data em que nasceu.
+    $starts_existia = (bool) $pdo->query("SHOW TABLES LIKE 'leads_starts'")->fetchColumn();
+    $pdo->exec("CREATE TABLE IF NOT EXISTS leads_starts (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            lead_id INT NOT NULL,
+            bot_id INT NOT NULL,
+            criado_em DATETIME NOT NULL,
+            INDEX idx_starts_bot_data (bot_id, criado_em),
+            INDEX idx_starts_lead (lead_id, criado_em),
+            FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    if (!$starts_existia) {
+        $maior_lead = (int) $pdo->query("SELECT COALESCE(MAX(id), 0) FROM leads")->fetchColumn();
+        for ($ini = 0; $ini < $maior_lead; $ini += 50000) {
+            $pdo->exec("INSERT INTO leads_starts (lead_id, bot_id, criado_em) SELECT id, bot_id, criado_em FROM leads WHERE bot_id IS NOT NULL AND id > $ini AND id <= " . ($ini + 50000));
+        }
+        echo "Tabela 'leads_starts' criada e preenchida a partir de 'leads'.<br>";
+    } else {
+        echo "Tabela 'leads_starts' OK.<br>";
+    }
+
     $sql_metricas_usuario = "
         CREATE TABLE IF NOT EXISTS metricas_horarias_usuario (
             id_usuario INT NOT NULL,
@@ -800,7 +849,7 @@ try {
     execComRetryDeColisao($pdo, "
         INSERT INTO metricas_horarias_usuario (id_usuario, data, hora, qtd_leads, atualizado_em)
         SELECT b.id_usuario, DATE(l.criado_em), HOUR(l.criado_em), COUNT(*), NOW()
-        FROM leads l
+        FROM leads_starts l
         JOIN bots b ON l.bot_id = b.id
         GROUP BY b.id_usuario, DATE(l.criado_em), HOUR(l.criado_em)
         ON DUPLICATE KEY UPDATE
@@ -813,7 +862,7 @@ try {
     // por nenhuma tabela de venda/pagamento. Expiração de 24h é resolvida por filtro de
     // consulta (expira_em > NOW()) em todo SELECT, sem depender de cron pra "esconder" nada;
     // cron/cron_limpar_stories.php só faz limpeza best-effort de linhas/arquivos antigos.
-    // Ver anotacoes/REFERENCIA-SHARKBOT.md.
+    // Ver anotacoes/OBSERVACOES.md.
     $sql_stories = "
         CREATE TABLE IF NOT EXISTS stories (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -848,7 +897,7 @@ try {
     // Página Comunidade: links institucionais da plataforma (grupos, canais, redes).
     // Quem edita é o admin (admin/comunidade.php); o usuário só vê os ativos em comunidade.php.
     // membros_max = 0 significa sem limite de vagas — o card não mostra contador nem LOTADO.
-    // Ver anotacoes/REFERENCIA-SHARKBOT.md.
+    // Ver anotacoes/OBSERVACOES.md.
     $sql_comunidade = "
         CREATE TABLE IF NOT EXISTS comunidade_links (
             id INT AUTO_INCREMENT PRIMARY KEY,

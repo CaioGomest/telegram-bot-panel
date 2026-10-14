@@ -16,7 +16,7 @@ $busca = trim($_GET['busca'] ?? '');
 // por "l.bot_id IN (...)", em vez de "JOIN bots b WHERE b.id_usuario = ?". Testado:
 // com o filtro no JOIN, o MySQL não usava o índice (bot_id, criado_em) de leads e
 // fazia table scan completo + filesort mesmo só pra pegar 25 linhas (ver
-// anotacoes/HISTORICO-CONSOLIDADO.md) -- filtrando direto em l.bot_id, o índice
+// anotacoes/OBSERVACOES.md) -- filtrando direto em l.bot_id, o índice
 // passa a ser usado de verdade.
 $stmt_ids_bots = $pdo->prepare('SELECT id FROM bots WHERE id_usuario = ?');
 $stmt_ids_bots->execute([$id_usuario]);
@@ -47,10 +47,12 @@ if (empty($ids_bots_usuario)) {
     $where = ["l.bot_id IN ($ids_bots_sql)"];
     $params = [];
 
+    // "Pagou / Não pagou" lê leads.pagou (índice bot+pagou+data, mantido na confirmação do pagamento): continua rápido
+    // com milhões de leads, em vez de procurar venda lead por lead.
     if ($status === 'pago') {
-        $where[] = "EXISTS (SELECT 1 FROM vendas v WHERE v.id_telegram = l.id_telegram AND v.bot_id = l.bot_id AND v.status = 'pago')";
+        $where[] = condicaoLeadPagou(true);
     } elseif ($status === 'nao_pago') {
-        $where[] = "NOT EXISTS (SELECT 1 FROM vendas v WHERE v.id_telegram = l.id_telegram AND v.bot_id = l.bot_id AND v.status = 'pago')";
+        $where[] = condicaoLeadPagou(false);
     }
 
     // A caixa de busca era só um filtro de JS escondendo <tr> já carregado na página --
@@ -70,7 +72,7 @@ $sql_base = "FROM leads l JOIN bots b ON l.bot_id = b.id WHERE $where_sql";
 
 $exportando_csv = isset($_GET['export']) && $_GET['export'] === 'csv';
 
-$sql_campos = "
+$sql_select = "
     SELECT
         l.id,
         l.nome,
@@ -88,6 +90,8 @@ $sql_campos = "
               AND mg.status = 'ativo'
               AND (mg.data_expiracao IS NULL OR mg.data_expiracao > NOW())
         ) as plano_ativo
+";
+$sql_campos = $sql_select . "
     $sql_base
     ORDER BY l.criado_em DESC
 ";
@@ -116,9 +120,9 @@ if ($exportando_csv) {
         }
 
         fputcsv($output, [
-            $lead['nome'],
-            $lead['id_telegram'],
-            $lead['nome_bot'],
+            csvSeguro($lead['nome']),
+            csvSeguro($lead['id_telegram']),
+            csvSeguro($lead['nome_bot']),
             date('d/m/Y H:i', strtotime($lead['data_inicio'])),
             $status_texto,
             $lead['plano_ativo'] ? 'Ativo' : 'Inativo',
@@ -149,9 +153,18 @@ $total_paginas = $total_leads > 0 ? (int) ceil($total_leads / $por_pagina) : 1;
 $pagina_atual = min($pagina_atual, $total_paginas);
 $offset = ($pagina_atual - 1) * $por_pagina;
 
-$stmt = $pdo->prepare($sql_campos . " LIMIT $por_pagina OFFSET $offset");
-$stmt->execute($params);
-$leads = $stmt->fetchAll(PDO::FETCH_ASSOC);
+// Página em DUAS etapas (mesmo padrão de admin/transacoes.php): primeiro só os ids dos 25 leads da página, ordenando
+// direto na tabela leads; depois os dados completos só desses 25. Em uma etapa só, o MySQL juntava bots primeiro e
+// ordenava os ~200 mil leads do vendedor numa tabela temporária (medido: 4 a 6 s numa conta com 200 mil leads; a lista
+// padrão e as páginas fundas caem para a casa de centenas de ms). l.id desempata pra paginação não repetir/pular linha.
+$stmt_ids = $pdo->prepare("SELECT l.id FROM leads l WHERE $where_sql ORDER BY l.criado_em DESC, l.id DESC LIMIT $por_pagina OFFSET $offset");
+$stmt_ids->execute($params);
+$ids_pagina = array_map('intval', $stmt_ids->fetchAll(PDO::FETCH_COLUMN));
+$leads = [];
+if ($ids_pagina) {
+    $stmt = $pdo->query($sql_select . " FROM leads l JOIN bots b ON l.bot_id = b.id WHERE l.id IN (" . implode(',', $ids_pagina) . ") ORDER BY l.criado_em DESC, l.id DESC");
+    $leads = $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
 
 $stmt_bots = $pdo->prepare("SELECT id, COALESCE(primeiro_nome, nome_usuario) as nome FROM bots WHERE id_usuario = ?");
 $stmt_bots->execute([$id_usuario]);
@@ -183,10 +196,6 @@ unset($params_link['pagina']);
                 <p>Visualize os usuários que interagiram com seus bots.</p>
             </div>
             <div class="acoes-cabecalho">
-                <a href="?<?php echo http_build_query(array_merge($_GET, ['export' => 'csv'])); ?>" class="botao">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                    Exportar CSV
-                </a>
                 <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>
                     Tema
@@ -194,35 +203,35 @@ unset($params_link['pagina']);
             </div>
         </div>
 
-        <div class="painel">
-            <div class="barra-filtros">
-                <form method="GET" class="campo-busca">
-                    <?php if ($status !== ''): ?><input type="hidden" name="status" value="<?php echo htmlspecialchars($status); ?>"><?php endif; ?>
-                    <?php if ($bot_id > 0): ?><input type="hidden" name="bot_id" value="<?php echo $bot_id; ?>"><?php endif; ?>
-                    <button type="submit" aria-label="Buscar">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
-                    </button>
-                    <input type="text" name="busca" id="busca-lead" value="<?php echo htmlspecialchars($busca); ?>" placeholder="Buscar por nome ou ID do Telegram">
-                </form>
-                <div class="abas-status">
-                    <a href="?<?php echo http_build_query(array_merge($params_link, ['status' => ''])); ?>" class="aba-status<?php echo $status === '' ? ' ativa' : ''; ?>">Todos</a>
-                    <a href="?<?php echo http_build_query(array_merge($params_link, ['status' => 'pago'])); ?>" class="aba-status<?php echo $status === 'pago' ? ' ativa' : ''; ?>">Já pagou</a>
-                    <a href="?<?php echo http_build_query(array_merge($params_link, ['status' => 'nao_pago'])); ?>" class="aba-status<?php echo $status === 'nao_pago' ? ' ativa' : ''; ?>">Não pagou</a>
-                </div>
-                <form method="GET">
-                    <?php if ($status !== ''): ?><input type="hidden" name="status" value="<?php echo htmlspecialchars($status); ?>"><?php endif; ?>
-                    <?php if ($busca !== ''): ?><input type="hidden" name="busca" value="<?php echo htmlspecialchars($busca); ?>"><?php endif; ?>
-                    <select name="bot_id" onchange="this.form.submit()">
-                        <option value="">Todos os Bots</option>
-                        <?php foreach ($meus_bots as $b): ?>
-                            <option value="<?php echo $b['id']; ?>" <?php echo $bot_id == $b['id'] ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($b['nome']); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </form>
+        <div class="barra-filtros">
+            <form method="GET" class="campo-busca">
+                <?php if ($status !== ''): ?><input type="hidden" name="status" value="<?php echo htmlspecialchars($status); ?>"><?php endif; ?>
+                <?php if ($bot_id > 0): ?><input type="hidden" name="bot_id" value="<?php echo $bot_id; ?>"><?php endif; ?>
+                <button type="submit" aria-label="Buscar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+                </button>
+                <input type="text" name="busca" id="busca-lead" value="<?php echo htmlspecialchars($busca); ?>" placeholder="Buscar por nome ou ID do Telegram">
+            </form>
+            <div class="abas-status">
+                <a href="?<?php echo http_build_query(array_merge($params_link, ['status' => ''])); ?>" class="aba-status<?php echo $status === '' ? ' ativa' : ''; ?>">Todos</a>
+                <a href="?<?php echo http_build_query(array_merge($params_link, ['status' => 'pago'])); ?>" class="aba-status<?php echo $status === 'pago' ? ' ativa' : ''; ?>">Já pagou</a>
+                <a href="?<?php echo http_build_query(array_merge($params_link, ['status' => 'nao_pago'])); ?>" class="aba-status<?php echo $status === 'nao_pago' ? ' ativa' : ''; ?>">Não pagou</a>
             </div>
+            <form method="GET">
+                <?php if ($status !== ''): ?><input type="hidden" name="status" value="<?php echo htmlspecialchars($status); ?>"><?php endif; ?>
+                <?php if ($busca !== ''): ?><input type="hidden" name="busca" value="<?php echo htmlspecialchars($busca); ?>"><?php endif; ?>
+                <select name="bot_id" onchange="this.form.submit()">
+                    <option value="">Todos os Bots</option>
+                    <?php foreach ($meus_bots as $b): ?>
+                        <option value="<?php echo $b['id']; ?>" <?php echo $bot_id == $b['id'] ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($b['nome']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </form>
+        </div>
 
+        <div class="painel">
             <div class="tabela-dados">
                 <table id="tabela-leads">
                     <thead>

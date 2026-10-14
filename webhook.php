@@ -175,7 +175,7 @@ if (strpos($texto, 'saida::') === 0) {
         $stmt_fluxo_saida = $pdo->prepare("SELECT f.dados_fluxograma FROM bots b JOIN fluxos f ON b.id_fluxo_conectado = f.id WHERE b.id = ?");
         $stmt_fluxo_saida->execute([$bot['id']]);
         $dados_json_saida = $stmt_fluxo_saida->fetchColumn();
-        if ($dados_json_saida && $id_operador_origem !== '') {
+        if ($dados_json_saida && $id_operador_origem !== '' && in_array($saida_escolhida, ['aceito', 'recusado'], true)) {
             $dados_fluxo_saida = json_decode($dados_json_saida, true);
             $dados_fluxo_saida = is_array($dados_fluxo_saida) ? $dados_fluxo_saida : ['operators' => [], 'links' => []];
             $conector = 'output_' . ($saida_escolhida === 'aceito' ? 'aceito' : 'recusado');
@@ -248,7 +248,7 @@ if (strpos($texto, 'verificar_pagamento_') === 0) {
                     $prov_verif = resolveGatewayProvider($nome_gw_venda, $gateway_config);
                     $resp = $prov_verif ? $prov_verif->consultarCobranca($txid) : ['sucesso' => false];
                     $status_verif = strtoupper(trim($resp['dados']['status'] ?? $resp['dados']['statusCob'] ?? ''));
-                    file_put_contents($debug_log, '[' . date('Y-m-d H:i:s') . '] resp=' . json_encode($resp) . ' | statusVerif=' . $status_verif . PHP_EOL, FILE_APPEND);
+                    file_put_contents($debug_log, '[' . date('Y-m-d H:i:s') . '] sucesso=' . var_export($resp['sucesso'] ?? null, true) . ' | statusVerif=' . $status_verif . PHP_EOL, FILE_APPEND);
                     if ($resp['sucesso'] && in_array($status_verif, ['CONCLUIDA', 'PAGO', 'LIQUIDADO', 'PAID', 'APPROVED', 'COMPLETED'])) {
                         // Transição atômica: o UPDATE só afeta a linha se ela ainda não estava paga.
                         // Se o webhook do gateway ou o cron de fallback confirmarem a mesma venda
@@ -260,6 +260,7 @@ if (strpos($texto, 'verificar_pagamento_') === 0) {
                              // Já foi processado por outra requisição simultânea. Para aqui.
                              exit;
                         }
+                        aposPagamentoConfirmado($venda);
 
                         require_once __DIR__ . '/funcoes/traqueamento.php';
                         $dados_evento_manual = [
@@ -267,11 +268,14 @@ if (strpos($texto, 'verificar_pagamento_') === 0) {
                             'comissao' => (float)($venda['comissao_admin'] ?? 0),
                             'plano_id' => $venda['id_plano'] ?? null,
                             'nome_produto' => $venda['nome_produto'] ?? null,
-                            'pago_em' => $venda['pago_em'] ?? null,
+                            'pago_em' => date('Y-m-d H:i:s'),
                             'transacao_id' => $txid,
-                            'event_id' => $txid
+                            'event_id' => $txid,
+                            'criado_em' => $venda['criado_em'] ?? null
                         ];
                         $user_data_manual = montarUserDataTraqueamento($pdo, $venda['id_telegram'], $venda['bot_id']);
+                        // Mesmo registro que o webhook da gateway faz: aparece em Atividade/notificações do dono.
+                        registrarAtividade((int)$id_usuario_dono, 'venda', 'Venda Aprovada', 'PIX R$ ' . number_format((float)$venda['valor'], 2, ',', '.') . ' pago (confirmado pelo cliente, identificador=' . $txid . ').');
 
                         enviarEventosTraqueamento((int)$id_usuario_dono, 'compra', $dados_evento_manual, $user_data_manual);
                         dispararWebhooks((int)$id_usuario_dono, 'payment_approved', [
@@ -346,7 +350,9 @@ if (strpos($texto, 'verificar_pagamento_') === 0) {
 
                             if ($link) {
                                 $msg .= "\n\n🚀 *Acesso Liberado!*\nClique no link abaixo para entrar no grupo exclusivo:\n\n$link\n\n⚠️ Este link é válido apenas para você.";
-                                if ($minutos_acesso < 60) {
+                                if (acessoVitalicio($minutos_acesso)) {
+                                     $msg .= "\n♾️ *Acesso vitalício.*";
+                                } elseif ($minutos_acesso < 60) {
                                      $msg .= "\n⏳ *Seu acesso expira em {$minutos_acesso} minutos.*";
                                 } elseif ($minutos_acesso < 1440) {
                                      $horas = floor($minutos_acesso / 60);
@@ -355,7 +361,9 @@ if (strpos($texto, 'verificar_pagamento_') === 0) {
                                      $dias = floor($minutos_acesso / 1440);
                                      $msg .= "\n⏳ *Seu acesso expira em {$dias} dias.*";
                                 }
-                                $msg .= "\n*(Data exata: " . date('d/m/Y \à\s H:i', strtotime($data_expiracao)) . ")*";
+                                if (!acessoVitalicio($minutos_acesso)) {
+                                    $msg .= "\n*(Data exata: " . date('d/m/Y \à\s H:i', strtotime($data_expiracao)) . ")*";
+                                }
                             } else {
                                 $msg .= "\n\n⚠️ Não foi possível gerar o link do grupo automaticamente. O administrador entrará em contato.";
                             }
@@ -439,7 +447,8 @@ if ($texto === '/start') {
         // nao string vazia, pra distinguir "nunca capturado" de "sabidamente sem username".
         $username_remetente = trim((string) ($dados_remetente['username'] ?? ''));
         $username_remetente = $username_remetente !== '' ? $username_remetente : null;
-        if (!$stmt_lead->fetch()) {
+        $lead_existente = $stmt_lead->fetch();
+        if (!$lead_existente) {
             $is_novo_lead = true;
             $nome_usuario = trim(($dados_remetente['first_name'] ?? '') . ' ' . ($dados_remetente['last_name'] ?? ''));
             if ($nome_usuario === '') $nome_usuario = 'Usuário ' . $id_chat;
@@ -463,6 +472,15 @@ if ($texto === '/start') {
             // username desde o primeiro /start).
             $pdo->prepare("UPDATE leads SET nome_usuario_telegram = ? WHERE id_telegram = ? AND bot_id = ? AND (nome_usuario_telegram IS NULL OR nome_usuario_telegram != ?)")
                 ->execute([$username_remetente, $id_chat, $bot['id'], $username_remetente]);
+        }
+        // Cada início de conversa (lead novo ou quem voltou) vira uma linha em leads_starts: é o que o dashboard conta como "starts".
+        try {
+            $id_lead_start = $is_novo_lead ? $id_lead_novo : (int) ($lead_existente['id'] ?? 0);
+            if ($id_lead_start > 0) {
+                registrarInicioConversa($pdo, (int) $bot['id'], $id_lead_start, $is_novo_lead);
+            }
+        } catch (Throwable $e) {
+            // tabela ainda não criada (falta rodar Admin → Atualizar Banco): o /start segue normalmente
         }
         // Se veio de um link de rastreamento, incrementa starts (sempre) e leads (só se for novo lead)
         if ($start_param) {
@@ -540,18 +558,31 @@ function enviarBoasVindasBasico(string $token, $id_chat, array $boas_vindas, str
     if (in_array($midia_tipo, ['image', 'video'], true) && $midia_path) {
         $metodo = $midia_tipo === 'image' ? 'sendPhoto' : 'sendVideo';
         $campo = $midia_tipo === 'image' ? 'photo' : 'video';
-        $parametros = ['chat_id' => $id_chat, 'caption' => $mensagem, 'reply_markup' => $teclado];
+        // Legenda de mídia aceita no máximo 1024 caracteres: com texto maior, a mídia vai sem legenda
+        // e o texto (com o botão) segue logo depois numa mensagem normal (até 4096 caracteres).
+        $legenda_cabe = mb_strlen($mensagem) <= 1024;
+        $parametros = $legenda_cabe ? ['chat_id' => $id_chat, 'caption' => $mensagem, 'reply_markup' => $teclado] : ['chat_id' => $id_chat];
         $file_id = $id_cache !== '' ? obterFileIdCacheMidia($token, $id_cache, $metodo, $campo, $midia_path) : null;
+        $enviou = false;
         if ($file_id) {
             $resposta = requisicaoTelegram($token, $metodo, $parametros + [$campo => $file_id]);
-            if ($resposta['ok'] ?? false) {
-                return;
-            }
+            $enviou = (bool) ($resposta['ok'] ?? false);
         }
-        requisicaoTelegram($token, $metodo, $parametros, [$campo => $midia_path]);
+        if (!$enviou) {
+            $resposta_envio = requisicaoTelegram($token, $metodo, $parametros, [$campo => $midia_path]);
+            $enviou = (bool) ($resposta_envio['ok'] ?? false);
+        }
+        if (!$enviou) {
+            // O Telegram recusou a mídia (tamanho, dimensões, arquivo): o lead não pode ficar sem a mensagem e sem o botão.
+            requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => mb_substr($mensagem, 0, 4096), 'reply_markup' => $teclado]);
+            return;
+        }
+        if (!$legenda_cabe) {
+            requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => mb_substr($mensagem, 0, 4096), 'reply_markup' => $teclado]);
+        }
         return;
     }
-    requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => $mensagem, 'reply_markup' => $teclado]);
+    requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => mb_substr($mensagem, 0, 4096), 'reply_markup' => $teclado]);
 }
 /**
  * Cor por botão (não mais uma cor "geral" por papel): cada plano, cada oferta e o CTA de
@@ -566,6 +597,15 @@ function urlSuporteBasico(string $suporte): string {
     $usuario = ltrim(trim($suporte), '@');
     $usuario = preg_replace('#^(https?://)?(t\.me|telegram\.me)/#i', '', $usuario);
     return preg_match('/^[A-Za-z0-9_]{4,32}$/', (string) $usuario) ? 'https://t.me/' . $usuario : '';
+}
+/** Periodicidades da assinatura recorrente (Pix recorrente nativo do gateway) aceitas num plano do Guiado, com o sufixo mostrado no botão. */
+const PERIODICIDADES_BASICO = ['semanal' => '/semana', 'mensal' => '/mês', 'trimestral' => '/trimestre', 'semestral' => '/semestre', 'anual' => '/ano'];
+function planoRecorrenteBasico(?array $plano): bool {
+    return $plano !== null && ($plano['cobranca'] ?? 'unica') === 'recorrente';
+}
+function periodicidadePlanoBasico(array $plano): string {
+    $p = strtolower((string) ($plano['periodicidade'] ?? 'mensal'));
+    return isset(PERIODICIDADES_BASICO[$p]) ? $p : 'mensal';
 }
 function localizarPlanoBasico(array $planos, string $id_plano): ?array {
     foreach ($planos as $p) {
@@ -582,7 +622,7 @@ function enviarListaPlanosBasico(string $token, $id_chat, array $planos, string 
     }
     $botoes = [];
     foreach ($planos as $p) {
-        $rotulo = trim((string) ($p['nome'] ?? 'Plano')) . ' — R$ ' . number_format((float) ($p['valor'] ?? 0), 2, ',', '.');
+        $rotulo = trim((string) ($p['nome'] ?? 'Plano')) . ' — R$ ' . number_format((float) ($p['valor'] ?? 0), 2, ',', '.') . (planoRecorrenteBasico($p) ? PERIODICIDADES_BASICO[periodicidadePlanoBasico($p)] : '');
         $botoes[] = [['text' => $rotulo, 'callback_data' => 'basico::plano::' . ($p['id'] ?? '')] + estiloBotaoBasicoValor((string) ($p['cor'] ?? ''))];
     }
     if (!empty($previas['ativo']) && previasMidiasEnviaveis($previas)) {
@@ -649,8 +689,10 @@ function gerarPixBasico(string $token, $id_chat, array $dados_basico, string $id
         return;
     }
     $nome = (string) ($plano['nome'] ?? 'Produto');
+    $recorrente = planoRecorrenteBasico($plano);
     $bump = $dados_basico['ofertas']['order_bump'] ?? [];
-    if ($com_bump && !empty($bump['ativo'])) {
+    // Assinatura recorrente: o extra do order bump seria cobrado em todo ciclo, então não é aplicado.
+    if ($com_bump && !$recorrente && !empty($bump['ativo'])) {
         $valor = round($valor + max(0.0, (float) ($bump['valor_extra'] ?? 0)), 2);
         $nome .= ' + ' . (trim((string) ($bump['nome'] ?? '')) ?: 'Extra');
     }
@@ -658,13 +700,15 @@ function gerarPixBasico(string $token, $id_chat, array $dados_basico, string $id
         'type' => 'pix',
         'nome' => $nome,
         'valor' => $valor,
-        'tipo_cobranca' => 'unica',
+        'tipo_cobranca' => $recorrente ? 'recorrente' : 'unica',
+        'periodicidade' => $recorrente ? periodicidadePlanoBasico($plano) : null,
+        'id_produto' => 'plano_' . (string) ($plano['id'] ?? ''),
         'expiracao_minutos' => 15,
         'dias_acesso' => (int) ($plano['dias_acesso'] ?? 30),
         'unidade_acesso' => $plano['unidade_acesso'] ?? 'dias',
         'id_grupo' => $plano['id_grupo'] ?? '',
         'mostrar_copiar' => $pagamentos['mostrar_copiar'] ?? true,
-        'mostrar_qrcode' => false,
+        'mostrar_qrcode' => !empty($pagamentos['qrcode_definido']) ? !empty($pagamentos['mostrar_qrcode']) : true,
         'mostrar_confirmar' => $pagamentos['mostrar_confirmar'] ?? true,
         'msg_instrucoes' => $pagamentos['msg_instrucoes'] ?? '',
         'msg_confirmado' => $pagamentos['msg_confirmado'] ?? '',
@@ -691,7 +735,8 @@ function avancarOfertasBasico(string $token, $id_chat, array $dados_basico, stri
     }
     if ($etapa === 'bp') {
         $bump = $ofertas['order_bump'] ?? [];
-        if (!empty($bump['ativo']) && (float) ($bump['valor_extra'] ?? 0) > 0) {
+        $plano_final = $variante === 'u' ? planoDaOfertaBasico($dados_basico, 'upsell') : ($variante === 'd' ? planoDaOfertaBasico($dados_basico, 'downsell') : localizarPlanoBasico($dados_basico['planos'] ?? [], $id_plano));
+        if (!planoRecorrenteBasico($plano_final) && !empty($bump['ativo']) && (float) ($bump['valor_extra'] ?? 0) > 0) {
             enviarOfertaBasico($token, $id_chat, $bump, 'basico::of::bp::' . $id_plano . '::' . $variante, 'Adicione um extra ao seu pedido por R$ ' . number_format((float) $bump['valor_extra'], 2, ',', '.') . '.');
             return;
         }

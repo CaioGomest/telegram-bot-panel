@@ -41,12 +41,56 @@ function buscarCampanhaVigente(): ?array
     }
     return null;
 }
+/**
+ * Situação da campanha, lida como a tela do usuário lê: quem diz se está rolando são as datas; `ativa` é só o interruptor do admin.
+ * @return array{0:string,1:string} [rótulo, classe do badge]
+ */
+function situacaoCampanhaRanking(array $c): array
+{
+    $agora = time();
+    if (!$c['ativa'])                          { return ['Desligada', 'badge-neutro']; }
+    if (strtotime($c['data_inicio']) > $agora) { return ['Agendada', 'badge-alerta']; }
+    if (strtotime($c['data_fim']) < $agora)    { return ['Encerrada', 'badge-neutro']; }
+    return ['Em andamento', 'badge-sucesso'];
+}
+
 function buscarPremiosCampanha(int $campanha_id): array
 {
     global $pdo;
     $stmt = $pdo->prepare("SELECT * FROM campanhas_ranking_premios WHERE campanha_id = ? ORDER BY posicao ASC");
     $stmt->execute([$campanha_id]);
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/** A próxima campanha agendada (ativa e que ainda não começou), pra avisar na tela do resultado final. */
+function buscarProximaCampanha(): ?array
+{
+    global $pdo;
+    $stmt = $pdo->query("SELECT id, titulo, data_inicio FROM campanhas_ranking WHERE ativa = 1 AND data_inicio > NOW() ORDER BY data_inicio ASC LIMIT 1");
+    return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
+/**
+ * Quem ficou em cada posição premiada (posição => lista de apelidos; empate = mais de um nome na mesma posição).
+ * Lê do ranking_cache, que na campanha fechada guarda o placar final.
+ */
+function buscarGanhadoresCampanha(int $campanha_id, int $ate_posicao): array
+{
+    global $pdo;
+    $stmt = $pdo->prepare("
+        SELECT rc.posicao, rc.id_usuario, u.apelido_publico
+        FROM ranking_cache rc
+        JOIN usuarios u ON u.id = rc.id_usuario
+        WHERE rc.campanha_id = ? AND rc.posicao <= ?
+        ORDER BY rc.posicao ASC, rc.faturamento DESC
+        LIMIT 30
+    ");
+    $stmt->execute([$campanha_id, max(1, $ate_posicao)]);
+    $por_posicao = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $l) {
+        $por_posicao[(int) $l['posicao']][] = nomeExibicaoRanking($l['apelido_publico'], (int) $l['id_usuario']);
+    }
+    return $por_posicao;
 }
 
 function nomeExibicaoRanking(?string $apelido, int $id_usuario): string
@@ -66,9 +110,10 @@ function iniciaisRanking(string $nome_exibicao): string
  * `ranking_cache` (join com `usuarios` só pro apelido público — nunca nome
  * real/e-mail aparecem nessa tela pros outros usuários verem).
  */
-function buscarRankingCampanha(int $campanha_id, int $usuario_atual_id): array
+function buscarRankingCampanha(int $campanha_id, int $usuario_atual_id, int $corte = 5): array
 {
     global $pdo;
+    $corte = max(1, min(10, $corte));
 
     $stmt = $pdo->prepare("
         SELECT rc.posicao, rc.id_usuario, rc.faturamento, u.apelido_publico
@@ -84,7 +129,7 @@ function buscarRankingCampanha(int $campanha_id, int $usuario_atual_id): array
     $top3 = array_slice($linhas_brutas, 0, 3);
     $linhas = array_slice($linhas_brutas, 3, 7);
     $faturamento_lider = $top3[0]['faturamento'] ?? null;
-    $faturamento_top5 = $linhas_brutas[4]['faturamento'] ?? ($linhas_brutas[count($linhas_brutas) - 1]['faturamento'] ?? null);
+    $faturamento_top5 = $linhas_brutas[$corte - 1]['faturamento'] ?? ($linhas_brutas[count($linhas_brutas) - 1]['faturamento'] ?? null);
 
     $stmt_total = $pdo->prepare("SELECT COUNT(*) FROM ranking_cache WHERE campanha_id = ?");
     $stmt_total->execute([$campanha_id]);
@@ -106,6 +151,104 @@ function buscarRankingCampanha(int $campanha_id, int $usuario_atual_id): array
         'total_participantes' => $total_participantes,
         'faturamento_lider' => $faturamento_lider !== null ? (float) $faturamento_lider : null,
         'faturamento_top5' => $faturamento_top5 !== null ? (float) $faturamento_top5 : null,
+    ];
+}
+
+/** Nome do mês em português ("Outubro de 2026"). */
+function nomeMesRanking(DateTime $data): string
+{
+    $meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+    return ucfirst($meses[(int) $data->format('n') - 1]) . ' de ' . $data->format('Y');
+}
+
+/**
+ * Ranking MENSAL: quanto cada usuário faturou (vendas aprovadas) no mês corrente. Não depende de campanha
+ * nem de admin -- zera sozinho no dia 1. Lê de metricas_horarias_usuario (a mesma tabela que alimenta o
+ * dashboard, preenchida pela cron_metricas_admin.php), então é barato mesmo com milhões de vendas.
+ * Devolve o mesmo formato de buscarRankingCampanha() pra tela reaproveitar o mesmo desenho.
+ * Empate de faturamento = mesma posição (padrão "1, 2, 2, 4").
+ */
+function buscarRankingMensal(int $usuario_atual_id, ?DateTime $referencia = null): array
+{
+    global $pdo;
+    $referencia = $referencia ?? new DateTime();
+    $inicio = $referencia->format('Y-m-01');
+    $fim = $referencia->format('Y-m-t');
+    $vazio = ['top3' => [], 'linhas' => [], 'sua_posicao' => null, 'total_participantes' => 0, 'faturamento_lider' => null, 'faturamento_top5' => null];
+
+    try {
+        $stmt = $pdo->prepare("
+            SELECT m.id_usuario, SUM(m.valor_pago) AS faturamento, MAX(u.apelido_publico) AS apelido_publico
+            FROM metricas_horarias_usuario m
+            JOIN usuarios u ON u.id = m.id_usuario
+            WHERE m.data BETWEEN ? AND ? AND u.perfil = 'usuario'
+            GROUP BY m.id_usuario
+            HAVING SUM(m.valor_pago) > 0
+            ORDER BY faturamento DESC, m.id_usuario ASC
+            LIMIT 10
+        ");
+        $stmt->execute([$inicio, $fim]);
+        $brutas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $posicao = 0;
+        $anterior = null;
+        foreach ($brutas as $i => $linha) {
+            $fat = (float) $linha['faturamento'];
+            if ($anterior === null || $fat < $anterior) {
+                $posicao = $i + 1;
+            }
+            $anterior = $fat;
+            $brutas[$i]['posicao'] = $posicao;
+            $brutas[$i]['faturamento'] = $fat;
+        }
+
+        $stmt_total = $pdo->prepare("
+            SELECT COUNT(*) FROM (
+                SELECT m.id_usuario FROM metricas_horarias_usuario m
+                JOIN usuarios u ON u.id = m.id_usuario
+                WHERE m.data BETWEEN ? AND ? AND u.perfil = 'usuario'
+                GROUP BY m.id_usuario HAVING SUM(m.valor_pago) > 0
+            ) t
+        ");
+        $stmt_total->execute([$inicio, $fim]);
+        $total = (int) $stmt_total->fetchColumn();
+
+        $stmt_eu = $pdo->prepare("SELECT COALESCE(SUM(valor_pago), 0) FROM metricas_horarias_usuario WHERE id_usuario = ? AND data BETWEEN ? AND ?");
+        $stmt_eu->execute([$usuario_atual_id, $inicio, $fim]);
+        $meu_fat = (float) $stmt_eu->fetchColumn();
+        $sua_posicao = null;
+        if ($meu_fat > 0) {
+            $stmt_pos = $pdo->prepare("
+                SELECT COUNT(*) FROM (
+                    SELECT m.id_usuario FROM metricas_horarias_usuario m
+                    JOIN usuarios u ON u.id = m.id_usuario
+                    WHERE m.data BETWEEN ? AND ? AND u.perfil = 'usuario'
+                    GROUP BY m.id_usuario HAVING SUM(m.valor_pago) > ?
+                ) t
+            ");
+            $stmt_pos->execute([$inicio, $fim, $meu_fat]);
+            $stmt_ap = $pdo->prepare("SELECT apelido_publico FROM usuarios WHERE id = ?");
+            $stmt_ap->execute([$usuario_atual_id]);
+            $sua_posicao = [
+                'posicao' => (int) $stmt_pos->fetchColumn() + 1,
+                'id_usuario' => $usuario_atual_id,
+                'faturamento' => $meu_fat,
+                'apelido_publico' => $stmt_ap->fetchColumn() ?: null,
+            ];
+        }
+    } catch (\Throwable $e) {
+        error_log('[ranking] mensal indisponível: ' . $e->getMessage());
+        return $vazio;
+    }
+
+    $top5 = $brutas[4]['faturamento'] ?? ($brutas ? $brutas[count($brutas) - 1]['faturamento'] : null);
+    return [
+        'top3' => array_slice($brutas, 0, 3),
+        'linhas' => array_slice($brutas, 3, 7),
+        'sua_posicao' => $sua_posicao,
+        'total_participantes' => $total,
+        'faturamento_lider' => $brutas ? (float) $brutas[0]['faturamento'] : null,
+        'faturamento_top5' => $top5 !== null ? (float) $top5 : null,
     ];
 }
 

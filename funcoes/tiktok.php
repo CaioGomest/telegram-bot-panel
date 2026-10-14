@@ -74,7 +74,6 @@ function enviarEventoTikTok($pixel_id, $access_token, $evento, $dados, $user_dat
     $resposta = curl_exec($ch);
     $codigo_http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $erro_curl = curl_error($ch);
-    curl_close($ch);
 
     return [
         'sucesso' => $codigo_http >= 200 && $codigo_http < 300,

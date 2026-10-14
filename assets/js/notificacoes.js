@@ -27,7 +27,9 @@
         var raiz = document.getElementById('sino-notificacoes-raiz');
         if (!raiz) return;
 
-        var acoes = document.querySelector('.acoes-cabecalho');
+        // No desktop o sino vai pro cabeçalho superior; no mobile esse cabeçalho some e o sino fica na página.
+        var topo = document.querySelector('.topo-acoes');
+        var acoes = (topo && topo.offsetParent !== null) ? topo : document.querySelector('.acoes-cabecalho');
         var tema = acoes && acoes.querySelector('.alternador-tema');
         if (!acoes || !tema) return;
 
@@ -124,8 +126,17 @@
         fundo.hidden = true;
         document.body.appendChild(fundo);
 
+        // Com o sino aberto a página atrás não rola. Antes isso era `overflow: hidden` no <html>, que tirava a barra de rolagem
+        // e empurrava a tela toda para a direita; barrando só a roda/toque, a barra continua lá e nada se mexe.
+        function barrarRolagem(e) {
+            if (lista.contains(e.target) && lista.scrollHeight > lista.clientHeight) return;
+            e.preventDefault();
+        }
+
         function abrir() {
             fundo.hidden = false;
+            document.addEventListener('wheel', barrarRolagem, { passive: false });
+            document.addEventListener('touchmove', barrarRolagem, { passive: false });
             document.documentElement.classList.add('sino-aberto');
             raiz.classList.add('aberto');
             painel.hidden = false;
@@ -135,6 +146,8 @@
 
         function fechar() {
             fundo.hidden = true;
+            document.removeEventListener('wheel', barrarRolagem, { passive: false });
+            document.removeEventListener('touchmove', barrarRolagem, { passive: false });
             document.documentElement.classList.remove('sino-aberto');
             raiz.classList.remove('aberto');
             painel.hidden = true;
@@ -146,6 +159,13 @@
             if (painel.hidden) abrir();
             else fechar();
         });
+
+        var timerRolagem = null;
+        lista.addEventListener('scroll', function () {
+            fundo.classList.add('rolando');
+            clearTimeout(timerRolagem);
+            timerRolagem = setTimeout(function () { fundo.classList.remove('rolando'); }, 180);
+        }, { passive: true });
 
         btnMarcar.addEventListener('click', function (e) {
             e.stopPropagation();

@@ -6,7 +6,7 @@ function paginador(int $total, int $por_pagina): string {
         return '';
     }
 
-    $paginas = ceil($total / $por_pagina);
+    $paginas = (int) ceil($total / $por_pagina);
     $atual = isset($_GET['pagina']) ? max(1, (int)$_GET['pagina']) : 1;
     $atual = min($atual, $paginas);
 
@@ -38,14 +38,14 @@ function paginador(int $total, int $por_pagina): string {
 
     for ($i = $inicio; $i <= $fim; $i++) {
         $classe = $i === $atual ? 'active' : '';
-        $html .= "<li><a href='{$prefixo}{$i}' class='paginacao-link {$classe}'>{$i}</a></li>";
+        $html .= "<li><a href='{$prefixo}{$i}' class='paginacao-link {$classe}'>" . number_format($i, 0, ',', '.') . "</a></li>";
     }
 
     if ($fim < $paginas) {
         if ($fim < $paginas - 1) {
             $html .= "<li><span class='paginacao-dots'>...</span></li>";
         }
-        $html .= "<li><a href='{$prefixo}{$paginas}' class='paginacao-link'>{$paginas}</a></li>";
+        $html .= "<li><a href='{$prefixo}{$paginas}' class='paginacao-link'>" . number_format($paginas, 0, ',', '.') . "</a></li>";
     }
 
     if ($atual < $paginas) {

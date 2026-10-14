@@ -1,0 +1,176 @@
+{
+    "nome": "TESTE REAL 4 · n8n — assinatura recorrente semanal com grupo",
+    "descricao": "Fluxo de teste (R$ 2,10 por plano). Escolha o grupo de entrega em cada plano/bloco Grupo antes de usar.",
+    "modo": "avancado",
+    "dados_fluxograma": {
+        "operators": {
+            "start": {
+                "top": 40,
+                "left": 30,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_1": {
+                            "label": "output_1"
+                        }
+                    },
+                    "class": "no-start",
+                    "title": "Início",
+                    "type": "start"
+                }
+            },
+            "oi": {
+                "top": 40,
+                "left": 320,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_1": {
+                            "label": "output_1"
+                        }
+                    },
+                    "class": "no-message",
+                    "title": "Boas-vindas",
+                    "type": "message",
+                    "conteudo": "🧪 TESTE REAL 4 — Assinatura recorrente\nAssinatura SEMANAL de R$ 2,10 com acesso ao grupo. Depois do 1º pagamento, o gateway gera uma nova cobrança a cada 7 dias (o bot manda o Pix da renovação por aqui)."
+                }
+            },
+            "pix": {
+                "top": 40,
+                "left": 610,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_pago": {
+                            "label": "output_pago"
+                        },
+                        "output_nao_pago": {
+                            "label": "output_nao_pago"
+                        }
+                    },
+                    "class": "no-pix",
+                    "title": "Pix recorrente semanal",
+                    "type": "pix",
+                    "nome": "Assinatura semanal (visual)",
+                    "tipo_cobranca": "recorrente",
+                    "periodicidade": "semanal",
+                    "msg_confirmado": "✅ Assinatura ativa!",
+                    "valor": 2.1,
+                    "expiracao_minutos": 15,
+                    "dias_acesso": 30,
+                    "unidade_acesso": "dias",
+                    "mostrar_copiar": true,
+                    "mostrar_qrcode": true,
+                    "mostrar_confirmar": true,
+                    "msg_instrucoes": "",
+                    "id_grupo": ""
+                }
+            },
+            "pago": {
+                "top": 40,
+                "left": 900,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_1": {
+                            "label": "output_1"
+                        }
+                    },
+                    "class": "no-message",
+                    "title": "Pago",
+                    "type": "message",
+                    "conteudo": "🎉 Assinatura semanal ativa. Entre no grupo pelo botão abaixo."
+                }
+            },
+            "grp": {
+                "top": 40,
+                "left": 1190,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_1": {
+                            "label": "output_1"
+                        }
+                    },
+                    "class": "no-grupo",
+                    "title": "Entrar no grupo",
+                    "type": "grupo",
+                    "id_grupo": "",
+                    "texto_botao": "Entrar no grupo VIP"
+                }
+            },
+            "exp": {
+                "top": 210,
+                "left": 900,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_1": {
+                            "label": "output_1"
+                        }
+                    },
+                    "class": "no-message",
+                    "title": "Não pago",
+                    "type": "message",
+                    "conteudo": "⏰ A assinatura não foi paga. Mande /start para tentar de novo."
+                }
+            }
+        },
+        "links": [
+            {
+                "fromOperator": "start",
+                "fromConnector": "output_1",
+                "toOperator": "oi",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "oi",
+                "fromConnector": "output_1",
+                "toOperator": "pix",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "pix",
+                "fromConnector": "output_pago",
+                "toOperator": "pago",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "pago",
+                "fromConnector": "output_1",
+                "toOperator": "grp",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "pix",
+                "fromConnector": "output_nao_pago",
+                "toOperator": "exp",
+                "toConnector": "input_1"
+            }
+        ]
+    }
+}

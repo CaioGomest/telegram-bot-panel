@@ -32,6 +32,22 @@
         return letras.toUpperCase();
     }
 
+    const icones_config = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>';
+    const icone_robo ='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8M6 8h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2zM2 14h2M20 14h2M15 13v2M9 13v2"></path></svg>';
+    const icone_servidor = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"></rect><rect x="3" y="13" width="18" height="7" rx="2"></rect></svg>';
+    const icone_terminal = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l5 4-5 4M13 17h6"></path></svg>';
+    const icone_mais = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"></path></svg>';
+
+    let limite_bots = 50;
+
+    // Contador no botão ("+ Novo Bot (1/50)"); no limite, o botão e o card de adicionar ficam bloqueados.
+    function atualizarContadorBots(total) {
+        const no_limite = total >= limite_bots;
+        $('#btn-novo-bot').text('+ Novo Bot (' + total + '/' + limite_bots + ')')
+            .toggleClass('desativado', no_limite)
+            .attr('title', no_limite ? 'Limite de ' + limite_bots + ' bots atingido. Exclua um para conectar outro.' : null);
+    }
+
     function carregarBots() {
         const $list = $('#lista-bots');
         $list.html('<div class="estado-vazio">Carregando...</div>');
@@ -44,46 +60,53 @@
                 }
 
                 const bots = response.bots || [];
+                limite_bots = Number(response.limite_bots) || limite_bots;
+                atualizarContadorBots(bots.length);
                 $list.empty();
-
-                if (!bots.length) {
-                    $list.html('<div class="estado-vazio">Nenhum bot encontrado. Crie um novo!</div>');
-                    return;
-                }
 
                 bots.forEach(function (bot) {
                     const nome = bot.primeiro_nome || bot.nome_usuario || 'Sem nome';
                     const tem_fluxo = Boolean(bot.id_fluxo_conectado);
                     const nome_fluxo = tem_fluxo ? (bot.nome_fluxo || 'Fluxo #' + bot.id_fluxo_conectado) : '— definir';
                     const leads_7d = Number(bot.leads_7d || 0).toLocaleString('pt-BR');
+                    const vendas_7d = Number(bot.vendas_7d || 0).toLocaleString('pt-BR');
+                    // Online = webhook registrado no Telegram (o bot já recebe mensagens).
+                    const online = Boolean(bot.url_webhook);
+                    // Token recusado pelo Telegram (revogado/trocado): o bot parou de atender; o dono também recebe aviso no sino.
+                    const token_recusado = Boolean(bot.token_invalido_em);
+                    const avatar = bot.caminho_foto
+                        ? `<img src="${escaparHtml(bot.caminho_foto)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'), {className: 'bot-avatar-icone', innerHTML: this.dataset.icone}))" data-icone="${escaparHtml(icone_robo)}">`
+                        : `<span class="bot-avatar-icone">${icone_robo}</span>`;
 
                     $list.append(`
-                        <div class="cartao-bot-item">
-                            <div class="cartao-cabecalho">
-                                <span class="avatar-item">${escaparHtml(iniciaisBot(nome))}</span>
-                                <div class="bot-identidade">
-                                    <h3>${escaparHtml(nome)}</h3>
-                                    <span class="bot-username mono">@${escaparHtml(bot.nome_usuario || 'sem_username')}</span>
-                                </div>
-                                <span class="bot-status ${tem_fluxo ? 'ativo' : 'pendente'}" title="${tem_fluxo ? 'Fluxo conectado' : 'Sem fluxo conectado'}"></span>
+                        <div class="cartao-bot-item cartao-bot">
+                            <div class="bot-selos">
+                                ${token_recusado ? '<span class="bot-selo alerta" title="O Telegram recusou o token deste bot (revogado ou trocado). Cole o token novo em Configurar."><i></i>Token recusado</span>' : `<span class="bot-selo ${online ? 'ok' : 'alerta'}"><i></i>${online ? 'Online' : 'Offline'}</span>`}
+                                <span class="bot-selo ${tem_fluxo ? 'ok' : 'alerta'}" title="${tem_fluxo ? 'Este bot tem um fluxo conectado' : 'Este bot não tem fluxo conectado e não responde aos leads'}"><i></i>${tem_fluxo ? 'Com fluxo' : 'Sem fluxo'}</span>
                             </div>
-                            <div class="bot-metricas">
-                                <div class="bot-metrica">
-                                    <span class="bot-metrica-rotulo">Fluxo</span>
-                                    <span class="bot-metrica-valor">${escaparHtml(nome_fluxo)}</span>
-                                </div>
-                                <div class="bot-metrica">
-                                    <span class="bot-metrica-rotulo">Leads 8 dias</span>
-                                    <span class="bot-metrica-valor">${leads_7d}</span>
-                                </div>
+                            <div class="bot-avatar">${avatar}</div>
+                            <h3 class="bot-nome">${escaparHtml(nome)}</h3>
+                            <span class="bot-username mono">@${escaparHtml(bot.nome_usuario || 'sem_username')}</span>
+                            <div class="bot-numeros">
+                                <div><span class="bot-numeros-rotulo">Leads 8d</span><strong>${leads_7d}</strong></div>
+                                <div><span class="bot-numeros-rotulo">Vendas 8d</span><strong>${vendas_7d}</strong></div>
                             </div>
+                            <div class="bot-fluxo-linha${tem_fluxo ? '' : ' vazio'}">${icone_terminal}<span>${escaparHtml(tem_fluxo ? nome_fluxo : 'Sem fluxo conectado')}</span></div>
                             <div class="cartao-acoes">
-                                <a href="bot?id=${encodeURIComponent(bot.id)}" class="botao-configurar">Configurar</a>
+                                <a href="bot?id=${encodeURIComponent(bot.id)}" class="btn-icon editar" title="Configurar bot" aria-label="Configurar bot">${icones_config}</a>
                                 <button type="button" class="btn-icon excluir btn-excluir-bot" data-id="${escaparHtml(bot.id)}" title="Excluir">${icons.trash}</button>
                             </div>
                         </div>
                     `);
                 });
+
+                if (bots.length >= limite_bots) return;
+                $list.append(`
+                    <a href="bot" class="cartao-bot-novo">
+                        <span class="cartao-bot-novo-icone">${icone_mais}</span>
+                        <strong>Conectar Novo Bot</strong>
+                    </a>
+                `);
             })
             .fail(function () {
                 $list.html('<div class="estado-vazio erro">Não foi possível carregar os bots.</div>');
@@ -115,6 +138,8 @@
     $(function() {
         carregarBots();
         
+        $(document).on('click', '.desativado', function (e) { e.preventDefault(); exibirAviso($(this).attr('title') || 'Limite atingido.', 'erro'); });
+
         $(document).on('click', '.btn-excluir-bot', function() {
             const id = $(this).data('id');
             excluirBot(id);

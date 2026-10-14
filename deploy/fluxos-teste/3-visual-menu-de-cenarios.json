@@ -1,0 +1,715 @@
+{
+    "nome": "TESTE REAL 3 · n8n — menu de cenários (Pix, ofertas, delay, sorteio)",
+    "descricao": "Fluxo de teste (R$ 2,10 por plano). Escolha o grupo de entrega em cada plano/bloco Grupo antes de usar.",
+    "modo": "avancado",
+    "dados_fluxograma": {
+        "operators": {
+            "start": {
+                "top": 40,
+                "left": 30,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_1": {
+                            "label": "output_1"
+                        }
+                    },
+                    "class": "no-start",
+                    "title": "Início",
+                    "type": "start"
+                }
+            },
+            "oi": {
+                "top": 40,
+                "left": 320,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_1": {
+                            "label": "output_1"
+                        }
+                    },
+                    "class": "no-message",
+                    "title": "Boas-vindas",
+                    "type": "message",
+                    "conteudo": "🧪 TESTE REAL 3 — Editor Visual\nCada caminho abaixo custa no máximo alguns reais e testa uma situação. Escolha:"
+                }
+            },
+            "menu": {
+                "top": 40,
+                "left": 610,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_0": {
+                            "label": "output_0"
+                        },
+                        "output_1": {
+                            "label": "output_1"
+                        },
+                        "output_2": {
+                            "label": "output_2"
+                        },
+                        "output_3": {
+                            "label": "output_3"
+                        }
+                    },
+                    "class": "no-botoes",
+                    "title": "Menu",
+                    "type": "botoes",
+                    "texto": "Qual cenário você quer testar?",
+                    "botoes": [
+                        {
+                            "texto": "1 · Pix único + grupo",
+                            "cor": "success"
+                        },
+                        {
+                            "texto": "2 · Ofertas + Pix",
+                            "cor": "primary"
+                        },
+                        {
+                            "texto": "3 · Esperas (delay)",
+                            "cor": ""
+                        },
+                        {
+                            "texto": "4 · Sorteio A/B",
+                            "cor": ""
+                        }
+                    ],
+                    "sumir_apos_clique": false
+                }
+            },
+            "c1_intro": {
+                "top": 210,
+                "left": 30,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_1": {
+                            "label": "output_1"
+                        }
+                    },
+                    "class": "no-message",
+                    "title": "1 · Intro",
+                    "type": "message",
+                    "conteudo": "Cenário 1: Pix único de R$ 2,10 com acesso de 30 dias ao grupo."
+                }
+            },
+            "c1_pix": {
+                "top": 210,
+                "left": 320,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_pago": {
+                            "label": "output_pago"
+                        },
+                        "output_nao_pago": {
+                            "label": "output_nao_pago"
+                        }
+                    },
+                    "class": "no-pix",
+                    "title": "1 · Pix único",
+                    "type": "pix",
+                    "nome": "Acesso 30 dias (visual)",
+                    "msg_confirmado": "✅ Aprovado no Editor Visual!",
+                    "valor": 2.1,
+                    "tipo_cobranca": "unica",
+                    "expiracao_minutos": 15,
+                    "dias_acesso": 30,
+                    "unidade_acesso": "dias",
+                    "mostrar_copiar": true,
+                    "mostrar_qrcode": true,
+                    "mostrar_confirmar": true,
+                    "msg_instrucoes": "",
+                    "id_grupo": ""
+                }
+            },
+            "c1_pago": {
+                "top": 210,
+                "left": 610,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_1": {
+                            "label": "output_1"
+                        }
+                    },
+                    "class": "no-message",
+                    "title": "1 · Pago",
+                    "type": "message",
+                    "conteudo": "🎉 Pagamento confirmado. Entre no grupo pelo botão abaixo."
+                }
+            },
+            "c1_grp": {
+                "top": 210,
+                "left": 900,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_1": {
+                            "label": "output_1"
+                        }
+                    },
+                    "class": "no-grupo",
+                    "title": "1 · Entrar no grupo",
+                    "type": "grupo",
+                    "id_grupo": "",
+                    "texto_botao": "Entrar no grupo VIP"
+                }
+            },
+            "c1_exp": {
+                "top": 380,
+                "left": 610,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_1": {
+                            "label": "output_1"
+                        }
+                    },
+                    "class": "no-message",
+                    "title": "1 · Expirou",
+                    "type": "message",
+                    "conteudo": "⏰ O Pix expirou sem pagamento. Mande /start para tentar de novo."
+                }
+            },
+            "c2_intro": {
+                "top": 550,
+                "left": 30,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_1": {
+                            "label": "output_1"
+                        }
+                    },
+                    "class": "no-message",
+                    "title": "2 · Intro",
+                    "type": "message",
+                    "conteudo": "Cenário 2: oferta extra, oferta menor e bônus mudam o valor do Pix (base R$ 4,20)."
+                }
+            },
+            "c2_up": {
+                "top": 550,
+                "left": 320,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_aceito": {
+                            "label": "output_aceito"
+                        },
+                        "output_recusado": {
+                            "label": "output_recusado"
+                        }
+                    },
+                    "class": "no-upsell",
+                    "title": "2 · Upsell",
+                    "type": "upsell",
+                    "mensagem": "🔝 Upsell: 30% de desconto no combo?",
+                    "desconto_percentual": 30,
+                    "valor_extra": 0,
+                    "texto_aceitar": "Quero",
+                    "texto_recusar": "Agora não"
+                }
+            },
+            "c2_dn": {
+                "top": 720,
+                "left": 610,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_aceito": {
+                            "label": "output_aceito"
+                        },
+                        "output_recusado": {
+                            "label": "output_recusado"
+                        }
+                    },
+                    "class": "no-downsell",
+                    "title": "2 · Downsell",
+                    "type": "downsell",
+                    "mensagem": "⬇️ Downsell: 10% de desconto?",
+                    "desconto_percentual": 10,
+                    "valor_extra": 0,
+                    "texto_aceitar": "Aceito",
+                    "texto_recusar": "Não"
+                }
+            },
+            "c2_bp": {
+                "top": 550,
+                "left": 900,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_aceito": {
+                            "label": "output_aceito"
+                        },
+                        "output_recusado": {
+                            "label": "output_recusado"
+                        }
+                    },
+                    "class": "no-order_bump",
+                    "title": "2 · Order bump",
+                    "type": "order_bump",
+                    "nome": "Bônus visual",
+                    "mensagem": "🎁 Adicionar o bônus por +R$ 1,00?",
+                    "desconto_percentual": 0,
+                    "valor_extra": 1,
+                    "texto_aceitar": "Levar",
+                    "texto_recusar": "Dispenso"
+                }
+            },
+            "c2_pix": {
+                "top": 550,
+                "left": 1190,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_pago": {
+                            "label": "output_pago"
+                        },
+                        "output_nao_pago": {
+                            "label": "output_nao_pago"
+                        }
+                    },
+                    "class": "no-pix",
+                    "title": "2 · Pix do combo",
+                    "type": "pix",
+                    "nome": "Combo visual",
+                    "valor": 4.2,
+                    "msg_confirmado": "✅ Combo aprovado!",
+                    "tipo_cobranca": "unica",
+                    "expiracao_minutos": 15,
+                    "dias_acesso": 30,
+                    "unidade_acesso": "dias",
+                    "mostrar_copiar": true,
+                    "mostrar_qrcode": true,
+                    "mostrar_confirmar": true,
+                    "msg_instrucoes": "",
+                    "id_grupo": ""
+                }
+            },
+            "c2_pago": {
+                "top": 550,
+                "left": 1480,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_1": {
+                            "label": "output_1"
+                        }
+                    },
+                    "class": "no-message",
+                    "title": "2 · Pago",
+                    "type": "message",
+                    "conteudo": "🎉 Combo pago! Seu acesso ao grupo foi liberado."
+                }
+            },
+            "c2_exp": {
+                "top": 720,
+                "left": 1480,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_1": {
+                            "label": "output_1"
+                        }
+                    },
+                    "class": "no-message",
+                    "title": "2 · Expirou",
+                    "type": "message",
+                    "conteudo": "⏰ Pix do combo expirou."
+                }
+            },
+            "c3_a": {
+                "top": 890,
+                "left": 30,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_1": {
+                            "label": "output_1"
+                        }
+                    },
+                    "class": "no-message",
+                    "title": "3 · Antes",
+                    "type": "message",
+                    "conteudo": "Cenário 3: vou esperar 5 segundos (\"digitando…\") e depois 2 minutos (retomado pelo cron)."
+                }
+            },
+            "c3_d1": {
+                "top": 890,
+                "left": 320,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_1": {
+                            "label": "output_1"
+                        }
+                    },
+                    "class": "no-delay",
+                    "title": "3 · Espera 5 s",
+                    "type": "delay",
+                    "delay_min": 5,
+                    "delay_max": 5,
+                    "delay_unidade": "seg",
+                    "delay_digitando": true
+                }
+            },
+            "c3_b": {
+                "top": 890,
+                "left": 610,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_1": {
+                            "label": "output_1"
+                        }
+                    },
+                    "class": "no-message",
+                    "title": "3 · Depois de 5 s",
+                    "type": "message",
+                    "conteudo": "⏱ Passaram 5 segundos."
+                }
+            },
+            "c3_d2": {
+                "top": 890,
+                "left": 900,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_1": {
+                            "label": "output_1"
+                        }
+                    },
+                    "class": "no-delay",
+                    "title": "3 · Espera 2 min",
+                    "type": "delay",
+                    "delay_min": 2,
+                    "delay_max": 2,
+                    "delay_unidade": "min",
+                    "delay_digitando": false
+                }
+            },
+            "c3_c": {
+                "top": 890,
+                "left": 1190,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_1": {
+                            "label": "output_1"
+                        }
+                    },
+                    "class": "no-message",
+                    "title": "3 · Depois de 2 min",
+                    "type": "message",
+                    "conteudo": "⏱ Passaram 2 minutos (o cron retomou o fluxo)."
+                }
+            },
+            "c4_sort": {
+                "top": 1060,
+                "left": 320,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_path_0": {
+                            "label": "output_path_0"
+                        },
+                        "output_path_1": {
+                            "label": "output_path_1"
+                        }
+                    },
+                    "class": "no-randomizer",
+                    "title": "4 · Sorteio",
+                    "type": "randomizer",
+                    "caminhos": [
+                        {
+                            "peso": 50
+                        },
+                        {
+                            "peso": 50
+                        }
+                    ]
+                }
+            },
+            "c4_a": {
+                "top": 1060,
+                "left": 610,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_1": {
+                            "label": "output_1"
+                        }
+                    },
+                    "class": "no-message",
+                    "title": "4 · Caminho A",
+                    "type": "message",
+                    "conteudo": "🅰️ Você caiu no caminho A."
+                }
+            },
+            "c4_b": {
+                "top": 1230,
+                "left": 610,
+                "properties": {
+                    "inputs": {
+                        "input_1": {
+                            "label": "Entrada"
+                        }
+                    },
+                    "outputs": {
+                        "output_1": {
+                            "label": "output_1"
+                        }
+                    },
+                    "class": "no-message",
+                    "title": "4 · Caminho B",
+                    "type": "message",
+                    "conteudo": "🅱️ Você caiu no caminho B."
+                }
+            }
+        },
+        "links": [
+            {
+                "fromOperator": "start",
+                "fromConnector": "output_1",
+                "toOperator": "oi",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "oi",
+                "fromConnector": "output_1",
+                "toOperator": "menu",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "menu",
+                "fromConnector": "output_0",
+                "toOperator": "c1_intro",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "menu",
+                "fromConnector": "output_1",
+                "toOperator": "c2_intro",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "menu",
+                "fromConnector": "output_2",
+                "toOperator": "c3_a",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "menu",
+                "fromConnector": "output_3",
+                "toOperator": "c4_sort",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "c1_intro",
+                "fromConnector": "output_1",
+                "toOperator": "c1_pix",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "c1_pix",
+                "fromConnector": "output_pago",
+                "toOperator": "c1_pago",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "c1_pago",
+                "fromConnector": "output_1",
+                "toOperator": "c1_grp",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "c1_pix",
+                "fromConnector": "output_nao_pago",
+                "toOperator": "c1_exp",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "c2_intro",
+                "fromConnector": "output_1",
+                "toOperator": "c2_up",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "c2_up",
+                "fromConnector": "output_aceito",
+                "toOperator": "c2_bp",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "c2_up",
+                "fromConnector": "output_recusado",
+                "toOperator": "c2_dn",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "c2_dn",
+                "fromConnector": "output_aceito",
+                "toOperator": "c2_bp",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "c2_dn",
+                "fromConnector": "output_recusado",
+                "toOperator": "c2_bp",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "c2_bp",
+                "fromConnector": "output_aceito",
+                "toOperator": "c2_pix",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "c2_bp",
+                "fromConnector": "output_recusado",
+                "toOperator": "c2_pix",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "c2_pix",
+                "fromConnector": "output_pago",
+                "toOperator": "c2_pago",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "c2_pix",
+                "fromConnector": "output_nao_pago",
+                "toOperator": "c2_exp",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "c3_a",
+                "fromConnector": "output_1",
+                "toOperator": "c3_d1",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "c3_d1",
+                "fromConnector": "output_1",
+                "toOperator": "c3_b",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "c3_b",
+                "fromConnector": "output_1",
+                "toOperator": "c3_d2",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "c3_d2",
+                "fromConnector": "output_1",
+                "toOperator": "c3_c",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "c4_sort",
+                "fromConnector": "output_path_0",
+                "toOperator": "c4_a",
+                "toConnector": "input_1"
+            },
+            {
+                "fromOperator": "c4_sort",
+                "fromConnector": "output_path_1",
+                "toOperator": "c4_b",
+                "toConnector": "input_1"
+            }
+        ]
+    }
+}

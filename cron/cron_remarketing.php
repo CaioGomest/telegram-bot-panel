@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/../conexao.php';
+require_once __DIR__ . '/../funcoes/cron_guarda.php';
+exigirChamadaDeCron('cron_remarketing');
 
 const BATCH_SIZE    = 1000;  // leads por campanha por rodada
 const MAX_CAMPANHAS = 20;    // campanhas simultâneas por rodada
@@ -18,6 +20,26 @@ const MAX_TICK_SEC  = 40;
 // não tem por que tentar todos os milhares de destinatários pra só depois descobrir isso.
 const MAX_FALHAS_SEGUIDAS_BOT = 10;
 
+/**
+ * A falha é "do destinatário" (ele bloqueou o bot, desativou a conta, o chat não existe mais) e NÃO do bot/campanha?
+ * Confirmado ao vivo no Telegram real: envio a chat inexistente devolve 400 "chat not found"; usuário que bloqueou o bot devolve
+ * 403. Esse tipo de falha é normal em remarketing (lead antigo) e não pode contar como "bot com problema", senão 10 bloqueios
+ * seguidos abortavam a campanha inteira e descartavam todos os destinatários restantes. Token inválido (401/404), texto
+ * inválido (400 de formatação) e erro de rede continuam contando.
+ */
+function falhaDoDestinatarioTelegram($json): bool
+{
+    if (!is_array($json) || ($json['ok'] ?? false)) {
+        return false;
+    }
+    $codigo = (int) ($json['error_code'] ?? 0);
+    $descricao = (string) ($json['description'] ?? '');
+    if ($codigo === 403) {
+        return true;
+    }
+    return $codigo === 400 && (bool) preg_match('/chat not found|user is deactivated|PEER_ID_INVALID|can\'t initiate conversation|have no rights to send|group chat was upgraded/i', $descricao);
+}
+
 $lock_file = sys_get_temp_dir() . '/remarketing_cron.lock';
 $lock = fopen($lock_file, 'c');
 if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) {
@@ -29,9 +51,7 @@ $start_time = microtime(true);
 
 function audienciaFiltro(string $audiencia): string
 {
-    return $audiencia === 'nao_comprou'
-        ? " AND NOT EXISTS (SELECT 1 FROM vendas v WHERE v.id_telegram = l.id_telegram AND v.bot_id = l.bot_id AND v.status = 'pago')"
-        : " AND EXISTS    (SELECT 1 FROM vendas v WHERE v.id_telegram = l.id_telegram AND v.bot_id = l.bot_id AND v.status = 'pago')";
+    return ' AND ' . condicaoLeadPagou($audiencia !== 'nao_comprou');
 }
 
 function curlSendMessage(string $token, string $chat_id, string $text): CurlHandle
@@ -133,7 +153,7 @@ try {
                c.entregues, c.falhas, c.total_destinatarios, b.token,
                c.midia_caminho, c.midia_tipo, c.midia_file_id
         FROM remarketing_campanhas c
-        JOIN bots b ON c.bot_id = b.id
+        JOIN bots b ON c.bot_id = b.id AND b.id_usuario = c.id_usuario
         WHERE c.status IN ('pendente','processando')
           AND c.agendado_em <= NOW()
         ORDER BY c.agendado_em ASC
@@ -296,6 +316,7 @@ while (true) {
         $res    = curl_multi_getcontent($ch) ?: '';
         $json   = json_decode($res, true);
         $ok     = (bool)($json['ok'] ?? false);
+        if (!$ok) { registrarRespostaTelegram((string) ($filas[$cid]['token'] ?? ''), $json); }
 
         // Tratamento de rate limit (429): registra para pausar após este tick
         if (!$ok && isset($json['parameters']['retry_after'])) {
@@ -320,12 +341,15 @@ while (true) {
 
         // Resposta completa só tem valor real quando falha (é o que ajuda a entender por
         // quê); pra sucesso o contador agregado já basta, guardar o JSON inteiro é gasto de
-        // banco à toa numa tabela que já cresce rápido (ver anotacoes/HISTORICO-CONSOLIDADO.md).
+        // banco à toa numa tabela que já cresce rápido (ver anotacoes/OBSERVACOES.md).
         $resposta_salva = $ok ? null : substr($res, 0, 500);
         $stmt_log->execute([$cid, $chat_id, $ok ? 'sucesso' : 'falha', $resposta_salva]);
         if ($ok) {
             $filas[$cid]['sucesso']++;
             $filas[$cid]['falhas_seguidas'] = 0;
+        } elseif (falhaDoDestinatarioTelegram($json)) {
+            // Conta como falha da campanha (aparece nos totais e no detalhe), mas não é sinal de bot quebrado.
+            $filas[$cid]['falhas']++;
         } else {
             $filas[$cid]['falhas']++;
             $filas[$cid]['falhas_seguidas']++;

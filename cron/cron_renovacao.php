@@ -2,6 +2,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../conexao.php';
+require_once __DIR__ . '/../funcoes/cron_guarda.php';
+exigirChamadaDeCron('cron_renovacao');
 require_once __DIR__ . '/../funcoes/log.php';
 require_once __DIR__ . '/../funcoes/gateways.php';
 
@@ -31,8 +33,9 @@ function telegramRequest(string $token, string $metodo, array $parametros = []):
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
     curl_setopt($ch, CURLOPT_TIMEOUT, 15);
     $resposta = curl_exec($ch);
-    curl_close($ch);
-    return json_decode($resposta ?: '', true) ?: ['ok' => false];
+    $r = json_decode($resposta ?: '', true) ?: ['ok' => false];
+    registrarRespostaTelegram($token, $r);
+    return $r;
 }
 
 // Trava contra execução concorrente -- mesmo padrão de cron_verificar_pix.php/cron_remarketing.php.
@@ -120,6 +123,8 @@ try {
 
         $payload = $provedor->montaPayloadCobranca($valor, $chave_pix, $split_data, $expiracao_segundos);
         $resp = $provedor->criarCobranca($payload);
+        garantirConexaoBanco(); // a gateway pode ter demorado mais que o wait_timeout (20 s) do MySQL
+        $pdo = $GLOBALS['pdo'];
 
         $txid = $resp['dados']['txid'] ?? '';
         $pix_copia_cola = $resp['dados']['pixCopiaECola'] ?? '';
@@ -152,6 +157,8 @@ try {
                 $item['venda_id'], // venda_pai_id
                 ($expiracao_segundos / 60)
             ]);
+            require_once __DIR__ . '/../funcoes/traqueamento.php';
+            herdarNomeProdutoVenda($pdo, (string) $txid, (int) $item['venda_id']);
 
             $msg = "🔄 *Renovação de Assinatura*\n\n";
             $msg .= "Olá! Sua assinatura do grupo vence em breve.\n";

@@ -7,6 +7,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../conexao.php';
+require_once __DIR__ . '/../funcoes/cron_guarda.php';
+exigirChamadaDeCron('cron_aviso_vencimento');
 require_once __DIR__ . '/../funcoes/log.php';
 require_once __DIR__ . '/../funcoes/fluxo_blocos.php';
 require_once __DIR__ . '/../funcoes/previas.php';
@@ -32,8 +34,9 @@ function telegramRequestAviso(string $token, string $metodo, array $parametros =
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
     curl_setopt($ch, CURLOPT_TIMEOUT, 15);
     $resposta = curl_exec($ch);
-    curl_close($ch);
-    return json_decode($resposta ?: '', true) ?: ['ok' => false];
+    $r = json_decode($resposta ?: '', true) ?: ['ok' => false];
+    registrarRespostaTelegram($token, $r);
+    return $r;
 }
 
 // Trava contra execução concorrente -- mesmo padrão de cron_verificar_pix.php/cron_remarketing.php.
@@ -51,7 +54,6 @@ register_shutdown_function(function () use ($lock) {
 });
 
 $agora = date('Y-m-d H:i:s');
-logAviso("Iniciando verificação de avisos de vencimento em $agora...");
 echo "Iniciando verificação de avisos de vencimento em $agora...\n";
 
 // Fila de mensagens a apagar (previas que somem): roda antes do resto porque o script
@@ -121,7 +123,6 @@ try {
     $membros = $stmt->fetchAll();
 
     if (empty($membros)) {
-        logAviso("Nenhum membro precisando de aviso no momento.");
         exit;
     }
 
@@ -170,7 +171,9 @@ try {
             logAviso("Avisando usuário $id_telegram (Restam " . round($tempo_restante/60) . " min)...");
             echo "Avisando usuário $id_telegram (Restam " . round($tempo_restante/60) . " min)...\n";
 
-            $mensagem .= "\nRenove agora para não ser removido do grupo.";
+            // Se o fluxo está configurado para NÃO remover do grupo ao expirar, não ameaça com a remoção.
+            $vai_remover = (configAssinaturaBasico($membro['dados_fluxograma'] ?? null)['acoes']['expulsar'] ?? true) !== false;
+            $mensagem .= $vai_remover ? "\nRenove agora para não ser removido do grupo." : "\nRenove agora para não perder o acesso.";
 
             // Botões: "Recomeçar" sempre aparece — o callback_data "/start" é tratado pelo
             // webhook.php exatamente como se o usuário tivesse digitado /start, reiniciando
@@ -197,7 +200,7 @@ try {
                 echo " - Aviso enviado com sucesso.\n";
 
                 registrarAtividade(
-                    (int)$membro['bot_id'],
+                    (int)$membro['id_usuario'],
                     'sistema',
                     'Aviso de Vencimento',
                     "Aviso enviado para usuário $id_telegram. Expira em: {$membro['data_expiracao']}"

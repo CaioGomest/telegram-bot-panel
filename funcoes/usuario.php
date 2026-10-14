@@ -38,6 +38,23 @@ function verificarLogin(): void {
     }
 }
 
+/**
+ * Neutraliza "injeção de fórmula" em CSV: uma célula de texto que começa com = + - @ (ou tab/CR) é
+ * executada como fórmula pelo Excel/Planilhas ao abrir o arquivo. Nome de lead (vem do Telegram),
+ * nome de usuário/bot e TXID são texto livre de terceiros, então o prefixo ' faz virar texto puro.
+ */
+function csvSeguro($valor)
+{
+    // "-" sozinho é o marcador de "sem valor" das exportações, não uma fórmula.
+    if ($valor === '-') {
+        return $valor;
+    }
+    if (is_string($valor) && $valor !== '' && strpos("=+-@\t\r", $valor[0]) !== false) {
+        return "'" . $valor;
+    }
+    return $valor;
+}
+
 function loginEstaBloqueado(string $identificador): bool {
     global $pdo;
 
@@ -330,7 +347,7 @@ function verificarAdmin(): void {
  *
  * A barra lateral já escondia esses itens do admin desde sempre, mas era só visual -- as
  * páginas continuavam abrindo por URL, e o admin que caísse em /fluxo acabava criando fluxo
- * em nome próprio sem perceber. Ver anotacoes/HISTORICO-CONSOLIDADO.md.
+ * em nome próprio sem perceber. Ver anotacoes/OBSERVACOES.md.
  */
 function bloquearAdmin(): void {
     verificarLogin();
@@ -456,6 +473,9 @@ function atualizarPerfilUsuario(int $id, string $nome, string $email, ?string $s
         return ['sucesso' => false, 'erro' => 'Email inválido.'];
     }
 
+    // null = quem chamou não está editando o apelido (ex.: o admin editando outro usuário): preserva o que já existe.
+    // Antes, null virava '' -> NULL e todo "editar usuário" do admin apagava o apelido do Ranking.
+    $alterar_apelido = $apelido_publico !== null;
     $apelido_publico = trim((string) $apelido_publico);
     $apelido_publico = $apelido_publico !== '' ? mb_substr($apelido_publico, 0, 40) : null;
 
@@ -465,6 +485,10 @@ function atualizarPerfilUsuario(int $id, string $nome, string $email, ?string $s
         if ($stmt->fetch()) {
             return ['sucesso' => false, 'erro' => 'Este email já está em uso por outro usuário.'];
         }
+        $stmt_email_atual = $pdo->prepare("SELECT email FROM usuarios WHERE id = ?");
+        $stmt_email_atual->execute([$id]);
+        $email_anterior = $stmt_email_atual->fetchColumn();
+        $email_anterior = $email_anterior !== false ? (string) $email_anterior : null;
 
         if (!empty($senha)) {
             if ($exigir_senha_atual) {
@@ -475,15 +499,38 @@ function atualizarPerfilUsuario(int $id, string $nome, string $email, ?string $s
                     return ['sucesso' => false, 'erro' => 'Senha atual incorreta.'];
                 }
             }
-            if (strlen($senha) < 6) {
-                return ['sucesso' => false, 'erro' => 'A senha deve ter pelo menos 6 caracteres.'];
+            // Troca feita pela própria pessoa segue a mesma regra do cadastro (8+); o admin definindo senha de
+            // outro usuário mantém o mínimo antigo (o ambiente de teste usa senhas curtas de propósito).
+            $minimo_senha = $exigir_senha_atual ? 8 : 6;
+            if (strlen($senha) < $minimo_senha) {
+                return ['sucesso' => false, 'erro' => "A senha deve ter pelo menos $minimo_senha caracteres."];
             }
             $hash = password_hash($senha, PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare("UPDATE usuarios SET nome = ?, email = ?, senha = ?, apelido_publico = ?, atualizado_em = NOW() WHERE id = ?");
-            $executou = $stmt->execute([$nome, $email, $hash, $apelido_publico, $id]);
+            if ($alterar_apelido) {
+                $stmt = $pdo->prepare("UPDATE usuarios SET nome = ?, email = ?, senha = ?, apelido_publico = ?, atualizado_em = NOW() WHERE id = ?");
+                $executou = $stmt->execute([$nome, $email, $hash, $apelido_publico, $id]);
+            } else {
+                $stmt = $pdo->prepare("UPDATE usuarios SET nome = ?, email = ?, senha = ?, atualizado_em = NOW() WHERE id = ?");
+                $executou = $stmt->execute([$nome, $email, $hash, $id]);
+            }
         } else {
-            $stmt = $pdo->prepare("UPDATE usuarios SET nome = ?, email = ?, apelido_publico = ?, atualizado_em = NOW() WHERE id = ?");
-            $executou = $stmt->execute([$nome, $email, $apelido_publico, $id]);
+            if ($alterar_apelido) {
+                $stmt = $pdo->prepare("UPDATE usuarios SET nome = ?, email = ?, apelido_publico = ?, atualizado_em = NOW() WHERE id = ?");
+                $executou = $stmt->execute([$nome, $email, $apelido_publico, $id]);
+            } else {
+                $stmt = $pdo->prepare("UPDATE usuarios SET nome = ?, email = ?, atualizado_em = NOW() WHERE id = ?");
+                $executou = $stmt->execute([$nome, $email, $id]);
+            }
+        }
+
+        if ($executou && $email_anterior !== null && mb_strtolower($email_anterior) !== mb_strtolower($email)) {
+            // O selo "verificado" era do endereço antigo: o novo precisa ser confirmado de novo.
+            try {
+                $pdo->prepare("UPDATE usuarios SET email_verificado_em = NULL WHERE id = ?")->execute([$id]);
+                unset($_SESSION['email_verificado_' . $id]);
+            } catch (Throwable $e) {
+                error_log('[perfil] não foi possível limpar a verificação de e-mail: ' . $e->getMessage());
+            }
         }
 
         if ($executou) {

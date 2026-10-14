@@ -72,6 +72,7 @@ try {
 
                 $stmt_lead = $pdo->prepare("INSERT INTO leads (id_telegram, nome, bot_id, criado_em) VALUES (?, ?, ?, ?)");
                 $stmt_lead->execute([$id_telegram, $nome_lead, $id_bot, $data_lead]);
+                try { $pdo->prepare('INSERT INTO leads_starts (lead_id, bot_id, criado_em) VALUES (?, ?, ?)')->execute([(int) $pdo->lastInsertId(), $id_bot, $data_lead]); } catch (Throwable $e) { /* tabela criada pelo Atualizar Banco */ }
 
                 if (mt_rand(1, 100) <= 30) {
                     $valor = mt_rand(50, 500) . '.' . mt_rand(0, 99);

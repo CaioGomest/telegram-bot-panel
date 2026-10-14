@@ -1,7 +1,7 @@
 <?php
 // Feature isolada: se algo aqui quebrar, é só um <div> vazio no topo do dashboard --
 // não toca em fluxo de venda/lead/pagamento. Ver funcoes/stories.php e
-// anotacoes/REFERENCIA-SHARKBOT.md.
+// anotacoes/OBSERVACOES.md.
 ?>
 <div class="barra-stories-painel">
     <div class="barra-stories" id="barra-stories" data-usuario-id="<?php echo (int) ($_SESSION['usuario_id'] ?? 0); ?>">

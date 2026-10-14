@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/funcoes/usuario.php';
 require_once __DIR__ . '/funcoes/paginador.php';
+require_once __DIR__ . '/funcoes/icones.php';
 bloquearAdmin();
 $id_usuario = $_SESSION['usuario_id'];
 $stmt_bots = $pdo->prepare("SELECT id, COALESCE(primeiro_nome, nome_usuario) as nome FROM bots WHERE id_usuario = ?");
@@ -49,6 +50,17 @@ function processarCampanha(array $input, PDO $pdo, int $id_usuario): array {
     if ($bot_id <= 0 || $mensagem === '') {
         return ['sucesso' => false, 'mensagem' => 'Informe bot e mensagem.'];
     }
+    // O bot_id vem do formulário: sem esta conferência, dava pra agendar a campanha pelo bot de OUTRO
+    // usuário, e a cron dispararia a mensagem pelo token dele para os leads dele.
+    $stmt_dono = $pdo->prepare("SELECT 1 FROM bots WHERE id = ? AND id_usuario = ?");
+    $stmt_dono->execute([$bot_id, $id_usuario]);
+    if (!$stmt_dono->fetchColumn()) {
+        return ['sucesso' => false, 'mensagem' => 'Bot não encontrado.'];
+    }
+    // Teto de uma mensagem do Telegram: acima disso todo envio falharia lá na cron, sem aviso aqui.
+    if (mb_strlen($mensagem) > 4096) {
+        return ['sucesso' => false, 'mensagem' => 'A mensagem tem limite de 4096 caracteres (é o máximo que o Telegram aceita).'];
+    }
     if ($agendado_str === '' || strtotime($agendado_str) === false) {
         return ['sucesso' => false, 'mensagem' => 'Informe a data e a hora do envio.'];
     }
@@ -90,6 +102,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($is_ajax) {
         header('Content-Type: application/json; charset=utf-8');
         verificarCsrf();
+        if (($_POST['acao'] ?? '') === 'cancelar_campanha') {
+            // Só dá pra cancelar o que ainda não começou: o status 'pendente' é conferido no próprio DELETE, então se a cron
+            // pegou a campanha (processando) no meio do caminho, nada é apagado e o usuário é avisado.
+            $stmt_cancela = $pdo->prepare("DELETE FROM remarketing_campanhas WHERE id = ? AND id_usuario = ? AND status = 'pendente'");
+            $stmt_cancela->execute([(int) ($_POST['id'] ?? 0), $id_usuario]);
+            echo json_encode($stmt_cancela->rowCount() > 0
+                ? ['sucesso' => true, 'mensagem' => 'Campanha cancelada. Nada foi enviado.']
+                : ['sucesso' => false, 'mensagem' => 'Só campanhas pendentes podem ser canceladas (esta já começou ou não existe mais).'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
         $resp = processarCampanha($_POST, $pdo, $id_usuario);
         echo json_encode($resp, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
@@ -111,11 +133,7 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
         exit;
     }
     $sql_dest = "SELECT COUNT(*) FROM leads l WHERE l.bot_id = :bot_id";
-    if ($audiencia === 'nao_comprou') {
-        $sql_dest .= " AND NOT EXISTS (SELECT 1 FROM vendas v WHERE v.id_telegram = l.id_telegram AND v.bot_id = l.bot_id AND v.status = 'pago')";
-    } else {
-        $sql_dest .= " AND EXISTS (SELECT 1 FROM vendas v WHERE v.id_telegram = l.id_telegram AND v.bot_id = l.bot_id AND v.status = 'pago')";
-    }
+    $sql_dest .= ' AND ' . condicaoLeadPagou($audiencia !== 'nao_comprou');
     $stmt_dest = $pdo->prepare($sql_dest);
     $stmt_dest->execute(['bot_id' => $bot_id]);
     $total = (int)$stmt_dest->fetchColumn();
@@ -190,8 +208,8 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                         <input type="hidden" name="limite" value="<?php echo $limite; ?>">
                         <select name="audiencia" onchange="this.form.submit()">
                             <option value="">Todas as audiências</option>
-                            <option value="nao_comprou" <?php echo $f_aud === 'nao_comprou' ? 'selected' : ''; ?>>Acessou e não comprou</option>
-                            <option value="comprou" <?php echo $f_aud === 'comprou' ? 'selected' : ''; ?>>Acessou e comprou</option>
+                            <option value="nao_comprou" <?php echo $f_aud === 'nao_comprou' ? 'selected' : ''; ?>>Não comprou</option>
+                            <option value="comprou" <?php echo $f_aud === 'comprou' ? 'selected' : ''; ?>>Comprou</option>
                         </select>
                     </form>
                     <div class="seletor-periodo">
@@ -199,6 +217,7 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                         <a href="<?php echo htmlspecialchars(montarUrlFiltroRemarketing(['status' => 'pendente'], $f_bot, $f_aud, $f_status, $limite)); ?>" class="periodo-item<?php echo $f_status === 'pendente' ? ' ativo' : ''; ?>">Pendente</a>
                         <a href="<?php echo htmlspecialchars(montarUrlFiltroRemarketing(['status' => 'processando'], $f_bot, $f_aud, $f_status, $limite)); ?>" class="periodo-item<?php echo $f_status === 'processando' ? ' ativo' : ''; ?>">Processando</a>
                         <a href="<?php echo htmlspecialchars(montarUrlFiltroRemarketing(['status' => 'concluida'], $f_bot, $f_aud, $f_status, $limite)); ?>" class="periodo-item<?php echo $f_status === 'concluida' ? ' ativo' : ''; ?>">Concluída</a>
+                        <a href="<?php echo htmlspecialchars(montarUrlFiltroRemarketing(['status' => 'falha'], $f_bot, $f_aud, $f_status, $limite)); ?>" class="periodo-item<?php echo $f_status === 'falha' ? ' ativo' : ''; ?>">Falha</a>
                     </div>
                 </div>
                 <form method="GET" id="form-filtro-limite">
@@ -218,7 +237,7 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
             $params = ['uid' => $id_usuario];
             if ($f_bot > 0) { $where .= " AND c.bot_id = :bot"; $params['bot'] = $f_bot; }
             if ($f_aud === 'nao_comprou' || $f_aud === 'comprou') { $where .= " AND c.audiencia = :aud"; $params['aud'] = $f_aud; }
-            if (in_array($f_status, ['pendente','processando','concluida'], true)) { $where .= " AND c.status = :status"; $params['status'] = $f_status; }
+            if (in_array($f_status, ['pendente','processando','concluida','falha'], true)) { $where .= " AND c.status = :status"; $params['status'] = $f_status; }
             $stmt_total = $pdo->prepare("SELECT COUNT(*) FROM remarketing_campanhas c WHERE $where");
             $stmt_total->execute($params);
             $total_reg = (int)$stmt_total->fetchColumn();
@@ -259,6 +278,7 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                                     <div class="estado-vazio">
                                         <div style="margin-bottom:10px; font-weight:600;">Nenhuma campanha criada</div>
                                         <div>Crie sua primeira campanha de remarketing para engajar sua audiência.</div>
+                                        <button type="button" class="botao botao-primario" id="btn-nova-campanha-empty" style="margin-top:14px;">+ Nova campanha</button>
                                     </div>
                                 </td>
                             </tr>
@@ -289,7 +309,12 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                                 <td><?php echo (int)$c['entregues']; ?></td>
                                 <td><?php echo (int)$c['falhas']; ?></td>
                                 <td>
-                                    <a class="botao" href="remarketing_detalhes?campanha=<?php echo (int)$c['id']; ?>">Detalhes</a>
+                                    <div class="col-acoes">
+                                        <a class="btn-icon ver" href="remarketing_detalhes?campanha=<?php echo (int)$c['id']; ?>" title="Ver detalhes" aria-label="Ver detalhes"><?php echo iconeAcao('ver'); ?></a>
+                                        <?php if ($c['status'] === 'pendente'): ?>
+                                            <button type="button" class="btn-icon excluir btn-cancelar-campanha-lista" data-id="<?php echo (int)$c['id']; ?>" title="Cancelar campanha" aria-label="Cancelar campanha"><?php echo iconeAcao('excluir'); ?></button>
+                                        <?php endif; ?>
+                                    </div>
                                 </td>
                             </tr>
                         <?php endforeach; endif; ?>
@@ -324,15 +349,16 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                             <div class="campo">
                                 <label for="modal-audiencia">Audiência</label>
                                 <select id="modal-audiencia" name="audiencia" required>
-                                    <option value="nao_comprou">Acessou e não comprou</option>
-                                    <option value="comprou">Acessou e comprou</option>
+                                    <option value="nao_comprou">Não comprou</option>
+                                    <option value="comprou">Comprou</option>
                                 </select>
+                                <small>Não comprou = iniciou o bot e nunca pagou. Comprou = já pagou pelo menos uma vez.</small>
                             </div>
                         </div>
                         <div class="campo" style="margin-top:12px;">
                             <label>Agendar envio</label>
                             <div style="display:flex;gap:8px;">
-                                <input type="date" id="modal-data" aria-label="Data do envio" required>
+                                <input type="date" id="modal-data" aria-label="Data do envio" min="<?php echo date('Y-m-d'); ?>" required>
                                 <input type="time" id="modal-hora" aria-label="Hora do envio" required>
                             </div>
                             <input type="hidden" id="modal-agendado_em" name="agendado_em">
@@ -349,6 +375,7 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                         <div class="campo" style="margin-top:12px;">
                             <label for="modal-midia">Foto ou vídeo (opcional)</label>
                             <input type="file" id="modal-midia" accept="image/jpeg,image/png,video/mp4,video/quicktime,video/x-matroska,video/webm">
+                            <button type="button" class="botao" id="btn-remover-midia" style="margin-left:8px;" hidden>Remover arquivo</button>
                             <input type="hidden" id="modal-midia-caminho" name="midia_caminho">
                             <input type="hidden" id="modal-midia-tipo" name="midia_tipo">
                             <small>Foto até 5MB (jpg/png) ou vídeo até 20MB (mp4/mov/mkv/webm). Com mídia, a mensagem vira legenda e o limite cai pra 1024 caracteres.</small>

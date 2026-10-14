@@ -19,7 +19,7 @@ $eh_edicao = isset($_GET['id']) && $_GET['id'] !== '';
         <div class="cabecalho-pagina">
             <div>
                 <h1><?php echo $eh_edicao ? 'Configuração do Bot' : 'Novo Bot'; ?></h1>
-                <p>Conexão, fluxo padrão e perfil público no Telegram.</p>
+                <p>Conexão, fluxo de conversa e perfil público no Telegram.</p>
             </div>
             <div class="acoes-cabecalho">
                 <a class="botao" href="bots">‹ Meus Bots</a>

@@ -102,8 +102,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php include 'tema_inline.php'; ?>
     <link rel="stylesheet" href="assets/css/painel.css?v=<?php echo @filemtime(__DIR__.'/assets/css/painel.css'); ?>">
     <style>
-        .secao-plataforma { margin-bottom: 28px; padding-bottom: 24px; border-bottom: 1px solid var(--bd); }
-        .secao-plataforma:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+        .traq-layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 20px; align-items: start; }
+        .traq-lista { display: flex; flex-direction: column; gap: 10px; }
+        .traq-cartao { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 16px; text-align: left; cursor: pointer;
+            background: var(--p2); border: 1px solid var(--bd); border-radius: 14px; color: inherit; font: inherit; transition: border-color .15s ease, background .15s ease; }
+        .traq-cartao:hover { border-color: var(--or); }
+        .traq-cartao.selecionado { border-color: var(--or); box-shadow: 0 0 0 3px var(--orsoft); }
+        .traq-cartao strong { display: block; font: 700 14px 'Manrope', sans-serif; }
+        .traq-cartao-status { margin-left: auto; font: 600 11px 'Manrope', sans-serif; padding: 3px 9px; border-radius: 999px; background: var(--bd); color: var(--m); }
+        .traq-cartao-status.ligado { background: rgba(34,197,94,.15); color: var(--ok); }
+        .traq-painel { min-width: 0; }
+        .secao-plataforma[hidden] { display: none; }
+        .traq-eventos { margin-top: 20px; padding: 14px 16px; border: 1px solid var(--bd); border-radius: 12px; background: var(--p2); }
+        .traq-eventos h4 { margin: 0 0 10px; font: 700 12px 'Manrope', sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--m); }
+        .traq-eventos ul { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+        .traq-eventos li { display: flex; justify-content: space-between; align-items: center; gap: 12px; font: 600 13px 'Manrope', sans-serif; }
+        .traq-eventos li small { display: inline; margin: 0; font-weight: 400; color: var(--m); }
+        .traq-eventos > small { display: block; }
+        .traq-eventos code { font: 600 12px 'JetBrains Mono', monospace; padding: 3px 9px; border-radius: 8px; background: var(--bd); color: var(--or); white-space: nowrap; }
+        @media (max-width: 860px) { .traq-layout { grid-template-columns: 1fr; } }
         .cabecalho-plataforma { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 12px; }
         .titulo-plataforma { font: 700 15px 'Manrope', sans-serif; display: flex; align-items: center; gap: 10px; }
         .icone-plataforma { width: 26px; height: 26px; }
@@ -116,11 +133,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const secao = document.getElementById(id + '_fields');
             secao.classList.toggle('secao-desativada', !checkbox.checked);
         }
+        function selecionarPlataforma(id) {
+            document.querySelectorAll('.secao-plataforma').forEach(el => { el.hidden = el.id !== id + '_fields'; });
+            document.querySelectorAll('.traq-cartao').forEach(el => {
+                const sel = el.dataset.alvo === id;
+                el.classList.toggle('selecionado', sel);
+                el.setAttribute('aria-pressed', sel ? 'true' : 'false');
+            });
+        }
+        function atualizarStatusPlataforma(id) {
+            const ligado = document.getElementById(id + '_ativo').checked;
+            const st = document.querySelector('.traq-cartao[data-alvo="' + id + '"] .traq-cartao-status');
+            st.textContent = ligado ? 'Ativo' : 'Inativo';
+            st.classList.toggle('ligado', ligado);
+        }
         document.addEventListener('DOMContentLoaded', () => {
             ['facebook', 'utmfy'].forEach(id => {   // 'tiktok' saiu junto com a seção desativada
                 alternarSecaoPlataforma(id);
-                document.getElementById(id + '_ativo').addEventListener('change', () => alternarSecaoPlataforma(id));
+                atualizarStatusPlataforma(id);
+                document.getElementById(id + '_ativo').addEventListener('change', () => { alternarSecaoPlataforma(id); atualizarStatusPlataforma(id); });
             });
+            document.querySelectorAll('.traq-cartao').forEach(el => el.addEventListener('click', () => selecionarPlataforma(el.dataset.alvo)));
+            selecionarPlataforma('facebook');
         });
     </script>
 </head>
@@ -142,13 +176,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
 
-        <div class="painel" style="max-width: 800px;">
-            <?php if ($mensagem): ?>
-                <div class="aviso aviso-<?php echo $tipo_mensagem == 'sucesso' ? 'sucesso' : 'erro'; ?>">
-                    <?php echo htmlspecialchars($mensagem); ?>
-                </div>
-            <?php endif; ?>
+        <?php if ($mensagem): ?>
+            <div class="aviso aviso-<?php echo $tipo_mensagem == 'sucesso' ? 'sucesso' : 'erro'; ?>">
+                <?php echo htmlspecialchars($mensagem); ?>
+            </div>
+        <?php endif; ?>
 
+        <div class="traq-layout">
+            <div class="traq-lista" role="group" aria-label="Plataformas de traqueamento">
+                <button type="button" class="traq-cartao" data-alvo="facebook" aria-pressed="false">
+                    <svg class="icone-plataforma" viewBox="0 0 48 48"><path fill="#1877F2" d="M24 0C10.7 0 0 10.7 0 24c0 12 8.8 21.9 20.3 23.7V31h-6.1v-7h6.1v-5.3c0-6 3.6-9.3 9-9.3 2.6 0 5.3.5 5.3.5v5.9h-3c-3 0-3.9 1.9-3.9 3.8V24h6.6l-1.1 7h-5.5v16.7C39.2 45.9 48 36 48 24 48 10.7 37.3 0 24 0z"/></svg>
+                    <span><strong>Facebook Ads (Meta)</strong></span>
+                    <span class="traq-cartao-status">Inativo</span>
+                </button>
+                <button type="button" class="traq-cartao" data-alvo="utmfy" aria-pressed="false">
+                    <svg class="icone-plataforma" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                    <span><strong>UTMfy</strong></span>
+                    <span class="traq-cartao-status">Inativo</span>
+                </button>
+            </div>
+
+        <div class="painel traq-painel">
             <form method="POST" action="">
                 <?php echo campoCsrf(); ?>
 
@@ -180,6 +228,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                    placeholder="<?php echo !empty($config['facebook_access_token']) ? '•••••••• (salvo)' : 'Token longo da API de Conversões'; ?>">
                             <small>Necessário para enviar eventos do servidor (pix gerado/pago). Gere no Gerenciador de Eventos &gt; Configurações &gt; API de Conversões.<?php echo !empty($config['facebook_access_token']) ? ' Deixe em branco para manter o atual.' : ''; ?></small>
                         </div>
+                    </div>
+
+                    <div class="traq-eventos">
+                        <h4>Eventos enviados</h4>
+                        <ul>
+                            <li><span>Pix gerado <small>(o cliente recebe o código)</small></span><code>InitiateCheckout</code></li>
+                            <li><span>Pagamento confirmado <small>(compra aprovada)</small></span><code>Purchase</code></li>
+                        </ul>
+                        <small>Enviados só quando a plataforma está ativa e preenchida. Junto vão o valor (BRL), o ID da transação e, quando existirem, nome, telefone e origem do link de rastreamento.</small>
                     </div>
                 </div>
 
@@ -239,12 +296,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <small>Cole a URL de Postback fornecida pela UTMfy para integração.<?php echo !empty($config['utmfy_token']) ? ' Deixe em branco para manter o atual.' : ''; ?></small>
                         </div>
                     </div>
+
+                    <div class="traq-eventos">
+                        <h4>Eventos enviados</h4>
+                        <ul>
+                            <li><span>Pix gerado <small>(o cliente recebe o código)</small></span><code>waiting_payment</code></li>
+                            <li><span>Pagamento confirmado <small>(compra aprovada)</small></span><code>paid</code></li>
+                        </ul>
+                        <small>Enviados só quando a plataforma está ativa e preenchida. Junto vão o valor (BRL), o ID da transação e, quando existirem, nome, telefone e origem do link de rastreamento.</small>
+                    </div>
                 </div>
 
                 <div class="linha-acoes" style="margin-top:6px;">
                     <button type="submit" class="botao botao-primario">Salvar Configurações</button>
                 </div>
             </form>
+        </div>
         </div>
     </main>
 </div>

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../funcoes/usuario.php';
+require_once __DIR__ . '/../funcoes/ranking.php';
 verificarAdmin();
 $caminho_base = '../';
 
@@ -76,9 +77,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             try {
                 if ($id) {
+                    // Mudou o período? Então a apuração anterior não vale mais: zera finalizada_em pro cron voltar a
+                    // recalcular (campanha prorrogada, ou início adiado, não pode ficar congelada no placar antigo).
+                    $stmt_datas = $pdo->prepare("SELECT data_inicio, data_fim FROM campanhas_ranking WHERE id = ?");
+                    $stmt_datas->execute([$id]);
+                    $antes = $stmt_datas->fetch(PDO::FETCH_ASSOC) ?: [];
+                    $periodo_mudou = !$antes
+                        || strtotime((string) $antes['data_inicio']) !== strtotime($data_inicio)
+                        || strtotime((string) $antes['data_fim']) !== strtotime($data_fim);
                     $stmt = $pdo->prepare("
                         UPDATE campanhas_ranking
-                        SET slug = ?, titulo = ?, subtitulo = ?, imagem_banner = ?, data_inicio = ?, data_fim = ?, ativa = ?
+                        SET slug = ?, titulo = ?, subtitulo = ?, imagem_banner = ?, data_inicio = ?, data_fim = ?, ativa = ?"
+                        . ($periodo_mudou ? ", finalizada_em = NULL" : "") . "
                         WHERE id = ?
                     ");
                     $stmt->execute([$slug, $titulo, $subtitulo ?: null, $imagem_banner, $data_inicio, $data_fim, $ativa, $id]);
@@ -94,7 +104,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 salvarPremiosCampanha($pdo, $campanha_id, $_POST['premio_titulo'] ?? [], $_POST['premio_descricao'] ?? []);
 
-                header('Location: ranking?salvo=1');
+                // A tela de Ranking mostra UMA campanha por vez; períodos que se cruzam disputam o espaço.
+                $stmt_sobrepoe = $pdo->prepare("SELECT titulo FROM campanhas_ranking WHERE id <> ? AND ativa = 1 AND data_inicio < ? AND data_fim > ? LIMIT 1");
+                $stmt_sobrepoe->execute([$campanha_id, $data_fim, $data_inicio]);
+                $sobreposta = $stmt_sobrepoe->fetchColumn();
+
+                header('Location: ranking?salvo=1' . ($sobreposta !== false && $ativa ? '&sobrepoe=' . urlencode((string) $sobreposta) : ''));
                 exit;
             } catch (PDOException $e) {
                 $erro = str_contains($e->getMessage(), 'Duplicate')
@@ -112,6 +127,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 if (isset($_GET['salvo'])) {
     $mensagem = 'Campanha salva com sucesso.';
+    if (!empty($_GET['sobrepoe'])) {
+        $mensagem .= ' Atenção: o período cruza com "' . (string) $_GET['sobrepoe'] . '" e a tela de Ranking mostra uma campanha por vez (a que termina primeiro). Ajuste as datas ou desligue uma delas.';
+    }
 }
 
 $campanha_edicao = null;
@@ -171,7 +189,7 @@ $abrir_modal = $campanha_edicao !== null || $erro !== '';
         <?php if ($mensagem): ?>
             <div class="painel"><div class="aviso aviso-sucesso"><?php echo htmlspecialchars($mensagem); ?></div></div>
         <?php endif; ?>
-        <?php if ($erro): ?>
+        <?php if ($erro && !$abrir_modal): ?>
             <div class="painel"><div class="aviso aviso-erro"><?php echo htmlspecialchars($erro); ?></div></div>
         <?php endif; ?>
 
@@ -182,6 +200,9 @@ $abrir_modal = $campanha_edicao !== null || $erro !== '';
                     <button type="button" class="fechar-modal" onclick="fecharModalForm()" aria-label="Fechar">✕</button>
                 </div>
                 <div class="corpo-modal">
+            <?php if ($erro && $abrir_modal): ?>
+                <div class="aviso aviso-erro"><?php echo htmlspecialchars($erro); ?></div>
+            <?php endif; ?>
             <form method="POST" enctype="multipart/form-data">
                 <?php echo campoCsrf(); ?>
                 <input type="hidden" name="acao" value="salvar_campanha">
@@ -209,7 +230,7 @@ $abrir_modal = $campanha_edicao !== null || $erro !== '';
                             <img src="../<?php echo htmlspecialchars($campanha_edicao['imagem_banner']); ?>" alt="" style="max-width:100%;border-radius:10px;margin-bottom:8px;display:block;">
                         <?php endif; ?>
                         <input type="file" id="imagem_banner" name="imagem_banner" accept="image/jpeg,image/png,image/webp">
-                        <p class="texto-ajuda">Vira o plano de fundo do card no topo da tela pública de Ranking (com uma camada escura por cima pra manter o texto legível) — evite imagem com texto, o título e as datas já aparecem sobrepostos automaticamente. Sem banner, usa o logo geral do sistema.</p>
+                        <p class="texto-ajuda">Aparece no lado direito do card do topo da tela de Ranking, esmaecendo para o fundo — use uma imagem larga (ex.: 1200×400), com o assunto principal à direita e sem texto (o título e as datas já aparecem ao lado). Até 5 MB, JPG/PNG/WebP. Sem banner, aparece o logo do sistema.</p>
                     </div>
                     <div class="campo">
                         <label for="data_inicio">Início</label>
@@ -267,28 +288,35 @@ $abrir_modal = $campanha_edicao !== null || $erro !== '';
                             <th>Título</th>
                             <th>Situação</th>
                             <th>Período</th>
+                            <th>Apuração</th>
                             <th>Ações</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($campanhas)): ?>
-                            <tr><td colspan="4" style="text-align:center;padding:32px;" class="texto-suave">Nenhuma campanha cadastrada ainda.</td></tr>
+                            <tr><td colspan="5" style="text-align:center;padding:32px;" class="texto-suave">Nenhuma campanha cadastrada ainda.</td></tr>
                         <?php else: foreach ($campanhas as $c): ?>
                             <tr>
-                                <td><?php echo htmlspecialchars($c['titulo']); ?><div class="celula-sub mono"><?php echo htmlspecialchars($c['slug']); ?></div></td>
+                                <td><a href="ranking_classificacao?id=<?php echo (int) $c['id']; ?>" style="color:inherit;font-weight:600;"><?php echo htmlspecialchars($c['titulo']); ?></a><div class="celula-sub mono"><?php echo htmlspecialchars($c['slug']); ?></div></td>
                                 <?php
                                 // Mesma leitura da tela do usuário: quem diz se está rolando são
                                 // as datas; `ativa` é só o interruptor do admin.
                                 $agora_ts = time();
-                                if (!$c['ativa'])                                     { $sit = ['Desligada', 'badge-neutro']; }
-                                elseif (strtotime($c['data_inicio']) > $agora_ts)     { $sit = ['Agendada', 'badge-alerta']; }
-                                elseif (strtotime($c['data_fim']) < $agora_ts)        { $sit = ['Encerrada', 'badge-neutro']; }
-                                else                                                  { $sit = ['Em andamento', 'badge-sucesso']; }
+                                $sit = situacaoCampanhaRanking($c);
                                 ?>
                                 <td><span class="badge <?php echo $sit[1]; ?>"><?php echo $sit[0]; ?></span></td>
                                 <td class="mono texto-suave"><?php echo date('d/m/y', strtotime($c['data_inicio'])); ?> — <?php echo date('d/m/y', strtotime($c['data_fim'])); ?></td>
+                                <td class="texto-suave">
+                                    <?php if (!empty($c['finalizada_em'])): ?>Fechada em <?php echo date('d/m/y H:i', strtotime($c['finalizada_em'])); ?>
+                                    <?php elseif (strtotime($c['data_fim']) < $agora_ts): ?><span title="O cron do ranking fecha o placar na próxima rodada">Aguardando o cron</span>
+                                    <?php elseif (strtotime($c['data_inicio']) > $agora_ts): ?>—
+                                    <?php else: ?>Recalculando a cada rodada do cron<?php endif; ?>
+                                </td>
                                 <td>
                                     <div style="display:flex;gap:6px;">
+                                        <a href="ranking_classificacao?id=<?php echo (int) $c['id']; ?>" class="btn-icon" title="Ver classificação e ganhadores">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+                                        </a>
                                         <a href="ranking.php?editar=<?php echo (int) $c['id']; ?>" class="btn-icon editar" title="Editar">
                                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                                         </a>
@@ -296,13 +324,10 @@ $abrir_modal = $campanha_edicao !== null || $erro !== '';
                                             <?php echo campoCsrf(); ?>
                                             <input type="hidden" name="acao" value="alternar_ativa">
                                             <input type="hidden" name="id" value="<?php echo (int) $c['id']; ?>">
-                                            <button type="submit" class="btn-icon <?php echo $c['ativa'] ? 'desativar' : 'ativar'; ?>" title="<?php echo $c['ativa'] ? 'Desativar' : 'Ativar'; ?>">
-                                                <?php if ($c['ativa']): ?>
-                                                    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                                                <?php else: ?>
-                                                    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-                                                <?php endif; ?>
-                                            </button>
+                                            <label class="chave-gateway chave-cartao" title="<?php echo $c['ativa'] ? 'Ligada — clique para desligar' : 'Desligada — clique para ligar'; ?>">
+                                                <input type="checkbox" <?php echo $c['ativa'] ? 'checked' : ''; ?> aria-label="Campanha ativa" onchange="this.disabled=true; this.form.submit();">
+                                                <span class="chave-gateway-trilho"></span>
+                                            </label>
                                         </form>
                                     </div>
                                 </td>

@@ -4,18 +4,6 @@
 
 Options -Indexes
 
-<IfModule mod_authz_core.c>
-    <DirectoryMatch "\.git">
-        Require all denied
-    </DirectoryMatch>
-</IfModule>
-<IfModule !mod_authz_core.c>
-    <DirectoryMatch "\.git">
-        Order allow,deny
-        Deny from all
-    </DirectoryMatch>
-</IfModule>
-
 # ===== Documentacao interna nao e conteudo do site =====
 # CLAUDE.md e README.md estavam sendo servidos como texto: o CLAUDE.md dizia em quais pastas
 # o projeto mora no servidor, listava os outros dominios da mesma conta Hostinger e afirmava
@@ -23,16 +11,34 @@ Options -Indexes
 # estrutura de pastas. Nada disso e usado pelo painel em runtime.
 
 <IfModule mod_authz_core.c>
-    <FilesMatch "(?i)\.(md|markdown|yml|yaml|lock|dist|example|bak|sql)$|^\.(gitignore|gitattributes|env)">
+    <FilesMatch "(?i)\.(md|markdown|yml|yaml|lock|dist|example|sql|sh)$|\.(bak|old|orig|save|swp)([-_.][^/]*)?$|^\.(gitignore|gitattributes|env)|^error_log$|_ids\.txt$">
         Require all denied
     </FilesMatch>
 </IfModule>
 <IfModule !mod_authz_core.c>
-    <FilesMatch "(?i)\.(md|markdown|yml|yaml|lock|dist|example|bak|sql)$|^\.(gitignore|gitattributes|env)">
+    <FilesMatch "(?i)\.(md|markdown|yml|yaml|lock|dist|example|sql|sh)$|\.(bak|old|orig|save|swp)([-_.][^/]*)?$|^\.(gitignore|gitattributes|env)|^error_log$|_ids\.txt$">
         Order allow,deny
         Deny from all
     </FilesMatch>
 </IfModule>
+# ===== Cabeçalhos de segurança (08/10/2026) =====
+# X-Frame-Options: o painel não pode ser aberto dentro de outro site (clickjacking: página falsa que
+# esconde o painel num iframe e engana o clique). O próprio painel não usa iframe.
+# nosniff: o navegador não "adivinha" tipo de arquivo (upload de imagem nunca vira script).
+# HSTS: depois da 1ª visita o navegador só usa HTTPS neste endereço (sem includeSubDomains de
+# propósito: a conta tem outros domínios/subdomínios que não são deste projeto).
+# Referrer-Policy NÃO é definido aqui: l.php manda no-referrer de propósito e isto o sobrescreveria.
+<IfModule mod_headers.c>
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set Strict-Transport-Security "max-age=31536000"
+    Header always unset X-Powered-By
+    Header unset X-Powered-By
+</IfModule>
+
+# Backups de deploy (x.php.bak-AAAAMMDD-HHMM) eram servidos como texto puro: o padrão antigo só
+# pegava nome TERMINADO em .bak. Também bloqueia o error_log do PHP e os .txt de ids de teste (08/10/2026).
+
 # ===== URL sem .php (/bots em vez de /bots.php) =====
 # Duas regras: (a) manda o .php antigo pra URL limpa, (b) serve a URL limpa a partir do
 # arquivo .php de verdade. As condições existem por causa de três armadilhas deste projeto:
@@ -49,13 +55,24 @@ Options -Indexes
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
+    # Pastas/arquivos de controle de versão (.git) nunca saem pela web. (Era <DirectoryMatch>, que o Apache recusa em .htaccess: erro 500.)
+    RewriteRule (^|/)\.git(/|$) - [F,L]
+
     # Redirecionamento: /l/{slug} -> l.php (link público dos anúncios, sem login).
     RewriteRule ^l/([A-Za-z0-9-]{3,40})/?$ /l.php?s=$1 [L,QSA]
+
+    # Arquivos só de inclusão (funções, trechos de tela, conexão, configuração) não são páginas: pela URL (com ou sem .php) respondem 403.
+    # funcoes/usuario.php fica de fora de propósito: é a API de recuperação de senha chamada pelo login.
+    RewriteRule ^funcoes/(?!usuario(\.php)?$) - [F,L]
+    RewriteRule ^parciais/ - [F,L]
+    # Scripts de instalação e testes não são páginas (o instalar.sh nem copia essas pastas para o servidor; isto vale se alguém clonar o git direto na pasta pública)
+    RewriteRule ^(deploy|tests)/ - [F,L]
+    RewriteRule ^(config|conexao|tema_inline)(\.php)?$ - [F,L]
 
     # (a) /bots.php -> /bots
     RewriteCond %{REQUEST_METHOD} =GET
     RewriteCond %{THE_REQUEST} \s/+([^?\s]+)\.php[\s?] [NC]
-    RewriteCond %1 !^(webhook|webhook_omegapayments|api|l)$ [NC]
+    RewriteCond %1 !^(webhook|webhook_omegapayments|api|l|controle)$ [NC]
     RewriteCond %1 !^ajax/ [NC]
     RewriteRule ^ /%1 [R=301,L]
 

@@ -19,7 +19,7 @@ function logLimparStories(string $msg): void {
 // acesso (CLI livre, HTTP exige chave) de cron_ranking.php/cron_verificar_pix.php.
 if (php_sapi_name() !== 'cli') {
     $chave_informada = (string) ($_GET['chave'] ?? '');
-    if (!hash_equals(CHAVE_SECRETA_CRON, $chave_informada)) {
+    if (!defined('CHAVE_SECRETA_CRON') || !hash_equals((string) CHAVE_SECRETA_CRON, $chave_informada)) {
         logLimparStories('Acesso HTTP negado (chave ausente ou incorreta).');
         http_response_code(403);
         exit('Acesso negado.');

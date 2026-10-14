@@ -1,5 +1,10 @@
 (function ($) {
+    // Ícones das ações (editar/remover/desvincular...): toda ação de lista é botão de ícone, nunca texto.
+    const ACAO_SVG = {"excluir":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"3 6 5 6 21 6\"></polyline><path d=\"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\"></path><line x1=\"10\" y1=\"11\" x2=\"10\" y2=\"17\"></line><line x1=\"14\" y1=\"11\" x2=\"14\" y2=\"17\"></line></svg>","fechar":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"></line><line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"></line></svg>","subir":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"18 15 12 9 6 15\"></polyline></svg>","desvincular":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M18.84 12.25l1.72-1.71a5 5 0 0 0-7.07-7.07l-1.72 1.71\"></path><path d=\"M5.17 11.75l-1.71 1.71a5 5 0 0 0 7.07 7.07l1.71-1.71\"></path><line x1=\"8\" y1=\"2\" x2=\"8\" y2=\"5\"></line><line x1=\"2\" y1=\"8\" x2=\"5\" y2=\"8\"></line><line x1=\"16\" y1=\"19\" x2=\"16\" y2=\"22\"></line><line x1=\"19\" y1=\"16\" x2=\"22\" y2=\"16\"></line></svg>"};
     const api_url = 'api.php';
+    // Assinatura recorrente: o motor (backend) continua funcionando, mas a opção fica oculta na tela por enquanto (decisão de 09/10/2026, ainda sem teste real).
+    // Para liberar de novo, troque para true. Fluxos que JÁ têm recorrência continuam mostrando a opção, para o editor não trocar o tipo sem querer.
+    const RECORRENCIA_LIBERADA_NA_TELA = false;
     let lista_grupos_usuario = [];
     let planos = [];
     let midia_tipo_atual = 'none';
@@ -69,6 +74,21 @@
         return html;
     }
 
+    // Plano/pack sem grupo é permitido (venda só com mensagem de confirmação), mas quase sempre é esquecimento: o cliente paga e
+    // não recebe nenhum acesso. Aviso fixo embaixo do campo, que some quando um grupo é escolhido.
+    function dicaSemGrupo(id_grupo, quem) {
+        return '<small class="dica-sem-grupo"' + (id_grupo ? ' hidden' : '') + '>⚠ Sem grupo: quem pagar ' + quem +
+            ' só recebe a mensagem de pagamento aprovado, sem nenhum acesso automático. Escolha um grupo ou entregue o conteúdo nessa mensagem.</small>';
+    }
+    $(document).on('change', '.campo-plano-cobranca', function () {
+        const rec = this.value === 'recorrente', $p = $(this).closest('.painel-plano');
+        $p.find('.campo-tempo-unico').prop('hidden', rec);
+        $p.find('.campo-plano-periodo, .campo-plano-rec-dica').prop('hidden', !rec);
+    });
+    $(document).on('change', '.campo-plano-grupo, .pk-grupo', function () {
+        $(this).closest('.campo').find('.dica-sem-grupo').prop('hidden', !!$(this).val());
+    });
+
     function renderPlanos() {
         const $lista = $('#lista-planos');
         if (!planos.length) {
@@ -77,6 +97,7 @@
         }
         let html = '';
         planos.forEach(function (p, i) {
+            const rec = p.cobranca === 'recorrente';
             html += '' +
                 '<div class="painel-plano" data-index="' + i + '" style="border:1px solid var(--bd); border-radius:10px; padding:12px; margin-bottom:10px;">' +
                 '  <div class="grade grade-2 grade-compacta">' +
@@ -84,7 +105,7 @@
                 '    <div class="campo"><label>Valor (R$)</label><input type="number" step="0.01" min="0" class="campo-plano-valor" value="' + (p.valor != null ? p.valor : 0) + '"></div>' +
                 '  </div>' +
                 '  <div class="grade grade-2 grade-compacta" style="margin-top:8px;">' +
-                '    <div class="campo"><label>Tempo de acesso</label>' +
+                '    <div class="campo campo-tempo-unico"' + (rec ? ' hidden' : '') + '><label>Tempo de acesso</label>' +
                 '      <div style="display:flex; gap:6px;">' +
                 '        <input type="number" min="1" class="campo-plano-dias" value="' + (p.dias_acesso || 30) + '" style="max-width:80px;">' +
                 '        <select class="campo-plano-unidade">' +
@@ -94,7 +115,7 @@
                 '        </select>' +
                 '      </div>' +
                 '    </div>' +
-                '    <div class="campo"><label>Grupo de entrega</label><select class="campo-plano-grupo">' + optsGrupos(p.id_grupo) + '</select></div>' +
+                '    <div class="campo"><label>Grupo de entrega</label><select class="campo-plano-grupo">' + optsGrupos(p.id_grupo) + '</select>' + dicaSemGrupo(p.id_grupo, 'deste plano') + '</div>' +
                 '  </div>' +
                 '  <div class="grade grade-2 grade-compacta" style="margin-top:8px;">' +
                 '    <div class="campo"><label>Cor do botão</label>' +
@@ -105,8 +126,18 @@
                 '        <option value="danger"' + (p.cor === 'danger' ? ' selected' : '') + '>Vermelho</option>' +
                 '      </select>' +
                 '    </div>' +
+                (rec || RECORRENCIA_LIBERADA_NA_TELA ? '    <div class="campo"><label>Tipo de cobrança</label>' +
+                '      <select class="campo-plano-cobranca">' +
+                '        <option value="unica"' + (!rec ? ' selected' : '') + '>Pagamento único (Pix)</option>' +
+                '        <option value="recorrente"' + (rec ? ' selected' : '') + '>Assinatura recorrente (Pix automático)</option>' +
+                '      </select>' +
+                '      <select class="campo-plano-periodo" style="margin-top:6px;"' + (rec ? '' : ' hidden') + '>' +
+                ['semanal:Semanal', 'mensal:Mensal', 'trimestral:Trimestral', 'semestral:Semestral', 'anual:Anual'].map(function (o) { const [v, t] = o.split(':'); return '<option value="' + v + '"' + ((p.periodicidade || 'mensal') === v ? ' selected' : '') + '>Cobrar todo período: ' + t + '</option>'; }).join('') +
+                '      </select>' +
+                '      <small class="texto-ajuda campo-plano-rec-dica"' + (rec ? '' : ' hidden') + '>O cliente paga o 1º Pix agora e o gateway gera a próxima cobrança a cada período. O acesso dura o período e é renovado a cada pagamento. O order bump não vale para assinatura.</small>' +
+                '    </div>' : '') +
                 '  </div>' +
-                '  <button type="button" class="botao botao-claro remover-plano" style="margin-top:8px;">Remover plano</button>' +
+                '  <div style="display:flex; justify-content:flex-end; margin-top:8px;"><button type="button" class="btn-icon excluir remover-plano" title="Remover plano" aria-label="Remover plano">' + ACAO_SVG.excluir + '</button></div>' +
                 '</div>';
         });
         $lista.html(html);
@@ -122,7 +153,9 @@
                 dias_acesso: parseInt($p.find('.campo-plano-dias').val(), 10) || 30,
                 unidade_acesso: $p.find('.campo-plano-unidade').val(),
                 id_grupo: $p.find('.campo-plano-grupo').val(),
-                cor: $p.find('.campo-plano-cor').val() || ''
+                cor: $p.find('.campo-plano-cor').val() || '',
+                cobranca: $p.find('.campo-plano-cobranca').val() || 'unica',
+                periodicidade: $p.find('.campo-plano-periodo').val() || 'mensal'
             };
         });
     }
@@ -233,6 +266,7 @@
         const antes = a.avisos_antes || {}, dia = a.avisos_no_dia || {}, exp = a.ao_expirar || {};
         $('#as-antes-ativo').prop('checked', !!antes.ativo);
         $('#as-antes-detalhes').prop('hidden', !antes.ativo);
+        $('#as-antes-padrao').prop('hidden', !!antes.ativo);
         as_dias = Array.isArray(antes.dias) ? antes.dias.map(Number) : [7, 3, 1, 0];
         as_midia.antes = { tipo: antes.midia_tipo || 'none', path: antes.midia_path || '' };
         $('#as-antes-msg').val(antes.mensagem || as_msg_antes);
@@ -242,6 +276,7 @@
         $('#as-dia-qtd').val(String(Math.min(3, Math.max(1, as_horarios.length || 3))));
         $('#as-exp-ativo').prop('checked', !!exp.ativo);
         $('#as-exp-detalhes').prop('hidden', !exp.ativo);
+        $('#as-exp-padrao').prop('hidden', !!exp.ativo);
         as_midia.expirar = { tipo: exp.midia_tipo || 'none', path: exp.midia_path || '' };
         $('#as-exp-msg').val(exp.mensagem || as_msg_exp);
         $('#as-desconto').val(String((a.renovacao && a.renovacao.desconto) || 0));
@@ -259,12 +294,12 @@
         $('#pk-adicionar').prop('disabled', packs_itens.length >= packs_max);
         $('#pk-lista').html(packs_itens.map(function (p, i) {
             const midia = p.midia_path
-                ? '<span>' + ({ image: 'Foto', video: 'Vídeo', audio: 'Áudio' }[p.midia_tipo] || 'Mídia') + ' anexada</span> <button type="button" class="botao botao-claro pk-tirar-midia">Tirar</button>'
+                ? '<span>' + ({ image: 'Foto', video: 'Vídeo', audio: 'Áudio' }[p.midia_tipo] || 'Mídia') + ' anexada</span> <button type="button" class="btn-icon excluir pk-tirar-midia" title="Tirar a mídia" aria-label="Tirar a mídia">' + ACAO_SVG.fechar + '</button>'
                 : '<button type="button" class="botao botao-claro pk-midia">+ Adicionar mídia de prévia</button>';
             return '<div class="painel-plano pk-item" data-i="' + i + '" style="border:1px solid var(--bd); border-radius:10px; padding:12px; margin-bottom:10px;">' +
                 '<div class="linha-flex" style="justify-content:space-between; margin-bottom:8px;">' +
                 '<label class="basico-interruptor sem-caixa" style="margin:0"><input type="checkbox" class="pk-ativo-item"' + (p.ativo !== false ? ' checked' : '') + '> <span>Pack ' + (i + 1) + '</span></label>' +
-                '<button type="button" class="botao botao-claro pk-remover">Remover</button></div>' +
+                '<button type="button" class="btn-icon excluir pk-remover" title="Remover pack" aria-label="Remover pack">' + ACAO_SVG.excluir + '</button></div>' +
                 '<div class="grade grade-2 grade-compacta">' +
                 '<div class="campo"><label>Emoji</label><input type="text" class="pk-emoji" maxlength="4" value="' + escaparHtml(p.emoji || '📦') + '"></div>' +
                 '<div class="campo"><label>Preço (R$)</label><input type="number" step="0.01" min="0" class="pk-preco" value="' + (p.preco != null ? p.preco : 0) + '"></div>' +
@@ -272,7 +307,7 @@
                 '<div class="campo"><label>Nome do pack</label><input type="text" class="pk-nome" maxlength="60" value="' + escaparHtml(p.nome || '') + '" placeholder="Pack Especial"></div>' +
                 '<div class="campo"><label>Descrição (exibida na prévia)</label><textarea class="pk-descricao" rows="2" placeholder="Descrição do pack...">' + escaparHtml(p.descricao || '') + '</textarea></div>' +
                 '<div class="campo"><label>Mídia de preview (antes da compra)</label><div class="linha-flex">' + midia + '</div></div>' +
-                '<div class="campo"><label>Entrega do pack</label><select class="pk-grupo">' + optsGrupos(p.id_grupo) + '</select></div>' +
+                '<div class="campo"><label>Entrega do pack</label><select class="pk-grupo">' + optsGrupos(p.id_grupo) + '</select>' + dicaSemGrupo(p.id_grupo, 'deste pack') + '</div>' +
                 '</div>';
         }).join('') || '<div class="basico-bots-vazio"><strong>Nenhum pack ainda</strong><span>Adicione o primeiro pack</span></div>');
     }
@@ -320,8 +355,8 @@
         $('#pv-adicionar').prop('disabled', previas_midias.length >= previas_max);
         $('#pv-lista').html(previas_midias.length ? previas_midias.map(function (m, i) {
             return '<div class="basico-bot" data-i="' + i + '"><span>' + (i + 1) + '. ' + previas_rotulo[m.tipo] + ' <small>' + escaparHtml(m.path.replace('uploads/', '')) + '</small></span>' +
-                '<span><button type="button" class="botao botao-claro pv-subir" ' + (i === 0 ? 'disabled' : '') + ' aria-label="Subir">↑</button> ' +
-                '<button type="button" class="botao botao-claro pv-remover" aria-label="Remover">Remover</button></span></div>';
+                '<span class="col-acoes"><button type="button" class="btn-icon pv-subir" title="Subir" aria-label="Subir" ' + (i === 0 ? 'disabled' : '') + '>' + ACAO_SVG.subir + '</button> ' +
+                '<button type="button" class="btn-icon excluir pv-remover" title="Remover mídia" aria-label="Remover mídia">' + ACAO_SVG.excluir + '</button></span></div>';
         }).join('') : '<div class="basico-bots-vazio"><strong>Nenhuma mídia ainda</strong><span>Adicione a primeira prévia</span></div>');
     }
 
@@ -566,7 +601,7 @@
             (resp.vinculados || []).forEach(function (b) {
                 html += '<div class="basico-bot"><span>' + escaparHtml(b.primeiro_nome || b.nome_usuario || ('Bot #' + b.id)) +
                     (b.nome_usuario ? ' <small>@' + escaparHtml(b.nome_usuario) + '</small>' : '') + '</span>' +
-                    '<button type="button" class="botao botao-claro desvincular-bot" data-id="' + b.id + '">Desvincular</button></div>';
+                    '<button type="button" class="btn-icon desativar desvincular-bot" data-id="' + b.id + '" title="Desvincular bot" aria-label="Desvincular bot">' + ACAO_SVG.desvincular + '</button></div>';
             });
             const qtd_vinculados = (resp.vinculados || []).length;
             ids_bots_vinculados = (resp.vinculados || []).map(function (b) { return String(b.id); });
@@ -640,7 +675,8 @@
                     msg_instrucoes: $('#pg-msg-instrucoes').val(),
                     msg_confirmado: $('#pg-msg-confirmado').val(),
                     mostrar_copiar: $('#pg-mostrar-copiar').is(':checked'),
-                    mostrar_qrcode: false,
+                    mostrar_qrcode: $('#pg-mostrar-qrcode').is(':checked'),
+                    qrcode_definido: true,
                     mostrar_confirmar: $('#pg-mostrar-confirmar').is(':checked')
                 }
             }
@@ -668,6 +704,7 @@
         $('#pg-msg-instrucoes').val(pg.msg_instrucoes || 'Copie o código Pix abaixo e pague no app do seu banco.');
         $('#pg-msg-confirmado').val(pg.msg_confirmado || 'Pagamento confirmado! Seu acesso foi liberado.');
         $('#pg-mostrar-copiar').prop('checked', pg.mostrar_copiar !== false);
+        $('#pg-mostrar-qrcode').prop('checked', pg.qrcode_definido ? pg.mostrar_qrcode !== false : true);
         $('#pg-mostrar-confirmar').prop('checked', pg.mostrar_confirmar !== false);
 
         $('#fluxo-ativo').prop('checked', dados.ativo !== false);
@@ -683,7 +720,7 @@
         atualizarSelectsOfertas();
 
         if (fluxo.id) {
-            $('#btn-excluir-fluxo-basico').show();
+            $('#btn-excluir-fluxo-basico').css('display', 'inline-flex');
         }
         atualizarTituloFluxo();
         atualizarBloqueioSecoes();
@@ -729,7 +766,7 @@
                 return;
             }
             $('#id-fluxo').val(resp.fluxo.id || '');
-            $('#btn-excluir-fluxo-basico').show();
+            $('#btn-excluir-fluxo-basico').css('display', 'inline-flex');
             marcarLimpo();
             atualizarTituloFluxo();
             atualizarBloqueioSecoes();
@@ -786,9 +823,9 @@
         $('#basico-nav').on('click', '.basico-nav-item', function () {
             trocarSecao($(this).data('secao'));
         });
-        $('#as-antes-ativo').on('change', function () { $('#as-antes-detalhes').prop('hidden', !this.checked); });
+        $('#as-antes-ativo').on('change', function () { $('#as-antes-detalhes').prop('hidden', !this.checked); $('#as-antes-padrao').prop('hidden', this.checked); });
         $('#as-dia-ativo').on('change', function () { $('#as-dia-detalhes').prop('hidden', !this.checked); });
-        $('#as-exp-ativo').on('change', function () { $('#as-exp-detalhes').prop('hidden', !this.checked); });
+        $('#as-exp-ativo').on('change', function () { $('#as-exp-detalhes').prop('hidden', !this.checked); $('#as-exp-padrao').prop('hidden', this.checked); });
         $('#as-dias').on('click', '.as-chip', function () {
             const d = parseInt($(this).data('dia'), 10);
             const i = as_dias.indexOf(d);
