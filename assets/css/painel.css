@@ -2783,3 +2783,112 @@ html[data-theme] .painel-cabecalho small.texto-ajuda { display: inline; margin: 
 @media (max-width: 640px) {
     .grade-kpi-empilha { grid-template-columns: 1fr; }
 }
+
+/* Admin → E-mails: a resposta do servidor SMTP fica em uma linha só (o texto inteiro está no title); falhas em vermelho */
+.tabela-dados .col-resposta { font-size: 12px; color: var(--m); max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tabela-dados .col-resposta.erro { color: var(--da); }
+
+/* Login → "Recuperar senha": formulário em passos (e-mail → código + nova senha), avisos dentro do modal, sem alert() */
+.rec-form { display: flex; flex-direction: column; gap: 14px; }
+.rec-form [hidden] { display: none !important; }
+.rec-form .rec-intro { margin: 0; font-size: 13px; line-height: 1.5; }
+.rec-form small { font-size: 12px; }
+.rec-form .aviso { margin: 0; }
+.rec-form .campo-com-acao .botao { min-width: 128px; }
+.rec-codigo { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 20px; font-weight: 700; letter-spacing: 8px; text-align: center; }
+/* Botão desabilitado (enviando, esperando para reenviar): parece desabilitado em todo o painel */
+.botao:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }
+
+/* ===== Admin → Configurações: abas + duas colunas (formulário à esquerda, apoio à direita) =====
+   Antes era uma coluna de 700 px com o resto da tela vazio. Sem JavaScript as seções aparecem todas, empilhadas. */
+.config-abas { margin: 0 0 16px; align-self: flex-start; }
+.config-abas .aba-contagem { margin-left: 6px; padding: 1px 7px; border-radius: 99px; background: var(--p3); color: var(--m); font-size: 11px; }
+.config-abas .aba-status.ativa .aba-contagem { background: rgba(255,255,255,.25); color: #fff; }
+.ponto-estado { display: inline-block; width: 7px; height: 7px; margin-left: 7px; border-radius: 50%; background: var(--m); opacity: .45; vertical-align: middle; }
+.ponto-estado.ok { background: var(--ok); opacity: 1; }
+.aba-status.ativa .ponto-estado.ok { background: #fff; }
+#config-abas.com-js .aba-painel { display: none; }
+#config-abas.com-js .aba-painel.ativa { display: block; }
+.aba-painel + .aba-painel { margin-top: 24px; }
+#config-abas.com-js .aba-painel + .aba-painel { margin-top: 0; }
+
+.grade-config { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, 1fr); gap: 14px; align-items: start; }
+.grade-config .painel { margin-bottom: 0; }
+.coluna-lateral { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+@media (max-width: 1000px) { .grade-config { grid-template-columns: 1fr; } }
+
+.bloco-form { display: flex; flex-direction: column; gap: 18px; }
+.bloco-form .grade { row-gap: 18px; }
+.separador-form { width: 100%; height: 0; margin: 4px 0; border: 0; border-top: 1px solid var(--bd); }
+.grade-smtp { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.2fr); }
+@media (max-width: 760px) { .grade-smtp { grid-template-columns: 1fr 1fr; } .grade-smtp .campo-largo { grid-column: 1 / -1; } }
+.grade-config .campo small { color: var(--m); font-size: 12px; line-height: 1.5; }
+
+/* arquivos (logo/favicon): miniatura + botão + nome, sem o <input type=file> cru */
+.arquivo-oculto { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.arquivo-linha { display: flex; align-items: center; gap: 14px; position: relative; }
+.arquivo-miniatura { width: 64px; height: 64px; flex-shrink: 0; border-radius: 16px; object-fit: cover; border: 1px solid var(--bd); background: var(--p2); }
+.arquivo-miniatura-pequena { width: 36px; height: 36px; border-radius: 9px; }
+.arquivo-acoes { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
+.campo .arquivo-acoes label.botao { cursor: pointer; text-transform: none; letter-spacing: 0; font: 700 12.5px 'Manrope', sans-serif; color: var(--t); }
+.arquivo-nome { font-size: 12px; overflow-wrap: anywhere; }
+
+/* cor de destaque: seletor + código + sugestões */
+.cor-linha { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.cor-hex { font-size: 13px; color: var(--m); }
+.amostra-cor { width: 26px; height: 26px; padding: 0; border-radius: 50%; border: 2px solid var(--bd); cursor: pointer; }
+.amostra-cor:hover { transform: scale(1.12); border-color: var(--t); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* pré-visualização da identidade */
+.previa { --previa-cor: var(--or); }
+.previa-dica { margin: 0 0 14px; font-size: 12.5px; line-height: 1.5; }
+.previa-rotulo { margin: 14px 0 8px; font: 800 10.5px 'Manrope', sans-serif; letter-spacing: .9px; text-transform: uppercase; color: var(--m); }
+.previa-lateral { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px; border: 1px solid var(--bd); border-radius: 14px; background: var(--p2); }
+.previa-lateral img { width: 38px; height: 38px; border-radius: 10px; object-fit: cover; }
+.previa-lateral strong { font: 800 15px 'Manrope', sans-serif; min-width: 0; overflow-wrap: anywhere; }
+.previa-item-ativo { margin-left: auto; padding: 6px 12px; border-radius: 10px; background: var(--previa-cor); color: #fff; font: 700 12px 'Manrope', sans-serif; }
+.previa-aba { display: flex; align-items: center; gap: 8px; max-width: 260px; padding: 9px 14px; border: 1px solid var(--bd); border-radius: 10px 10px 0 0; background: var(--p3); font-size: 12.5px; }
+.previa-aba img { width: 16px; height: 16px; border-radius: 3px; object-fit: cover; flex-shrink: 0; }
+.previa-aba span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.previa-botoes { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.previa-botao { padding: 9px 20px; border-radius: 10px; background: var(--previa-cor); color: #fff; font: 700 12.5px 'Manrope', sans-serif; }
+.previa-link { color: var(--previa-cor); font: 700 13px 'Manrope', sans-serif; text-decoration: underline; }
+.previa-selo { padding: 4px 11px; border-radius: 99px; border: 1px solid var(--previa-cor); color: var(--previa-cor); font: 700 11.5px 'Manrope', sans-serif; }
+
+/* passo a passo, caixa de cópia, lista simples, estado da fila */
+.passos { margin: 0; padding: 0; list-style: none; counter-reset: passo; display: flex; flex-direction: column; gap: 12px; }
+.passos li { display: flex; align-items: flex-start; gap: 12px; font-size: 13px; line-height: 1.55; }
+.passos li::before { counter-increment: passo; content: counter(passo); flex-shrink: 0; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: var(--p3); color: var(--t); font: 800 11px 'Manrope', sans-serif; }
+.passos a { color: var(--or); }
+.passos-continua { margin-top: 16px; counter-reset: passo 2; }
+.caixa-copiar { display: flex; align-items: center; gap: 10px; margin: 12px 0 8px; padding: 10px 12px; border: 1px solid var(--bd); border-radius: 12px; background: var(--p2); }
+.caixa-copiar .mono { flex: 1; min-width: 0; font-size: 12.5px; overflow-wrap: anywhere; }
+.caixa-copiar .botao { flex-shrink: 0; }
+.dica-copiar { display: block; margin-top: 8px; font-size: 12px; line-height: 1.5; }
+.lista-simples { display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; overflow-wrap: anywhere; }
+.form-teste input[type="email"] { min-width: 0; }
+.link-historico { margin-left: auto; font: 700 12px 'Manrope', sans-serif; text-decoration: none; }
+.link-historico:hover { color: var(--or); }
+.estados-fila { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px; }
+.estados-fila > div { padding: 12px; border: 1px solid var(--bd); border-radius: 12px; background: var(--p2); text-align: center; }
+.estados-fila strong { display: block; font: 800 20px 'Manrope', sans-serif; }
+.estados-fila span { font-size: 11.5px; color: var(--m); }
+.estados-fila .com-falha { border-color: var(--da); }
+.estados-fila .com-falha strong { color: var(--da); }
+.dica-fila { margin: 0 0 12px; font-size: 12.5px; line-height: 1.55; }
+
+/* Admin → Usuários: números nas abas de perfil e resumo da lista */
+.abas-status .aba-contagem { margin-left: 6px; padding: 1px 7px; border-radius: 99px; background: var(--p3); color: var(--m); font-size: 11px; }
+.abas-status .aba-status.ativa .aba-contagem { background: rgba(255,255,255,.25); color: #fff; }
+.resumo-lista { padding: 12px 18px 4px; font-size: 12.5px; }
+
+/* Filtros com busca + botões (Transações): a busca ocupa a linha e "Filtrar / Limpar" ficam à direita dela. */
+.filtro-linha-busca { display: flex; align-items: center; gap: 10px; flex: 1 1 100%; min-width: 0; }
+html[data-theme] .filtro-linha-busca input[type="text"] { flex: 1; width: auto; min-width: 0; }
+.filtro-linha-busca .botao { flex-shrink: 0; white-space: nowrap; }
+@media (max-width: 560px) {
+    .filtro-linha-busca { flex-wrap: wrap; }
+    html[data-theme] .filtro-linha-busca input[type="text"] { flex: 1 1 100%; }
+    .filtro-linha-busca .botao { flex: 1; text-align: center; }
+}

@@ -52,6 +52,7 @@ $icones = [
     'transacoes' => 'M8 3L4 7l4 4M4 7h16M16 21l4-4-4-4M20 17H4',
     'vendas' => 'M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',
     'logs' => 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8',
+    'emails' => 'M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM22 6l-10 7L2 6',
     'remarketing' => 'M3 11l18-5v12L3 14v-3zM11.6 16.8a3 3 0 1 1-5.8-1.6',
     'traqueamento' => 'M22 12h-4l-3 9L9 3l-3 9H2',
     'links' => 'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71',
@@ -103,6 +104,7 @@ if ($is_admin) {
     $grupo_admin[] = ['href' => 'admin/ranking', 'label' => 'Campanhas', 'sub' => 'Ranking e prêmios', 'icone' => 'campanhas'];
     $grupo_admin[] = ['href' => 'admin/comunidade', 'label' => 'Comunidade', 'sub' => 'Links oficiais', 'icone' => 'comunidade'];
     $grupo_admin[] = ['href' => 'admin/logs', 'label' => 'Logs', 'sub' => 'Registros do sistema', 'icone' => 'logs'];
+    $grupo_admin[] = ['href' => 'admin/emails', 'label' => 'E-mails', 'sub' => 'Envios e falhas', 'icone' => 'emails'];
     $grupo_admin[] = ['href' => 'admin/configuracoes', 'label' => 'Configurações', 'sub' => 'Marca e e-mail', 'icone' => 'identidade'];
 }
 
@@ -371,8 +373,10 @@ $foto_usuario = function_exists('fotoPerfilDaSessao') ? fotoPerfilDaSessao() : '
             headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN || '' },
             body: '{}'
         }).then(function (r) { return r.json(); }).then(function (j) {
-            botao.textContent = j.sucesso ? 'Enviado ✓' : (j.erro || 'Falhou');
-            if (!j.sucesso) setTimeout(function () { botao.disabled = false; botao.textContent = rotulo; }, 4000);
+            if (j.sucesso) { botao.textContent = 'Enviado ✓'; return; }
+            // Limite de pedidos: mostra só a espera (o texto completo do servidor não cabe no botão)
+            botao.textContent = j.espera ? 'Aguarde ' + (j.espera < 90 ? j.espera + 's' : Math.ceil(j.espera / 60) + ' min') : (j.erro || 'Falhou');
+            setTimeout(function () { botao.disabled = false; botao.textContent = rotulo; }, j.espera ? Math.min(j.espera, 15) * 1000 : 4000);
         }).catch(function () {
             botao.textContent = 'Falhou';
             setTimeout(function () { botao.disabled = false; botao.textContent = rotulo; }, 4000);

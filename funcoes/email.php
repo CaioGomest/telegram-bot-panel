@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/configuracoes.php';
 require_once __DIR__ . '/criptografia.php';
+require_once __DIR__ . '/limite_taxa.php';
 
 /**
  * Envio de e-mail do painel (boas-vindas, verificação de e-mail, recuperação de senha, aviso de
@@ -25,6 +26,58 @@ function emailUltimoErro(?string $definir = null): string
         $erro = $definir;
     }
     return $erro;
+}
+
+/** Resposta do servidor SMTP à última mensagem aceita (ex.: "250 2.0.0 OK: queued as …"): vai para o histórico de envios. */
+function emailUltimaResposta(?string $definir = null): string
+{
+    static $resposta = '';
+    if ($definir !== null) {
+        $resposta = $definir;
+    }
+    return $resposta;
+}
+
+/**
+ * Contexto do PRÓXIMO envio (tipo do e-mail, origem, tentativa, id da fila): quem chama define antes de enviarEmail(); o registro do
+ * histórico usa e zera. Sem contexto, o envio entra como tipo "geral", origem "direto".
+ */
+function emailContextoEnvio(?array $definir = null): array
+{
+    static $contexto = [];
+    if ($definir !== null) {
+        $contexto = $definir;
+    }
+    return $contexto;
+}
+
+/**
+ * Grava uma tentativa de envio em email_envios (Admin → E-mails): destinatário, assunto, tipo, resultado e a resposta do servidor SMTP.
+ * Nunca guarda o corpo do e-mail (tem links e códigos). Falha em silêncio se a tabela ainda não existe: o log em arquivo continua.
+ */
+function registrarEnvioEmail(string $para, string $assunto, string $de_email, string $via, ?string $erro, string $resposta): void
+{
+    $contexto = emailContextoEnvio();
+    emailContextoEnvio([]);   // o contexto vale para um envio só
+    try {
+        if (function_exists('garantirConexaoBanco')) {
+            garantirConexaoBanco();   // o envio pode ter passado do wait_timeout do MySQL
+        }
+        $pdo = $GLOBALS['pdo'] ?? null;
+        if (!$pdo instanceof PDO) {
+            return;
+        }
+        $pdo->prepare("INSERT INTO email_envios (para, assunto, tipo, origem, via, de_email, status, resposta, tentativa, fila_id)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+            ->execute([
+                substr($para, 0, 190), substr(emailLimparCabecalho($assunto), 0, 255), substr((string) ($contexto['tipo'] ?? 'geral'), 0, 30),
+                substr((string) ($contexto['origem'] ?? 'direto'), 0, 12), substr($via, 0, 10), substr($de_email, 0, 190),
+                $erro === null ? 'enviado' : 'falhou', substr($erro ?? $resposta, 0, 500) ?: null,
+                max(1, (int) ($contexto['tentativa'] ?? 1)), isset($contexto['fila_id']) ? (int) $contexto['fila_id'] : null,
+            ]);
+    } catch (\Throwable $e) {
+        // tabela ainda não existe (rode "Atualizar Banco")
+    }
 }
 
 function emailConfigSmtp(): array
@@ -89,6 +142,7 @@ function emailAssuntoCodificado(string $assunto): string
 function emailTextoSimples(string $html): string
 {
     $html = preg_replace('#<head\b.*?</head>#is', '', $html);
+    $html = preg_replace('#<div[^>]*data-preheader[^>]*>.*?</div>#is', '', (string) $html);   // o resumo escondido da caixa de entrada não faz parte do texto
     $texto = preg_replace('#<(br|/p|/h[1-6]|/tr|/td|/div)\s*/?>#i', "\n", (string) $html);
     $texto = preg_replace('#<a [^>]*href="([^"]+)"[^>]*>(.*?)</a>#is', '$2 ($1)', (string) $texto);
     $texto = html_entity_decode(strip_tags((string) $texto), ENT_QUOTES, 'UTF-8');
@@ -143,11 +197,28 @@ function smtpComando($fp, string $comando, array $codigos_ok, bool $ocultar = fa
     return null;
 }
 
+/** Recusa DEFINITIVA do destinatário (5xx no RCPT TO): tentar de novo não adianta e só queima a reputação do remetente. */
+function emailErroDestinatarioPermanente(string $erro): bool
+{
+    return (bool) preg_match('/respondeu "5\d\d[ -][^"]*" ao comando RCPT/', $erro);
+}
+
+/**
+ * Problema da configuração/rede do SMTP (login recusado, IP não autorizado, sem conexão, SMTP não configurado): a culpa não é do e-mail,
+ * então a fila espera e tenta de novo SEM gastar tentativa (corrigido o SMTP, os e-mails que estavam parados saem sozinhos).
+ */
+function emailErroDeConfiguracao(string $erro): bool
+{
+    return (bool) preg_match('/Usuário ou senha do SMTP|bloqueou o IP|Login recusado|Não conectou|recusou a conexão|STARTTLS|Aguardando configuração/i', $erro);
+}
+
 /** Entrega uma mensagem MIME já montada. Retorna null se OK, ou a descrição do erro. */
 function smtpEnviar(array $cfg, string $remetente, string $destinatario, string $mime): ?string
 {
     $prefixo = $cfg['seguranca'] === 'ssl' ? 'ssl://' : 'tcp://';
-    $fp = @stream_socket_client($prefixo . $cfg['host'] . ':' . $cfg['porta'], $codigo_erro, $texto_erro, EMAIL_TIMEOUT_SMTP);
+    // Certificado do servidor SMTP SEMPRE verificado (cadeia e nome do servidor): sem isso quem estivesse no caminho leria o login e a chave do SMTP.
+    $contexto = stream_context_create(['ssl' => ['verify_peer' => true, 'verify_peer_name' => true, 'peer_name' => $cfg['host'], 'SNI_enabled' => true]]);
+    $fp = @stream_socket_client($prefixo . $cfg['host'] . ':' . $cfg['porta'], $codigo_erro, $texto_erro, EMAIL_TIMEOUT_SMTP, STREAM_CLIENT_CONNECT, $contexto);
     if (!$fp) {
         return 'Não conectou em ' . $cfg['host'] . ':' . $cfg['porta'] . ' (' . $texto_erro . ')';
     }
@@ -178,8 +249,17 @@ function smtpEnviar(array $cfg, string $remetente, string $destinatario, string 
         if ($erro = smtpComando($fp, base64_encode($cfg['usuario']), [334], true)) {
             return $erro;
         }
-        if (smtpComando($fp, base64_encode($cfg['senha']), [235], true)) {
-            return 'Usuário ou senha do SMTP recusados.';
+        if ($erro = smtpComando($fp, base64_encode($cfg['senha']), [235], true)) {
+            // Só o 535 quer dizer "usuário ou senha". Qualquer outra recusa tem outro motivo e o texto do servidor diz qual
+            // (ex.: o Brevo devolve "525 Unauthorized IP address" quando o IP deste servidor não está na lista de IPs autorizados da conta).
+            if (strpos($erro, '"535') !== false) {
+                return 'Usuário ou senha do SMTP recusados.';
+            }
+            if (stripos($erro, 'unauthorized ip') !== false) {
+                return 'O provedor SMTP bloqueou o IP deste servidor ("' . (preg_match('/"([^"]+)"/', $erro, $m) ? $m[1] : 'Unauthorized IP address')
+                    . '"): o login está aceito, mas é preciso autorizar o IP do servidor no painel do provedor (no Brevo: Segurança → IPs autorizados).';
+            }
+            return 'Login recusado pelo servidor SMTP. ' . $erro;
         }
         if ($erro = smtpComando($fp, 'MAIL FROM:<' . $remetente . '>', [250])) {
             return $erro;
@@ -197,6 +277,7 @@ function smtpEnviar(array $cfg, string $remetente, string $destinatario, string 
         if ($codigo !== 250) {
             return 'Servidor não aceitou a mensagem: ' . substr($texto, 0, 160);
         }
+        emailUltimaResposta(substr($texto, 0, 300));   // ex.: "250 2.0.0 OK: queued as …" (serve para achar a mensagem no log do provedor)
         smtpComando($fp, 'QUIT', [221]);
         return null;
     } finally {
@@ -211,8 +292,10 @@ function smtpEnviar(array $cfg, string $remetente, string $destinatario, string 
 function enviarEmail($para, $assunto, $mensagem_html, $de = null): bool
 {
     $para = emailLimparCabecalho((string) $para);
+    emailUltimaResposta('');
     if (!filter_var($para, FILTER_VALIDATE_EMAIL)) {
         emailUltimoErro('Destinatário inválido.');
+        registrarEnvioEmail($para, (string) $assunto, '', 'smtp', 'Destinatário inválido.', '');
         return false;
     }
     [$de_email, $de_nome] = emailRemetente();
@@ -228,11 +311,15 @@ function enviarEmail($para, $assunto, $mensagem_html, $de = null): bool
         [$cabecalhos, $corpo] = emailMontarMime($de_email, $de_nome, $para, (string) $assunto, (string) $mensagem_html, false);
         $erro = @mail($para, emailAssuntoCodificado((string) $assunto), $corpo, implode("\r\n", $cabecalhos)) ? null : 'mail() do PHP recusou o envio (configure o SMTP).';
         $via = 'mail()';
+        if ($erro === null) {
+            emailUltimaResposta('mail() do PHP aceitou a mensagem');
+        }
     }
 
     emailUltimoErro($erro ?? '');
     $linha = '[' . date('Y-m-d H:i:s') . '] ' . ($erro === null ? 'OK ' : 'FALHA ') . $via . ' -> ' . $para . ' | ' . emailLimparCabecalho((string) $assunto) . ($erro ? ' | ' . $erro : '') . "\n";
     @file_put_contents(dirname(__DIR__) . '/logs/email_debug.log', $linha, FILE_APPEND);
+    registrarEnvioEmail($para, (string) $assunto, $de_email, $via, $erro, emailUltimaResposta());
     return $erro === null;
 }
 
@@ -243,25 +330,91 @@ function emailEscapar(string $texto): string
     return htmlspecialchars($texto, ENT_QUOTES, 'UTF-8');
 }
 
-/** Moldura comum: nome do painel no topo, conteúdo, botão opcional e rodapé. */
+/**
+ * Logo do painel para e-mail: URL pública ABSOLUTA de uma cópia leve (240 px; a original pode ter 1200+ px e 170 KB) e a cor de fundo da
+ * faixa do topo, que é a cor do canto da própria logo (assim a imagem e a faixa ficam sem emenda, qualquer que seja a logo).
+ * A cópia é gerada uma vez em uploads/ (pasta pública) e refeita sozinha quando a logo é trocada. Sem logo: url vazia (o layout usa o
+ * nome do sistema em texto); sem GD: usa a original.
+ * @return array{url:string, fundo:string}
+ */
+function emailLogo(): array
+{
+    $padrao = ['url' => '', 'fundo' => '#0b0b0d'];
+    $caminho = ltrim(trim(configSistema('logo')), '/');
+    $arquivo = dirname(__DIR__) . '/' . $caminho;
+    if ($caminho === '' || strpos($caminho, '..') !== false || !is_file($arquivo)) {
+        return $padrao;
+    }
+    $original = ['url' => urlBasePainel() . '/' . $caminho, 'fundo' => $padrao['fundo']];
+    if (!function_exists('imagecreatefromstring') || !function_exists('imagejpeg')) {
+        return $original;
+    }
+    $versao = (string) filemtime($arquivo);
+    $pasta = dirname(__DIR__) . '/uploads/';
+    $achados = glob($pasta . 'email_logo_' . $versao . '_*.jpg') ?: [];
+    if (!$achados) {
+        $info = @getimagesize($arquivo);
+        $dados = $info ? @file_get_contents($arquivo) : false;
+        $img = $dados !== false ? @imagecreatefromstring($dados) : false;
+        if (!$img || (int) $info[0] < 1 || (int) $info[1] < 1) {
+            return $original;
+        }
+        $larg = min(240, (int) $info[0]);
+        $alt = max(1, (int) round($info[1] * $larg / $info[0]));
+        $nova = imagecreatetruecolor($larg, $alt);
+        imagefill($nova, 0, 0, imagecolorallocate($nova, 255, 255, 255));   // PNG com transparência assenta no branco (JPEG não tem alfa)
+        imagecopyresampled($nova, $img, 0, 0, 0, 0, $larg, $alt, (int) $info[0], (int) $info[1]);
+        $cor = imagecolorat($nova, 1, 1);
+        $destino = $pasta . 'email_logo_' . $versao . '_' . sprintf('%02x%02x%02x', ($cor >> 16) & 255, ($cor >> 8) & 255, $cor & 255) . '.jpg';
+        if (!@imagejpeg($nova, $destino, 86)) {
+            return $original;
+        }
+        foreach (glob($pasta . 'email_logo_*.jpg') ?: [] as $velho) {
+            if ($velho !== $destino) {
+                @unlink($velho);
+            }
+        }
+        $achados = [$destino];
+    }
+    $nome = basename($achados[0]);
+    return ['url' => urlBasePainel() . '/uploads/' . $nome, 'fundo' => '#' . (preg_match('/_([0-9a-f]{6})\.jpg$/', $nome, $m) ? $m[1] : '0b0b0d')];
+}
+
+/**
+ * Moldura comum dos e-mails: faixa do topo com a logo, filete na cor de destaque, corpo, botão opcional e rodapé. Tabelas e CSS inline
+ * (é o que os clientes de e-mail aceitam); o botão é uma tabela, para aparecer igual no Outlook. O texto escondido no começo é o que a
+ * caixa de entrada mostra ao lado do assunto.
+ */
 function emailLayout(string $titulo, string $conteudo_html, string $botao_texto = '', string $botao_url = ''): string
 {
     $cor = preg_match('/^#[0-9a-fA-F]{6}$/', corPrimariaSistema()) ? corPrimariaSistema() : '#ff6a1a';
     $nome_sistema = emailEscapar(nomeSistema());
+    $logo = emailLogo();
+    $topo = $logo['url'] !== ''
+        ? '<img src="' . emailEscapar($logo['url']) . '" width="150" alt="' . $nome_sistema . '" style="display:block;margin:0 auto;border:0;outline:none;width:150px;height:auto;">'
+        : '<span style="font-size:24px;font-weight:800;letter-spacing:.4px;color:#ffffff;">' . $nome_sistema . '</span>';
+    $resumo = emailEscapar($titulo . ' — ' . mb_substr(trim(preg_replace('/\s+/', ' ', strip_tags($conteudo_html))), 0, 110));
     $botao = '';
     if ($botao_texto !== '' && $botao_url !== '') {
-        $botao = '<p style="margin:26px 0 8px;"><a href="' . emailEscapar($botao_url) . '" style="display:inline-block;background:' . $cor
-            . ';color:#ffffff;text-decoration:none;font-weight:700;padding:13px 26px;border-radius:10px;">' . emailEscapar($botao_texto) . '</a></p>'
-            . '<p style="margin:14px 0 0;font-size:12px;color:#8b9099;word-break:break-all;">Se o botão não funcionar, copie este endereço no navegador:<br>' . emailEscapar($botao_url) . '</p>';
+        $botao = '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0 6px;"><tr>'
+            . '<td align="center" bgcolor="' . $cor . '" style="background:' . $cor . ';border-radius:10px;">'
+            . '<a href="' . emailEscapar($botao_url) . '" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:10px;">' . emailEscapar($botao_texto) . '</a>'
+            . '</td></tr></table>'
+            . '<p style="margin:18px 0 0;font-size:12px;line-height:1.5;color:#8b9099;word-break:break-all;">Se o botão não funcionar, copie este endereço no navegador:<br>' . emailEscapar($botao_url) . '</p>';
     }
-    return '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' . emailEscapar($titulo) . '</title></head>'
-        . '<body style="margin:0;padding:0;background:#f2f1ee;font-family:Segoe UI,Arial,sans-serif;color:#15171c;">'
-        . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2f1ee;padding:28px 12px;"><tr><td align="center">'
-        . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e4e2dd;">'
-        . '<tr><td style="background:' . $cor . ';padding:20px 28px;color:#ffffff;font-size:18px;font-weight:800;letter-spacing:.3px;">' . $nome_sistema . '</td></tr>'
-        . '<tr><td style="padding:28px;font-size:15px;line-height:1.6;"><h1 style="margin:0 0 14px;font-size:21px;line-height:1.3;">' . emailEscapar($titulo) . '</h1>'
+    return '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>' . emailEscapar($titulo) . '</title></head>'
+        . '<body style="margin:0;padding:0;background:#efede9;font-family:\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif;color:#15171c;-webkit-text-size-adjust:100%;">'
+        . '<div data-preheader="1" style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;font-size:1px;line-height:1px;">' . $resumo . '</div>'
+        . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#efede9;"><tr><td align="center" style="padding:32px 12px;">'
+        . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;">'
+        . '<tr><td align="center" bgcolor="' . $logo['fundo'] . '" style="background:' . $logo['fundo'] . ';border-radius:18px 18px 0 0;padding:30px 20px 26px;">' . $topo . '</td></tr>'
+        . '<tr><td height="4" bgcolor="' . $cor . '" style="background:' . $cor . ';height:4px;line-height:4px;font-size:0;">&nbsp;</td></tr>'
+        . '<tr><td style="background:#ffffff;padding:34px 36px 32px;font-size:15px;line-height:1.65;border-left:1px solid #e4e2dd;border-right:1px solid #e4e2dd;">'
+        . '<h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;font-weight:800;color:#15171c;">' . emailEscapar($titulo) . '</h1>'
         . $conteudo_html . $botao . '</td></tr>'
-        . '<tr><td style="padding:16px 28px;background:#faf9f7;font-size:12px;color:#8b9099;border-top:1px solid #eceae5;">Você recebeu este e-mail porque há uma conta em ' . $nome_sistema . ' com este endereço. Se não foi você, pode ignorar esta mensagem.</td></tr>'
+        . '<tr><td align="center" style="background:#faf9f7;border:1px solid #e4e2dd;border-radius:0 0 18px 18px;padding:20px 36px;font-size:12px;line-height:1.6;color:#8b9099;">'
+        . 'Você recebeu este e-mail porque há uma conta em <strong style="color:#6b707a;">' . $nome_sistema . '</strong> com este endereço.<br>Se não foi você, pode ignorar esta mensagem.'
+        . '<br><span style="color:#b0b3ba;">© ' . date('Y') . ' ' . $nome_sistema . '</span></td></tr>'
         . '</table></td></tr></table></body></html>';
 }
 
@@ -301,6 +454,16 @@ function enviarEmailSenhaAlterada(string $nome, string $email): bool
     return emailEnviarOuEnfileirar($email, 'Sua senha foi alterada', emailLayout('Senha alterada', $conteudo), 'senha_alterada');
 }
 
+/** Aviso ao endereço ANTIGO de que o e-mail de acesso foi trocado (se não foi a pessoa, é o primeiro sinal de conta invadida). */
+function enviarEmailEmailAlterado(string $nome, string $email_antigo, string $email_novo): bool
+{
+    [$usuario_novo, $dominio_novo] = array_pad(explode('@', $email_novo, 2), 2, '');
+    $mascarado = mb_substr($usuario_novo, 0, 1) . '***@' . $dominio_novo;
+    $conteudo = '<p style="margin:0 0 12px;">Olá, ' . emailEscapar(trim(explode(' ', trim($nome))[0] ?? '') ?: 'olá') . '. O e-mail de acesso da sua conta foi alterado em ' . date('d/m/Y \à\s H:i') . ' para <strong>' . emailEscapar($mascarado) . '</strong>.</p>'
+        . '<p style="margin:0;"><strong>Não foi você?</strong> Entre em contato com o suporte agora e redefina a senha pela opção "Esqueci a senha" na tela de login.</p>';
+    return emailEnviarOuEnfileirar($email_antigo, 'O e-mail da sua conta foi alterado', emailLayout('E-mail da conta alterado', $conteudo), 'email_alterado');
+}
+
 // ===== Fila de e-mails =====
 //
 // Tudo que não é urgente (boas-vindas, verificação, aviso de senha alterada) entra em `fila_emails`
@@ -336,12 +499,17 @@ function enfileirarEmail(string $para, string $assunto, string $html, string $ti
 function emailEnviarOuEnfileirar(string $para, string $assunto, string $html, string $tipo, bool $imediato = false, int $validade_segundos = 0): bool
 {
     if ($imediato) {
+        emailContextoEnvio(['tipo' => $tipo, 'origem' => 'imediato']);
         if (enviarEmail($para, $assunto, $html)) {
             return true;
         }
         return enfileirarEmail($para, $assunto, $html, $tipo, $validade_segundos, 1, emailUltimoErro(), 60) > 0;
     }
-    return enfileirarEmail($para, $assunto, $html, $tipo, $validade_segundos) > 0 || enviarEmail($para, $assunto, $html);
+    if (enfileirarEmail($para, $assunto, $html, $tipo, $validade_segundos) > 0) {
+        return true;
+    }
+    emailContextoEnvio(['tipo' => $tipo, 'origem' => 'direto']);   // sem fila disponível: envia direto
+    return enviarEmail($para, $assunto, $html);
 }
 
 /** Esvazia a fila (chamado pelo cron). Retorna [enviados, falhas_desta_rodada]. */
@@ -369,6 +537,7 @@ function processarFilaEmails(PDO $pdo): array
             $falhas++;
             continue;
         }
+        emailContextoEnvio(['tipo' => (string) $item['tipo'], 'origem' => 'fila', 'tentativa' => (int) $item['tentativas'] + 1, 'fila_id' => (int) $item['id']]);
         if (enviarEmail((string) $item['para'], (string) $item['assunto'], (string) $item['html'])) {
             $pdo->prepare("UPDATE fila_emails SET status = 'enviado', enviado_em = NOW(), ultimo_erro = NULL WHERE id = ?")->execute([$item['id']]);
             $enviados++;
@@ -376,15 +545,16 @@ function processarFilaEmails(PDO $pdo): array
         }
         $tentativas = (int) $item['tentativas'] + 1;
         $erro = substr(emailUltimoErro(), 0, 250);
-        if (!emailSmtpConfigurado()) {
-            // Sem SMTP o problema é de configuração, não do e-mail: não gasta tentativa, só espera
-            // (a Hostinger bloqueia o mail() do PHP, então o envio só funciona depois de configurar o SMTP).
+        $smtp_ligado = emailSmtpConfigurado();
+        if ((!$smtp_ligado || emailErroDeConfiguracao($erro)) && strtotime((string) $item['criado_em']) > time() - 86400) {
+            // Problema de configuração/rede do SMTP, não do e-mail (sem SMTP a Hostinger bloqueia o mail(); login recusado; IP não autorizado):
+            // não gasta tentativa, só espera e tenta de novo. Depois de 24 h parado desiste (cai no caso normal abaixo).
             $pdo->prepare("UPDATE fila_emails SET status = 'pendente', tentativas = tentativas - 1, ultimo_erro = ?, proximo_envio = NOW() + INTERVAL 15 MINUTE WHERE id = ?")
-                ->execute(['Aguardando configuração do SMTP. ' . $erro, $item['id']]);
+                ->execute([substr(($smtp_ligado ? '' : 'Aguardando configuração do SMTP. ') . $erro, 0, 250), $item['id']]);
             $falhas++;
             continue;
         }
-        if ($tentativas >= EMAIL_FILA_MAX_TENTATIVAS) {
+        if ($tentativas >= EMAIL_FILA_MAX_TENTATIVAS || emailErroDestinatarioPermanente($erro)) {
             $pdo->prepare("UPDATE fila_emails SET status = 'falhou', ultimo_erro = ? WHERE id = ?")->execute([$erro, $item['id']]);
         } else {
             $espera = EMAIL_FILA_ESPERAS_MINUTOS[min($tentativas - 1, count(EMAIL_FILA_ESPERAS_MINUTOS) - 1)];
@@ -394,7 +564,39 @@ function processarFilaEmails(PDO $pdo): array
     }
     // Limpeza: enviados somem em 7 dias; falhos ficam 30 dias pra consulta.
     $pdo->exec("DELETE FROM fila_emails WHERE (status = 'enviado' AND criado_em < NOW() - INTERVAL 7 DAY) OR (status = 'falhou' AND criado_em < NOW() - INTERVAL 30 DAY)");
+    limiteTaxaLimpar();   // contadores de limite de taxa com mais de 2 dias
+    try {
+        $pdo->exec("DELETE FROM tokens_email WHERE expira_em < NOW() - INTERVAL 7 DAY LIMIT 2000");   // links de confirmação vencidos há mais de 7 dias
+    } catch (\Throwable $e) {
+        // tabela ainda não existe
+    }
+    // Histórico de envios (email_envios): 90 dias, apagado em pedaços pequenos para a limpeza nunca segurar a tabela.
+    try {
+        $pdo->exec("DELETE FROM email_envios WHERE criado_em < NOW() - INTERVAL 90 DAY LIMIT 2000");
+    } catch (\Throwable $e) {
+        // tabela ainda não existe
+    }
     return [$enviados, $falhas];
+}
+
+/**
+ * Enviados e falhas das últimas 24 h, contados em email_envios (toda tentativa do painel: direta, na hora, pela fila e teste).
+ * É a MESMA conta nas telas Configurações e E-mails; a fila (resumoFilaEmails) só conta o que está esperando.
+ * @return array{enviados:int, falhas:int, disponivel:bool}
+ */
+function resumoEnviosEmail24h(): array
+{
+    global $pdo;
+    $r = ['enviados' => 0, 'falhas' => 0, 'disponivel' => true];
+    try {
+        $l = $pdo->query("SELECT COALESCE(SUM(status = 'enviado'), 0) AS ok, COALESCE(SUM(status = 'falhou'), 0) AS falha
+                          FROM email_envios WHERE criado_em > NOW() - INTERVAL 24 HOUR")->fetch(PDO::FETCH_ASSOC);
+        $r['enviados'] = (int) $l['ok'];
+        $r['falhas'] = (int) $l['falha'];
+    } catch (\Throwable $e) {
+        $r['disponivel'] = false;   // tabela ainda não existe (rodar "Atualizar Banco")
+    }
+    return $r;
 }
 
 /** Contagem por status, pra tela do admin. */

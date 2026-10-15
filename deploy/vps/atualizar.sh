@@ -48,9 +48,22 @@ if (( SEM_BACKUP )); then echo "   (pulado: --sem-backup)"; else exe /usr/local/
 etapa "2/5  Copiando o código novo"
 EXCLUIR=(--exclude='.git/' --exclude='.gitignore' --exclude='.gitattributes' --exclude='.claude/' --exclude='tests/' --exclude='anotacoes/'
          --exclude='deploy/' --exclude='seeds/' --exclude='*.md' --exclude='telegram.zip' --exclude='test_write.txt' --exclude='error_log'
-         --exclude='/config.php' --exclude='/uploads/*' --exclude='/logs/*' --exclude='/storage/*' --exclude='/certificados/*')
-# --delete remove do servidor o que saiu da nova versão; o que está em --exclude (config, uploads, logs...) fica protegido
+         --exclude='/config.php' --exclude='/uploads/*' --exclude='/logs/*' --exclude='/storage/*' --exclude='/certificados/*' --exclude='/.well-known/')
+# --delete remove do servidor o que saiu da nova versão; o que está em --exclude (config, uploads, logs...) fica protegido.
+# ATENÇÃO: por isso, qualquer arquivo colocado À MÃO na pasta do site (fora dessas pastas) some na próxima atualização. Coloque em uploads/.
+# Prova de que a configuração e os dados ficaram intactos: antes e depois do rsync (config.php byte a byte; arquivos de uploads/storage/certificados).
+if (( ! DRY_RUN )); then
+  CFG_ANTES="$(sha256sum "$SITE_DIR/config.php" | cut -d' ' -f1)"
+  DADOS_ANTES="$(cd "$SITE_DIR" && find uploads storage certificados -type f 2>/dev/null | sort | xargs -r -d '\n' sha256sum 2>/dev/null | sha256sum | cut -d' ' -f1)"
+fi
 exe rsync -a --delete "${EXCLUIR[@]}" "$ORIGEM"/ "$SITE_DIR"/
+if (( ! DRY_RUN )); then
+  CFG_DEPOIS="$(sha256sum "$SITE_DIR/config.php" | cut -d' ' -f1)"
+  DADOS_DEPOIS="$(cd "$SITE_DIR" && find uploads storage certificados -type f 2>/dev/null | sort | xargs -r -d '\n' sha256sum 2>/dev/null | sha256sum | cut -d' ' -f1)"
+  [[ "$CFG_ANTES" == "$CFG_DEPOIS" ]] || { echo "[ERRO] o config.php mudou durante a atualização — restaure do backup do passo 1 (painel-restaurar)." >&2; exit 1; }
+  if [[ "$DADOS_ANTES" == "$DADOS_DEPOIS" ]]; then echo "   config.php e arquivos de uploads/storage/certificados: intactos"
+  else echo "   (aviso) os arquivos de uploads/storage/certificados mudaram durante a cópia — se não foi o painel em uso, confira o backup do passo 1." >&2; fi
+fi
 for d in uploads logs storage certificados; do
   if [[ -f "$ORIGEM/$d/.htaccess" ]]; then exe install -m 0644 "$ORIGEM/$d/.htaccess" "$SITE_DIR/$d/.htaccess"; fi
 done

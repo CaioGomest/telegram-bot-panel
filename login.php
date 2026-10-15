@@ -152,36 +152,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'login')
     </div>
 </div>
 
-<div id="modal-esqueci-senha" class="sobreposicao-modal">
+<div id="modal-esqueci-senha" class="sobreposicao-modal" onclick="if (event.target === this) fecharEsqueciSenha()">
     <div class="modal-gateway">
         <div class="cabecalho-modal">
-            <div class="titulo-modal">Recuperar Senha</div>
-            <button class="fechar-modal" onclick="fecharEsqueciSenha()">✕</button>
+            <div class="titulo-modal">Recuperar senha</div>
+            <button type="button" class="fechar-modal" onclick="fecharEsqueciSenha()" aria-label="Fechar">✕</button>
         </div>
         <div class="corpo-modal">
-            <div class="campo">
-                <label>Email</label>
-                <input type="email" id="rec-email" placeholder="seu@email.com">
-            </div>
-            <div class="campo" style="display:flex; gap:10px; align-items:center; flex-direction:row;">
-                <button type="button" class="botao botao-primario" onclick="enviarCodigoRecuperacao()">Enviar código</button>
-                <span id="rec-info" class="texto-suave"></span>
-            </div>
-            <div class="campo">
-                <label>Código</label>
-                <input type="text" id="rec-codigo" placeholder="000000">
-            </div>
-            <div class="campo">
-                <label>Nova Senha</label>
-                <input type="password" id="rec-nova">
-            </div>
-            <div class="campo">
-                <label>Confirmar Senha</label>
-                <input type="password" id="rec-confirmar">
-            </div>
-            <div class="linha-acoes" style="margin-top:16px;">
-                <button type="button" class="botao" onclick="fecharEsqueciSenha()">Cancelar</button>
-                <button type="button" class="botao botao-primario" onclick="salvarRecuperacao()">Salvar</button>
+            <div class="rec-form">
+                <div id="rec-aviso" class="aviso" role="alert" hidden></div>
+
+                <div id="rec-passo-email">
+                    <p class="texto-suave rec-intro">Informe o e-mail da sua conta. Enviaremos um código de 6 dígitos, que vale por 15 minutos.</p>
+                </div>
+                <div class="campo">
+                    <label for="rec-email">E-mail</label>
+                    <div class="campo-com-acao">
+                        <input type="email" id="rec-email" placeholder="seu@email.com" autocomplete="email" maxlength="190">
+                        <button type="button" id="rec-enviar" class="botao botao-primario">Enviar código</button>
+                    </div>
+                </div>
+
+                <div id="rec-passo-codigo" class="rec-form" hidden>
+                    <div class="campo">
+                        <label for="rec-codigo">Código</label>
+                        <input type="text" id="rec-codigo" class="rec-codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000">
+                        <small class="texto-suave">Não chegou? Confira também a caixa de spam.</small>
+                    </div>
+                    <div class="campo">
+                        <label for="rec-nova">Nova senha</label>
+                        <input type="password" id="rec-nova" autocomplete="new-password" placeholder="Mínimo de 8 caracteres">
+                    </div>
+                    <div class="campo">
+                        <label for="rec-confirmar">Confirmar nova senha</label>
+                        <input type="password" id="rec-confirmar" autocomplete="new-password">
+                    </div>
+                </div>
+
+                <div class="linha-acoes" id="rec-acoes" hidden>
+                    <button type="button" id="rec-salvar" class="botao botao-primario">Salvar nova senha</button>
+                </div>
             </div>
         </div>
     </div>
@@ -189,36 +199,128 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'login')
 
 <script src="assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/tema.js'); ?>"></script>
 <script>
-function abrirEsqueciSenha(){
-    var m = document.getElementById('modal-esqueci-senha');
-    var email_login = document.getElementById('email');
-    var rec = document.getElementById('rec-email');
-    if (rec && email_login) rec.value = email_login.value || '';
-    if (m) m.classList.add('aberto');
-}
-function fecharEsqueciSenha(){
-    var m = document.getElementById('modal-esqueci-senha');
-    if (m) m.classList.remove('aberto');
-    document.getElementById('rec-info').textContent = '';
-}
-function enviarCodigoRecuperacao(){
-    var email = document.getElementById('rec-email').value.trim();
-    if (!email) { alert('Informe o email'); return; }
-    document.getElementById('rec-info').textContent = 'Enviando...';
-    fetch('funcoes/usuario.php?api=usuario&acao=enviar_codigo_senha_login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email: email }) })
-    .then(r=>r.json()).then(j=>{ document.getElementById('rec-info').textContent = j.sucesso ? 'Código enviado' : (j.erro || 'Falha'); })
-    .catch(()=>{ document.getElementById('rec-info').textContent = 'Erro'; });
-}
-function salvarRecuperacao(){
-    var email = document.getElementById('rec-email').value.trim();
-    var codigo = document.getElementById('rec-codigo').value.trim();
-    var nova = document.getElementById('rec-nova').value;
-    var conf = document.getElementById('rec-confirmar').value;
-    if (!email || !codigo || !nova || nova !== conf) { alert('Verifique os campos'); return; }
-    fetch('funcoes/usuario.php?api=usuario&acao=trocar_senha_login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email: email, codigo: codigo, nova_senha: nova }) })
-    .then(r=>r.json()).then(j=>{ if (j.sucesso) { alert('Senha atualizada'); fecharEsqueciSenha(); } else { alert('Erro: ' + (j.erro || 'Falha')); } })
-    .catch(()=>{ alert('Erro ao salvar'); });
-}
+(function () {
+    var ESPERA_PADRAO = 60;
+    var el = function (id) { return document.getElementById(id); };
+    var proximoEnvioEm = 0;      // quando o botão "Enviar código" volta a valer (o servidor também impõe a espera)
+    var emailDoPedido = '';      // e-mail do último pedido: se a pessoa troca o e-mail, a espera do anterior não vale
+    var relogio = null;
+    var enviando = false, salvando = false;
+
+    function aviso(tipo, texto) {
+        var a = el('rec-aviso');
+        if (!texto) { a.hidden = true; a.textContent = ''; return; }
+        a.className = 'aviso aviso-' + tipo;
+        a.textContent = texto;
+        a.hidden = false;
+    }
+    function emailValido(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
+
+    function atualizarBotaoEnviar() {
+        var b = el('rec-enviar');
+        var restante = Math.ceil((proximoEnvioEm - Date.now()) / 1000);
+        var mesmoEmail = el('rec-email').value.trim().toLowerCase() === emailDoPedido;
+        if (enviando) { b.disabled = true; b.textContent = 'Enviando…'; return; }
+        if (restante > 0 && mesmoEmail) {
+            b.disabled = true;
+            b.textContent = 'Reenviar em ' + restante + 's';
+            return;
+        }
+        b.disabled = false;
+        b.textContent = emailDoPedido && mesmoEmail ? 'Reenviar código' : 'Enviar código';
+        if (restante <= 0 && relogio) { clearInterval(relogio); relogio = null; }
+    }
+    function iniciarEspera(segundos) {
+        proximoEnvioEm = Date.now() + segundos * 1000;
+        if (relogio) clearInterval(relogio);
+        relogio = setInterval(atualizarBotaoEnviar, 500);
+        atualizarBotaoEnviar();
+    }
+
+    window.abrirEsqueciSenha = function () {
+        var login = el('email');
+        if (login && !el('rec-email').value) el('rec-email').value = login.value || '';
+        aviso('', '');
+        el('modal-esqueci-senha').classList.add('aberto');
+        setTimeout(function () { el('rec-email').focus(); }, 50);
+        atualizarBotaoEnviar();
+    };
+    window.fecharEsqueciSenha = function () {
+        el('modal-esqueci-senha').classList.remove('aberto');
+    };
+
+    function enviarCodigo() {
+        if (enviando) return;
+        var email = el('rec-email').value.trim();
+        if (!emailValido(email)) { aviso('erro', 'Informe um e-mail válido.'); el('rec-email').focus(); return; }
+        enviando = true; aviso('', ''); atualizarBotaoEnviar();
+        fetch('funcoes/usuario.php?api=usuario&acao=enviar_codigo_senha_login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email }) })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                enviando = false;
+                emailDoPedido = email.toLowerCase();
+                if (j.sucesso) {
+                    aviso('sucesso', j.mensagem || 'Se esse e-mail estiver cadastrado, enviamos um código.');
+                    el('rec-passo-codigo').hidden = false;
+                    el('rec-acoes').hidden = false;
+                    el('rec-passo-email').hidden = true;
+                    setTimeout(function () { el('rec-codigo').focus(); }, 50);
+                    iniciarEspera(j.espera || ESPERA_PADRAO);
+                } else {
+                    aviso('erro', j.erro || 'Não foi possível enviar agora.');
+                    if (j.espera) iniciarEspera(j.espera); else atualizarBotaoEnviar();
+                }
+            })
+            .catch(function () {
+                enviando = false;
+                aviso('erro', 'Sem conexão com o servidor. Tente de novo.');
+                atualizarBotaoEnviar();
+            });
+    }
+
+    function salvar() {
+        if (salvando) return;
+        var email = el('rec-email').value.trim();
+        var codigo = el('rec-codigo').value.trim();
+        var nova = el('rec-nova').value;
+        var conf = el('rec-confirmar').value;
+        if (!/^\d{6}$/.test(codigo)) { aviso('erro', 'Digite o código de 6 dígitos que chegou no e-mail.'); el('rec-codigo').focus(); return; }
+        if (nova.length < 8) { aviso('erro', 'A nova senha precisa ter pelo menos 8 caracteres.'); el('rec-nova').focus(); return; }
+        if (nova !== conf) { aviso('erro', 'As senhas não conferem.'); el('rec-confirmar').focus(); return; }
+        salvando = true; aviso('', '');
+        var b = el('rec-salvar'); b.disabled = true; b.textContent = 'Salvando…';
+        fetch('funcoes/usuario.php?api=usuario&acao=trocar_senha_login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, codigo: codigo, nova_senha: nova }) })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                salvando = false; b.disabled = false; b.textContent = 'Salvar nova senha';
+                if (j.sucesso) {
+                    aviso('sucesso', 'Senha atualizada! Entre com a nova senha.');
+                    var login = el('email'); if (login) login.value = email;
+                    b.disabled = true;
+                    setTimeout(function () { fecharEsqueciSenha(); location.reload(); }, 1800);
+                } else {
+                    aviso('erro', j.erro || 'Não foi possível salvar.');
+                }
+            })
+            .catch(function () {
+                salvando = false; b.disabled = false; b.textContent = 'Salvar nova senha';
+                aviso('erro', 'Sem conexão com o servidor. Tente de novo.');
+            });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        el('rec-enviar').addEventListener('click', enviarCodigo);
+        el('rec-salvar').addEventListener('click', salvar);
+        el('rec-email').addEventListener('input', atualizarBotaoEnviar);
+        el('rec-codigo').addEventListener('input', function () { this.value = this.value.replace(/\D/g, '').slice(0, 6); });
+        el('modal-esqueci-senha').addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') { fecharEsqueciSenha(); return; }
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            if (!el('rec-passo-codigo').hidden && e.target.id !== 'rec-email') salvar(); else enviarCodigo();
+        });
+    });
+})();
 (function(){
     var btn = document.getElementById('btn-toggle-senha');
     var inp = document.getElementById('senha');

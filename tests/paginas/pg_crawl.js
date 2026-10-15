@@ -5,7 +5,7 @@ const largura = parseInt(process.argv[3] || '1500', 10);
 const IDS = JSON.parse(process.env.IDS || '{}');
 const email = perfil === 'admin' ? 'pgteste-admin@example.invalid' : 'pgteste-user@example.invalid';
 const paginasUser = ['/', '/bots', `/bot?id=${IDS.bot1}`, '/bot', '/fluxos', `/fluxo_basico?id=${IDS.fluxo_guiado}`, '/fluxo_basico', `/fluxo?id=${IDS.fluxo_visual}`, '/fluxo', '/leads', '/links_rastreamento', '/redirecionamento', '/remarketing', '/remarketing_detalhes?campanha=' + (IDS.campanha || 1), '/gateways', '/traqueamento', '/webhooks', '/comunidade', '/ranking', '/configuracao_usuario', '/termos', '/pagina-que-nao-existe'];
-const paginasAdmin = ['/admin/', '/admin/dashboard', '/admin/usuarios', '/admin/transacoes', '/admin/configuracoes', '/admin/comunidade', '/admin/ranking', '/admin/logs', '/admin/checklist_testes', '/admin/consultar_venda', '/admin/testes_desempenho'];
+const paginasAdmin = ['/admin/', '/admin/dashboard', '/admin/usuarios', '/admin/transacoes', '/admin/configuracoes', '/admin/comunidade', '/admin/ranking', '/admin/logs', '/admin/consultar_venda', '/admin/testes_desempenho'];
 (async () => {
   const c = await lancar();
   const OUT = process.env.OUT || '.';

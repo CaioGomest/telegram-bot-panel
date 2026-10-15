@@ -504,6 +504,33 @@ CREATE TABLE IF NOT EXISTS `fila_emails` (
   KEY `idx_fila_pendentes` (`status`,`proximo_envio`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `email_envios` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `criado_em` datetime NOT NULL DEFAULT current_timestamp(),
+  `para` varchar(190) NOT NULL,
+  `assunto` varchar(255) NOT NULL DEFAULT '',
+  `tipo` varchar(30) NOT NULL DEFAULT 'geral',
+  `origem` varchar(12) NOT NULL DEFAULT 'direto',
+  `via` varchar(10) NOT NULL DEFAULT 'smtp',
+  `de_email` varchar(190) NOT NULL DEFAULT '',
+  `status` varchar(10) NOT NULL,
+  `resposta` varchar(500) DEFAULT NULL,
+  `tentativa` tinyint(3) unsigned NOT NULL DEFAULT 1,
+  `fila_id` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_email_envios_data` (`criado_em`),
+  KEY `idx_email_envios_status` (`status`,`criado_em`),
+  KEY `idx_email_envios_para` (`para`,`criado_em`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `limites_taxa` (
+  `chave` varchar(120) NOT NULL,
+  `janela_inicio` datetime NOT NULL,
+  `contagem` int(10) unsigned NOT NULL DEFAULT 0,
+  PRIMARY KEY (`chave`),
+  KEY `idx_limites_janela` (`janela_inicio`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `tentativas_login` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `identificador` varchar(150) NOT NULL,

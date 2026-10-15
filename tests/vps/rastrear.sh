@@ -66,7 +66,7 @@ echo "== telas do vendedor"
 for p in /index /bots /fluxos /leads /vendas /remarketing /redirecionamento /traqueamento /links_rastreamento /webhooks /ranking /comunidade /gateways /configuracao_usuario /termos "/vendas?status=pago&periodo=30" "/leads?busca=a" "/index?periodo=30"; do confere vendedor "$JAR_V" "$p"; done
 confere vendedor "$JAR_V" /ajax/notificacoes.php
 echo "== telas do administrador"
-for p in /admin/index /admin/usuarios /admin/transacoes /admin/logs /admin/configuracoes /admin/ranking /admin/comunidade /admin/checklist_testes /admin/testes_desempenho /admin/consultar_venda /index /bots /gateways /configuracao_usuario; do confere admin "$JAR_A" "$p" 200 302; done
+for p in /admin/index /admin/usuarios /admin/transacoes /admin/logs /admin/configuracoes /admin/ranking /admin/comunidade /admin/testes_desempenho /admin/consultar_venda /index /bots /gateways /configuracao_usuario; do confere admin "$JAR_A" "$p" 200 302; done
 echo "== o vendedor NÃO pode abrir telas de administrador (esperado redirecionamento/negado)"
 for p in /admin/index /admin/usuarios /admin/configuracoes /admin/transacoes; do confere vendedor "$JAR_V" "$p" 302 403 404; done
 echo "== sem login"

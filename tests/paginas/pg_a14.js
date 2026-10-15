@@ -195,21 +195,6 @@ const { area, t, nota, salvar, esp } = require('./pg_t.js');
       const th = await c.avaliar(`[...document.querySelectorAll('table thead th')].map(function(x){return x.innerText.trim()}).join(',')`);
       return { ok: !falhas.length && /DATA\/HORA,USUÁRIO,TIPO,EVENTO,DESCRIÇÃO/i.test(th), det: falhas.join(' ') || th };
     }, 'admin/logs');
-    await t('checklist: marcar itens atualiza o contador (n / 57), persiste ao recarregar e "Limpar tudo" zera; links "Abrir" são ícones', async () => {
-      await c.ir(BASE + '/admin/checklist_testes');
-      await c.avaliar(`localStorage.clear(); 1`);
-      await c.ir(BASE + '/admin/checklist_testes');
-      const antes = await c.avaliar(`(document.body.innerText.match(/(\\d+) \\/ 57/)||[])[1]`);
-      await c.avaliar(`[...document.querySelectorAll('input[type=checkbox]')].slice(1,4).forEach(function(i){ i.click(); }); 1`);
-      const meio = await c.avaliar(`(document.body.innerText.match(/(\\d+) \\/ 57/)||[])[1]`);
-      await c.ir(BASE + '/admin/checklist_testes');
-      const depois = await c.avaliar(`(document.body.innerText.match(/(\\d+) \\/ 57/)||[])[1]`);
-      await c.avaliar(`var b=[...document.querySelectorAll('button')].find(function(x){return /Limpar tudo/.test(x.innerText)}); b && b.click(); 1`);
-      await esp(600);
-      const zero = await c.avaliar(`(document.body.innerText.match(/(\\d+) \\/ 57/)||[])[1]`);
-      const textos = await c.avaliar(`[...document.querySelectorAll('a.btn-icon.abrir')].length + '|' + [...document.querySelectorAll('a')].filter(function(a){return a.innerText.trim()==='Abrir'}).length`);
-      return { ok: antes === '0' && meio === '3' && depois === '3' && zero === '0' && /^\d+\|0$/.test(textos), det: `${antes}→${meio}→recarga ${depois}→limpar ${zero}; ícones|texto "Abrir" ${textos}` };
-    }, 'admin/checklist');
     await t('consultar venda: ID inexistente e entradas estranhas mostram mensagem sem erro PHP e sem vazar dados', async () => {
       const falhas = [];
       for (const v of ['99999999999', 'abc', "1' OR '1'='1", '-1', '<script>window.__cv=1</script>']) {

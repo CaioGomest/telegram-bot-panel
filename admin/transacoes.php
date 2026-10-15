@@ -303,10 +303,12 @@ function celulaSplit(array $venda, array $linhas_split): string {
                 <p>Histórico de todas as vendas da plataforma, de todos os usuários, com status do split.</p>
             </div>
             <div class="acoes-cabecalho">
+                <?php /* Botão "Exportar CSV" desligado a pedido (14/10/2026). A exportação continua no topo deste arquivo (?export=csv); para religar, tire este comentário.
                 <a href="?<?php echo http_build_query(array_merge($_GET, ['export' => 'csv'])); ?>" class="botao">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                     Exportar CSV
                 </a>
+                */ ?>
                 <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>
                     Tema
@@ -343,9 +345,11 @@ function celulaSplit(array $venda, array $linhas_split): string {
                 </select>
                 <input type="date" name="data_inicio" id="data_inicio" aria-label="Data inicial" value="<?php echo htmlspecialchars($data_inicio); ?>" style="width:150px;">
                 <input type="date" name="data_fim" id="data_fim" aria-label="Data final" value="<?php echo htmlspecialchars($data_fim); ?>" style="width:150px;">
-                <input type="text" name="busca" id="busca" placeholder="TXID ou ID do Telegram" value="<?php echo htmlspecialchars($busca); ?>" style="min-width:180px;">
-                <button type="submit" class="botao botao-primario">Filtrar</button>
-                <a href="transacoes" class="botao">Limpar</a>
+                <div class="filtro-linha-busca">
+                    <input type="text" name="busca" id="busca" placeholder="TXID ou ID do Telegram" value="<?php echo htmlspecialchars($busca); ?>">
+                    <button type="submit" class="botao botao-primario">Filtrar</button>
+                    <a href="transacoes" class="botao">Limpar</a>
+                </div>
             </form>
         </div>
 

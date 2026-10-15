@@ -274,7 +274,7 @@ mysql painel -e "SELECT COUNT(*) FROM vendas WHERE status='pago'"  # exemplo de 
 - O próprio painel avisa no sino: bot desconectado, venda sem grupo, remoção do grupo que falhou, pagamento sem venda, falha ao gravar venda.
 
 ### 9.3 Backup (3 camadas)
-1. **Automático local:** `/usr/local/sbin/painel-backup` às 03:15 → `/var/backups/painel/{diario,mensal}` (banco + `config.php`, uploads, certificados, storage).
+1. **Automático local:** `/usr/local/sbin/painel-backup` às 03:15 → `/var/backups/painel/{diario,mensal}` (`banco_*.sql.gz` + `arquivos_*.tar.gz` com `config.php`, uploads, certificados, storage + `sistema_*.tar.gz` com `/etc/painel`: aviso de login SSH, destino do backup fora da VPS, retenção; este último se restaura à mão: `tar xzf sistema_AAAA-MM-DD_HHMMSS.tar.gz -C /`).
    Guarda os **10 últimos dias** + 1 por mês por 6 meses (`DIAS_DIARIOS` e `MESES_MENSAIS` em `/etc/painel/painel.conf`). Já sai comprimido (`gzip -9`): medido em 13/10, um banco de 2,8 GB em disco (6 mil vendedores, 5,8 mi de leads) gera um backup de **221 MB (7,8%)** em ~104 s de uma CPU. `xz` ficaria ~43% menor porém ~4× mais lento — não compensa; para economizar disco reduza `DIAS_DIARIOS` ou mande uma cópia por dia para fora da VPS. Contando 10 diários + 6 mensais, o banco pode chegar a ~35 GB num disco de 96 GB antes de as cópias deixarem de caber.
 2. **Fora da VPS (faça!):** instale o rclone (`apt-get install -y rclone`), configure um destino (Google Drive/Backblaze/S3: `rclone config`) e crie `/etc/painel/offsite.conf` com `RCLONE_DESTINO="meudrive:backups-painel"`. O backup passa a enviar a cópia todo dia.
 3. **Snapshot da VPS** no painel da hospedagem antes de qualquer mudança grande.
@@ -285,7 +285,7 @@ mysql painel -e "SELECT COUNT(*) FROM vendas WHERE status='pago'"  # exemplo de 
 VPS$ cd /root/painel-src && git pull        # ou envie o código novo como no passo 5.3
 VPS$ sudo bash deploy/vps/atualizar.sh --dominio DOMINIO
 ```
-Faz backup → copia o código (não toca em `config.php`, uploads, logs, banco) → recarrega o PHP → roda a migração do banco → verifica. `--sem-banco` e `--sem-backup` existem para casos especiais.
+Faz backup → copia o código (não toca em `config.php`, uploads, logs, storage, certificados, `.well-known`, banco) → recarrega o PHP → roda a migração do banco → verifica. `--sem-banco` e `--sem-backup` existem para casos especiais. Depois de copiar, ele **prova** que o `config.php` ficou byte a byte igual e que os arquivos de uploads/storage/certificados não mudaram (se o `config.php` mudar, aborta e manda restaurar o backup do passo 1). **Nunca** faça `git pull` dentro de `/var/www/painel`, nem copie a pasta inteira do seu PC por cima: use sempre o `atualizar.sh` (ver seção 15). Arquivo posto à mão na pasta do site, fora de `uploads/`, **some** na próxima atualização (o `--delete` remove o que não está na versão nova).
 
 ### 9.5 Voltar atrás (restaurar)
 
@@ -344,7 +344,8 @@ O que existia: **não há arquivo `.sql` no repositório** — o schema mora em 
 | `/etc/php/*/fpm/pool.d/painel.conf` · `conf.d/99-painel.ini` | Pool do PHP e limites. |
 | `/etc/mysql/mariadb.conf.d/99-painel.cnf` | Ajustes do banco. |
 | `/etc/cron.d/painel` · `/etc/cron.d/painel-backup` | Crons do painel e do backup. |
-| `/etc/painel/painel.conf` | Variáveis usadas pelos scripts de backup/restauração/atualização. |
+| `/etc/painel/painel.conf` | Variáveis usadas pelos scripts de backup/restauração/atualização (retenção ajustada aqui é mantida pelo instalador). Entra no `sistema_*.tar.gz`. |
+| `/var/backups/painel/config-antes/` | Versão anterior de cada arquivo de configuração que o `instalar.sh` reescreveu (Apache, PHP-FPM, MariaDB, cron, `/etc/painel`), por data da execução. |
 | `/usr/local/sbin/painel-backup` · `painel-restaurar` | Backup e restauração. |
 | `/var/backups/painel/` | Backups locais. |
 | `/root/painel-credenciais.txt` | Senhas geradas (apagar depois de guardar). |
@@ -421,3 +422,50 @@ Conferir depois: `bash deploy/vps/verificar.sh --dominio ...` e `ps -eo cmd | gr
 - Limites **fora** do servidor: um bot manda ~30 mensagens/s (≈ 6 clientes/s por bot); a gateway pode devolver 429 em consultas repetidas.
 - Cresceu o número de vendedores? O dashboard fica mais caro (ranking). Cresceu o número de bots? Sem o índice em `bots.token` cada webhook fica mais caro. Vendedor com milhões de leads: telas de 1–2 s e consulta de notificações de 0,7 s.
 - Sobrecarga não perde dado: 5× o teto por 60 s gerou timeouts, nenhum evento perdido, e voltou ao normal ~35 s depois. Mas o Telegram reenvia o que dá timeout e hoje o reenvio gera **Pix duplicado** (pendência 3c).
+
+---
+
+## 15. Versionamento e atualização sem perder configuração (auditoria de 13/10/2026)
+
+**Pergunta:** se eu atualizar a VPS com código novo, o que NÃO pode ser sobrescrito? **Resposta:** a atualização só mexe em código. Tudo que é configuração ou dado do cliente mora fora do git e fora do que o `atualizar.sh` copia.
+
+| O quê | Onde mora | No git? | Na atualização | Backup |
+|---|---|---|---|---|
+| Código (PHP, JS, CSS, `.htaccess` da raiz) | `/var/www/painel` | sim | substituído (`rsync --delete`: o que saiu da versão some) | o próprio git |
+| `config.php`: senha do banco, **chave que descriptografa as credenciais das gateways**, `CHAVE_SECRETA_CRON`, chave pública da suspensão | `/var/www/painel/config.php` | **não** (`.gitignore`) | `--exclude=/config.php`; conferido byte a byte antes/depois | `arquivos_*.tar.gz` |
+| Logo, banners, mídia de stories e remarketing | `uploads/` | só `.gitkeep`/`.htaccess` | excluído | `arquivos_*.tar.gz` |
+| Certificados das gateways | `certificados/` | idem | excluído | `arquivos_*.tar.gz` |
+| Estado da suspensão remota (`controle_estado.json`), caches, bloqueios 429 | `storage/` | idem | excluído | `arquivos_*.tar.gz` |
+| Logs | `logs/` | idem | excluído | não (só diagnóstico) |
+| Banco: usuários, bots, fluxos, vendas, **Admin → Configurações** (marca, SMTP, URL do painel), gateways (ativo, split) | MariaDB | não | a migração só cria/adiciona (exceções abaixo) | `banco_*.sql.gz` |
+| Apache, PHP-FPM, MariaDB, cron, firewall | `/etc/...` | não (o `instalar.sh` gera) | o `atualizar.sh` **não toca**; o `instalar.sh` reescreve e **guarda a versão anterior** em `/var/backups/painel/config-antes/` | recriável pelo instalador |
+| `/etc/painel/`: `painel.conf`, `ssh-acessos.conf` (Telegram), `offsite.conf` (rclone) | `/etc/painel/` | não | `instalar.sh` mantém a retenção, **nunca** sobrescreve `ssh-acessos.conf` nem toca em `offsite.conf` | `sistema_*.tar.gz` |
+| Senhas geradas | `/root/painel-credenciais.txt` | não | regravado, mantendo a senha do admin | **apague depois de guardar num cofre** |
+| **Chave privada** da suspensão remota | **só no seu PC** (`~/.painel-controle/vps-cliente/`) | não (`*.pem`, `.painel-controle/` ignorados) | não existe na VPS | **faça cópia num cofre: sem ela você perde o controle** |
+| Certificado HTTPS | `/etc/letsencrypt` | não | renova sozinho (`certbot.timer`) | reemitível |
+
+### O que foi testado (na VPS, numa CÓPIA do site; produção intocada)
+Código vindo de `git archive HEAD` (como seria numa atualização real) com **contaminantes na origem** (`config.php`, uploads, log, estado de controle e certificado "de dev") sobre um site com dados "do cliente": o `config.php` ficou idêntico (hash igual), o do dev não chegou, uploads/logs/certificados/`controle_estado.json`/`.well-known` do cliente ficaram, nada do dev vazou para as pastas de dados, o arquivo que saiu da versão foi removido, o arquivo posto à mão foi removido (esperado), permissões `root:www-data 640`/`www-data 750` corretas e o código novo confere com o commit.
+
+### O que a auditoria achou e já foi corrigido
+1. **Reexecutar o `instalar.sh` depois de apagar `painel-credenciais.txt`** (o que o final do próprio script recomenda) gerava uma senha de banco nova e fazia `ALTER USER`, mas o `config.php` (que não é reescrito) ficava com a antiga: **o painel perdia a conexão com o banco**. Agora a senha que o `config.php` já usa manda (depois o arquivo de credenciais, e só então uma nova). Testado: a senha extraída do `config.php` abre o banco.
+2. O `instalar.sh` reescrevia Apache, PHP-FPM, MariaDB, cron e `/etc/painel/painel.conf` **sem guardar o anterior** (e voltava a retenção do backup ao padrão). Agora guarda a versão anterior de tudo que muda e preserva a retenção.
+3. `/etc/painel` (token do aviso de login SSH, destino do backup fora da VPS) **não entrava no backup**. Agora entra (`sistema_*.tar.gz`).
+4. O `atualizar.sh` não tinha prova de que a configuração ficou intacta, e o `--delete` podia apagar `.well-known` (validação do certificado). Agora tem a conferência antes/depois e `.well-known` é protegido.
+5. **Documentação contraditória:** o `CLAUDE.md` mandava deploy por `git pull` na pasta, o que já apagou o `config.php` real da homologação em 19/09 (o arquivo era versionado até o commit `c2d04ff`; um `pull` apaga o que o commit removeu). Corrigido: homologação = `pscp` por arquivo; VPS = `atualizar.sh`.
+
+### Conferido e sem problema
+- Nenhum arquivo que o `.gitignore` manda ignorar está rastreado; `uploads/ logs/ storage/ certificados/` só têm `.gitkeep` e `.htaccess`; nada acima de 500 KB no repositório.
+- **Nenhuma senha, token ou chave real** nos arquivos versionados (varredura antes do commit). No histórico do git o `config.php` antigo só tinha placeholder (a VPS usa chave própria).
+- Tudo que o PHP grava em tempo de execução vai para `uploads/`, `logs/`, `storage/` ou o temporário do sistema: nada fica solto no código (onde o `--delete` apagaria).
+- Nenhum domínio, IP ou caminho absoluto fixo no código (o endereço do painel vem do banco: Admin → Configurações → "URL do painel").
+- `atualizar-banco.php` (a migração da VPS) recusa rodar sem administrador cadastrado: não cria o "admin123" por engano.
+
+### Regras (para não ter problema depois)
+1. **Atualizar a VPS só com `deploy/vps/atualizar.sh`** (ou, para um arquivo só, `pscp` para `/root/painel-src/...` e `install` para `/var/www/painel/...`, mantendo as duas pastas iguais). Nunca `git pull`/`git reset`/`git clean -x` dentro da pasta do site; nunca copiar a pasta inteira do PC por cima.
+2. **Nunca** versionar `config.php`, uploads, certificados, logs, chaves, `anotacoes/credenciais-*` nem saídas de teste (`.gitignore` já cobre). Saída de teste já chegou a guardar a senha SSH numa linha de erro.
+3. Configuração nova vai para o `config.php` (segredo) ou para a tabela de configurações do painel (preferência), nunca fixa no código.
+4. Qualquer ajuste manual em Apache/PHP-FPM/MariaDB **se perde na próxima execução do `instalar.sh`** (fica guardado em `config-antes/`): se for definitivo, ponha no `instalar.sh` e no git.
+5. Mudança de schema só em `admin/atualiza_banco.php` (idempotente). Exceções que apagam dado, por serem limpeza de legado: `DROP COLUMN` das colunas de cashout e de `campanhas_ranking.tipo`; `DELETE` de splits de gateways que não existem mais. Ele também **recalcula as métricas por hora a partir das vendas a cada execução** (não apaga nada; o tempo com milhões de vendas não foi medido).
+6. O backup fora da VPS leva o `config.php` (chave das gateways) e o token do Telegram: use destino **privado e criptografado** (`rclone crypt`).
+7. Guarde fora da VPS: a chave privada da suspensão remota, a senha de root e o conteúdo de `painel-credenciais.txt`.

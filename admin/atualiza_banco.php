@@ -1031,6 +1031,33 @@ try {
         INDEX idx_fila_pendentes (status, proximo_envio)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
     echo "Tabela 'fila_emails' OK.<br>";
+    // Histórico de TODA tentativa de envio (enviado/falhou + resposta do servidor SMTP): tela Admin → E-mails. Sem o corpo do e-mail. Guarda 90 dias.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS email_envios (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        para VARCHAR(190) NOT NULL,
+        assunto VARCHAR(255) NOT NULL DEFAULT '',
+        tipo VARCHAR(30) NOT NULL DEFAULT 'geral',
+        origem VARCHAR(12) NOT NULL DEFAULT 'direto',
+        via VARCHAR(10) NOT NULL DEFAULT 'smtp',
+        de_email VARCHAR(190) NOT NULL DEFAULT '',
+        status VARCHAR(10) NOT NULL,
+        resposta VARCHAR(500) DEFAULT NULL,
+        tentativa TINYINT UNSIGNED NOT NULL DEFAULT 1,
+        fila_id INT DEFAULT NULL,
+        INDEX idx_email_envios_data (criado_em),
+        INDEX idx_email_envios_status (status, criado_em),
+        INDEX idx_email_envios_para (para, criado_em)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+    echo "Tabela 'email_envios' OK.<br>";
+    // Limite de taxa genérico (recuperação de senha, reenvio de confirmação, cadastro): janela fixa por chave. Ver funcoes/limite_taxa.php.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS limites_taxa (
+        chave VARCHAR(120) NOT NULL PRIMARY KEY,
+        janela_inicio DATETIME NOT NULL,
+        contagem INT UNSIGNED NOT NULL DEFAULT 0,
+        INDEX idx_limites_janela (janela_inicio)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+    echo "Tabela 'limites_taxa' OK.<br>";
     // Editor Visual: esperas do bloco Delay (retomadas pela cron) e ofertas aceitas (aplicadas no próximo Pix).
     $pdo->exec("CREATE TABLE IF NOT EXISTS fluxo_continuacoes (
         id INT AUTO_INCREMENT PRIMARY KEY,

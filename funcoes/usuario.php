@@ -19,6 +19,7 @@ require_once __DIR__ . '/email.php';
 require_once __DIR__ . '/verificacao_email.php';
 require_once __DIR__ . '/log.php';
 require_once __DIR__ . '/csrf.php';
+require_once __DIR__ . '/limite_taxa.php';
 require_once __DIR__ . '/configuracoes.php';
 
 function usuarioLogado(): bool {
@@ -540,6 +541,21 @@ function atualizarPerfilUsuario(int $id, string $nome, string $email, ?string $s
             }
             
             registrarAtividade($id, 'sistema', 'Perfil', 'Atualizou os dados do perfil.');
+
+            // Avisos por e-mail (pela fila; nunca derrubam a gravação): senha trocada e e-mail de acesso trocado. O aviso do e-mail vai para o
+            // endereço ANTIGO (é ele que avisa se a conta foi invadida) e o novo recebe o link de confirmação.
+            try {
+                if (!empty($senha)) {
+                    // Se o e-mail também mudou, o aviso vai para o endereço ANTIGO: é o dono de verdade quem precisa saber.
+                    enviarEmailSenhaAlterada($nome, $email_anterior ?? $email);
+                }
+                if ($email_anterior !== null && mb_strtolower($email_anterior) !== mb_strtolower($email)) {
+                    enviarEmailEmailAlterado($nome, $email_anterior, $email);
+                    enviarVerificacaoParaUsuario($id, false);
+                }
+            } catch (Throwable $e) {
+                error_log('[perfil] aviso por e-mail falhou: ' . $e->getMessage());
+            }
             return ['sucesso' => true];
         } else {
             return ['sucesso' => false, 'erro' => 'Não foi possível salvar as alterações.'];
@@ -549,6 +565,97 @@ function atualizarPerfilUsuario(int $id, string $nome, string $email, ?string $s
         error_log("Erro ao atualizar perfil: " . $e->getMessage());
         return ['sucesso' => false, 'erro' => 'Erro interno ao atualizar perfil.'];
     }
+}
+
+/**
+ * WHERE dos filtros da lista de usuários do admin. Filtros: busca (nome, e-mail, apelido ou ID), perfil (admin|usuario),
+ * email (confirmado|pendente), bots (com|sem). Tudo com parâmetros: nada do que vem da URL entra solto no SQL.
+ * @return array{0:string, 1:array}
+ */
+function montarFiltroUsuarios(array $f): array {
+    $where = ['1 = 1'];
+    $params = [];
+    $busca = trim((string) ($f['busca'] ?? ''));
+    if ($busca !== '') {
+        $like = '%' . addcslashes($busca, '%_\\') . '%';
+        $cond = '(u.nome LIKE ? OR u.email LIKE ? OR u.apelido_publico LIKE ?';
+        array_push($params, $like, $like, $like);
+        if (ctype_digit($busca) && strlen($busca) <= 9) {
+            $cond .= ' OR u.id = ?';
+            $params[] = (int) $busca;
+        }
+        $where[] = $cond . ')';
+    }
+    if (in_array($f['perfil'] ?? '', ['admin', 'usuario'], true)) {
+        $where[] = 'u.perfil = ?';
+        $params[] = $f['perfil'];
+    }
+    if (($f['email'] ?? '') === 'confirmado') {
+        $where[] = 'u.email_verificado_em IS NOT NULL';
+    } elseif (($f['email'] ?? '') === 'pendente') {
+        $where[] = 'u.email_verificado_em IS NULL';
+    }
+    if (($f['bots'] ?? '') === 'com') {
+        $where[] = 'EXISTS (SELECT 1 FROM bots b WHERE b.id_usuario = u.id)';
+    } elseif (($f['bots'] ?? '') === 'sem') {
+        $where[] = 'NOT EXISTS (SELECT 1 FROM bots b WHERE b.id_usuario = u.id)';
+    }
+    return [implode(' AND ', $where), $params];
+}
+
+function contarUsuariosFiltrados(array $f): int {
+    global $pdo;
+    [$where, $params] = montarFiltroUsuarios($f);
+    try {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM usuarios u WHERE $where");
+        $stmt->execute($params);
+        return (int) $stmt->fetchColumn();
+    } catch (PDOException $e) {
+        error_log('Erro ao contar usuários filtrados: ' . $e->getMessage());
+        return 0;
+    }
+}
+
+/** Lista de usuários do admin com filtros e ordem (recentes | antigos | nome). Mesmas colunas de listarTodosUsuarios() + e-mail confirmado e Google. */
+function listarUsuariosFiltrados(array $f, int $limite, int $offset): array {
+    global $pdo;
+    [$where, $params] = montarFiltroUsuarios($f);
+    $ordem = ['antigos' => 'u.criado_em ASC, u.id ASC', 'nome' => 'u.nome ASC, u.id ASC'][$f['ordem'] ?? ''] ?? 'u.criado_em DESC, u.id DESC';
+    $limite = max(1, $limite);
+    $offset = max(0, $offset);
+    try {
+        $stmt = $pdo->prepare("
+            SELECT u.id, u.nome, u.email, u.perfil, u.criado_em, u.email_verificado_em, (u.google_id IS NOT NULL) AS tem_google,
+            (SELECT COUNT(*) FROM bots b WHERE b.id_usuario = u.id) AS total_bots,
+            (SELECT COALESCE(SUM(v.valor), 0) FROM vendas v
+             JOIN bots b ON v.bot_id = b.id
+             WHERE b.id_usuario = u.id AND v.status = 'pago') AS total_vendas
+            FROM usuarios u
+            WHERE $where
+            ORDER BY $ordem
+            LIMIT $limite OFFSET $offset
+        ");
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        error_log('Erro ao listar usuários filtrados: ' . $e->getMessage());
+        return [];
+    }
+}
+
+/** Contagem por perfil para os números das abas (independe dos outros filtros). @return array{todos:int, admin:int, usuario:int} */
+function contarUsuariosPorPerfil(): array {
+    global $pdo;
+    $r = ['todos' => 0, 'admin' => 0, 'usuario' => 0];
+    try {
+        foreach ($pdo->query('SELECT perfil, COUNT(*) AS n FROM usuarios GROUP BY perfil')->fetchAll(PDO::FETCH_ASSOC) as $l) {
+            $r[(string) $l['perfil'] === 'admin' ? 'admin' : 'usuario'] += (int) $l['n'];
+        }
+        $r['todos'] = $r['admin'] + $r['usuario'];
+    } catch (PDOException $e) {
+        error_log('Erro ao contar usuários por perfil: ' . $e->getMessage());
+    }
+    return $r;
 }
 
 function contarTotalUsuarios(): int {
@@ -629,6 +736,39 @@ function obterDetalhesUsuario(int $id): array {
     }
 }
 
+/**
+ * Entrega a resposta JSON AGORA e segue trabalhando (procurar a conta e mandar o e-mail) sem o navegador esperar. Sem isso, "e-mail existe"
+ * respondia mais devagar (leva o tempo do SMTP) que "não existe", e dava para descobrir quem tem conta medindo a resposta.
+ */
+function responderJsonEContinuar(array $dados): void
+{
+    $corpo = json_encode($dados);
+    ignore_user_abort(true);
+    header('Content-Length: ' . strlen((string) $corpo));
+    echo $corpo;
+    while (ob_get_level() > 0) {
+        @ob_end_flush();
+    }
+    @flush();
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+    } elseif (function_exists('litespeed_finish_request')) {
+        litespeed_finish_request();
+    }
+}
+
+/** Gasta uma lista de limites [chave, máximo, janela, texto com %s] e responde o erro (com "espera") no primeiro que estourar. */
+function aplicarLimitesOuResponder(array $limites): void
+{
+    foreach ($limites as [$chave, $max, $janela, $texto]) {
+        [$permitido, $espera] = limiteTaxaConsumir($chave, $max, $janela);
+        if (!$permitido) {
+            echo json_encode(['sucesso' => false, 'erro' => sprintf($texto, limiteTaxaTextoEspera($espera)), 'espera' => $espera]);
+            exit;
+        }
+    }
+}
+
 $acao_api = $_GET['acao'] ?? $_POST['acao'] ?? '';
 $api_endpoint = $_GET['api'] ?? '';
 
@@ -644,58 +784,47 @@ if ($api_endpoint === 'usuario') {
     if (!is_array($dados)) $dados = [];
     
     if ($acao_api === 'enviar_codigo_senha_login') {
-        $email = trim($dados['email'] ?? '');
-        if (!$email) {
-            echo json_encode(['sucesso' => false, 'erro' => 'Email não informado']);
+        $email = mb_strtolower(trim((string) ($dados['email'] ?? '')));
+        if ($email === '' || strlen($email) > 190 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            echo json_encode(['sucesso' => false, 'erro' => 'Informe um e-mail válido.']);
             exit;
         }
 
-        // Resposta é sempre a mesma pra quem está do outro lado, exista o e-mail ou não --
-        // nunca revelar quem tem conta por aqui. Antes a mensagem mudava ("Email não
-        // encontrado" vs sucesso/falha de envio), o que dava pra usar como oráculo pra
-        // descobrir contas cadastradas só tentando e-mails (achado em teste de carga, 02/10).
-        $resposta_padrao = ['sucesso' => true, 'mensagem' => 'Se esse e-mail estiver cadastrado, enviamos um código de verificação.'];
+        // Limites de PEDIDOS de código. Valem IGUAL para e-mail que existe e que não existe (senão o próprio limite revelaria quem tem conta).
+        // Protegem a pessoa dona do e-mail (ninguém lota a caixa dela), o remetente (a cota diária do provedor de SMTP) e o painel.
+        $ip = limiteTaxaIp();
+        aplicarLimitesOuResponder([
+            [limiteTaxaChaveEmail('rec_cd', $email), 1, 60,    'Aguarde %s para pedir outro código.'],
+            [limiteTaxaChaveEmail('rec_h', $email),  3, 3600,  'Você já pediu códigos demais para este e-mail. Tente de novo em %s.'],
+            [limiteTaxaChaveEmail('rec_d', $email),  6, 86400, 'Limite diário de códigos para este e-mail atingido. Tente de novo em %s.'],
+            ['rec_ip_h:' . $ip,                      10, 3600, 'Muitos pedidos deste endereço. Tente de novo em %s.'],
+            ['rec_global_h',                         120, 3600, 'Estamos com muitos pedidos agora. Tente de novo em alguns minutos.'],
+        ]);
 
-        // Limite de PEDIDOS de código -- bucket separado do limite de tentativas de código
-        // errado (que já existia em trocar_senha_login, abaixo, prefixo 'reset:'). Antes, só
-        // pedir um código novo nunca era contado: 8 pedidos seguidos pro mesmo e-mail
-        // passavam sem bloqueio nenhum (mesmo achado de 02/10). Reaproveita a mesma
-        // tabela/limite do login (5 tentativas / 15 min), só com outro prefixo pra não
-        // misturar os dois contadores.
-        if (loginEstaBloqueado('reset_envio:' . $email)) {
-            echo json_encode($resposta_padrao);
-            exit;
-        }
+        // A resposta é sempre a mesma (exista a conta ou não) e sai ANTES de procurar a conta e enviar: o tempo de resposta não revela nada.
+        responderJsonEContinuar(['sucesso' => true, 'mensagem' => 'Se esse e-mail estiver cadastrado, enviamos um código de 6 dígitos. Ele vale por 15 minutos.', 'espera' => 60]);
 
         try {
             $stmt = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
             $stmt->execute([$email]);
-            $existe = (bool) $stmt->fetch();
-
-            // Conta o pedido mesmo quando o e-mail não existe -- senão o próprio limite vira
-            // um oráculo (só bateria no limite pra e-mail real).
-            registrarTentativaLoginFalha('reset_envio:' . $email);
-
-            if ($existe) {
+            if ($stmt->fetch()) {
+                // O código fica na SESSÃO de quem pediu: só vale nesse navegador, é substituído a cada pedido (o anterior morre) e queima
+                // sozinho depois de 5 erros. Falha de envio (SMTP fora do ar) só vai para o log: mudar a resposta entregaria que a conta existe.
                 $codigo = sprintf('%06d', random_int(0, 999999));
                 $_SESSION['recuperacao_email'] = $email;
                 $_SESSION['recuperacao_codigo'] = $codigo;
                 $_SESSION['recuperacao_expira'] = time() + (15 * 60);
-
-                // Falha de envio (SMTP fora do ar, etc.) não muda a resposta -- só o log,
-                // senão a diferença de resposta já volta a entregar se o e-mail existe.
+                $_SESSION['recuperacao_tentativas'] = 0;
                 if (!enviarEmailCodigo($email, $codigo)) {
-                    error_log("Falha ao enviar código de recuperação pra $email");
+                    error_log('Falha ao enviar código de recuperação (conta existente)');
                 }
             }
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             error_log('Erro ao gerar código de recuperação de senha: ' . $e->getMessage());
         }
-
-        echo json_encode($resposta_padrao);
         exit;
     }
-    
+
     if ($acao_api === 'reenviar_verificacao_email') {
         if (!usuarioLogado()) {
             http_response_code(401);
@@ -708,51 +837,67 @@ if ($api_endpoint === 'usuario') {
             echo json_encode(['sucesso' => true, 'mensagem' => 'Seu e-mail já está confirmado.']);
             exit;
         }
-        // Mesmo limite do login/recuperação: 5 pedidos / 15 min por conta.
-        if (loginEstaBloqueado('verif_envio:' . $id_logado)) {
-            echo json_encode(['sucesso' => false, 'erro' => 'Muitos pedidos. Aguarde alguns minutos e tente de novo.']);
-            exit;
-        }
-        registrarTentativaLoginFalha('verif_envio:' . $id_logado);
+        aplicarLimitesOuResponder([
+            ['verif_cd:' . $id_logado,             1, 60,   'Aguarde %s para pedir outro e-mail.'],
+            ['verif_h:' . $id_logado,              5, 3600, 'Muitos pedidos. Tente de novo em %s.'],
+            ['verif_ip_h:' . limiteTaxaIp(),       20, 3600, 'Muitos pedidos deste endereço. Tente de novo em %s.'],
+        ]);
         $ok = enviarVerificacaoParaUsuario($id_logado, false);
         echo json_encode($ok
-            ? ['sucesso' => true, 'mensagem' => 'Enviamos um novo e-mail de confirmação. Pode levar um minuto para chegar.']
+            ? ['sucesso' => true, 'mensagem' => 'Enviamos um novo e-mail de confirmação. Pode levar um minuto para chegar.', 'espera' => 60]
             : ['sucesso' => false, 'erro' => 'Não foi possível enviar agora. Tente de novo em instantes.']);
         exit;
     }
 
     if ($acao_api === 'trocar_senha_login') {
-        $email = trim($dados['email'] ?? '');
-        $codigo = trim($dados['codigo'] ?? '');
-        $nova_senha = $dados['nova_senha'] ?? '';
-        
+        $email = mb_strtolower(trim((string) ($dados['email'] ?? '')));
+        $codigo = trim((string) ($dados['codigo'] ?? ''));
+        $nova_senha = (string) ($dados['nova_senha'] ?? '');
+
         if (!$email || !$codigo || !$nova_senha) {
             echo json_encode(['sucesso' => false, 'erro' => 'Dados incompletos']);
             exit;
         }
-
         if (strlen($nova_senha) < 8) {
             echo json_encode(['sucesso' => false, 'erro' => 'A senha deve ter pelo menos 8 caracteres.']);
             exit;
         }
-
-        if (loginEstaBloqueado('reset:' . $email)) {
-            echo json_encode(['sucesso' => false, 'erro' => 'Muitas tentativas. Peça um novo código e aguarde alguns minutos.']);
+        if (strlen($nova_senha) > 200) {
+            echo json_encode(['sucesso' => false, 'erro' => 'A senha é grande demais (máximo de 200 caracteres).']);
             exit;
         }
-        
-        $sessao_email = $_SESSION['recuperacao_email'] ?? '';
-        $sessao_codigo = $_SESSION['recuperacao_codigo'] ?? '';
-        $sessao_expira = $_SESSION['recuperacao_expira'] ?? 0;
-        
-        if ($email !== $sessao_email || !hash_equals((string)$sessao_codigo, $codigo) || time() > $sessao_expira) {
-            registrarTentativaLoginFalha('reset:' . $email);
+
+        // Tentativas de código erradas por ENDEREÇO (IP). Não existe mais trava por e-mail: ela deixava qualquer pessoa trancar a recuperação
+        // de outra só errando o código de propósito. O que impede adivinhar é o código queimar depois de 5 erros e cada pedido novo (que é
+        // o que gera código) ter limite por e-mail, por IP e global.
+        $chave_ip = 'rec_tent_ip:' . limiteTaxaIp();
+        $espera_ip = limiteTaxaEspera($chave_ip, 20, 3600);
+        if ($espera_ip > 0) {
+            echo json_encode(['sucesso' => false, 'erro' => 'Muitas tentativas deste endereço. Tente de novo em ' . limiteTaxaTextoEspera($espera_ip) . '.', 'espera' => $espera_ip]);
+            exit;
+        }
+
+        $sessao_email = (string) ($_SESSION['recuperacao_email'] ?? '');
+        $sessao_codigo = (string) ($_SESSION['recuperacao_codigo'] ?? '');
+        $sessao_expira = (int) ($_SESSION['recuperacao_expira'] ?? 0);
+        $erros_no_codigo = (int) ($_SESSION['recuperacao_tentativas'] ?? 0);
+
+        $confere = $sessao_codigo !== '' && $email === $sessao_email && time() <= $sessao_expira && $erros_no_codigo < 5 && hash_equals($sessao_codigo, $codigo);
+        if (!$confere) {
+            limiteTaxaConsumir($chave_ip, 20, 3600);
+            if ($sessao_codigo !== '' && $email === $sessao_email) {
+                $erros_no_codigo++;
+                $_SESSION['recuperacao_tentativas'] = $erros_no_codigo;
+                if ($erros_no_codigo >= 5) {
+                    unset($_SESSION['recuperacao_email'], $_SESSION['recuperacao_codigo'], $_SESSION['recuperacao_expira'], $_SESSION['recuperacao_tentativas']);
+                    echo json_encode(['sucesso' => false, 'erro' => 'Muitos códigos errados: este código foi cancelado. Peça um novo código.']);
+                    exit;
+                }
+            }
             echo json_encode(['sucesso' => false, 'erro' => 'Código inválido ou expirado']);
             exit;
         }
 
-        resetarTentativasLogin('reset:' . $email);
-        
         try {
             $senha_hash = password_hash($nova_senha, PASSWORD_DEFAULT);
             $stmt = $pdo->prepare("UPDATE usuarios SET senha = ? WHERE email = ?");
@@ -765,11 +910,9 @@ if ($api_endpoint === 'usuario') {
                 marcarEmailVerificado((int) $dono_conta['id']);
                 enviarEmailSenhaAlterada((string) $dono_conta['nome'], $email);
             }
-            
-            unset($_SESSION['recuperacao_email']);
-            unset($_SESSION['recuperacao_codigo']);
-            unset($_SESSION['recuperacao_expira']);
-            
+
+            unset($_SESSION['recuperacao_email'], $_SESSION['recuperacao_codigo'], $_SESSION['recuperacao_expira'], $_SESSION['recuperacao_tentativas']);
+
             echo json_encode(['sucesso' => true]);
         } catch (Exception $e) {
             echo json_encode(['sucesso' => false, 'erro' => 'Erro ao atualizar senha']);

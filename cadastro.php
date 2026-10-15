@@ -23,12 +23,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($senha !== $confirma_senha) {
         $erro = 'As senhas não conferem.';
     } else {
-        $resultado = criarUsuario($nome, $email, $senha);
-        if ($resultado['sucesso']) {
-            header('Location: login?sucesso=cadastro');
-            exit;
+        // Cada cadastro manda e-mail (boas-vindas + confirmação) para o endereço digitado: sem limite, qualquer pessoa usaria o painel para
+        // encher a caixa de terceiros e gastar a cota de envio. 5 cadastros por hora por endereço de internet.
+        [$permitido, $espera] = limiteTaxaConsumir('cad_ip_h:' . limiteTaxaIp(), 5, 3600);
+        if (!$permitido) {
+            $erro = 'Muitos cadastros deste endereço. Tente de novo em ' . limiteTaxaTextoEspera($espera) . '.';
         } else {
-            $erro = $resultado['erro'];
+            $resultado = criarUsuario($nome, $email, $senha);
+            if ($resultado['sucesso']) {
+                header('Location: login?sucesso=cadastro');
+                exit;
+            } else {
+                $erro = $resultado['erro'];
+            }
         }
     }
 }

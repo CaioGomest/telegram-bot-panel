@@ -108,9 +108,24 @@ escrever() {
     return 0
   fi
   mkdir -p "$(dirname "$alvo")"
-  cat > "$alvo"
+  local novo; novo="$(mktemp)"
+  cat > "$novo"
+  # Rodar o instalador de novo reescreve estes arquivos (Apache, PHP-FPM, MariaDB, cron, /etc/painel). Se o conteúdo vai mudar, a
+  # versão que estava lá é guardada antes: um ajuste manual nunca se perde em silêncio. (O config.php do painel NÃO passa por aqui.)
+  if [[ -f "$alvo" ]] && ! cmp -s "$novo" "$alvo"; then
+    local guarda="/var/backups/painel/config-antes/${INICIO_EXEC}$(dirname "$alvo")"
+    mkdir -p "$guarda"; chmod 700 /var/backups/painel /var/backups/painel/config-antes
+    cp -p "$alvo" "$guarda/"
+    printf '   (a versão anterior de %s foi guardada em %s)\n' "$alvo" "$guarda"
+  fi
+  cat "$novo" > "$alvo"; rm -f "$novo"
   chmod "$modo" "$alvo"
 }
+
+# valor de uma variável de um arquivo de configuração já existente (ou o padrão): usado para não zerar o que o mantenedor ajustou
+conf_valor() { [[ -f "$1" ]] && ( set +u; . "$1" >/dev/null 2>&1; v="${!2:-}"; echo "${v:-$3}" ) || echo "$3"; }
+
+INICIO_EXEC="$(date +%F_%H%M%S)"   # pasta da cópia de segurança das configurações reescritas nesta execução
 
 senha_aleatoria() { head -c 96 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | cut -c "1-${1:-24}"; }
 
@@ -241,9 +256,15 @@ fi
 
 # ---------------------------------------------------------------- 2. banco ----------------------------------------
 etapa "2/12  MariaDB (banco, usuário e ajustes — alinhados ao ambiente que foi testado)"
-# senha do banco: reaproveita a de uma instalação anterior
+# senha do banco: a que o painel JÁ USA (config.php) manda; depois a do arquivo de credenciais; só então uma nova.
+# Sem isso, rodar o instalador de novo depois de apagar o painel-credenciais.txt (o que o próprio fim do script recomenda) gerava
+# uma senha nova, trocava no MariaDB (ALTER USER) e o config.php, que não é reescrito, ficava com a antiga: o painel perdia o banco.
 BANCO_SENHA=""
-if [[ -f "$CRED_ARQ" ]]; then BANCO_SENHA="$(grep -m1 '^BANCO_SENHA=' "$CRED_ARQ" | cut -d= -f2- || true)"; fi
+if [[ -f "$SITE_DIR/config.php" ]] && command -v php >/dev/null 2>&1; then
+  BANCO_SENHA="$(php -r 'include $argv[1]; echo defined("BANCO_SENHA") ? BANCO_SENHA : "";' "$SITE_DIR/config.php" 2>/dev/null || true)"
+  [[ -z "$BANCO_SENHA" ]] || ok "senha do banco: a mesma que o config.php já usa"
+fi
+if [[ -z "$BANCO_SENHA" && -f "$CRED_ARQ" ]]; then BANCO_SENHA="$(grep -m1 '^BANCO_SENHA=' "$CRED_ARQ" | cut -d= -f2- || true)"; fi
 [[ -n "$BANCO_SENHA" ]] || BANCO_SENHA="$(senha_aleatoria 28)"
 
 # IMPORTANTE: sql_mode e isolamento iguais aos do ambiente de homologação onde o painel foi validado. O padrão do MariaDB
@@ -583,12 +604,16 @@ RESTAURAR_ORIGEM="$DIR_SCRIPT/restaurar.sh"
 if [[ -f "$BACKUP_ORIGEM" && -f "$RESTAURAR_ORIGEM" ]]; then
   exe install -m 0750 "$BACKUP_ORIGEM" /usr/local/sbin/painel-backup
   exe install -m 0750 "$RESTAURAR_ORIGEM" /usr/local/sbin/painel-restaurar
+  # o que o mantenedor já ajustou neste arquivo (retenção, destino) é mantido; só SITE_DIR e BANCO_NOME vêm sempre desta instalação
+  DESTINO_BACKUP_CONF="$(conf_valor /etc/painel/painel.conf DESTINO_BACKUP /var/backups/painel)"
+  DIAS_DIARIOS_CONF="$(conf_valor /etc/painel/painel.conf DIAS_DIARIOS 10)"
+  MESES_MENSAIS_CONF="$(conf_valor /etc/painel/painel.conf MESES_MENSAIS 6)"
   escrever /etc/painel/painel.conf 600 <<EOF
 SITE_DIR="${SITE_DIR}"
 BANCO_NOME="${BANCO_NOME}"
-DESTINO_BACKUP="/var/backups/painel"
-DIAS_DIARIOS=10
-MESES_MENSAIS=6
+DESTINO_BACKUP="${DESTINO_BACKUP_CONF}"
+DIAS_DIARIOS=${DIAS_DIARIOS_CONF}
+MESES_MENSAIS=${MESES_MENSAIS_CONF}
 EOF
   escrever /etc/cron.d/painel-backup 644 <<'EOF'
 # Backup do banco + arquivos do painel (config, uploads, certificados) todo dia às 03:15

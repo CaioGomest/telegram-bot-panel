@@ -54,7 +54,7 @@ const { area, t, nota, salvar, esp } = require('./pg_t.js');
       return (await c.avaliar('location.pathname')).endsWith('/index');
     }, 'login');
     await t('usuário comum NÃO acessa páginas de admin (11 rotas)', async () => {
-      const rotas = ['dashboard', 'usuarios', 'transacoes', 'configuracoes', 'comunidade', 'ranking', 'logs', 'checklist_testes', 'consultar_venda', 'testes_desempenho', 'atualiza_banco'];
+      const rotas = ['dashboard', 'usuarios', 'transacoes', 'configuracoes', 'comunidade', 'ranking', 'logs', 'consultar_venda', 'testes_desempenho', 'atualiza_banco'];
       const falhas = [];
       for (const r of rotas) {
         const x = await c.avaliar(`fetch('admin/${r}',{redirect:'follow'}).then(async r=>({u:r.url,s:r.status}))`);

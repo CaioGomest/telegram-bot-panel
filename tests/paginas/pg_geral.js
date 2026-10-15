@@ -9,7 +9,7 @@ const PUBLICAS = ['/login', '/cadastro', '/termos', '/pagina-que-nao-existe'];
 const USER_FIXAS = ['/', '/index', '/vendas', '/vendas?aba=pagas', '/vendas?aba=pendentes&periodo=7', '/bots', '/bot', '/fluxos', '/fluxo_basico', '/fluxo', '/leads', '/leads?status=pago',
   '/leads?status=nao_pago', '/links_rastreamento', '/redirecionamento', '/remarketing', '/gateways', '/traqueamento', '/webhooks', '/ranking', '/ranking?aba=mensal', '/configuracao_usuario', '/comunidade'];
 const ADMIN_FIXAS = ['/admin/', '/admin/dashboard', '/admin/usuarios', '/admin/transacoes', '/admin/transacoes?status=pago', '/admin/configuracoes', '/admin/comunidade', '/admin/ranking', '/admin/logs',
-  '/admin/checklist_testes', '/admin/consultar_venda', '/admin/testes_desempenho'];
+  '/admin/consultar_venda', '/admin/testes_desempenho'];
 
 let total = 0, problemas = 0;
 async function varrer(c, rotulo, rotas) {

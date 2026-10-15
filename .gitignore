@@ -41,3 +41,4 @@ tests/estresse/vps/resultados/
 # comando do plink com a senha SSH -- nunca versionar.
 tests/paginas/pg/
 tests/estresse/saida/
+tests/homologacao/ui_*.png

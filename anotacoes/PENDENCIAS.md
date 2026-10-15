@@ -51,6 +51,9 @@
 - Auto-deletar do Visual tem até ~1 min de atraso (cron de 1 min).
 - Venda/eventos: bloco Grupo/Link sem configuração manda a mensagem de erro de configuração ao cliente final; boas-vindas é texto puro (`*negrito*` aparece com asteriscos).
 
+- **Login: limite só por e-mail (5 erros / 15 min)** — qualquer pessoa tranca a conta de outra errando a senha de propósito, e não há limite por IP (ataque distribuído / vários e-mails do mesmo IP). Sugestão: manter o por e-mail e somar `limiteTaxaConsumir()` por IP (ex.: 30 erros/h), sem trancar a conta da vítima (14/10/2026).
+- **Trocar/recuperar a senha não derruba as outras sessões abertas** (sessão PHP sem revogação por usuário): exigiria guardar uma "versão da senha" na sessão e comparar a cada requisição (14/10/2026).
+
 ## ❓ Falta decidir (dono)
 
 - Mascarar ou não o token do bot e os tokens de integração na tela.
