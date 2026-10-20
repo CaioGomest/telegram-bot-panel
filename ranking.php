@@ -125,258 +125,237 @@ $subtitulo_pagina = $aba === 'mensal'
     <?php include 'barra_lateral.php'; ?>
 
     <main class="conteudo-principal">
-        <div class="cabecalho-pagina">
+        <header class="a-ph">
             <div>
-                <h1>Ranking</h1>
-                <p><?php echo htmlspecialchars($subtitulo_pagina); ?></p>
+                <h1 class="a-h1">Ranking</h1>
+                <p class="a-sub"><?php echo htmlspecialchars($subtitulo_pagina); ?></p>
             </div>
-            <div class="acoes-cabecalho">
-                <nav class="abas-ranking" aria-label="Tipo de ranking">
-                    <?php if ($campanha): ?>
-                        <a href="<?php echo $url_aba('concurso'); ?>" class="aba-ranking<?php echo $aba === 'concurso' ? ' ativa' : ''; ?>"><?php echo iconeRanking('trofeu', 15); ?><span>Concurso</span></a>
-                    <?php endif; ?>
-                    <a href="<?php echo $url_aba('mensal'); ?>" class="aba-ranking<?php echo $aba === 'mensal' ? ' ativa' : ''; ?>"><?php echo iconeRanking('calendario-mes', 15); ?><span>Mensal</span></a>
-                </nav>
-                <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>
-                    Tema
-                </button>
-            </div>
-        </div>
-
-        <div class="hero-ranking<?php echo !empty($imagem_banner) ? ' tem-capa' : ''; ?>">
-            <?php if (!empty($imagem_banner)): ?>
-                <div class="hero-ranking-fundo" aria-hidden="true" style="background-image:url('<?php echo htmlspecialchars((string) $imagem_banner); ?>');"></div>
-            <?php endif; ?>
-            <div class="hero-ranking-conteudo">
-                <div class="hero-ranking-selos">
-                    <span class="pill-campanha pill-oficial"><?php echo iconeRanking($aba === 'mensal' ? 'calendario-mes' : 'trofeu', 13); ?><?php echo $aba === 'mensal' ? 'Ranking mensal' : 'Ranking oficial'; ?></span>
-                    <?php if ($estado === 'ativa'): ?>
-                        <span class="pill-campanha" style="background:var(--oksoft);color:var(--ok);"><span class="ponto-vivo"></span>Em disputa</span>
-                    <?php elseif ($estado === 'encerrada'): ?>
-                        <span class="pill-campanha" style="background:var(--p3);color:var(--m);">Encerrada em <?php echo htmlspecialchars($fim_txt); ?></span>
-                    <?php else: ?>
-                        <span class="pill-campanha" style="background:var(--wasoft);color:var(--wa);">Começa em <?php echo htmlspecialchars($inicio_txt); ?></span>
-                    <?php endif; ?>
-                </div>
-                <div class="hero-ranking-eyebrow">Comunidade <?php echo htmlspecialchars(nomeSistema()); ?></div>
-                <h2 class="hero-ranking-titulo"><?php echo htmlspecialchars($titulo_hero); ?></h2>
-                <?php if ($subtitulo_hero !== ''): ?>
-                    <p class="hero-ranking-desc"><?php echo htmlspecialchars($subtitulo_hero); ?></p>
+            <nav class="a-seg" aria-label="Tipo de ranking">
+                <?php if ($campanha): ?>
+                    <a href="<?php echo $url_aba('concurso'); ?>"<?php echo $aba === 'concurso' ? ' class="on" aria-current="page"' : ''; ?>><?php echo iconeRanking('trofeu', 16); ?>&nbsp;Concurso</a>
                 <?php endif; ?>
-                <div class="hero-ranking-meta">
-                    <span><?php echo iconeRanking('calendario', 15); ?><?php echo htmlspecialchars($inicio_txt); ?> — <?php echo htmlspecialchars($fim_txt); ?></span>
+                <a href="<?php echo $url_aba('mensal'); ?>"<?php echo $aba === 'mensal' ? ' class="on" aria-current="page"' : ''; ?>><?php echo iconeRanking('calendario-mes', 16); ?>&nbsp;Mensal</a>
+            </nav>
+        </header>
+
+        <section class="a-rhero<?php echo !empty($imagem_banner) ? ' tem-capa' : ''; ?>" style="margin-bottom: 16px" aria-label="Campanha">
+            <?php if (!empty($imagem_banner)): ?>
+                <img class="a-rhero-capa" src="<?php echo htmlspecialchars((string) $imagem_banner); ?>" alt="Arte da campanha" loading="lazy">
+            <?php endif; ?>
+            <div class="a-rhero-c">
+                <div class="a-acts">
+                    <span class="a-pill or"><?php echo iconeRanking($aba === 'mensal' ? 'calendario-mes' : 'trofeu', 14); ?><?php echo $aba === 'mensal' ? 'Ranking mensal' : 'Ranking oficial'; ?></span>
+                    <?php if ($estado === 'ativa'): ?>
+                        <span class="a-pill ok"><span class="a-bd ok" style="padding: 0; height: auto; background: none"><i></i></span>Em disputa</span>
+                    <?php elseif ($estado === 'encerrada'): ?>
+                        <span class="a-pill">Encerrada em <?php echo htmlspecialchars($fim_txt); ?></span>
+                    <?php else: ?>
+                        <span class="a-pill" style="background: var(--was); color: var(--wat)">Começa em <?php echo htmlspecialchars($inicio_txt); ?></span>
+                    <?php endif; ?>
+                </div>
+                <div class="a-lab" style="margin-top: 18px; color: var(--ort)">Comunidade <?php echo htmlspecialchars(nomeSistema()); ?></div>
+                <h2><?php echo htmlspecialchars($titulo_hero); ?></h2>
+                <?php if ($subtitulo_hero !== ''): ?>
+                    <p class="a-sub" style="margin: 0"><?php echo htmlspecialchars($subtitulo_hero); ?></p>
+                <?php endif; ?>
+                <div class="meta">
+                    <span class="a-pill"><?php echo iconeRanking('calendario', 14); ?><?php echo htmlspecialchars($inicio_txt); ?> — <?php echo htmlspecialchars($fim_txt); ?></span>
                     <?php if ($ranking): ?>
-                        <span><?php echo iconeRanking('pessoas', 15); ?><?php echo number_format($ranking['total_participantes'], 0, ',', '.'); ?> participante<?php echo ((int) $ranking['total_participantes'] === 1) ? '' : 's'; ?></span>
+                        <span class="a-pill"><?php echo iconeRanking('pessoas', 14); ?><?php echo number_format($ranking['total_participantes'], 0, ',', '.'); ?> participante<?php echo ((int) $ranking['total_participantes']) === 1 ? '' : 's'; ?></span>
                     <?php endif; ?>
                 </div>
             </div>
-            <?php if (!empty($imagem_banner)): ?>
-                <img class="hero-ranking-moldura" src="<?php echo htmlspecialchars((string) $imagem_banner); ?>" alt="Arte da campanha" loading="lazy">
-            <?php else: ?>
-                <div class="hero-ranking-arte" aria-hidden="true">
-                    <span class="arte-anel arte-anel-1"></span><span class="arte-anel arte-anel-2"></span>
-                    <img src="<?php echo htmlspecialchars(logoSistema()); ?>" alt="" class="hero-ranking-logo">
-                </div>
+            <?php if (empty($imagem_banner)): ?>
+                <div class="a-rarte" aria-hidden="true"><img src="<?php echo htmlspecialchars(logoSistema()); ?>" alt=""></div>
             <?php endif; ?>
-        </div>
+        </section>
 
-        <div class="grade-ranking">
-            <div id="bloco-placar" class="painel painel-placar">
+        <div class="a-grid">
+            <section id="bloco-placar" class="a-card s8" aria-label="Placar">
                 <?php if (!$ranking): ?>
-                    <span class="rotulo-kpi">Classificação</span>
-                    <h2 class="titulo-placar">A disputa ainda não começou</h2>
-                    <p class="texto-suave" style="margin:0;line-height:1.55;">O placar aparece aqui quando a campanha abrir, em <?php echo date('d/m/Y \à\s H:i', strtotime((string) ($campanha['data_inicio'] ?? 'now'))); ?>.</p>
+                    <span class="a-lab">Classificação</span>
+                    <h2 class="a-h2-placar">A disputa ainda não começou</h2>
+                    <p class="a-mut" style="margin: 0; line-height: 1.55;">O placar aparece aqui quando a campanha abrir, em <?php echo date('d/m/Y \à\s H:i', strtotime((string) ($campanha['data_inicio'] ?? 'now'))); ?>.</p>
                 <?php else: ?>
-                    <div class="placar-cabecalho">
+                    <div class="a-ch">
                         <div>
-                            <span class="rotulo-kpi">Classificação oficial</span>
-                            <h2 class="titulo-placar"><?php echo $estado === 'encerrada' ? 'Resultado final' : 'Placar ao vivo'; ?></h2>
+                            <span class="a-lab">Classificação oficial</span>
+                            <h2 style="margin-top: 6px"><?php echo $estado === 'encerrada' ? 'Resultado final' : 'Placar ao vivo'; ?></h2>
                         </div>
                         <?php if ($estado !== 'encerrada'): ?>
-                            <span class="placar-atualizacao"><span class="ponto-vivo"></span>Atualiza a cada 60 segundos</span>
+                            <span class="a-bd ok"><i></i>Atualiza a cada 60 segundos</span>
                         <?php elseif ($apurando): ?>
-                            <span class="placar-atualizacao">Apurando o resultado final…</span>
+                            <span class="a-bd wa">Apurando o resultado final…</span>
                         <?php endif; ?>
                     </div>
 
                     <?php if (empty($ranking['top3'])): ?>
-                        <div class="estado-vazio" style="margin-top:16px;"><?php echo $aba === 'mensal' ? 'Ninguém faturou neste mês ainda — a primeira venda aprovada abre o placar.' : 'Ninguém pontuou nesta campanha ainda.'; ?></div>
+                        <div class="a-empty"><?php echo $aba === 'mensal' ? 'Ninguém faturou neste mês ainda — a primeira venda aprovada abre o placar.' : 'Ninguém pontuou nesta campanha ainda.'; ?></div>
                     <?php else: ?>
-                        <div class="podio-ranking podio-n<?php echo count($podio_ordem_visual); ?>">
+                        <div class="a-podio n<?php echo count($podio_ordem_visual); ?>">
                             <?php foreach ($podio_ordem_visual as $p):
                                 $pos = (int) $p['posicao'];
                                 $nome_exib = nomeExibicaoRanking($p['apelido_publico'], (int) $p['id_usuario']);
                                 $eh_voce = (int) $p['id_usuario'] === $usuario_id;
                             ?>
-                                <div class="podio-item podio-<?php echo $pos; ?>">
-                                    <?php if ($pos === 1): ?><span class="podio-coroa"><?php echo iconeRanking('coroa', 22); ?></span><?php endif; ?>
-                                    <div class="podio-avatar"><?php echo htmlspecialchars(iniciaisRanking($nome_exib)); ?></div>
-                                    <div class="podio-nome"><?php echo htmlspecialchars($nome_exib); ?><?php if ($eh_voce): ?> <span class="tag-voce">você</span><?php endif; ?></div>
-                                    <div class="podio-valor"><?php echo htmlspecialchars(formatarReaisResumido((float) $p['faturamento'])); ?></div>
-                                    <div class="podio-base">
-                                        <span class="podio-posicao"><?php echo str_pad((string) $pos, 2, '0', STR_PAD_LEFT); ?></span>
-                                        <span class="podio-tag"><?php echo $pos === 1 ? 'Líder' : 'Pódio'; ?></span>
+                                <div class="a-pod p<?php echo $pos; ?>">
+                                    <?php if ($pos === 1): ?><span style="color: var(--ort)"><?php echo iconeRanking('coroa', 26); ?></span><?php endif; ?>
+                                    <span class="av"><?php echo htmlspecialchars(iniciaisRanking($nome_exib)); ?></span>
+                                    <b><?php echo htmlspecialchars($nome_exib); ?><?php if ($eh_voce): ?> <span class="a-tag">você</span><?php endif; ?></b>
+                                    <span class="vl"><?php echo htmlspecialchars(formatarReaisResumido((float) $p['faturamento'])); ?></span>
+                                    <div class="base">
+                                        <strong><?php echo str_pad((string) $pos, 2, '0', STR_PAD_LEFT); ?></strong>
+                                        <small><?php echo $pos === 1 ? 'Líder' : 'Pódio'; ?></small>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
                         </div>
 
                         <?php if ($ranking['linhas']): ?>
-                        <div class="cabecalho-ranking-lista">
-                            <span style="width:46px;">Posição</span><span style="flex:1;">Competidor</span><span>Faturamento</span>
-                        </div>
+                        <div class="a-lab" style="display: flex; justify-content: space-between; padding: 0 4px 8px"><span>Posição · Competidor</span><span>Faturamento</span></div>
+                        <div class="a-rank"><ul>
                         <?php foreach ($ranking['linhas'] as $r):
                             $nome_exib = nomeExibicaoRanking($r['apelido_publico'], (int) $r['id_usuario']);
                             $no_top5 = (int) $r['posicao'] <= $n_corte;
                             $gap = $ranking['faturamento_lider'] !== null ? $ranking['faturamento_lider'] - (float) $r['faturamento'] : null;
                             $eh_voce = (int) $r['id_usuario'] === $usuario_id;
                         ?>
-                            <div class="linha-ranking<?php echo $eh_voce ? ' e-voce' : ''; ?>">
-                                <span class="linha-ranking-pos"><?php echo str_pad((string) $r['posicao'], 2, '0', STR_PAD_LEFT); ?></span>
-                                <div class="linha-ranking-avatar"><?php echo htmlspecialchars(iniciaisRanking($nome_exib)); ?></div>
-                                <div style="flex:1;min-width:0;">
-                                    <div class="linha-ranking-nome"><?php echo htmlspecialchars($nome_exib); ?><?php if ($eh_voce): ?> <span class="tag-voce">você</span><?php endif; ?></div>
-                                    <div class="linha-ranking-zona" style="color:<?php echo $no_top5 ? 'var(--ok)' : 'var(--m)'; ?>;"><?php echo $estado === 'encerrada' ? ($no_top5 ? 'Premiado' : 'Fim da disputa') : ($no_top5 ? 'Zona de premiação' : 'Em disputa'); ?></div>
+                            <li<?php echo $eh_voce ? ' class="voce"' : ''; ?>>
+                                <span class="pos"><?php echo str_pad((string) $r['posicao'], 2, '0', STR_PAD_LEFT); ?></span>
+                                <span class="av"><?php echo htmlspecialchars(iniciaisRanking($nome_exib)); ?></span>
+                                <div class="nm">
+                                    <b><?php echo htmlspecialchars($nome_exib); ?><?php if ($eh_voce): ?> <span class="a-tag">você</span><?php endif; ?></b>
+                                    <span<?php echo $no_top5 ? ' class="ok"' : ''; ?>><?php echo $estado === 'encerrada' ? ($no_top5 ? 'Premiado' : 'Fim da disputa') : ($no_top5 ? 'Zona de premiação' : 'Em disputa'); ?></span>
                                 </div>
-                                <div>
-                                    <div class="linha-ranking-valor"><?php echo htmlspecialchars(formatarReaisResumido((float) $r['faturamento'])); ?></div>
+                                <div class="vl">
+                                    <b><?php echo htmlspecialchars(formatarReaisResumido((float) $r['faturamento'])); ?></b>
                                     <?php if ($gap !== null && $gap > 0): ?>
-                                        <div class="linha-ranking-gap"><?php echo htmlspecialchars(formatarReaisResumido($gap)); ?> do líder</div>
+                                        <span><?php echo htmlspecialchars(formatarReaisResumido($gap)); ?> do líder</span>
                                     <?php endif; ?>
                                 </div>
-                            </div>
+                            </li>
                         <?php endforeach; ?>
+                        </ul></div>
                         <?php endif; ?>
                     <?php endif; ?>
 
-                    <div class="rotulo-sua-posicao">Sua posição</div>
+                    <div class="a-lab" style="margin: 22px 4px 8px">Sua posição</div>
                     <?php if (!$ranking['sua_posicao']): ?>
-                        <div class="estado-vazio"><?php echo $aba === 'mensal' ? 'Você ainda não vendeu neste mês — sua primeira venda aprovada te coloca no placar.' : 'Você ainda não pontuou nesta campanha — sua primeira venda aprovada te coloca no placar.'; ?></div>
+                        <div class="a-empty"><?php echo $aba === 'mensal' ? 'Você ainda não vendeu neste mês — sua primeira venda aprovada te coloca no placar.' : 'Você ainda não pontuou nesta campanha — sua primeira venda aprovada te coloca no placar.'; ?></div>
                     <?php else: ?>
-                    <div class="faixa-sua-posicao">
-                        <span class="linha-ranking-pos"><?php echo str_pad((string) $ranking['sua_posicao']['posicao'], 2, '0', STR_PAD_LEFT); ?></span>
-                        <div class="linha-ranking-avatar"><?php echo htmlspecialchars(iniciaisRanking($meu_nome)); ?></div>
-                        <div style="flex:1;min-width:0;">
-                            <div class="linha-ranking-nome"><?php echo htmlspecialchars($meu_nome); ?></div>
-                            <div class="linha-ranking-zona texto-suave">Sua conta</div>
-                        </div>
-                        <div>
-                            <div class="linha-ranking-valor">R$ <?php echo number_format((float) $ranking['sua_posicao']['faturamento'], 2, ',', '.'); ?></div>
-                            <?php if ($estado !== 'encerrada' && $meu_gap_top5 !== null && $progresso_top5_pct < 100): ?>
-                                <div class="linha-ranking-gap"><?php echo htmlspecialchars(formatarReaisResumido($meu_gap_top5)); ?> do Top <?php echo $n_corte; ?></div>
-                            <?php endif; ?>
-                        </div>
-                    </div>
+                        <div class="a-rank"><ul>
+                            <li class="voce">
+                                <span class="pos"><?php echo str_pad((string) $ranking['sua_posicao']['posicao'], 2, '0', STR_PAD_LEFT); ?></span>
+                                <span class="av"><?php echo htmlspecialchars(iniciaisRanking($meu_nome)); ?></span>
+                                <div class="nm"><b><?php echo htmlspecialchars($meu_nome); ?></b><span>Sua conta</span></div>
+                                <div class="vl">
+                                    <b>R$ <?php echo number_format((float) $ranking['sua_posicao']['faturamento'], 2, ',', '.'); ?></b>
+                                    <?php if ($estado !== 'encerrada' && $meu_gap_top5 !== null && $progresso_top5_pct < 100): ?>
+                                        <span><?php echo htmlspecialchars(formatarReaisResumido($meu_gap_top5)); ?> do Top <?php echo $n_corte; ?></span>
+                                    <?php endif; ?>
+                                </div>
+                            </li>
+                        </ul></div>
                     <?php endif; ?>
                 <?php endif; ?>
-            </div>
+            </section>
 
-            <div class="coluna-lateral-ranking">
+            <div class="stack s4">
                 <?php if ($ranking): ?>
-                <div id="bloco-passe" class="passe-ingresso">
-                    <div class="passe-parte-cima">
-                        <div class="cartao-passe-titulo">
-                            <span class="passe-rotulo">Passe do competidor</span>
-                            <span class="passe-selo"><?php echo htmlspecialchars($selo_passe); ?></span>
-                        </div>
+                <section id="bloco-passe" class="a-passe" aria-label="Passe do competidor">
+                    <div class="cima">
+                        <div class="lab">Passe do competidor <span class="selo"><?php echo htmlspecialchars($selo_passe); ?></span></div>
                         <?php if (!$ranking['sua_posicao']): ?>
-                            <div class="passe-vazio">
-                                <span class="passe-vazio-icone"><?php echo iconeRanking('trofeu', 24); ?></span>
+                            <div class="vazio">
+                                <?php echo iconeRanking('trofeu', 26); ?>
                                 <strong>Você ainda não está no placar</strong>
                                 <p><?php echo $aba === 'mensal' ? 'Sua primeira venda aprovada neste mês coloca você no ranking.' : 'Sua primeira venda aprovada no período da campanha coloca você no ranking.'; ?></p>
                             </div>
                         <?php else: ?>
-                            <div class="passe-nome"><?php echo htmlspecialchars($meu_nome); ?></div>
-                            <div class="passe-corpo">
+                            <div class="nome"><?php echo htmlspecialchars($meu_nome); ?></div>
+                            <div class="pp">
                                 <div>
-                                    <div class="passe-rotulo">Sua posição</div>
-                                    <span class="passe-posicao"><small>P</small><?php echo (int) $ranking['sua_posicao']['posicao']; ?></span>
+                                    <div class="lab">Sua posição</div>
+                                    <span class="pos"><small>P</small><?php echo (int) $ranking['sua_posicao']['posicao']; ?></span>
                                 </div>
-                                <div class="passe-faturamento">
-                                    <div class="passe-rotulo">Faturamento</div>
-                                    <div class="passe-valor">R$ <?php echo number_format((float) $ranking['sua_posicao']['faturamento'], 2, ',', '.'); ?></div>
+                                <div>
+                                    <div class="lab" style="text-align: right">Faturamento</div>
+                                    <div class="fat">R$ <?php echo number_format((float) $ranking['sua_posicao']['faturamento'], 2, ',', '.'); ?></div>
                                 </div>
                             </div>
                             <?php if ($estado === 'encerrada'): ?>
-                            <div class="passe-top5"><?php echo (int) $ranking['sua_posicao']['posicao'] <= $n_corte ? 'Você foi premiado! 🎉' : 'Resultado final: P' . (int) $ranking['sua_posicao']['posicao']; ?></div>
+                                <div class="prog"><div><span><?php echo (int) $ranking['sua_posicao']['posicao'] <= $n_corte ? 'Você foi premiado! 🎉' : 'Resultado final: P' . (int) $ranking['sua_posicao']['posicao']; ?></span></div></div>
                             <?php elseif ($meu_gap_top5 !== null && $progresso_top5_pct < 100): ?>
-                            <div class="passe-progresso-linha">
-                                <span><?php echo htmlspecialchars(formatarReaisResumido($meu_gap_top5)); ?> para o Top <?php echo $n_corte; ?></span>
-                                <span><?php echo $progresso_top5_pct; ?>%</span>
-                            </div>
-                            <div class="barra-progresso"><div class="barra-progresso-fill" style="width:<?php echo $progresso_top5_pct; ?>%;"></div></div>
+                                <div class="prog">
+                                    <div><span><?php echo htmlspecialchars(formatarReaisResumido($meu_gap_top5)); ?> para o Top <?php echo $n_corte; ?></span><span><?php echo $progresso_top5_pct; ?>%</span></div>
+                                    <div class="trilho"><i style="width: <?php echo $progresso_top5_pct; ?>%"></i></div>
+                                </div>
                             <?php else: ?>
-                            <div class="passe-top5">Você está no Top <?php echo $n_corte; ?>! 🎉</div>
+                                <div class="prog"><div><span>Você está no Top <?php echo $n_corte; ?>! 🎉</span></div></div>
                             <?php endif; ?>
                         <?php endif; ?>
                     </div>
-                    <div class="passe-perfuracao" aria-hidden="true"></div>
-                    <div class="passe-parte-baixo">
+                    <div class="perf"></div>
+                    <div class="baixo">
                         <?php if ($contagem): ?>
-                        <div class="passe-rotulo" style="margin-bottom:8px;"><?php echo iconeRanking('relogio', 13); ?> <?php echo $estado === 'agendada' ? 'A corrida começa em' : ($aba === 'mensal' ? 'O mês termina em' : 'A corrida termina em'); ?></div>
-                        <div class="grade-contagem" data-alvo="<?php echo (int) $alvo_contagem->getTimestamp(); ?>">
-                            <?php foreach ($contagem as $c): ?>
-                                <div class="caixa-contagem">
-                                    <div class="caixa-contagem-valor"><?php echo htmlspecialchars($c['v']); ?></div>
-                                    <div class="caixa-contagem-label"><?php echo htmlspecialchars($c['l']); ?></div>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
+                            <div class="lab"><?php echo iconeRanking('relogio', 13); ?> <?php echo $estado === 'agendada' ? 'A corrida começa em' : ($aba === 'mensal' ? 'O mês termina em' : 'A corrida termina em'); ?></div>
+                            <div class="cont" data-alvo="<?php echo (int) $alvo_contagem->getTimestamp(); ?>">
+                                <?php foreach ($contagem as $c): ?>
+                                    <div><b><?php echo htmlspecialchars($c['v']); ?></b><small><?php echo htmlspecialchars(ucfirst($c['l'])); ?></small></div>
+                                <?php endforeach; ?>
+                            </div>
                         <?php endif; ?>
-                        <div class="passe-codigo" aria-hidden="true">
-                            <span class="passe-barras"></span>
-                            <span class="passe-codigo-texto"><?php echo htmlspecialchars(strtoupper(nomeSistema())); ?> · RANK<?php echo $ranking['sua_posicao'] ? ' · POS-' . str_pad((string) $ranking['sua_posicao']['posicao'], 4, '0', STR_PAD_LEFT) : ''; ?></span>
-                        </div>
+                        <div class="barras" aria-hidden="true"></div>
+                        <div class="cod" aria-hidden="true"><?php echo htmlspecialchars(strtoupper(nomeSistema())); ?> · RANK<?php echo $ranking['sua_posicao'] ? ' · POS-' . str_pad((string) $ranking['sua_posicao']['posicao'], 4, '0', STR_PAD_LEFT) : ''; ?></div>
                     </div>
-                </div>
+                </section>
                 <?php endif; ?>
 
                 <?php if ($premios): ?>
-                <div class="painel painel-premios">
-                    <div class="premios-eyebrow"><?php echo iconeRanking('trofeu', 15); ?><span class="rotulo-kpi">Premiação</span></div>
-                    <h2 class="titulo-premios"><?php echo $estado === 'encerrada' ? 'Premiados da campanha' : 'Premiação da campanha'; ?></h2>
-                    <div class="lista-premios">
+                <section class="a-card a-prem" aria-label="Premiação">
+                    <div class="a-lab" style="display: flex; align-items: center; gap: 8px"><?php echo iconeRanking('trofeu', 16); ?>Premiação</div>
+                    <div class="a-ch" style="margin: 6px 0 10px"><h2><?php echo $estado === 'encerrada' ? 'Premiados da campanha' : 'Premiação da campanha'; ?></h2></div>
+                    <ul>
                         <?php foreach ($premios as $p):
                             $eh_primeiro = (int) $p['posicao'] === 1;
                         ?>
-                            <div class="item-premio">
-                                <span class="item-premio-tag<?php echo $eh_primeiro ? ' primeiro' : ''; ?>">P<?php echo (int) $p['posicao']; ?></span>
+                            <li>
+                                <span class="tg<?php echo $eh_primeiro ? ' um' : ''; ?>">P<?php echo (int) $p['posicao']; ?></span>
                                 <div>
-                                    <div class="item-premio-label"><?php echo htmlspecialchars($p['titulo']); ?></div>
+                                    <b><?php echo htmlspecialchars($p['titulo']); ?></b>
                                     <?php if ($p['descricao']): ?>
-                                        <div class="item-premio-desc"><?php echo htmlspecialchars($p['descricao']); ?></div>
+                                        <span><?php echo htmlspecialchars($p['descricao']); ?></span>
                                     <?php endif; ?>
                                     <?php if ($estado === 'encerrada' && !$apurando): ?>
-                                        <div class="item-premio-ganhador"><?php echo !empty($ganhadores[(int) $p['posicao']]) ? htmlspecialchars(implode(' · ', $ganhadores[(int) $p['posicao']])) : 'Sem ganhador'; ?></div>
+                                        <span class="ganhador"><?php echo !empty($ganhadores[(int) $p['posicao']]) ? htmlspecialchars(implode(' · ', $ganhadores[(int) $p['posicao']])) : 'Sem ganhador'; ?></span>
                                     <?php endif; ?>
                                 </div>
-                            </div>
+                            </li>
                         <?php endforeach; ?>
-                    </div>
-                    <p class="texto-suave" style="margin:14px 0 0;line-height:1.55;font-size:12.5px;"><?php echo $estado === 'encerrada' ? ($apurando ? 'Os ganhadores aparecem aqui assim que o resultado final for apurado.' : 'Resultado final apurado com as vendas aprovadas do período da campanha.') : 'Os maiores faturamentos aprovados no período garantem classificação para a premiação oficial.'; ?></p>
-                </div>
+                    </ul>
+                    <p class="a-mut" style="margin-top: 12px; font-size: 12.5px"><?php echo $estado === 'encerrada' ? ($apurando ? 'Os ganhadores aparecem aqui assim que o resultado final for apurado.' : 'Resultado final apurado com as vendas aprovadas do período da campanha.') : 'Os maiores faturamentos aprovados no período garantem classificação para a premiação oficial.'; ?></p>
+                </section>
                 <?php endif; ?>
 
                 <?php if ($aba === 'concurso' && $estado === 'encerrada'): ?>
-                <div class="painel painel-premios">
-                    <div class="premios-eyebrow"><?php echo iconeRanking('calendario', 15); ?><span class="rotulo-kpi">Próxima campanha</span></div>
+                <section class="a-card a-prem" aria-label="Próxima campanha">
+                    <div class="a-lab" style="display: flex; align-items: center; gap: 8px"><?php echo iconeRanking('calendario', 16); ?>Próxima campanha</div>
                     <?php if ($proxima): ?>
-                        <h2 class="titulo-premios"><?php echo htmlspecialchars((string) $proxima['titulo']); ?></h2>
-                        <p class="texto-suave" style="margin:0;line-height:1.6;font-size:13px;">Começa em <?php echo date('d/m/Y \à\s H:i', strtotime((string) $proxima['data_inicio'])); ?>. Este resultado fica no ar até lá.</p>
+                        <div class="a-ch" style="margin: 6px 0 10px"><h2><?php echo htmlspecialchars((string) $proxima['titulo']); ?></h2></div>
+                        <p class="a-mut" style="margin: 0; line-height: 1.6; font-size: 13px;">Começa em <?php echo date('d/m/Y \à\s H:i', strtotime((string) $proxima['data_inicio'])); ?>. Este resultado fica no ar até lá.</p>
                     <?php else: ?>
-                        <h2 class="titulo-premios">Em breve</h2>
-                        <p class="texto-suave" style="margin:0;line-height:1.6;font-size:13px;">Ainda não há uma próxima campanha marcada. Este resultado fica no ar até ela começar — enquanto isso, acompanhe o ranking mensal.</p>
+                        <div class="a-ch" style="margin: 6px 0 10px"><h2>Em breve</h2></div>
+                        <p class="a-mut" style="margin: 0; line-height: 1.6; font-size: 13px;">Ainda não há uma próxima campanha marcada. Este resultado fica no ar até ela começar — enquanto isso, acompanhe o ranking mensal.</p>
                     <?php endif; ?>
-                </div>
+                </section>
                 <?php endif; ?>
 
                 <?php if (!$premios && $aba === 'mensal'): ?>
-                <div class="painel painel-premios">
-                    <div class="premios-eyebrow"><?php echo iconeRanking('calendario-mes', 15); ?><span class="rotulo-kpi">Como funciona</span></div>
-                    <h2 class="titulo-premios">Ranking do mês</h2>
-                    <p class="texto-suave" style="margin:0;line-height:1.6;font-size:13px;">Conta o faturamento das vendas <strong>aprovadas</strong> de <?php echo htmlspecialchars(nomeMesRanking($agora)); ?>. O placar zera sozinho no dia 1 e atualiza de poucos em poucos minutos. Só o seu apelido aparece para os outros — nunca seu nome ou e-mail.</p>
-                </div>
+                <section class="a-card a-prem" aria-label="Como funciona">
+                    <div class="a-lab" style="display: flex; align-items: center; gap: 8px"><?php echo iconeRanking('calendario-mes', 16); ?>Como funciona</div>
+                    <div class="a-ch" style="margin: 6px 0 10px"><h2>Ranking do mês</h2></div>
+                    <p class="a-mut" style="margin: 0; line-height: 1.6; font-size: 13px;">Conta o faturamento das vendas <strong>aprovadas</strong> de <?php echo htmlspecialchars(nomeMesRanking($agora)); ?>. O placar zera sozinho no dia 1 e atualiza de poucos em poucos minutos. Só o seu apelido aparece para os outros — nunca seu nome ou e-mail.</p>
+                </section>
                 <?php endif; ?>
             </div>
         </div>
@@ -389,10 +368,10 @@ $subtitulo_pagina = $aba === 'mensal'
     // Contagem regressiva segundo a segundo a partir do horário final calculado no servidor.
     function dois(n) { return String(n).padStart(2, '0'); }
     function tique() {
-        document.querySelectorAll('.grade-contagem[data-alvo]').forEach(function (g) {
+        document.querySelectorAll('.a-passe .cont[data-alvo]').forEach(function (g) {
             var falta = Math.max(0, Math.floor(parseInt(g.getAttribute('data-alvo'), 10) - Date.now() / 1000));
             var v = [Math.floor(falta / 86400), Math.floor(falta % 86400 / 3600), Math.floor(falta % 3600 / 60), falta % 60];
-            g.querySelectorAll('.caixa-contagem-valor').forEach(function (el, i) { el.textContent = dois(v[i]); });
+            g.querySelectorAll('b').forEach(function (el, i) { el.textContent = dois(v[i]); });
         });
     }
     tique();
