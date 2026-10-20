@@ -38,7 +38,7 @@ function ok(rotulo, cond, extra) { resultados.push((cond ? 'PASS' : 'FAIL') + ' 
     ok('toast de sucesso na tela', /sucesso|salvo/i.test(await c.avaliar(`jQuery('#toast').text()`) || ''), {});
 
     // 2ª etapa: com o fluxo salvo as outras seções destravam (como na tela de verdade)
-    ok('seções bloqueadas antes de salvar (Upsell, Packs...) destravam depois do 1º salvamento', await c.avaliar(`jQuery('.basico-nav-item[data-secao="upsell"]').hasClass('bloqueado')===false`), {});
+    ok('seções (Upsell, Packs...) livres no fluxo novo e continuam livres depois do 1º salvamento', await c.avaliar(`jQuery('.basico-nav-item[data-secao="upsell"]').hasClass('bloqueado')===false`), {});
     await c.avaliar(`jQuery('.basico-nav-item[data-secao="pagamentos"]').click(); 1`);
     await c.avaliar(`(function(){ var $=jQuery;
       $('#pg-msg-confirmado').val('Aprovado pela UI!').trigger('input');

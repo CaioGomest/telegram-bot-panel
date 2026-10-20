@@ -29,8 +29,16 @@ Valida na prática o **Fluxo Guiado** e o **Editor Visual (n8n)**, de ponta a po
 | `e2e.sh` | Jornada completa do Guiado e funil do Visual com 3 clientes + números das telas |
 | `ui/ui2.js`, `ui3.js`, `ui4.js` | Chrome de verdade: editor Guiado, editor Visual (arrasta os 13 blocos), lista de fluxos/bots/leads |
 | `ui_engine1.sh`, `ui_engine2.sh` | Roda no motor o fluxo que o editor salvou (id passado como argumento) |
+| `ui/zero_guiado.js` | **Do zero (16/10/2026)**: Guiado criado na tela, como pessoa (digita, escolhe, envia mídia): as 11 seções, validações, limites (20 packs, 8 prévias), salvar, recarregar do banco e conferir que tudo voltou igual |
+| `ui/zero_visual.js` | **Do zero**: Visual criado na tela: os 13 tipos de bloco (18 blocos), campos digitados, mídias enviadas, 22 ligações por clique nos conectores, renomear/mover/excluir, salvar, recarregar, exportar e importar |
+| `ui/zero_lista.js` | **Do zero**: começar pela lista (escolha Guiado/Visual), importar e excluir pela lista, editor Visual no celular (toque) |
+| `ui/zero_token.js` | Token do bot colado com espaço/quebra de linha (como vem do BotFather no celular): a API e a tela têm que validar; precisa de uma conta com bot real (`HOMOLOG_EMAIL`, `HOMOLOG_SENHA`, `TOKEN_BOT_ID`) |
+| `ui/zero_corrida.js` | Visual: o que se digita enquanto uma mídia grande ainda sobe (rede lenta simulada) não pode se perder |
+| `zero_motor_guiado.sh`, `zero_motor_visual.sh` | Rodam no motor (Telegram e Pix simulados) os fluxos criados por `zero_guiado.js` / `zero_visual.js` (id passado como argumento): tudo o que foi digitado tem que aparecer para o cliente. `zero_ids.php`, `zero_pesos.php`, `zero_conta.php`, `zero_sorteio_estat.php` são auxiliares |
 
 ## Rodar
+
+**Testes "do zero" (ordem):** (1) `setup.sh` e `seed.php` no servidor; defina uma senha conhecida para o usuário de teste e os grupos do bot (`bot_grupos`: ids `-1001000000001/2/99`); (2) `cd ui && HOMOLOG_SENHA=... node zero_guiado.js` imprime `FLUXO_GUIADO_ID=`; `node zero_visual.js` imprime `FLUXO_VISUAL_ID=`; `node zero_lista.js` e `node zero_corrida.js` não precisam de id; (3) copie para `/tmp/pt/app/uploads` as mídias novas (`cp -n .../uploads/flow_* /tmp/pt/app/uploads/`) e rode `bash zero_motor_guiado.sh ID` e `bash zero_motor_visual.sh ID`; (4) `php /tmp/pt/cleanup.php`. Os arquivos de mídia de teste (PNG/JPG, MP4 e MP3/WAV mínimos, mais um `falso.mp4` que é texto) ficam em `ui/midia/`; as telas e os JSON de resultado, em `ui/saida/` (ignorados pelo git). Para publicar uma correção na homologação sem esquecer dependência: `php -l` **e** conferir que todo `require __DIR__` existe lá (um arquivo novo faltando derruba o salvamento de fluxos com erro 500 sem corpo).
 
 1. Subir esta pasta para `/tmp/pt` no servidor (`pscp -r`).
 2. `bash /tmp/pt/all.sh` (reconstrói a cópia e roda tudo; resultado em `/tmp/pt/FINAL_PRONTO` e `final_*.txt`).

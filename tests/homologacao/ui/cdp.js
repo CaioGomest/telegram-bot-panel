@@ -1,5 +1,5 @@
 // Mini cliente Chrome DevTools Protocol (sem dependências): usa o WebSocket nativo do Node.
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -67,7 +67,14 @@ async function lancar() {
             const r = await enviar('Page.captureScreenshot', { format: 'png' });
             fs.writeFileSync(arquivo, Buffer.from(r.result.data, 'base64'));
         },
-        async fechar() { try { ws.close(); } catch (e) {} proc.kill(); },
+        // Fecha o Chrome (com os processos filhos: no Windows proc.kill() só pega o principal) e APAGA o perfil temporário.
+        // Antes o perfil ficava em %TEMP%/cdp-* depois de cada execução (100–175 MB cada): em 20/10/2026 eram 197 pastas e o disco C: ficou com 0 byte livre.
+        async fechar() {
+            try { ws.close(); } catch (e) {}
+            try { if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' }); else proc.kill(); } catch (e) { try { proc.kill(); } catch (e2) {} }
+            await new Promise(r => setTimeout(r, 400));
+            try { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 8, retryDelay: 250 }); } catch (e) { /* arquivo ainda preso: não derruba o teste */ }
+        },
     };
     return api;
 }

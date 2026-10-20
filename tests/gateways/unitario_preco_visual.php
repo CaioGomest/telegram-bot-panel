@@ -1,0 +1,77 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * Teste unitário de validarPrecosFluxoVisual() (funcoes/gateways.php): bloco PIX do Editor Visual abaixo do mínimo da OmegaPayments é recusado.
+ * Sem banco, sem servidor: a função é pura, então o teste lê só o trecho dela do arquivo (o resto de gateways.php precisa de conexão).
+ * Rodar: php tests/gateways/unitario_preco_visual.php   (sai com código 1 se algo falhar)
+ */
+
+$fonte = str_replace("\r\n", "\n", (string) file_get_contents(__DIR__ . '/../../funcoes/gateways.php'));
+if (!preg_match('/function validarPrecosFluxoVisual\(.*?\n}\n/s', $fonte, $m)) {
+    echo "FALHOU  função validarPrecosFluxoVisual não encontrada em funcoes/gateways.php\n";
+    exit(1);
+}
+eval($m[0]);
+if (!preg_match('/function validarPrecosFluxoGuiado\(.*?\n}\n/s', $fonte, $mg)) {
+    echo "FALHOU  função validarPrecosFluxoGuiado não encontrada em funcoes/gateways.php\n";
+    exit(1);
+}
+eval($mg[0]);
+
+$ok = 0;
+$falhas = 0;
+function confere(string $nome, bool $certo, string $detalhe = ''): void
+{
+    global $ok, $falhas;
+    $certo ? $ok++ : $falhas++;
+    echo ($certo ? 'OK     ' : 'FALHOU ') . $nome . ($certo || $detalhe === '' ? '' : '  -> ' . $detalhe) . PHP_EOL;
+}
+function pix(float $valor, string $titulo = 'PIX', string $tipo = 'pix'): array
+{
+    return ['properties' => ['type' => $tipo, 'title' => $titulo, 'valor' => $valor]];
+}
+
+$min = 2.10;
+$erro = validarPrecosFluxoVisual(['operators' => ['operator_1' => ['properties' => ['type' => 'start']], 'operator_2' => pix(1.0, 'Cobrança VIP')], 'links' => []], $min);
+confere('PIX de R$ 1,00 com mínimo de R$ 2,10: recusa com o aviso enxuto "Para a Omega, o valor mínimo é R$ 2,10."', $erro === 'Para a Omega, o valor mínimo é R$ 2,10.', var_export($erro, true));
+confere('o aviso NÃO fala da comissão da plataforma nem lista blocos/valores do vendedor', !str_contains((string) $erro, 'comissão') && !str_contains((string) $erro, 'Cobrança VIP') && !str_contains((string) $erro, 'R$ 1,00') && !str_contains((string) $erro, 'Ajuste'), var_export($erro, true));
+confere('PIX exatamente no mínimo (R$ 2,10) passa', validarPrecosFluxoVisual(['operators' => ['a' => pix(2.10)]], $min) === null);
+confere('PIX acima do mínimo passa', validarPrecosFluxoVisual(['operators' => ['a' => pix(80.0)]], $min) === null);
+confere('PIX com valor 0 (bloco ainda sem preço) não é tratado como preço baixo', validarPrecosFluxoVisual(['operators' => ['a' => pix(0.0)]], $min) === null);
+confere('blocos que não são PIX (mensagem, oferta com valor baixo) são ignorados', validarPrecosFluxoVisual(['operators' => ['a' => pix(1.0, 'x', 'message'), 'b' => pix(0.5, 'y', 'order_bump')]], $min) === null);
+confere('PIX recorrente segue a mesma regra', validarPrecosFluxoVisual(['operators' => ['a' => ['properties' => ['type' => 'pix', 'tipo_cobranca' => 'recorrente', 'valor' => 1.5, 'title' => 'Assinatura']]]], $min) !== null);
+confere('bloco PIX sem título e abaixo do mínimo também é recusado', validarPrecosFluxoVisual(['operators' => ['a' => ['properties' => ['type' => 'pix', 'valor' => 1.0]]]], $min) === 'Para a Omega, o valor mínimo é R$ 2,10.');
+confere('operador malformado (não é lista) e fluxo sem operators não quebram', validarPrecosFluxoVisual(['operators' => ['a' => 'lixo', 'b' => null]], $min) === null && validarPrecosFluxoVisual([], $min) === null);
+$muitos = ['operators' => []];
+for ($i = 1; $i <= 6; $i++) {
+    $muitos['operators']['op' . $i] = pix(1.0, 'P' . $i);
+}
+$e = (string) validarPrecosFluxoVisual($muitos, $min);
+confere('vários PIX baixos: continua uma frase só, com o mínimo', $e === 'Para a Omega, o valor mínimo é R$ 2,10.', $e);
+confere('valor vindo como texto numérico ("1.50") também é checado', validarPrecosFluxoVisual(['operators' => ['a' => ['properties' => ['type' => 'pix', 'valor' => '1.50']]]], $min) !== null);
+
+// ---- Fluxo Guiado: planos, packs e o Downsell novo (vários planos marcados)
+$msg_omega = 'Para a Omega, o valor mínimo é R$ 2,10.';
+$guiado = ['planos' => [['id' => 'a', 'nome' => 'Mensal', 'valor' => 20.0], ['id' => 'b', 'nome' => 'Semanal', 'valor' => 3.0]], 'ofertas' => [], 'packs' => []];
+confere('Guiado: planos acima do mínimo passam', validarPrecosFluxoGuiado($guiado, $min) === null);
+$baixo = $guiado;
+$baixo['planos'][1]['valor'] = 1.0;
+confere('Guiado: plano de R$ 1,00 recusa só com o mínimo da Omega (sem citar o plano nem a comissão)', validarPrecosFluxoGuiado($baixo, $min) === $msg_omega, var_export(validarPrecosFluxoGuiado($baixo, $min), true));
+$dn = $guiado;
+$dn['ofertas']['downsell'] = ['ativo' => true, 'planos_oferecidos' => ['a', 'b'], 'desconto_percentual' => 50];
+confere('Guiado: Downsell com 2 planos marcados — o Semanal com 50% (R$ 1,50) fica abaixo do mínimo e recusa', validarPrecosFluxoGuiado($dn, $min) === $msg_omega, var_export(validarPrecosFluxoGuiado($dn, $min), true));
+$dn['ofertas']['downsell']['planos_oferecidos'] = ['a'];
+confere('Guiado: marcando só o Mensal (R$ 10,00 com 50%) passa', validarPrecosFluxoGuiado($dn, $min) === null);
+$dn['ofertas']['downsell']['ativo'] = false;
+$dn['ofertas']['downsell']['planos_oferecidos'] = ['a', 'b'];
+confere('Guiado: Downsell desligado não é conferido', validarPrecosFluxoGuiado($dn, $min) === null);
+$antigo = $guiado;
+$antigo['ofertas']['downsell'] = ['ativo' => true, 'id_plano_destino' => 'b', 'desconto_percentual' => 50];
+confere('Guiado: Downsell no formato antigo (id_plano_destino) continua sendo conferido', validarPrecosFluxoGuiado($antigo, $min) === $msg_omega);
+$pack = $guiado;
+$pack['packs'] = ['ativo' => true, 'itens' => [['nome' => 'P', 'preco' => 1.0, 'ativo' => true]]];
+confere('Guiado: pack de R$ 1,00 recusa', validarPrecosFluxoGuiado($pack, $min) === $msg_omega);
+
+echo PHP_EOL . "$ok ok, $falhas falha(s)" . PHP_EOL;
+exit($falhas > 0 ? 1 : 0);

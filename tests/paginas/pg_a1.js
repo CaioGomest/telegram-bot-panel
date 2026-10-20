@@ -6,7 +6,7 @@ const { area, t, nota, salvar, esp } = require('./pg_t.js');
   try {
     area('1. Autenticação e controle de acesso');
     await c.ir(BASE + '/login');
-    await t('login: página mostra e-mail, senha, lembrar-me, esqueci a senha e aba Criar conta', async () => c.avaliar(`!!document.getElementById('email') && !!document.getElementById('senha') && !!document.querySelector('[name=lembrar]') && !!document.querySelector('.login-link-esqueci') && !!document.querySelector('a[href="cadastro"]')`), 'login');
+    await t('login: página mostra e-mail, senha, lembrar-me, esqueceu a senha e link Criar conta', async () => c.avaliar(`!!document.getElementById('email') && !!document.getElementById('senha') && !!document.querySelector('[name=lembrar]') && !!document.querySelector('.login-link-esqueci') && !!document.querySelector('a[href="cadastro"]')`), 'login');
     await t('login: senha errada mostra "Email ou senha incorretos." e não entra', async () => {
       await c.avaliar(`document.getElementById('email').value='pgteste-user@example.invalid'; document.getElementById('senha').value='errada'; document.querySelector('form[action="login"]').submit(); 1`);
       await c.esperar(`document.querySelector('.aviso-erro')`);
