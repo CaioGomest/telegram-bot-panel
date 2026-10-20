@@ -74,129 +74,113 @@ $url_foto_conta = urlFotoPerfil($foto_conta);
     <?php include 'barra_lateral.php'; ?>
 
     <main class="conteudo-principal">
-        <div class="cabecalho-pagina">
+        <header class="a-ph">
             <div>
-                <h1>Minha Conta</h1>
-                <p>Dados pessoais e senha.</p>
+                <h1 class="a-h1">Minha Conta</h1>
+                <p class="a-sub">Dados pessoais e senha.</p>
             </div>
-            <div class="acoes-cabecalho">
-                <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>
-                    Tema
-                </button>
+        </header>
+
+        <?php if ($mensagem): ?>
+            <div class="a-aviso2 <?php echo $tipo_mensagem === 'sucesso' ? 'ok' : 'er'; ?>" style="margin-bottom: 16px" role="<?php echo $tipo_mensagem === 'sucesso' ? 'status' : 'alert'; ?>">
+                <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><?php echo $tipo_mensagem === 'sucesso' ? '<path d="M20 6L9 17l-5-5"></path>' : '<circle cx="12" cy="12" r="9"></circle><path d="M12 8v5M12 16.5v.5"></path>'; ?></svg>
+                <?php echo htmlspecialchars($mensagem); ?>
             </div>
-        </div>
+        <?php endif; ?>
 
-        <div>
-            <?php if ($mensagem): ?>
-                <div class="aviso aviso-<?php echo $tipo_mensagem; ?>" style="margin-bottom:14px;">
-                    <?php echo htmlspecialchars($mensagem); ?>
-                </div>
-            <?php endif; ?>
-
-            <form method="POST" action="">
-                <?php echo campoCsrf(); ?>
-                <div class="grade grade-2">
-                    <div class="painel">
-                        <div class="painel-cabecalho"><h2>Dados pessoais</h2></div>
-                        <div class="conta-foto">
-                            <?php
-                            // form-foto-perfil vive FORA do <form> principal (declarado depois dele
-                            // fechar, mais abaixo) -- <form> dentro de <form> é HTML inválido, o
-                            // navegador descarta a tag interna e todo campo daqui (inclusive o
-                            // acao=foto escondido) acaba solto dentro do form de fora, fazendo até o
-                            // botão "Atualizar senha" mandar acao=foto sem arquivo nenhum. O atributo
-                            // form="form-foto-perfil" no input abaixo associa ele ao form externo.
-                            ?>
-                            <label class="conta-avatar" for="input-foto-perfil" title="Trocar foto">
-                                <?php if ($url_foto_conta !== ''): ?>
-                                    <img src="<?php echo htmlspecialchars($url_foto_conta); ?>" alt="">
-                                <?php else: ?>
-                                    <?php echo htmlspecialchars($iniciais_conta); ?>
-                                <?php endif; ?>
-                            </label>
-                            <input type="file" id="input-foto-perfil" name="foto" form="form-foto-perfil" accept="image/jpeg,image/png,image/webp" hidden>
-                            <div>
-                                <div class="conta-foto-acoes">
-                                    <!-- <label for="input-foto-perfil"> em vez de <button>+JS pra abrir o seletor de
-                                         arquivo -- é o único jeito 100% nativo (sem depender de .click() via JS,
-                                         que em algum navegador/situação não estava disparando). -->
-                                    <label class="botao" for="input-foto-perfil" id="btn-trocar-foto">Trocar foto</label>
-                                    <?php if ($url_foto_conta !== ''): ?>
-                                        <button type="submit" class="botao" form="form-remover-foto">Remover</button>
-                                    <?php endif; ?>
-                                </div>
-                                <span class="texto-ajuda">JPG, PNG ou WebP. Máximo 2 MB.</span>
-                            </div>
+        <form method="POST" action="" class="a-grid">
+            <?php echo campoCsrf(); ?>
+            <section class="a-card s6">
+                <div class="a-ch"><h2>Dados pessoais</h2></div>
+                <div class="a-foto">
+                    <?php
+                    // form-foto-perfil vive FORA do <form> principal (declarado depois dele
+                    // fechar, mais abaixo) -- <form> dentro de <form> é HTML inválido, o
+                    // navegador descarta a tag interna e todo campo daqui (inclusive o
+                    // acao=foto escondido) acaba solto dentro do form de fora, fazendo até o
+                    // botão "Atualizar senha" mandar acao=foto sem arquivo nenhum. O atributo
+                    // form="form-foto-perfil" no input abaixo associa ele ao form externo.
+                    ?>
+                    <label class="big" for="input-foto-perfil" title="Trocar foto" style="cursor: pointer">
+                        <?php if ($url_foto_conta !== ''): ?>
+                            <img src="<?php echo htmlspecialchars($url_foto_conta); ?>" alt="Sua foto de perfil">
+                        <?php else: ?>
+                            <?php echo htmlspecialchars($iniciais_conta); ?>
+                        <?php endif; ?>
+                    </label>
+                    <input type="file" id="input-foto-perfil" name="foto" form="form-foto-perfil" accept="image/jpeg,image/png,image/webp" hidden>
+                    <div class="a-form" style="gap: 8px">
+                        <div class="a-acts">
+                            <!-- <label for="input-foto-perfil"> em vez de <button>+JS pra abrir o seletor de
+                                 arquivo -- é o único jeito 100% nativo (sem depender de .click() via JS,
+                                 que em algum navegador/situação não estava disparando). -->
+                            <label class="a-btn" for="input-foto-perfil" id="btn-trocar-foto">Trocar foto</label>
+                            <?php if ($url_foto_conta !== ''): ?>
+                                <button type="submit" class="a-btn" form="form-remover-foto">Remover</button>
+                            <?php endif; ?>
                         </div>
-                        <div class="grade grade-compacta">
-                            <div class="campo">
-                                <label for="nome">Nome completo</label>
-                                <input type="text" id="nome" name="nome" required
-                                       value="<?php echo htmlspecialchars($dados_usuario['nome'] ?? ''); ?>">
-                            </div>
-                            <div class="campo">
-                                <label for="email">E-mail</label>
-                                <input type="email" id="email" name="email" required
-                                       value="<?php echo htmlspecialchars($dados_usuario['email'] ?? ''); ?>">
-                            </div>
-                            <div class="campo">
-                                <label for="apelido_publico">Apelido no Ranking</label>
-                                <input type="text" id="apelido_publico" name="apelido_publico" maxlength="40"
-                                       placeholder="Ex: @seuapelido"
-                                       value="<?php echo htmlspecialchars($dados_usuario['apelido_publico'] ?? ''); ?>">
-                                <span class="texto-ajuda">Nome que os outros usuários veem.</span>
-                            </div>
-                        </div>
-                        <div class="linha-acoes" style="margin-top:16px;"><button type="submit" class="botao botao-primario">Salvar alterações</button></div>
-                    </div>
-
-                    <div class="painel">
-                        <div class="painel-cabecalho"><h2>Segurança</h2></div>
-                        <div class="grade grade-compacta">
-                            <div class="campo">
-                                <label for="senha_atual">Senha atual</label>
-                                <input type="password" id="senha_atual" name="senha_atual" autocomplete="current-password" placeholder="Necessária só pra trocar a senha">
-                            </div>
-                            <div class="campo">
-                                <label for="senha">Nova senha</label>
-                                <input type="password" id="senha" name="senha" autocomplete="new-password" placeholder="Mínimo de 6 caracteres">
-                                <span class="texto-ajuda">Deixe em branco para manter a senha atual.</span>
-                            </div>
-                            <div class="campo">
-                                <label for="confirmar_senha">Confirmar senha</label>
-                                <input type="password" id="confirmar_senha" name="confirmar_senha" autocomplete="new-password" placeholder="Repita a nova senha">
-                            </div>
-                        </div>
-                        <div class="linha-acoes" style="margin-top:16px;"><button type="submit" class="botao botao-secundario">Atualizar senha</button></div>
+                        <span class="a-mut" style="font-size: 12.5px">JPG, PNG ou WebP. Máximo 2 MB.</span>
                     </div>
                 </div>
-            </form>
+                <div class="a-form">
+                    <label class="a-fld" for="nome"><span>Nome completo</span>
+                        <input class="a-in" type="text" id="nome" name="nome" required
+                               value="<?php echo htmlspecialchars($dados_usuario['nome'] ?? ''); ?>">
+                    </label>
+                    <label class="a-fld" for="email"><span>E-mail</span>
+                        <input class="a-in" type="email" id="email" name="email" required
+                               value="<?php echo htmlspecialchars($dados_usuario['email'] ?? ''); ?>">
+                    </label>
+                    <label class="a-fld" for="apelido_publico"><span>Apelido no Ranking</span>
+                        <input class="a-in" type="text" id="apelido_publico" name="apelido_publico" maxlength="40"
+                               placeholder="Ex: @seuapelido"
+                               value="<?php echo htmlspecialchars($dados_usuario['apelido_publico'] ?? ''); ?>">
+                        <small>Nome que os outros usuários veem.</small>
+                    </label>
+                    <div class="a-acts" style="justify-content: flex-end"><button type="submit" class="a-btn pri">Salvar alterações</button></div>
+                </div>
+            </section>
 
-            <form method="POST" enctype="multipart/form-data" id="form-foto-perfil" hidden>
+            <section class="a-card s6">
+                <div class="a-ch"><h2>Segurança</h2></div>
+                <div class="a-form">
+                    <label class="a-fld" for="senha_atual"><span>Senha atual</span>
+                        <input class="a-in" type="password" id="senha_atual" name="senha_atual" autocomplete="current-password" placeholder="Necessária só pra trocar a senha">
+                    </label>
+                    <label class="a-fld" for="senha"><span>Nova senha</span>
+                        <input class="a-in" type="password" id="senha" name="senha" autocomplete="new-password" placeholder="Mínimo de 6 caracteres">
+                        <small>Deixe em branco para manter a senha atual.</small>
+                    </label>
+                    <label class="a-fld" for="confirmar_senha"><span>Confirmar senha</span>
+                        <input class="a-in" type="password" id="confirmar_senha" name="confirmar_senha" autocomplete="new-password" placeholder="Repita a nova senha">
+                    </label>
+                    <div class="a-acts" style="justify-content: flex-end"><button type="submit" class="a-btn">Atualizar senha</button></div>
+                </div>
+            </section>
+        </form>
+
+        <form method="POST" enctype="multipart/form-data" id="form-foto-perfil" hidden>
+            <?php echo campoCsrf(); ?>
+            <input type="hidden" name="acao" value="foto">
+        </form>
+        <?php if ($url_foto_conta !== ''): ?>
+            <form method="POST" id="form-remover-foto" hidden>
                 <?php echo campoCsrf(); ?>
-                <input type="hidden" name="acao" value="foto">
+                <input type="hidden" name="acao" value="remover_foto">
             </form>
-            <?php if ($url_foto_conta !== ''): ?>
-                <form method="POST" id="form-remover-foto" hidden>
-                    <?php echo campoCsrf(); ?>
-                    <input type="hidden" name="acao" value="remover_foto">
-                </form>
-            <?php endif; ?>
+        <?php endif; ?>
 
-            <div class="conta-lista" style="margin-top:14px;">
-                <a href="gateways" class="conta-item">
-                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"></rect><path d="M2 10h20"></path></svg>
-                    Gateways de pagamento
-                    <span class="conta-item-seta"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></span>
-                </a>
-
-                <a href="logout" class="conta-item">
-                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                    Sair da conta
-                    <span class="conta-item-seta"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></span>
-                </a>
-            </div>
+        <div class="a-grid" style="margin-top: 16px">
+            <a href="gateways" class="a-tl s6">
+                <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"></rect><path d="M2 10h20"></path></svg>
+                Gateways de pagamento
+                <svg class="ic go" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"></path></svg>
+            </a>
+            <a href="logout" class="a-tl er s6">
+                <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"></path></svg>
+                Sair da conta
+                <svg class="ic go" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"></path></svg>
+            </a>
         </div>
     </main>
 </div>

@@ -377,3 +377,17 @@ html.layout-a .a-opt .a-ki { width: 44px; height: 44px; }
 html.layout-a .a-opt b { font: 700 24px/1 var(--f-t); text-transform: uppercase; }
 html.layout-a .a-opt span.d { color: var(--m); font-size: 13px; }
 @media (max-width: 640px) { html.layout-a .a-opts { grid-template-columns: 1fr; } }
+
+/* ---------- minha conta ---------- */
+html.layout-a .a-foto { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+html.layout-a .a-foto .big { display: grid; place-items: center; overflow: hidden; width: 84px; height: 84px; border-radius: 26px; background: linear-gradient(135deg, var(--or), #ff9a3d); color: var(--on-or); font: 800 30px var(--f-b); }
+html.layout-a .a-foto .big img { display: block; width: 100%; height: 100%; object-fit: cover; }
+html.layout-a .a-form { display: grid; gap: 14px; }
+html.layout-a .a-tl { display: flex; align-items: center; gap: 14px; min-height: 66px; padding: 14px 18px; border: 1px solid var(--bd); border-radius: 18px; background: var(--p); font-weight: 800; color: inherit; text-decoration: none; }
+html.layout-a .a-tl:hover { border-color: var(--bd2); }
+html.layout-a .a-tl .ic { color: var(--ort); }
+html.layout-a .a-tl .go { margin-left: auto; color: var(--m); }
+html.layout-a .a-tl.er .ic { color: var(--ert); }
+html.layout-a .a-aviso2 { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 14px; font-weight: 700; font-size: 13.5px; }
+html.layout-a .a-aviso2.ok { background: var(--oks); color: var(--okt); }
+html.layout-a .a-aviso2.er { background: var(--ers); color: var(--ert); }

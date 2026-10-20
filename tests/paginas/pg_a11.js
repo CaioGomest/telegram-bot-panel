@@ -148,7 +148,7 @@ async function anexar(c, seletor, arquivo) {
       await anexar(c, '#input-foto-perfil', f);
       await c.esperarCarga(); await esp(600);
       const b = u2();
-      const src = await c.avaliar(`(document.querySelector('.conta-avatar img')||{}).src||''`);
+      const src = await c.avaliar(`(document.querySelector('.a-foto .big img')||{}).src||''`);
       const info = src ? execFileSync('curl', ['-s', '-o', 'NUL', '-w', '%{http_code} %{content_type}', src], { encoding: 'utf8' }) : 'sem src';
       global.__foto = b.foto_perfil;
       return { ok: /^perfil_\d+_\d+\.png$/.test(b.foto_perfil) && /^200 image\/png/.test(info), det: `${b.foto_perfil} → ${info}` };
@@ -171,7 +171,7 @@ async function anexar(c, seletor, arquivo) {
       await c.esperarCarga(); await esp(600);
       const dep = u2().foto_perfil;
       const cod = execFileSync('curl', ['-s', '-o', 'NUL', '-w', '%{http_code}', `${BASE}/uploads/perfis/${atual}`], { encoding: 'utf8' });
-      const inic = await c.avaliar(`document.querySelector('.conta-avatar').innerText.trim()`);
+      const inic = await c.avaliar(`document.querySelector('.a-foto .big').innerText.trim()`);
       return { ok: !dep && cod === '404' && inic.length >= 1, det: `iniciais="${inic}"` };
     }, 'foto');
     await t('POST sem token CSRF é recusado e não altera o perfil', async () => {
