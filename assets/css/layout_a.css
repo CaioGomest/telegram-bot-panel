@@ -391,3 +391,22 @@ html.layout-a .a-tl.er .ic { color: var(--ert); }
 html.layout-a .a-aviso2 { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 14px; font-weight: 700; font-size: 13.5px; }
 html.layout-a .a-aviso2.ok { background: var(--oks); color: var(--okt); }
 html.layout-a .a-aviso2.er { background: var(--ers); color: var(--ert); }
+
+/* ---------- busca com botão (leads, vendas) ---------- */
+html.layout-a .a-search .a-search-btn { position: absolute; left: 0; top: 0; bottom: 0; width: 48px; display: grid; place-items: center; padding: 0; border: 0; background: transparent; color: var(--m); cursor: pointer; }
+html.layout-a .a-search .a-search-btn .ic { position: static; margin: 0; pointer-events: none; }
+html.layout-a .a-search .a-search-btn:hover { color: var(--t); }
+html.layout-a .a-t td.a-vazio-linha { padding: 34px 16px; text-align: center; color: var(--m); }
+
+/* ---------- paginação compartilhada (funcoes/paginador.php): mesma lista, visual novo ---------- */
+html.layout-a .paginacao-container { margin-top: 18px; padding: 4px 0; }
+html.layout-a .paginacao-lista { flex-wrap: wrap; justify-content: center; gap: 6px; }
+html.layout-a .paginacao-link { min-width: 44px; height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--bd); background: var(--p); color: var(--t); font: 700 13px var(--f-b); }
+html.layout-a .paginacao-link:hover:not(.disabled) { border-color: var(--or); color: var(--ort); }
+html.layout-a .paginacao-link.active, html.layout-a a.paginacao-link.active { background: var(--or); border-color: var(--or); color: var(--on-or); }
+html.layout-a .paginacao-link.disabled { color: var(--m); opacity: .6; }
+html.layout-a .paginacao-dots { height: 44px; color: var(--m); }
+@media (max-width: 640px) {
+    /* celular: só Anterior, a página atual e Próximo */
+    html.layout-a .paginacao-lista li:not(:first-child):not(:last-child):not(:has(.active)) { display: none; }
+}

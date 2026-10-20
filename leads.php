@@ -190,112 +190,111 @@ unset($params_link['pagina']);
 <div class="layout-painel">
     <?php include 'barra_lateral.php'; ?>
     <main class="conteudo-principal">
-        <div class="cabecalho-pagina">
+        <header class="a-ph">
             <div>
-                <h1>Leads</h1>
-                <p>Visualize os usuários que interagiram com seus bots.</p>
+                <h1 class="a-h1">Leads</h1>
+                <p class="a-sub">Visualize os usuários que interagiram com seus bots.</p>
             </div>
-            <div class="acoes-cabecalho">
-                <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>
-                    Tema
-                </button>
-            </div>
-        </div>
+        </header>
 
-        <div class="barra-filtros">
-            <form method="GET" class="campo-busca">
+        <input type="checkbox" id="a-f" class="a-cb a-cbf" aria-label="Mostrar filtros">
+        <div class="a-card a-fbar flat">
+            <form method="GET" class="a-search" id="form-busca-lead" role="search">
                 <?php if ($status !== ''): ?><input type="hidden" name="status" value="<?php echo htmlspecialchars($status); ?>"><?php endif; ?>
                 <?php if ($bot_id > 0): ?><input type="hidden" name="bot_id" value="<?php echo $bot_id; ?>"><?php endif; ?>
-                <button type="submit" aria-label="Buscar">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+                <button type="submit" class="a-search-btn" aria-label="Buscar">
+                    <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
                 </button>
-                <input type="text" name="busca" id="busca-lead" value="<?php echo htmlspecialchars($busca); ?>" placeholder="Buscar por nome ou ID do Telegram">
+                <input class="a-in" type="text" name="busca" id="busca-lead" value="<?php echo htmlspecialchars($busca); ?>" placeholder="Buscar por nome ou ID do Telegram" aria-label="Buscar por nome ou ID do Telegram">
             </form>
-            <div class="abas-status">
-                <a href="?<?php echo http_build_query(array_merge($params_link, ['status' => ''])); ?>" class="aba-status<?php echo $status === '' ? ' ativa' : ''; ?>">Todos</a>
-                <a href="?<?php echo http_build_query(array_merge($params_link, ['status' => 'pago'])); ?>" class="aba-status<?php echo $status === 'pago' ? ' ativa' : ''; ?>">Já pagou</a>
-                <a href="?<?php echo http_build_query(array_merge($params_link, ['status' => 'nao_pago'])); ?>" class="aba-status<?php echo $status === 'nao_pago' ? ' ativa' : ''; ?>">Não pagou</a>
+            <label class="a-btn a-fbtn" for="a-f" aria-label="Filtros">
+                <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"></path></svg><span class="t">Filtros</span>
+            </label>
+            <div class="a-fpanel">
+                <div class="a-seg" role="group" aria-label="Status do lead">
+                    <a href="?<?php echo http_build_query(array_merge($params_link, ['status' => ''])); ?>"<?php echo $status === '' ? ' class="on" aria-current="true"' : ''; ?>>Todos</a>
+                    <a href="?<?php echo http_build_query(array_merge($params_link, ['status' => 'pago'])); ?>"<?php echo $status === 'pago' ? ' class="on" aria-current="true"' : ''; ?>>Já pagou</a>
+                    <a href="?<?php echo http_build_query(array_merge($params_link, ['status' => 'nao_pago'])); ?>"<?php echo $status === 'nao_pago' ? ' class="on" aria-current="true"' : ''; ?>>Não pagou</a>
+                </div>
+                <form method="GET" class="a-fld">
+                    <?php if ($status !== ''): ?><input type="hidden" name="status" value="<?php echo htmlspecialchars($status); ?>"><?php endif; ?>
+                    <?php if ($busca !== ''): ?><input type="hidden" name="busca" value="<?php echo htmlspecialchars($busca); ?>"><?php endif; ?>
+                    <select class="a-in" name="bot_id" onchange="this.form.submit()" aria-label="Filtrar por bot">
+                        <option value="">Todos os Bots</option>
+                        <?php foreach ($meus_bots as $b): ?>
+                            <option value="<?php echo $b['id']; ?>" <?php echo $bot_id == $b['id'] ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($b['nome']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </form>
             </div>
-            <form method="GET">
-                <?php if ($status !== ''): ?><input type="hidden" name="status" value="<?php echo htmlspecialchars($status); ?>"><?php endif; ?>
-                <?php if ($busca !== ''): ?><input type="hidden" name="busca" value="<?php echo htmlspecialchars($busca); ?>"><?php endif; ?>
-                <select name="bot_id" onchange="this.form.submit()">
-                    <option value="">Todos os Bots</option>
-                    <?php foreach ($meus_bots as $b): ?>
-                        <option value="<?php echo $b['id']; ?>" <?php echo $bot_id == $b['id'] ? 'selected' : ''; ?>>
-                            <?php echo htmlspecialchars($b['nome']); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </form>
         </div>
 
-        <div class="painel">
-            <div class="tabela-dados">
-                <table id="tabela-leads">
-                    <thead>
+        <section class="a-card a-tw flat" aria-label="Lista de leads">
+            <table class="a-t" id="tabela-leads">
+                <thead>
+                    <tr>
+                        <th>Lead</th>
+                        <th>Número</th>
+                        <th>Bot</th>
+                        <th>Início</th>
+                        <th>Status</th>
+                        <th>Plano</th>
+                        <th>Compras</th>
+                        <th class="num">Total gasto</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($leads)): ?>
                         <tr>
-                            <th>Lead</th>
-                            <th>Número</th>
-                            <th>Bot</th>
-                            <th>Início</th>
-                            <th>Status</th>
-                            <th>Plano</th>
-                            <th>Compras</th>
-                            <th class="col-numerica">Total gasto</th>
+                            <td colspan="8" class="full a-vazio-linha">Nenhum lead encontrado.</td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (empty($leads)): ?>
+                    <?php else: ?>
+                        <?php foreach ($leads as $lead): ?>
+                            <?php
+                                $status_badge = '<span class="a-bd">Iniciou</span>';
+                                if ($lead['total_compras'] > 0) {
+                                    $status_badge = '<span class="a-bd ok">Cliente</span>';
+                                } elseif ($lead['ultimo_status_pagamento'] === 'gerado') {
+                                    $status_badge = '<span class="a-bd wa">Gerou Pix</span>';
+                                }
+                                $nome_lead = trim((string) $lead['nome']) !== '' ? (string) $lead['nome'] : 'Sem nome';
+                                $inicial_lead = mb_strtoupper(mb_substr($nome_lead, 0, 1), 'UTF-8');
+                            ?>
                             <tr>
-                                <td colspan="8" style="text-align: center; padding: 20px; color: var(--m);">Nenhum lead encontrado.</td>
-                            </tr>
-                        <?php else: ?>
-                            <?php foreach ($leads as $lead): ?>
-                                <?php
-                                    $status_badge = '<span class="badge badge-neutro">Iniciou</span>';
-                                    if ($lead['total_compras'] > 0) {
-                                        $status_badge = '<span class="badge badge-sucesso">Cliente</span>';
-                                    } elseif ($lead['ultimo_status_pagamento'] === 'gerado') {
-                                        $status_badge = '<span class="badge badge-alerta">Gerou Pix</span>';
-                                    }
-                                    $inicial_lead = mb_strtoupper(mb_substr($lead['nome'] ?: '?', 0, 1), 'UTF-8');
-                                ?>
-                                <tr>
-                                    <td>
-                                        <div class="celula-principal">
-                                            <span class="avatar-item"><?php echo htmlspecialchars($inicial_lead); ?></span>
-                                            <div>
-                                                <div><?php echo htmlspecialchars($lead['nome']); ?></div>
-                                                <div class="celula-sub mono">ID: <?php echo htmlspecialchars((string) $lead['id_telegram']); ?></div>
-                                            </div>
+                                <td class="c-main">
+                                    <div class="who">
+                                        <span class="a-av2"><?php echo htmlspecialchars($inicial_lead); ?></span>
+                                        <div>
+                                            <b><?php echo htmlspecialchars($nome_lead); ?></b>
+                                            <span class="sub">ID: <?php echo htmlspecialchars((string) $lead['id_telegram']); ?></span>
                                         </div>
-                                    </td>
-                                    <td><?php echo $lead['telefone'] ? htmlspecialchars($lead['telefone']) : '<span class="texto-suave">—</span>'; ?></td>
-                                    <td><?php echo htmlspecialchars($lead['nome_bot']); ?></td>
-                                    <td class="mono"><?php echo date('d/m/Y H:i', strtotime($lead['data_inicio'])); ?></td>
-                                    <td><?php echo $status_badge; ?></td>
-                                    <td>
-                                        <?php echo $lead['plano_ativo'] ? '<span class="badge badge-sucesso">Ativo</span>' : '<span class="badge badge-neutro">Inativo</span>'; ?>
-                                    </td>
-                                    <td><?php echo $lead['total_compras']; ?></td>
-                                    <td class="col-numerica mono">R$ <?php echo number_format((float)$lead['total_gasto'], 2, ',', '.'); ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-            <?php echo paginador($total_leads, $por_pagina); ?>
-        </div>
+                                    </div>
+                                </td>
+                                <td data-l="Número"><?php echo $lead['telefone'] ? htmlspecialchars($lead['telefone']) : '<span class="a-mut">—</span>'; ?></td>
+                                <td data-l="Bot"><?php echo htmlspecialchars((string) $lead['nome_bot']); ?></td>
+                                <td data-l="Início" class="mono"><?php echo date('d/m/Y H:i', strtotime($lead['data_inicio'])); ?></td>
+                                <td data-l="Status"><?php echo $status_badge; ?></td>
+                                <td data-l="Plano">
+                                    <?php echo $lead['plano_ativo'] ? '<span class="a-bd ok">Ativo</span>' : '<span class="a-bd">Inativo</span>'; ?>
+                                </td>
+                                <td data-l="Compras"><?php echo $lead['total_compras']; ?></td>
+                                <td class="num c-val">R$ <?php echo number_format((float)$lead['total_gasto'], 2, ',', '.'); ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </section>
+        <?php echo paginador($total_leads, $por_pagina); ?>
     </main>
 </div>
 
 <script src="assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/tema.js'); ?>"></script>
 <script>
 (function () {
-    var form = document.querySelector('.campo-busca');
+    var form = document.getElementById('form-busca-lead');
     var input = document.getElementById('busca-lead');
     if (!form || !input) return;
     var inicial = input.value;

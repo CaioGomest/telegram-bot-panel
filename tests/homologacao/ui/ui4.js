@@ -32,7 +32,7 @@ function ok(rotulo, cond, extra) { resultados.push((cond ? 'PASS' : 'FAIL') + ' 
     await c.captura(SH + 'ui_bots.png');
 
     await c.ir(BASE + '/leads');
-    ok('Leads: barra de busca nova (um campo só, sem retângulo dentro de retângulo) acima da tabela', await c.avaliar(`(function(){ var f=document.querySelector('.barra-filtros'); var i=document.querySelector('.campo-busca input[type=text]'); var cs=getComputedStyle(i); return !!f && !f.closest('.painel') && cs.borderTopWidth==='0px' && cs.backgroundColor==='rgba(0, 0, 0, 0)'; })()`), {});
+    ok('Leads: barra de filtros (busca, status e bot) acima da tabela, fora do cartão da tabela', await c.avaliar(`(function(){ var f=document.querySelector('.a-fbar'); var t=document.getElementById('tabela-leads'); var i=document.getElementById('busca-lead'); return !!f && !!i && !!t && !f.contains(t) && !!(f.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING); })()`), {});
     ok('Leads: sem botão Exportar CSV', await c.avaliar(`!document.body.innerText.includes('Exportar CSV')`), {});
     await c.captura(SH + 'ui_leads.png');
 
