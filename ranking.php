@@ -276,7 +276,7 @@ $subtitulo_pagina = $aba === 'mensal'
                             <div class="pp">
                                 <div>
                                     <div class="lab">Sua posição</div>
-                                    <span class="pos"><small>P</small><?php echo (int) $ranking['sua_posicao']['posicao']; ?></span>
+                                    <span class="pos"><?php echo (int) $ranking['sua_posicao']['posicao']; ?></span>
                                 </div>
                                 <div>
                                     <div class="lab" style="text-align: right">Faturamento</div>
@@ -284,7 +284,7 @@ $subtitulo_pagina = $aba === 'mensal'
                                 </div>
                             </div>
                             <?php if ($estado === 'encerrada'): ?>
-                                <div class="prog"><div><span><?php echo (int) $ranking['sua_posicao']['posicao'] <= $n_corte ? 'Você foi premiado! 🎉' : 'Resultado final: P' . (int) $ranking['sua_posicao']['posicao']; ?></span></div></div>
+                                <div class="prog"><div><span><?php echo (int) $ranking['sua_posicao']['posicao'] <= $n_corte ? 'Você foi premiado! 🎉' : 'Resultado final: #' . (int) $ranking['sua_posicao']['posicao']; ?></span></div></div>
                             <?php elseif ($meu_gap_top5 !== null && $progresso_top5_pct < 100): ?>
                                 <div class="prog">
                                     <div><span><?php echo htmlspecialchars(formatarReaisResumido($meu_gap_top5)); ?> para o Top <?php echo $n_corte; ?></span><span><?php echo $progresso_top5_pct; ?>%</span></div>

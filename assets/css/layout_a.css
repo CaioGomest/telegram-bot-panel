@@ -260,7 +260,7 @@ html.layout-a .a-sk { display: block; border-radius: 12px; background: linear-gr
     html.layout-a .a-sheet-usr { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
     html.layout-a .a-sheet-usr > div { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
     html.layout-a .a-sheet-usr b { font-weight: 800; }
-    html.layout-a .a-sheet-usr span { color: var(--m); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; }
+    html.layout-a .a-sheet-usr > div > span { color: var(--m); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; }
     html.layout-a .a-gt { margin: 16px 4px 8px; font: 600 11px var(--f-m); letter-spacing: .1em; text-transform: uppercase; color: var(--m); }
     html.layout-a .a-sheet-g { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
     html.layout-a .a-tile { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 78px; padding: 10px 4px; border-radius: 16px; border: 1px solid var(--bd); background: var(--p2); font: 700 11.5px/1.15 var(--f-b); text-align: center; overflow-wrap: anywhere; text-decoration: none; }
