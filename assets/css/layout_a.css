@@ -403,8 +403,8 @@ html.layout-a .paginacao-container { margin-top: 18px; padding: 4px 0; }
 html.layout-a .paginacao-lista { flex-wrap: wrap; justify-content: center; gap: 6px; }
 html.layout-a .paginacao-link { min-width: 44px; height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--bd); background: var(--p); color: var(--t); font: 700 13px var(--f-b); }
 html.layout-a .paginacao-link:hover:not(.disabled) { border-color: var(--or); color: var(--ort); }
-html.layout-a .paginacao-link.active, html.layout-a a.paginacao-link.active { background: var(--or); border-color: var(--or); color: var(--on-or); }
-html.layout-a .paginacao-link.disabled { color: var(--m); opacity: .6; }
+html.layout-a[data-theme] .paginacao-link.active, html.layout-a[data-theme] a.paginacao-link.active { background: var(--or); border-color: var(--or); color: var(--on-or); }
+html.layout-a .paginacao-link.disabled { color: var(--m); opacity: 1; background: transparent; border-style: dashed; cursor: not-allowed; }
 html.layout-a .paginacao-dots { height: 44px; color: var(--m); }
 @media (max-width: 640px) {
     /* celular: só Anterior, a página atual e Próximo */
@@ -469,7 +469,6 @@ html.layout-a .a-passe .selo { float: right; padding: 2px 10px; border: 1px soli
 html.layout-a .a-passe .nome { font: 700 30px/1 var(--f-t); text-transform: uppercase; overflow-wrap: anywhere; }
 html.layout-a .a-passe .pp { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 6px 12px; }
 html.layout-a .a-passe .pos { font: 700 62px/.9 var(--f-t); }
-html.layout-a .a-passe .pos small { display: inline; margin: 0 2px 0 0; font-size: 24px; color: inherit; opacity: .7; }
 html.layout-a .a-passe .fat { font: 700 26px var(--f-t); text-align: right; }
 html.layout-a .a-passe .prog { display: grid; gap: 6px; font: 700 12.5px var(--f-b); }
 html.layout-a .a-passe .prog div { display: flex; justify-content: space-between; }
@@ -614,3 +613,9 @@ html.layout-a[data-theme] .selo-prioridade.principal { color: var(--on-or); }
 html.layout-a .selo-metodo { color: var(--okt); }
 html.layout-a .status-gateway.conectado { color: var(--okt); }
 html.layout-a .status-gateway.pendente { color: var(--wat); }
+
+html.layout-a .icone-gateway-omegapayments { background: linear-gradient(135deg, #7c3aed, #4c1d95); }
+html.layout-a .icone-gateway-padrao { background: linear-gradient(135deg, #4b5563, #1f2937); }
+/* traqueamento: campos da plataforma desligada ficavam a 50% de opacidade (rótulos quase invisíveis) */
+html.layout-a .secao-desativada .campos-plataforma { opacity: 1; }
+html.layout-a .secao-desativada .campos-plataforma input, html.layout-a .secao-desativada .campos-plataforma select, html.layout-a .secao-desativada .campos-plataforma .botao { opacity: .6; }
