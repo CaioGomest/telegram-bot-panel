@@ -124,228 +124,230 @@ $dinheiro = static fn(float $v): string => 'R$ ' . number_format($v, 2, ',', '.'
 <div class="layout-painel">
     <?php include 'barra_lateral.php'; ?>
     <main class="conteudo-principal">
-        <div class="cabecalho-pagina">
+        <header class="a-ph">
             <div>
-                <h1>Vendas</h1>
-                <p>Registro de todas as vendas dos seus bots: pagas, aguardando Pix e expiradas.</p>
+                <h1 class="a-h1">Vendas</h1>
+                <p class="a-sub">Registro de todas as vendas dos seus bots: pagas, aguardando Pix e expiradas.</p>
             </div>
-            <div class="acoes-cabecalho">
-                <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>
-                    Tema
-                </button>
-            </div>
-        </div>
+        </header>
 
-        <div class="grade-kpi" id="resumo-vendas">
-            <div class="cartao-kpi">
-                <div class="cartao-kpi-cabecalho"><span class="rotulo-kpi">Faturado</span></div>
-                <div class="valor-kpi"><?php echo $dinheiro($faturado); ?></div>
-                <div class="rodape-kpi"><span><?php echo number_format($qtd_pagas, 0, ',', '.'); ?> <?php echo $qtd_pagas === 1 ? 'venda paga' : 'vendas pagas'; ?></span></div>
+        <section class="a-grid" id="resumo-vendas" style="margin-bottom: 16px" aria-label="Resumo das vendas">
+            <div class="a-card a-kpi s3 wide-m">
+                <span class="a-lab">Faturado</span>
+                <span class="a-kv"><?php echo $dinheiro($faturado); ?></span>
+                <span class="a-kf"><?php echo number_format($qtd_pagas, 0, ',', '.'); ?> <?php echo $qtd_pagas === 1 ? 'venda paga' : 'vendas pagas'; ?></span>
             </div>
-            <div class="cartao-kpi">
-                <div class="cartao-kpi-cabecalho"><span class="rotulo-kpi">Ticket médio</span></div>
-                <div class="valor-kpi"><?php echo $dinheiro($ticket_medio); ?></div>
-                <div class="rodape-kpi"><span>Por venda paga</span></div>
+            <div class="a-card a-kpi s3">
+                <span class="a-lab">Ticket médio</span>
+                <span class="a-kv"><?php echo $dinheiro($ticket_medio); ?></span>
+                <span class="a-kf">Por venda paga</span>
             </div>
-            <div class="cartao-kpi">
-                <div class="cartao-kpi-cabecalho"><span class="rotulo-kpi">Pix gerados</span></div>
-                <div class="valor-kpi"><?php echo number_format($qtd_total, 0, ',', '.'); ?></div>
-                <div class="rodape-kpi"><span><?php echo number_format($qtd_total - $qtd_pagas, 0, ',', '.'); ?> sem pagamento</span></div>
+            <div class="a-card a-kpi s3">
+                <span class="a-lab">Pix gerados</span>
+                <span class="a-kv"><?php echo number_format($qtd_total, 0, ',', '.'); ?></span>
+                <span class="a-kf"><?php echo number_format($qtd_total - $qtd_pagas, 0, ',', '.'); ?> sem pagamento</span>
             </div>
-            <div class="cartao-kpi">
-                <div class="cartao-kpi-cabecalho"><span class="rotulo-kpi">Conversão</span></div>
-                <div class="valor-kpi"><?php echo number_format($conversao, 1, ',', '.'); ?>%</div>
-                <div class="rodape-kpi"><span>Pagos / gerados</span></div>
+            <div class="a-card a-kpi s3">
+                <span class="a-lab">Conversão</span>
+                <span class="a-kv"><?php echo number_format($conversao, 1, ',', '.'); ?>%</span>
+                <span class="a-kf">Pagos / gerados</span>
             </div>
-        </div>
+        </section>
 
-        <div class="filtros-vendas">
-            <div class="filtros-vendas-abas">
-                <div class="abas-status">
+        <input type="checkbox" id="a-f" class="a-cb a-cbf" aria-label="Mostrar filtros">
+        <form method="GET" class="a-card a-fv flat" id="form-filtros-vendas">
+            <?php if ($aba !== ''): ?><input type="hidden" name="aba" value="<?php echo htmlspecialchars($aba); ?>"><?php endif; ?>
+            <div class="segs gav">
+                <div class="a-seg" role="group" aria-label="Status da venda">
                     <?php foreach ($ABAS as $chave => [$rotulo]): ?>
-                        <a href="?<?php echo htmlspecialchars(http_build_query(array_merge($params_link, ['aba' => $chave]))); ?>" class="aba-status<?php echo $aba === $chave ? ' ativa' : ''; ?>"><?php echo htmlspecialchars($rotulo); ?></a>
+                        <a href="?<?php echo htmlspecialchars(http_build_query(array_merge($params_link, ['aba' => $chave]))); ?>"<?php echo $aba === $chave ? ' class="on" aria-current="true"' : ''; ?>><?php echo htmlspecialchars($rotulo); ?></a>
                     <?php endforeach; ?>
                 </div>
-                <div class="abas-status">
+                <div class="a-seg" role="group" aria-label="Período">
                     <?php foreach (['hoje' => 'Hoje', '7' => '7 dias', '30' => '30 dias', '' => 'Tudo'] as $chave => $rotulo):
                         $ativo_periodo = $chave === '' ? ($data_inicio === '' && $data_fim === '') : ($periodo === (string) $chave);
                         $link_periodo = array_merge($params_link, ['periodo' => $chave, 'data_inicio' => '', 'data_fim' => '']);
                     ?>
-                        <a href="?<?php echo htmlspecialchars(http_build_query($link_periodo)); ?>" class="aba-status<?php echo $ativo_periodo ? ' ativa' : ''; ?>"><?php echo $rotulo; ?></a>
+                        <a href="?<?php echo htmlspecialchars(http_build_query($link_periodo)); ?>"<?php echo $ativo_periodo ? ' class="on" aria-current="true"' : ''; ?>><?php echo $rotulo; ?></a>
                     <?php endforeach; ?>
                 </div>
             </div>
-            <form method="GET" class="filtros-vendas-form">
-                <?php if ($aba !== ''): ?><input type="hidden" name="aba" value="<?php echo htmlspecialchars($aba); ?>"><?php endif; ?>
-                <label class="filtro-campo filtro-bot"><span>Bot</span>
-                    <select name="bot_id" onchange="this.form.submit()">
-                        <option value="">Todos os bots</option>
-                        <?php foreach ($meus_bots as $b): ?>
-                            <option value="<?php echo (int) $b['id']; ?>" <?php echo $bot_id === (int) $b['id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars((string) $b['nome']); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </label>
-                <label class="filtro-campo filtro-data"><span>De</span><input type="date" name="data_inicio" value="<?php echo htmlspecialchars($data_inicio); ?>"></label>
-                <label class="filtro-campo filtro-data"><span>Até</span><input type="date" name="data_fim" value="<?php echo htmlspecialchars($data_fim); ?>"></label>
-                <label class="filtro-campo filtro-busca"><span>Buscar</span><input type="text" name="busca" id="busca-venda" value="<?php echo htmlspecialchars($busca); ?>" placeholder="Cliente, ID do Telegram ou código da transação"></label>
-                <div class="filtro-acoes">
-                    <button type="submit" class="botao botao-primario">Filtrar</button>
-                    <?php if ($tem_filtro): ?><a href="vendas" class="botao">Limpar</a><?php endif; ?>
-                </div>
-            </form>
-        </div>
-
-        <div class="painel">
-            <div class="tabela-dados">
-                <table id="tabela-vendas">
-                    <thead>
-                        <tr>
-                            <th>Data</th>
-                            <th>Cliente</th>
-                            <th>Produto</th>
-                            <th>Status</th>
-                            <th class="col-numerica">Valor</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (empty($vendas)): ?>
-                            <tr><td colspan="6" style="text-align:center;padding:20px;color:var(--m);"><?php echo $tem_filtro ? 'Nenhuma venda encontrada com esses filtros.' : 'Nenhuma venda ainda. Quando alguém gerar um Pix no seu bot, ele aparece aqui.'; ?></td></tr>
-                        <?php else: foreach ($vendas as $v):
-                            $cliente = trim((string) ($v['nome_cliente'] ?? '')) ?: 'Cliente ' . $v['id_telegram'];
-                            $produto = trim((string) ($v['nome_produto'] ?? ''));
-                            $tipo_v = tipoDaVenda($v);
-                            $detalhe = [
-                                'id' => (int) $v['id'],
-                                'cliente' => $cliente,
-                                'id_telegram' => (string) $v['id_telegram'],
-                                'username' => !empty($v['username']) ? '@' . $v['username'] : '',
-                                'produto' => $produto,
-                                'tipo_venda' => rotuloTipoDaVenda($tipo_v),
-                                'fluxo' => (string) ($v['nome_fluxo'] ?? ''),
-                                'modo_fluxo' => $v['modo_fluxo'] === 'basico' ? 'Guiado' : ($v['modo_fluxo'] ? 'Visual' : ''),
-                                'fluxo_removido' => empty($v['nome_fluxo']) && !empty($v['id_fluxo']),
-                                'bot' => (string) $v['nome_bot'],
-                                'cobranca' => rotuloTipoCobranca($v['tipo_cobranca']),
-                                'status' => (string) $v['status'],
-                                'criada_em' => date('d/m/Y H:i', strtotime($v['criado_em'])),
-                                'paga_em' => $v['pago_em'] ? date('d/m/Y H:i', strtotime($v['pago_em'])) : '',
-                                'valor' => $dinheiro((float) $v['valor']),
-                                'codigo' => (string) ($v['transacao_id'] ?? ''),
-                            ];
-                        ?>
-                            <tr>
-                                <td class="mono"><?php echo date('d/m/Y H:i', strtotime($v['criado_em'])); ?></td>
-                                <td>
-                                    <div><?php echo htmlspecialchars($cliente); ?></div>
-                                    <div class="celula-sub mono">ID: <?php echo htmlspecialchars((string) $v['id_telegram']); ?></div>
-                                </td>
-                                <td>
-                                    <?php echo $produto !== '' ? htmlspecialchars($produto) : '<span class="texto-suave">—</span>'; ?>
-                                    <?php if ($tipo_v !== 'primeira'): ?>
-                                        <span class="badge <?php echo $tipo_v === 'recompra' ? 'badge-neutro' : 'badge-alerta'; ?>"><?php echo $tipo_v === 'recompra' ? 'Recompra' : 'Renovação'; ?></span>
-                                    <?php endif; ?>
-                                </td>
-                                <td><?php echo rotuloStatusVenda((string) $v['status']); ?></td>
-                                <td class="col-numerica mono"><?php echo $dinheiro((float) $v['valor']); ?></td>
-                                <td>
-                                    <div class="col-acoes">
-                                        <button type="button" class="btn-icon ver btn-detalhes-venda" data-venda="<?php echo htmlspecialchars(json_encode($detalhe, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP), ENT_QUOTES); ?>" title="Ver detalhes" aria-label="Ver detalhes"><?php echo iconeAcao('ver'); ?></button>
-                                    </div>
-                                </td>
-                            </tr>
-                        <?php endforeach; endif; ?>
-                    </tbody>
-                </table>
+            <label class="a-search" for="busca-venda">
+                <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+                <input class="a-in" type="text" name="busca" id="busca-venda" value="<?php echo htmlspecialchars($busca); ?>" placeholder="Cliente, ID do Telegram ou código da transação" aria-label="Buscar venda">
+            </label>
+            <label class="a-btn a-fbtn" for="a-f" aria-label="Filtros">
+                <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"></path></svg><span class="t">Filtros</span>
+            </label>
+            <label class="a-fld gav bot" for="filtro-bot-venda"><span>Bot</span>
+                <select class="a-in" name="bot_id" id="filtro-bot-venda" onchange="this.form.submit()">
+                    <option value="">Todos os bots</option>
+                    <?php foreach ($meus_bots as $b): ?>
+                        <option value="<?php echo (int) $b['id']; ?>" <?php echo $bot_id === (int) $b['id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars((string) $b['nome']); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </label>
+            <label class="a-fld gav" for="filtro-de-venda"><span>De</span><input class="a-in" type="date" name="data_inicio" id="filtro-de-venda" value="<?php echo htmlspecialchars($data_inicio); ?>"></label>
+            <label class="a-fld gav" for="filtro-ate-venda"><span>Até</span><input class="a-in" type="date" name="data_fim" id="filtro-ate-venda" value="<?php echo htmlspecialchars($data_fim); ?>"></label>
+            <div class="acts gav">
+                <button type="submit" class="a-btn pri">Filtrar</button>
+                <?php if ($tem_filtro): ?><a href="vendas" class="a-btn">Limpar</a><?php endif; ?>
             </div>
-            <?php echo paginador($total_linhas, $por_pagina); ?>
-        </div>
+        </form>
+
+        <section class="a-card a-tw flat" aria-label="Lista de vendas">
+            <table class="a-t" id="tabela-vendas">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Cliente</th>
+                        <th>Produto</th>
+                        <th>Status</th>
+                        <th class="num">Valor</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($vendas)): ?>
+                        <tr><td colspan="6" class="full a-vazio-linha"><?php echo $tem_filtro ? 'Nenhuma venda encontrada com esses filtros.' : 'Nenhuma venda ainda. Quando alguém gerar um Pix no seu bot, ele aparece aqui.'; ?></td></tr>
+                    <?php else: foreach ($vendas as $v):
+                        $cliente = trim((string) ($v['nome_cliente'] ?? '')) ?: 'Cliente ' . $v['id_telegram'];
+                        $produto = trim((string) ($v['nome_produto'] ?? ''));
+                        $tipo_v = tipoDaVenda($v);
+                        $detalhe = [
+                            'id' => (int) $v['id'],
+                            'cliente' => $cliente,
+                            'id_telegram' => (string) $v['id_telegram'],
+                            'username' => !empty($v['username']) ? '@' . $v['username'] : '',
+                            'produto' => $produto,
+                            'tipo_venda' => rotuloTipoDaVenda($tipo_v),
+                            'fluxo' => (string) ($v['nome_fluxo'] ?? ''),
+                            'modo_fluxo' => $v['modo_fluxo'] === 'basico' ? 'Guiado' : ($v['modo_fluxo'] ? 'Visual' : ''),
+                            'fluxo_removido' => empty($v['nome_fluxo']) && !empty($v['id_fluxo']),
+                            'bot' => (string) $v['nome_bot'],
+                            'cobranca' => rotuloTipoCobranca($v['tipo_cobranca']),
+                            'status' => (string) $v['status'],
+                            'criada_em' => date('d/m/Y H:i', strtotime($v['criado_em'])),
+                            'paga_em' => $v['pago_em'] ? date('d/m/Y H:i', strtotime($v['pago_em'])) : '',
+                            'valor' => $dinheiro((float) $v['valor']),
+                            'codigo' => (string) ($v['transacao_id'] ?? ''),
+                        ];
+                    ?>
+                        <tr>
+                            <td data-l="Data" class="mono o3"><?php echo date('d/m/Y H:i', strtotime($v['criado_em'])); ?></td>
+                            <td class="c-main">
+                                <b><?php echo htmlspecialchars($cliente); ?></b>
+                                <span class="sub">ID: <?php echo htmlspecialchars((string) $v['id_telegram']); ?></span>
+                            </td>
+                            <td data-l="Produto" class="full o5">
+                                <?php echo $produto !== '' ? htmlspecialchars($produto) : '<span class="a-mut">—</span>'; ?>
+                                <?php if ($tipo_v !== 'primeira'): ?>
+                                    <span class="a-bd<?php echo $tipo_v === 'recompra' ? '' : ' wa'; ?>"><?php echo $tipo_v === 'recompra' ? 'Recompra' : 'Renovação'; ?></span>
+                                <?php endif; ?>
+                            </td>
+                            <td data-l="Status" class="o4"><?php echo rotuloStatusVenda((string) $v['status']); ?></td>
+                            <td class="num c-val"><?php echo $dinheiro((float) $v['valor']); ?></td>
+                            <td class="act o6">
+                                <button type="button" class="a-btn btn-detalhes-venda" data-venda="<?php echo htmlspecialchars(json_encode($detalhe, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP), ENT_QUOTES); ?>" title="Ver detalhes" aria-label="Ver detalhes da venda <?php echo (int) $v['id']; ?>"><?php echo iconeAcao('ver'); ?>Detalhes</button>
+                            </td>
+                        </tr>
+                    <?php endforeach; endif; ?>
+                </tbody>
+            </table>
+        </section>
+        <?php echo paginador($total_linhas, $por_pagina); ?>
     </main>
 </div>
 <script src="assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/tema.js'); ?>"></script>
 
-<div id="modal-venda" class="sobreposicao-modal" aria-hidden="true">
-    <div class="modal-gateway" style="max-width: 600px;" role="dialog" aria-modal="true" aria-labelledby="modal-venda-titulo">
-        <div class="cabecalho-modal">
-            <div class="titulo-modal" id="modal-venda-titulo">Venda</div>
-            <button type="button" class="fechar-modal" id="modal-venda-fechar" aria-label="Fechar">✕</button>
+<div id="modal-venda" class="a-over" aria-hidden="true">
+    <div class="a-modal" role="dialog" aria-modal="true" aria-labelledby="modal-venda-titulo">
+        <div class="a-mh">
+            <h2 id="modal-venda-titulo">Venda</h2>
+            <button type="button" class="a-ib" id="modal-venda-fechar" aria-label="Fechar"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"></path></svg></button>
         </div>
-        <div class="corpo-modal">
-            <div class="venda-resumo">
-                <div class="venda-resumo-valor" id="mv-valor"></div>
-                <div id="mv-status"></div>
-            </div>
-            <div class="venda-detalhes" id="mv-lista"></div>
+        <div class="a-vv">
+            <span class="a-kv" id="mv-valor"></span>
+            <div id="mv-status"></div>
         </div>
+        <div id="mv-lista"></div>
     </div>
 </div>
 <script>
 (function () {
     var modal = document.getElementById('modal-venda');
     var lista = document.getElementById('mv-lista');
-    var ROTULOS_STATUS = { pago: ['Pago', 'badge-sucesso'], gerado: ['Aguardando Pix', 'badge-alerta'], expirado: ['Expirado', 'badge-neutro'], cancelado: ['Cancelado', 'badge-neutro'] };
+    var ROTULOS_STATUS = { pago: ['Pago', 'ok'], gerado: ['Aguardando Pix', 'wa'], expirado: ['Expirado', ''], cancelado: ['Cancelado', ''] };
+    var gatilho = null;
     function el(tag, classe, texto) { var e = document.createElement(tag); if (classe) e.className = classe; if (texto != null) e.textContent = texto; return e; }
-    // Um campo = rótulo pequeno em cima e valor embaixo (com bastante respiro); vários campos de uma seção ficam em grade.
-    function campo(rotulo, conteudo) {
-        var c = el('div', 'venda-campo');
-        c.appendChild(el('span', 'venda-campo-rotulo', rotulo));
-        var v = el('div', 'venda-campo-valor');
+    // Um campo = rótulo pequeno em cima e valor embaixo; vários campos de uma seção ficam em grade (2 colunas, 1 no celular).
+    function campo(rotulo, conteudo, larga) {
+        var c = el('div', 'a-fld');
+        if (larga) c.style.gridColumn = '1 / -1';
+        c.appendChild(el('span', '', rotulo));
+        var v = el('b');
         if (typeof conteudo === 'string') v.textContent = conteudo || '—'; else v.appendChild(conteudo);
         c.appendChild(v);
         return c;
     }
     function secao(titulo, campos) {
-        var s = el('section', 'venda-secao');
-        s.appendChild(el('h4', 'venda-secao-titulo', titulo));
-        var g = el('div', 'venda-secao-grade');
+        var s = el('section', 'a-sec');
+        s.appendChild(el('h4', '', titulo));
+        var g = el('div', 'a-sg');
         campos.forEach(function (c) { g.appendChild(c); });
         s.appendChild(g);
         lista.appendChild(s);
     }
-    function selo(texto, classe) { return el('span', 'badge ' + classe, texto); }
+    function selo(texto, classe) { return el('span', 'a-bd' + (classe ? ' ' + classe : ''), texto); }
     function abrir(v) {
         document.getElementById('modal-venda-titulo').textContent = 'Venda #' + v.id;
         document.getElementById('mv-valor').textContent = v.valor;
-        var st = ROTULOS_STATUS[v.status] || [v.status, 'badge-neutro'];
+        var st = ROTULOS_STATUS[v.status] || [v.status, ''];
         var alvo = document.getElementById('mv-status'); alvo.innerHTML = ''; alvo.appendChild(selo(st[0], st[1]));
         lista.innerHTML = '';
 
         var cliente = el('div');
         cliente.appendChild(el('div', '', v.cliente));
-        cliente.appendChild(el('div', 'venda-sub mono', 'ID ' + v.id_telegram + (v.username ? ' · ' + v.username : '')));
-        secao('Cliente', [campo('Nome', cliente)]);
+        cliente.appendChild(el('small', 'mono a-mut', 'ID ' + v.id_telegram + (v.username ? ' · ' + v.username : '')));
+        secao('Cliente', [campo('Nome', cliente, true)]);
 
-        var tipoClasse = v.tipo_venda === 'Primeira compra' ? 'badge-sucesso' : (v.tipo_venda === 'Recompra' ? 'badge-neutro' : 'badge-alerta');
+        var tipoClasse = v.tipo_venda === 'Primeira compra' ? 'ok' : (v.tipo_venda === 'Recompra' ? '' : 'wa');
         var produto = el('div');
         produto.appendChild(el('div', '', v.produto || '—'));
-        if (v.tipo_venda) { var linhaTipo = el('div', 'venda-sub'); linhaTipo.appendChild(selo(v.tipo_venda, tipoClasse)); produto.appendChild(linhaTipo); }
+        if (v.tipo_venda) { var linhaTipo = el('div'); linhaTipo.style.marginTop = '4px'; linhaTipo.appendChild(selo(v.tipo_venda, tipoClasse)); produto.appendChild(linhaTipo); }
         var fluxo = el('div');
         if (v.fluxo) {
             fluxo.appendChild(el('div', '', v.fluxo));
-            if (v.modo_fluxo) { var linhaModo = el('div', 'venda-sub'); linhaModo.appendChild(el('span', 'badge-modo-fluxo ' + (v.modo_fluxo === 'Guiado' ? 'basico' : 'visual') + ' venda-modo', v.modo_fluxo)); fluxo.appendChild(linhaModo); }
+            if (v.modo_fluxo) { var linhaModo = el('div'); linhaModo.style.marginTop = '4px'; linhaModo.appendChild(selo(v.modo_fluxo, v.modo_fluxo === 'Guiado' ? 'or' : 'vi')); fluxo.appendChild(linhaModo); }
         } else {
-            fluxo.appendChild(el('div', 'texto-suave', v.fluxo_removido ? 'Fluxo removido' : '—'));
+            fluxo.appendChild(el('div', 'a-mut', v.fluxo_removido ? 'Fluxo removido' : '—'));
         }
         secao('Compra', [campo('Produto', produto), campo('Fluxo', fluxo), campo('Bot', v.bot), campo('Cobrança', v.cobranca)]);
 
         secao('Datas', [campo('Criada em', v.criada_em), campo('Paga em', v.paga_em)]);
 
-        var cod = el('div', 'venda-codigo');
+        var cod = el('div');
+        cod.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap';
         cod.appendChild(el('span', 'mono', v.codigo || '—'));
+        cod.firstChild.style.overflowWrap = 'anywhere';
         if (v.codigo && navigator.clipboard) {
-            var copiar = el('button', 'botao', 'Copiar'); copiar.type = 'button';
+            var copiar = el('button', 'a-btn', 'Copiar'); copiar.type = 'button';
             copiar.addEventListener('click', function () { navigator.clipboard.writeText(v.codigo).then(function () { copiar.textContent = 'Copiado'; setTimeout(function () { copiar.textContent = 'Copiar'; }, 1500); }); });
             cod.appendChild(copiar);
         }
-        secao('Transação', [campo('Código', cod)]);
+        secao('Transação', [campo('Código', cod, true)]);
         modal.classList.add('aberto'); modal.setAttribute('aria-hidden', 'false');
+        document.getElementById('modal-venda-fechar').focus();
     }
-    function fechar() { modal.classList.remove('aberto'); modal.setAttribute('aria-hidden', 'true'); }
+    function fechar() {
+        if (!modal.classList.contains('aberto')) return;
+        modal.classList.remove('aberto'); modal.setAttribute('aria-hidden', 'true');
+        if (gatilho && gatilho.focus) gatilho.focus();
+    }
     document.addEventListener('click', function (e) {
         var b = e.target.closest ? e.target.closest('.btn-detalhes-venda') : null;
-        if (b) { try { abrir(JSON.parse(b.getAttribute('data-venda'))); } catch (x) {} return; }
-        if (e.target === modal || e.target.id === 'modal-venda-fechar') fechar();
+        if (b) { try { gatilho = b; abrir(JSON.parse(b.getAttribute('data-venda'))); } catch (x) {} return; }
+        if (e.target === modal || (e.target.closest && e.target.closest('#modal-venda-fechar'))) fechar();
     });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') fechar(); });
 })();

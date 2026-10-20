@@ -410,3 +410,13 @@ html.layout-a .paginacao-dots { height: 44px; color: var(--m); }
     /* celular: só Anterior, a página atual e Próximo */
     html.layout-a .paginacao-lista li:not(:first-child):not(:last-child):not(:has(.active)) { display: none; }
 }
+
+/* ---------- vendas ---------- */
+html.layout-a .a-vv { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+html.layout-a .a-fv .a-search { flex: none; }
+@media (max-width: 640px) { html.layout-a .wide-m { grid-column: span 2; } }
+/* regras antigas por ID da tabela de vendas (largura mínima e linhas sem quebra): a tabela agora vira cartões no celular */
+html.layout-a #tabela-vendas { min-width: 0; }
+html.layout-a #tabela-vendas td { white-space: normal; }
+html.layout-a #tabela-vendas th { white-space: nowrap; }
+html.layout-a #tabela-vendas td.mono, html.layout-a #tabela-vendas td.num { white-space: nowrap; }

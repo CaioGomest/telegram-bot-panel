@@ -25,13 +25,13 @@ function sqlCamposVendasLista(bool $tem_nome_produto, bool $tem_id_fluxo): strin
 function rotuloStatusVenda(string $status): string
 {
     $mapa = [
-        'pago' => ['Pago', 'badge-sucesso'],
-        'gerado' => ['Aguardando Pix', 'badge-alerta'],
-        'expirado' => ['Expirado', 'badge-neutro'],
-        'cancelado' => ['Cancelado', 'badge-neutro'],
+        'pago' => ['Pago', 'ok'],
+        'gerado' => ['Aguardando Pix', 'wa'],
+        'expirado' => ['Expirado', ''],
+        'cancelado' => ['Cancelado', ''],
     ];
-    [$texto, $classe] = $mapa[$status] ?? [htmlspecialchars(ucfirst($status)), 'badge-neutro'];
-    return "<span class=\"badge $classe\">$texto</span>";
+    [$texto, $classe] = $mapa[$status] ?? [htmlspecialchars(ucfirst($status)), ''];
+    return '<span class="a-bd' . ($classe !== '' ? ' ' . $classe : '') . '">' . $texto . '</span>';
 }
 /** 'primeira' | 'renovacao' | 'recompra' | 'ciclo' (cobrança seguinte de uma assinatura recorrente). */
 function tipoDaVenda(array $v): string
