@@ -27,9 +27,16 @@
         var raiz = document.getElementById('sino-notificacoes-raiz');
         if (!raiz) return;
 
-        // No desktop o sino vai pro cabeçalho superior; no mobile esse cabeçalho some e o sino fica na página.
-        var topo = document.querySelector('.topo-acoes');
-        var acoes = (topo && topo.offsetParent !== null) ? topo : document.querySelector('.acoes-cabecalho');
+        // O sino vai para a barra de cima que estiver visível (.topo-acoes: no Layout A o desktop e o celular têm cada um a sua);
+        // sem nenhuma visível, cai no cabeçalho da página (.acoes-cabecalho, casca antiga no celular).
+        function destino() {
+            var barras = document.querySelectorAll('.topo-acoes');
+            for (var i = 0; i < barras.length; i++) {
+                if (barras[i].offsetParent !== null && barras[i].querySelector('.alternador-tema')) return barras[i];
+            }
+            return document.querySelector('.acoes-cabecalho');
+        }
+        var acoes = destino();
         var tema = acoes && acoes.querySelector('.alternador-tema');
         if (!acoes || !tema) return;
 
@@ -186,6 +193,12 @@
         });
 
         window.addEventListener('resize', function () {
+            // girar o aparelho ou redimensionar troca a barra de cima visível: o sino acompanha
+            var novo = destino();
+            if (novo && novo !== raiz.parentNode) {
+                var t = novo.querySelector('.alternador-tema');
+                if (t) novo.insertBefore(raiz, t);
+            }
             if (!painel.hidden) posicionarPainel();
         });
 

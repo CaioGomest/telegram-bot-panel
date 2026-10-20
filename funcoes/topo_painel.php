@@ -21,6 +21,14 @@ function dataExtensaPt(?int $timestamp = null): string
     return (int) date('j', $timestamp) . ' DE ' . $meses[(int) date('n', $timestamp) - 1] . ' DE ' . date('Y', $timestamp);
 }
 
+/** "18 de outubro": data curta da barra de cima do celular (Layout A). */
+function dataCurtaPt(?int $timestamp = null): string
+{
+    $meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+    $timestamp = $timestamp ?? time();
+    return (int) date('j', $timestamp) . ' de ' . $meses[(int) date('n', $timestamp) - 1];
+}
+
 /**
  * Faturamento acumulado do usuário (vendas pagas), lido do cache pré-calculado
  * por cron_metricas_admin.php -- o mesmo que a dashboard usa em "Total".

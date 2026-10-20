@@ -24,9 +24,17 @@ if (!$is_admin && $user_id) {
         $stmt->execute([$user_id]);
         $badge_bots = (int) $stmt->fetchColumn();
 
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM leads WHERE bot_id IN (SELECT id FROM bots WHERE id_usuario = ?)");
-        $stmt->execute([$user_id]);
-        $badge_leads = (int) $stmt->fetchColumn();
+        // A contagem de leads varre todos os leads do vendedor, e este arquivo roda em toda página: fica 60 s na sessão
+        // (o número do menu não precisa ser exato ao segundo; o de bots, barato e que muda por ação do próprio usuário, segue ao vivo).
+        $cache_leads = $_SESSION['badge_leads_menu'] ?? null;
+        if (is_array($cache_leads) && (int) ($cache_leads['u'] ?? 0) === (int) $user_id && (int) ($cache_leads['t'] ?? 0) > time() - 60) {
+            $badge_leads = (int) $cache_leads['n'];
+        } else {
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM leads WHERE bot_id IN (SELECT id FROM bots WHERE id_usuario = ?)");
+            $stmt->execute([$user_id]);
+            $badge_leads = (int) $stmt->fetchColumn();
+            $_SESSION['badge_leads_menu'] = ['u' => (int) $user_id, 't' => time(), 'n' => $badge_leads];
+        }
     } catch (Exception $e) {
         $badge_bots = null;
         $badge_leads = null;
@@ -76,42 +84,42 @@ $grupo_automacoes = [];
 $grupo_rastreamento = [];
 $grupo_comunidade = [];
 if (!$is_admin) {
-    $grupo_visao[] = ['href' => 'index', 'label' => 'Dashboard', 'sub' => 'Visão geral', 'icone' => 'dashboard'];
-    $grupo_visao[] = ['href' => 'vendas', 'label' => 'Vendas', 'sub' => 'Registro de vendas', 'icone' => 'vendas'];
-    $grupo_visao[] = ['href' => 'leads', 'label' => 'Leads', 'sub' => 'Quem interagiu', 'icone' => 'leads', 'badge' => $badge_leads];
+    $grupo_visao[] = ['href' => 'index', 'label' => 'Dashboard', 'curto' => 'Início', 'sub' => 'Visão geral', 'icone' => 'dashboard'];
+    $grupo_visao[] = ['href' => 'vendas', 'label' => 'Vendas', 'curto' => 'Vendas', 'sub' => 'Registro de vendas', 'icone' => 'vendas'];
+    $grupo_visao[] = ['href' => 'leads', 'label' => 'Leads', 'curto' => 'Leads', 'sub' => 'Quem interagiu', 'icone' => 'leads', 'badge' => $badge_leads];
 
-    $grupo_automacoes[] = ['href' => 'bots', 'label' => 'Meus Bots', 'sub' => 'Seus bots do Telegram', 'icone' => 'bots', 'badge' => $badge_bots];
-    $grupo_automacoes[] = ['href' => 'fluxos', 'label' => 'Fluxos', 'sub' => 'Conversas dos bots', 'icone' => 'fluxos'];
-    $grupo_automacoes[] = ['href' => 'remarketing', 'label' => 'Remarketing', 'sub' => 'Recupere vendas', 'icone' => 'remarketing'];
-    $grupo_automacoes[] = ['href' => 'redirecionamento', 'label' => 'Redirecionamento', 'sub' => 'Links curtos', 'icone' => 'redirecionamento'];
+    $grupo_automacoes[] = ['href' => 'bots', 'label' => 'Meus Bots', 'curto' => 'Bots', 'sub' => 'Seus bots do Telegram', 'icone' => 'bots', 'badge' => $badge_bots];
+    $grupo_automacoes[] = ['href' => 'fluxos', 'label' => 'Fluxos', 'curto' => 'Fluxos', 'sub' => 'Conversas dos bots', 'icone' => 'fluxos'];
+    $grupo_automacoes[] = ['href' => 'remarketing', 'label' => 'Remarketing', 'curto' => 'Remarketing', 'sub' => 'Recupere vendas', 'icone' => 'remarketing'];
+    $grupo_automacoes[] = ['href' => 'redirecionamento', 'label' => 'Redirecionamento', 'curto' => 'Redirec.', 'sub' => 'Links curtos', 'icone' => 'redirecionamento'];
 
-    $grupo_rastreamento[] = ['href' => 'traqueamento', 'label' => 'Traqueamento', 'sub' => 'Pixels e APIs', 'icone' => 'traqueamento'];
-    $grupo_rastreamento[] = ['href' => 'links_rastreamento', 'label' => 'Links de Rastreamento', 'sub' => 'Origem do tráfego', 'icone' => 'links'];
-    $grupo_rastreamento[] = ['href' => 'webhooks', 'label' => 'Webhooks', 'sub' => 'Eventos em tempo real', 'icone' => 'webhooks'];
+    $grupo_rastreamento[] = ['href' => 'traqueamento', 'label' => 'Traqueamento', 'curto' => 'Traqueam.', 'sub' => 'Pixels e APIs', 'icone' => 'traqueamento'];
+    $grupo_rastreamento[] = ['href' => 'links_rastreamento', 'label' => 'Links de Rastreamento', 'curto' => 'Links', 'sub' => 'Origem do tráfego', 'icone' => 'links'];
+    $grupo_rastreamento[] = ['href' => 'webhooks', 'label' => 'Webhooks', 'curto' => 'Webhooks', 'sub' => 'Eventos em tempo real', 'icone' => 'webhooks'];
 
-    $grupo_comunidade[] = ['href' => 'ranking', 'label' => 'Ranking', 'sub' => 'Concurso de faturamento', 'icone' => 'ranking'];
-    $grupo_comunidade[] = ['href' => 'comunidade', 'label' => 'Comunidade', 'sub' => 'Grupos e novidades', 'icone' => 'comunidade', 'nova_aba' => true];
+    $grupo_comunidade[] = ['href' => 'ranking', 'label' => 'Ranking', 'curto' => 'Ranking', 'sub' => 'Concurso de faturamento', 'icone' => 'ranking'];
+    $grupo_comunidade[] = ['href' => 'comunidade', 'label' => 'Comunidade', 'curto' => 'Comunidade', 'sub' => 'Grupos e novidades', 'icone' => 'comunidade', 'nova_aba' => true];
 }
 $grupo_conta = [];
-$grupo_conta[] = ['href' => 'gateways', 'label' => 'Gateways', 'sub' => 'Meios de pagamento', 'icone' => 'gateways'];
-$grupo_conta[] = ['href' => 'configuracao_usuario', 'label' => 'Minha Conta', 'sub' => 'Dados e senha', 'icone' => 'conta'];
+$grupo_conta[] = ['href' => 'gateways', 'label' => 'Gateways', 'curto' => 'Gateways', 'sub' => 'Meios de pagamento', 'icone' => 'gateways'];
+$grupo_conta[] = ['href' => 'configuracao_usuario', 'label' => 'Minha Conta', 'curto' => 'Conta', 'sub' => 'Dados e senha', 'icone' => 'conta'];
 
 $grupo_admin = [];
 if ($is_admin) {
-    $grupo_admin[] = ['href' => 'admin/dashboard', 'label' => 'Visão Geral', 'sub' => 'Plataforma', 'icone' => 'visao_geral'];
-    $grupo_admin[] = ['href' => 'admin/transacoes', 'label' => 'Transações', 'sub' => 'Vendas e splits', 'icone' => 'transacoes'];
-    $grupo_admin[] = ['href' => 'admin/usuarios', 'label' => 'Usuários', 'sub' => 'Contas e acessos', 'icone' => 'usuarios'];
-    $grupo_admin[] = ['href' => 'admin/ranking', 'label' => 'Campanhas', 'sub' => 'Ranking e prêmios', 'icone' => 'campanhas'];
-    $grupo_admin[] = ['href' => 'admin/comunidade', 'label' => 'Comunidade', 'sub' => 'Links oficiais', 'icone' => 'comunidade'];
-    $grupo_admin[] = ['href' => 'admin/logs', 'label' => 'Logs', 'sub' => 'Registros do sistema', 'icone' => 'logs'];
-    $grupo_admin[] = ['href' => 'admin/emails', 'label' => 'E-mails', 'sub' => 'Envios e falhas', 'icone' => 'emails'];
-    $grupo_admin[] = ['href' => 'admin/configuracoes', 'label' => 'Configurações', 'sub' => 'Marca e e-mail', 'icone' => 'identidade'];
+    $grupo_admin[] = ['href' => 'admin/dashboard', 'label' => 'Visão Geral', 'curto' => 'Visão geral', 'sub' => 'Plataforma', 'icone' => 'visao_geral'];
+    $grupo_admin[] = ['href' => 'admin/transacoes', 'label' => 'Transações', 'curto' => 'Transações', 'sub' => 'Vendas e splits', 'icone' => 'transacoes'];
+    $grupo_admin[] = ['href' => 'admin/usuarios', 'label' => 'Usuários', 'curto' => 'Usuários', 'sub' => 'Contas e acessos', 'icone' => 'usuarios'];
+    $grupo_admin[] = ['href' => 'admin/ranking', 'label' => 'Campanhas', 'curto' => 'Campanhas', 'sub' => 'Ranking e prêmios', 'icone' => 'campanhas'];
+    $grupo_admin[] = ['href' => 'admin/comunidade', 'label' => 'Comunidade', 'curto' => 'Comunidade', 'sub' => 'Links oficiais', 'icone' => 'comunidade'];
+    $grupo_admin[] = ['href' => 'admin/logs', 'label' => 'Logs', 'curto' => 'Logs', 'sub' => 'Registros do sistema', 'icone' => 'logs'];
+    $grupo_admin[] = ['href' => 'admin/emails', 'label' => 'E-mails', 'curto' => 'E-mails', 'sub' => 'Envios e falhas', 'icone' => 'emails'];
+    $grupo_admin[] = ['href' => 'admin/configuracoes', 'label' => 'Configurações', 'curto' => 'Config.', 'sub' => 'Marca e e-mail', 'icone' => 'identidade'];
 }
 
 $grupo_debug = [];
 if ($is_admin) {
-    $grupo_debug[] = ['href' => 'admin/consultar_venda', 'label' => 'Consultar Venda', 'icone' => 'consultar_venda'];
-    $grupo_debug[] = ['href' => 'admin/testes_desempenho', 'label' => 'Testes de Desempenho', 'icone' => 'testes_desempenho'];
+    $grupo_debug[] = ['href' => 'admin/consultar_venda', 'label' => 'Consultar Venda', 'curto' => 'Consultar', 'icone' => 'consultar_venda'];
+    $grupo_debug[] = ['href' => 'admin/testes_desempenho', 'label' => 'Testes de Desempenho', 'curto' => 'Desempenho', 'icone' => 'testes_desempenho'];
 }
 
 $grupos_menu = $is_admin
@@ -165,6 +173,11 @@ if (usuarioLogado() && function_exists('emailVerificado') && !emailVerificado((i
 }
 $foto_usuario = function_exists('fotoPerfilDaSessao') ? fotoPerfilDaSessao() : '';
 ?>
+<?php
+// Casca nova (Layout A) ou antiga: tema_inline.php já decidiu (funcoes/layout_a.php); admin/, editores e demais páginas seguem na antiga.
+require_once __DIR__ . '/funcoes/layout_a.php';
+$layout_a = $layout_a ?? layoutAAtivo($caminho_base);
+if (!$layout_a): ?>
 <?php // Recolhida (só ícones) por padrão; abre ao passar o mouse, por cima do conteúdo. "Fixar sidebar" mantém aberta. ?>
 <aside class="barra-lateral">
     <div class="barra-lateral-interna">
@@ -351,6 +364,9 @@ $foto_usuario = function_exists('fotoPerfilDaSessao') ? fotoPerfilDaSessao() : '
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && !folha.hidden) fechar(); });
 })();
 </script>
+<?php else: ?>
+<?php require __DIR__ . '/parciais/shell_a.php'; ?>
+<?php endif; ?>
 <?php if (function_exists('csrfToken')): ?>
 <script>
     // Disponível globalmente (sem depender do jQuery já ter carregado) pra qualquer página
