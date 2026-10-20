@@ -13,6 +13,8 @@ html.layout-a {
     --f-m: 'JetBrains Mono', ui-monospace, Menlo, monospace;
     --on-or: #1b0d04;
     --largura-barra: 92px;
+    /* Conteúdo ocupa a tela toda até 1840 px; só acima disso sobra margem nas laterais (centralizado). A barra de cima usa a mesma medida para alinhar. */
+    --lateral-conteudo: calc((100vw - 92px - 1840px) / 2);
 }
 html.layout-a[data-theme="dark"] {
     --on-er: #2a0808;
@@ -66,7 +68,7 @@ html.layout-a .a-av { flex: none; width: 42px; height: 42px; border-radius: 14px
 html.layout-a .a-av img { display: block; width: 100%; height: 100%; object-fit: cover; }
 
 /* ---------- casca: barra de cima (desktop) ---------- */
-html.layout-a .a-top { position: sticky; top: 0; z-index: 20; margin-left: 92px; display: flex; align-items: center; gap: 14px; padding: 14px 28px; background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(10px); }
+html.layout-a .a-top { position: sticky; top: 0; z-index: 20; margin-left: 92px; display: flex; align-items: center; gap: 14px; padding: 14px max(28px, var(--lateral-conteudo)); background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(10px); }
 html.layout-a .a-hi { display: flex; flex-direction: column; line-height: 1.1; min-width: 0; }
 html.layout-a .a-hi b { font: 700 26px var(--f-t); letter-spacing: .02em; text-transform: uppercase; }
 html.layout-a .a-hi b em { font-style: normal; color: var(--ort); }
@@ -111,7 +113,7 @@ html.layout-a .aviso-email button:disabled { opacity: .7; cursor: default; }
 html.layout-a .a-mtop, html.layout-a .a-tabbar, html.layout-a .a-sheet, html.layout-a .a-mmeta { display: none; }
 
 /* ---------- conteúdo ---------- */
-html.layout-a .conteudo-principal { display: block; flex: none; margin-left: 92px; min-width: 0; padding: 6px max(28px, calc((100vw - 92px - 1380px) / 2)) 56px; }
+html.layout-a .conteudo-principal { display: block; flex: none; margin-left: 92px; min-width: 0; padding: 6px max(28px, var(--lateral-conteudo)) 56px; }
 /* páginas que ainda têm o cabeçalho antigo: o tema agora vive na casca, e o logo do cabeçalho mobile antigo não se repete */
 html.layout-a .cabecalho-pagina .alternador-tema { display: none; }
 html.layout-a .cabecalho-pagina::before { display: none; }
@@ -301,3 +303,41 @@ html.layout-a .a-sk { display: block; border-radius: 12px; background: linear-gr
 }
 @media (max-width: 359px) { html.layout-a .a-sheet-g { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (prefers-reduced-motion: reduce) { html.layout-a .a-sheet-fundo, html.layout-a .a-sheet-caixa { transition: none; } }
+
+/* ---------- toast (#toast, usado pelas páginas) ---------- */
+html.layout-a #toast { left: 50%; right: auto; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 14px); max-width: calc(100% - 32px); padding: 12px 18px; border-radius: 14px; background: var(--p3); border: 1px solid var(--bd2); color: var(--t); font: 800 13.5px/1.35 var(--f-b); text-align: center; box-shadow: var(--sh); }
+html.layout-a #toast.visivel { transform: translate(-50%, 0); }
+html.layout-a #toast.sucesso { border-color: var(--okt); color: var(--okt); }
+html.layout-a #toast.erro { border-color: var(--ert); color: var(--ert); }
+@media (max-width: 900px) { html.layout-a #toast { bottom: calc(88px + env(safe-area-inset-bottom, 0px)); } }
+
+/* ---------- grade de cartões (bots, fluxos): tantas colunas quanto couberem, sem mexer no HTML ---------- */
+html.layout-a .a-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 16px; }
+html.layout-a .a-cards > .s-todos { grid-column: 1 / -1; }
+html.layout-a .a-empty.er { border-color: var(--ert); color: var(--ert); }
+html.layout-a .a-btn.desativado { opacity: .5; cursor: not-allowed; }
+
+/* ---------- bots ---------- */
+html.layout-a .a-bot { display: flex; flex-direction: column; gap: 14px; }
+html.layout-a .a-bot-top { display: flex; align-items: center; gap: 14px; }
+html.layout-a .a-bot-av { flex: none; display: grid; place-items: center; overflow: hidden; width: 66px; height: 66px; border-radius: 21px; background: var(--p3); color: var(--ort); }
+html.layout-a .a-bot-av img { display: block; width: 100%; height: 100%; object-fit: cover; }
+html.layout-a .a-bot-av-ico { display: grid; place-items: center; width: 100%; height: 100%; }
+html.layout-a .a-bot-av-ico svg { width: 30px; height: 30px; }
+html.layout-a .a-bot-id { min-width: 0; }
+html.layout-a .a-bot-id h3 { margin: 0; font: 700 27px/1 var(--f-t); text-transform: uppercase; overflow-wrap: anywhere; }
+html.layout-a .a-bot-id .user { display: block; margin-top: 4px; font: 600 12.5px var(--f-m); color: var(--m); overflow-wrap: anywhere; }
+html.layout-a .a-bot-bds { display: flex; gap: 8px; flex-wrap: wrap; }
+html.layout-a .a-bot-nums { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--bd); border-radius: 16px; overflow: hidden; }
+html.layout-a .a-bot-nums div { display: grid; gap: 2px; padding: 12px 14px; }
+html.layout-a .a-bot-nums div + div { border-left: 1px solid var(--bd); }
+html.layout-a .a-bot-nums b { font: 700 32px/1 var(--f-t); }
+html.layout-a .a-bot-flow { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 10px 14px; border-radius: 14px; background: var(--p2); font-weight: 700; font-size: 13px; }
+html.layout-a .a-bot-flow svg { width: 18px; height: 18px; flex: none; }
+html.layout-a .a-bot-flow span { min-width: 0; overflow-wrap: anywhere; }
+html.layout-a .a-bot-flow.vazio { background: var(--was); color: var(--wat); }
+html.layout-a .a-bot-acts { display: flex; gap: 10px; justify-content: flex-end; margin-top: auto; }
+html.layout-a .a-ib svg { width: 20px; height: 20px; flex: none; }
+html.layout-a .a-new { display: grid; place-items: center; align-content: center; gap: 12px; min-height: 300px; padding: 22px; border: 2px dashed var(--bd2); border-radius: 22px; background: transparent; color: var(--m); text-align: center; font-weight: 800; text-decoration: none; }
+html.layout-a .a-new:hover { border-color: var(--ort); color: var(--t); }
+html.layout-a .a-new .a-ib { width: 58px; height: 58px; border-radius: 50%; color: var(--t); }

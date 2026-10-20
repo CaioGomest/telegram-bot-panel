@@ -37,7 +37,7 @@ const FG = Number(process.env.FLUXO_GUIADO || 559), FV = Number(process.env.FLUX
     }, 'remarketing');
     await t('Meus Bots: o card continua aparecendo (selo Online/Offline) e a rota da lista responde', async () => {
       await c.ir(BASE + '/bots'); await esp(1500);
-      const r = JSON.parse(await c.avaliar(`JSON.stringify({cards: document.querySelectorAll('.cartao-bot').length, selos:[...document.querySelectorAll('.bot-selo')].slice(0,3).map(e=>e.innerText.trim()), tokenRecusado: !!document.querySelector('.bot-selo[title*="token"]')})`));
+      const r = JSON.parse(await c.avaliar(`JSON.stringify({cards: document.querySelectorAll('.js-bot-card').length, selos:[...document.querySelectorAll('.a-bot-bds .a-bd')].slice(0,3).map(e=>e.innerText.trim()), tokenRecusado: !!document.querySelector('.a-bot-bds .a-bd[title*="token"]')})`));
       return { ok: r.cards >= 1 && r.selos.length >= 1, det: JSON.stringify(r) };
     }, 'bots');
     await c.enviar('Network.clearBrowserCookies');

@@ -15,27 +15,23 @@ bloquearAdmin();
 <div class="layout-painel">
     <?php include 'barra_lateral.php'; ?>
     <main class="conteudo-principal">
-        <div class="cabecalho-pagina">
+        <header class="a-ph">
             <div>
-                <h1>Meus Bots</h1>
-                <p>Gerencie seus bots do Telegram aqui.</p>
+                <h1 class="a-h1">Meus Bots</h1>
+                <p class="a-sub">Gerencie seus bots do Telegram aqui.</p>
             </div>
-            <div class="acoes-cabecalho">
-                <a class="botao botao-primario" href="bot" id="btn-novo-bot">+ Novo Bot</a>
-                <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>
-                    Tema
-                </button>
+            <div class="a-acts">
+                <a class="a-btn pri" href="bot" id="btn-novo-bot">+ Novo Bot</a>
             </div>
-        </div>
+        </header>
 
-        <div id="lista-bots" class="grade-cards">
-            <div class="estado-vazio">Carregando bots...</div>
-        </div>
+        <section id="lista-bots" class="a-cards" aria-label="Lista de bots" aria-live="polite">
+            <div class="a-empty s-todos">Carregando bots...</div>
+        </section>
     </main>
 </div>
 
-<div id="toast"></div>
+<div id="toast" role="status" aria-live="polite"></div>
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script>if (window.CSRF_TOKEN) { $.ajaxSetup({ headers: { 'X-CSRF-Token': window.CSRF_TOKEN } }); }</script>

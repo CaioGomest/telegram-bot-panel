@@ -50,12 +50,12 @@
 
     function carregarBots() {
         const $list = $('#lista-bots');
-        $list.html('<div class="estado-vazio">Carregando...</div>');
+        $list.html('<div class="a-empty s-todos">Carregando...</div>');
 
         $.getJSON(url_api + '?action=listar_bots')
             .done(function (response) {
                 if (!response.sucesso) {
-                    $list.html(`<div class="estado-vazio erro">${escaparHtml(response.mensagem || 'Erro ao carregar bots.')}</div>`);
+                    $list.html(`<div class="a-empty er s-todos">${escaparHtml(response.mensagem || 'Erro ao carregar bots.')}</div>`);
                     return;
                 }
 
@@ -75,41 +75,48 @@
                     // Token recusado pelo Telegram (revogado/trocado): o bot parou de atender; o dono também recebe aviso no sino.
                     const token_recusado = Boolean(bot.token_invalido_em);
                     const avatar = bot.caminho_foto
-                        ? `<img src="${escaparHtml(bot.caminho_foto)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'), {className: 'bot-avatar-icone', innerHTML: this.dataset.icone}))" data-icone="${escaparHtml(icone_robo)}">`
-                        : `<span class="bot-avatar-icone">${icone_robo}</span>`;
+                        ? `<img src="${escaparHtml(bot.caminho_foto)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'), {className: 'a-bot-av-ico', innerHTML: this.dataset.icone}))" data-icone="${escaparHtml(icone_robo)}">`
+                        : `<span class="a-bot-av-ico">${icone_robo}</span>`;
+                    const selo_conexao = token_recusado
+                        ? '<span class="a-bd er" title="O Telegram recusou o token deste bot (revogado ou trocado). Cole o token novo em Configurar."><i></i>Token recusado</span>'
+                        : `<span class="a-bd ${online ? 'ok' : 'wa'}"><i></i>${online ? 'Online' : 'Offline'}</span>`;
 
                     $list.append(`
-                        <div class="cartao-bot-item cartao-bot">
-                            <div class="bot-selos">
-                                ${token_recusado ? '<span class="bot-selo alerta" title="O Telegram recusou o token deste bot (revogado ou trocado). Cole o token novo em Configurar."><i></i>Token recusado</span>' : `<span class="bot-selo ${online ? 'ok' : 'alerta'}"><i></i>${online ? 'Online' : 'Offline'}</span>`}
-                                <span class="bot-selo ${tem_fluxo ? 'ok' : 'alerta'}" title="${tem_fluxo ? 'Este bot tem um fluxo conectado' : 'Este bot não tem fluxo conectado e não responde aos leads'}"><i></i>${tem_fluxo ? 'Com fluxo' : 'Sem fluxo'}</span>
+                        <article class="a-card a-bot js-bot-card" data-bot-id="${escaparHtml(bot.id)}">
+                            <div class="a-bot-bds">
+                                ${selo_conexao}
+                                <span class="a-bd ${tem_fluxo ? 'ok' : 'wa'}" title="${tem_fluxo ? 'Este bot tem um fluxo conectado' : 'Este bot não tem fluxo conectado e não responde aos leads'}"><i></i>${tem_fluxo ? 'Com fluxo' : 'Sem fluxo'}</span>
                             </div>
-                            <div class="bot-avatar">${avatar}</div>
-                            <h3 class="bot-nome">${escaparHtml(nome)}</h3>
-                            <span class="bot-username mono">@${escaparHtml(bot.nome_usuario || 'sem_username')}</span>
-                            <div class="bot-numeros">
-                                <div><span class="bot-numeros-rotulo">Leads 8d</span><strong>${leads_7d}</strong></div>
-                                <div><span class="bot-numeros-rotulo">Vendas 8d</span><strong>${vendas_7d}</strong></div>
+                            <div class="a-bot-top">
+                                <span class="a-bot-av">${avatar}</span>
+                                <div class="a-bot-id">
+                                    <h3>${escaparHtml(nome)}</h3>
+                                    <span class="user">@${escaparHtml(bot.nome_usuario || 'sem_username')}</span>
+                                </div>
                             </div>
-                            <div class="bot-fluxo-linha${tem_fluxo ? '' : ' vazio'}">${icone_terminal}<span>${escaparHtml(tem_fluxo ? nome_fluxo : 'Sem fluxo conectado')}</span></div>
-                            <div class="cartao-acoes">
-                                <a href="bot?id=${encodeURIComponent(bot.id)}" class="btn-icon editar" title="Configurar bot" aria-label="Configurar bot">${icones_config}</a>
-                                <button type="button" class="btn-icon excluir btn-excluir-bot" data-id="${escaparHtml(bot.id)}" title="Excluir">${icons.trash}</button>
+                            <div class="a-bot-nums">
+                                <div><span class="a-lab">Leads 8d</span><b>${leads_7d}</b></div>
+                                <div><span class="a-lab">Vendas 8d</span><b>${vendas_7d}</b></div>
                             </div>
-                        </div>
+                            <div class="a-bot-flow${tem_fluxo ? '' : ' vazio'}">${icone_terminal}<span>${escaparHtml(tem_fluxo ? nome_fluxo : 'Sem fluxo conectado')}</span></div>
+                            <div class="a-bot-acts">
+                                <a href="bot?id=${encodeURIComponent(bot.id)}" class="a-ib" title="Configurar bot" aria-label="Configurar o bot ${escaparHtml(nome)}">${icones_config}</a>
+                                <button type="button" class="a-ib btn-excluir-bot" data-id="${escaparHtml(bot.id)}" title="Excluir" aria-label="Excluir o bot ${escaparHtml(nome)}">${icons.trash}</button>
+                            </div>
+                        </article>
                     `);
                 });
 
                 if (bots.length >= limite_bots) return;
                 $list.append(`
-                    <a href="bot" class="cartao-bot-novo">
-                        <span class="cartao-bot-novo-icone">${icone_mais}</span>
+                    <a href="bot" class="a-card flat a-new">
+                        <span class="a-ib">${icone_mais}</span>
                         <strong>Conectar Novo Bot</strong>
                     </a>
                 `);
             })
             .fail(function () {
-                $list.html('<div class="estado-vazio erro">Não foi possível carregar os bots.</div>');
+                $list.html('<div class="a-empty er s-todos">Não foi possível carregar os bots.</div>');
             });
     }
 

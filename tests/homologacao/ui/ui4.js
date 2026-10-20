@@ -26,8 +26,8 @@ function ok(rotulo, cond, extra) { resultados.push((cond ? 'PASS' : 'FAIL') + ' 
     await c.captura(SH + 'ui_fluxos.png');
 
     await c.ir(BASE + '/bots');
-    await c.esperar(`jQuery('#lista-bots .cartao-bot').length>0`, 15000);
-    const bot = JSON.parse(await c.avaliar(`(function(){ var $=jQuery; var b=$('#lista-bots .cartao-bot').first(); return JSON.stringify({selos:b.find('.bot-selo').length, avatar:b.find('.bot-avatar').length, nome:b.find('.bot-nome').text(), user:b.find('.bot-username').text(), numeros:b.find('.bot-numeros strong').map(function(){return $(this).text();}).get(), fluxo:b.find('.bot-fluxo-linha span').text(), novo:$('#lista-bots .cartao-bot-novo').length, botao:$('#btn-novo-bot').text().trim()}); })()`));
+    await c.esperar(`jQuery('#lista-bots .js-bot-card').length>0`, 15000);
+    const bot = JSON.parse(await c.avaliar(`(function(){ var $=jQuery; var b=$('#lista-bots .js-bot-card').first(); return JSON.stringify({selos:b.find('.a-bot-bds .a-bd').length, avatar:b.find('.a-bot-av').length, nome:b.find('.a-bot-id h3').text(), user:b.find('.a-bot-id .user').text(), numeros:b.find('.bot-numeros strong').map(function(){return $(this).text();}).get(), fluxo:b.find('.bot-fluxo-linha span').text(), novo:$('#lista-bots .js-bot-card-novo').length, botao:$('#btn-novo-bot').text().trim()}); })()`));
     ok('Meus Bots: card com selos, avatar, @username, leads/vendas, fluxo conectado e card "Conectar Novo Bot"', bot.selos === 2 && bot.avatar === 1 && /^@/.test(bot.user) && bot.numeros.length === 2 && bot.novo === 1 && /\+ Novo Bot \(\d+\/50\)/.test(bot.botao), bot);
     await c.captura(SH + 'ui_bots.png');
 

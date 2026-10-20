@@ -8,28 +8,28 @@ const { area, t, nota, salvar, esp } = require('./pg_t.js');
     await entrar(c, 'pgteste-user@example.invalid');
     area('3. Meus Bots (lista)');
     await c.ir(BASE + '/bots');
-    await c.esperar(`document.querySelectorAll('.cartao-bot-item').length>0`);
+    await c.esperar(`document.querySelectorAll('.js-bot-card').length>0`);
     await t('lista mostra os 2 bots do usuário com nome, @username e contador "(2/50)"', async () => {
       const tx = await c.avaliar(`document.querySelector('.conteudo-principal').innerText.split(String.fromCharCode(10)).filter(Boolean).join(' | ')`);
       return { ok: /Bot Um/.test(tx) && /Bot Dois/.test(tx) && /@pg_bot_um/.test(tx) && /@pg_bot_dois/.test(tx) && /Novo Bot \(2\/50\)/.test(tx), det: tx.slice(0, 200) };
     }, 'bots');
     await t('cartão do Bot Um: Leads 8d = 5, Vendas 8d = 2 e fluxo conectado "Fluxo Guiado PG"', async () => {
-      const r = await c.avaliar(`JSON.stringify([...document.querySelectorAll('.cartao-bot-item')].map(function(e){return {n:e.querySelector('.bot-nome').innerText, nums:[...e.querySelectorAll('.bot-numeros strong')].map(function(x){return x.innerText}), fluxo:e.querySelector('.bot-fluxo-linha').innerText.trim()}}))`);
+      const r = await c.avaliar(`JSON.stringify([...document.querySelectorAll('.js-bot-card')].map(function(e){return {n:e.querySelector('.a-bot-id h3').innerText, nums:[...e.querySelectorAll('.a-bot-nums b')].map(function(x){return x.innerText}), fluxo:e.querySelector('.a-bot-flow').innerText.trim()}}))`);
       const bots = JSON.parse(r);
       const um = bots.find(b => b.n === 'Bot Um'), dois = bots.find(b => b.n === 'Bot Dois');
       return { ok: um && um.nums[0] === '5' && um.nums[1] === '2' && /Fluxo Guiado PG/.test(um.fluxo) && dois && dois.nums[0] === '1' && dois.nums[1] === '0' && /Sem fluxo/.test(dois.fluxo), det: r.slice(0, 260) };
     }, 'bots');
     await t('selo "Online/Offline" reflete o webhook: sem webhook registrado = Offline', async () => {
-      const r = await c.avaliar(`[...document.querySelectorAll('.cartao-bot-item .bot-selo')].map(function(e){return e.innerText.trim()}).join(',')`);
+      const r = await c.avaliar(`[...document.querySelectorAll('.js-bot-card .a-bot-bds .a-bd')].map(function(e){return e.innerText.trim()}).join(',')`);
       return { ok: /offline/i.test(r), det: r };
     }, 'bots');
     await t('cada ação do cartão é botão de ícone com title (configurar, excluir) e o cartão "Conectar Novo Bot" leva a /bot', async () => {
-      const r = await c.avaliar(`JSON.stringify({sem:[...document.querySelectorAll('.cartao-bot-item .btn-icon')].filter(function(b){return !b.title}).length, n:document.querySelectorAll('.cartao-bot-item .btn-icon').length, novo:(document.querySelector('.cartao-bot-novo')||{}).getAttribute&&document.querySelector('.cartao-bot-novo').getAttribute('href')})`);
+      const r = await c.avaliar(`JSON.stringify({sem:[...document.querySelectorAll('.js-bot-card .a-ib')].filter(function(b){return !b.title}).length, n:document.querySelectorAll('.js-bot-card .a-ib').length, novo:(document.querySelector('.a-new')||{}).getAttribute&&document.querySelector('.a-new').getAttribute('href')})`);
       const o = JSON.parse(r);
       return { ok: o.sem === 0 && o.n === 4 && o.novo === 'bot', det: r };
     }, 'bots');
     await t('ícone de configurar abre /bot?id= do bot certo', async () => {
-      await c.avaliar(`document.querySelector('.cartao-bot-item a.btn-icon.editar').click(); 1`);
+      await c.avaliar(`document.querySelector('.js-bot-card a.a-ib[title="Configurar bot"]').click(); 1`);
       await esp(1500);
       const u = await c.avaliar('location.pathname + location.search');
       return { ok: /\/bot\?id=\d+/.test(u), det: u };
@@ -37,12 +37,12 @@ const { area, t, nota, salvar, esp } = require('./pg_t.js');
     await t('excluir bot: confirmação aparece, "Cancelar" mantém o bot', async () => {
       const id = remoto('php zz_pg.php bot').trim();
       await c.ir(BASE + '/bots');
-      await c.esperar(`document.querySelectorAll('.cartao-bot-item').length>=3`);
+      await c.esperar(`document.querySelectorAll('.js-bot-card').length>=3`);
       c.aceitar = false;
-      const antes = await c.avaliar(`document.querySelectorAll('.cartao-bot-item').length`);
+      const antes = await c.avaliar(`document.querySelectorAll('.js-bot-card').length`);
       await c.avaliar(`document.querySelector('.btn-excluir-bot[data-id="${id}"]').click(); 1`);
       await esp(1200);
-      const depois = await c.avaliar(`document.querySelectorAll('.cartao-bot-item').length`);
+      const depois = await c.avaliar(`document.querySelectorAll('.js-bot-card').length`);
       c.aceitar = true;
       const msg = (c.dialogos[c.dialogos.length - 1] || {}).msg || '';
       global.__idExcluir = id;
@@ -52,7 +52,7 @@ const { area, t, nota, salvar, esp } = require('./pg_t.js');
       const id = global.__idExcluir;
       await c.avaliar(`document.querySelector('.btn-excluir-bot[data-id="${id}"]').click(); 1`);
       await esp(2000);
-      const n = await c.avaliar(`document.querySelectorAll('.cartao-bot-item').length`);
+      const n = await c.avaliar(`document.querySelectorAll('.js-bot-card').length`);
       const cont = await c.avaliar(`document.querySelector('#btn-novo-bot').innerText`);
       const noBanco = db(`SELECT COUNT(*) n FROM bots WHERE id=${id}`)[0].n;
       return { ok: n === 2 && noBanco === 0 && /2\/50/.test(cont), det: `cartões ${n}, banco ${noBanco}, ${cont}` };
