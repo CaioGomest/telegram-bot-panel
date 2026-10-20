@@ -26,7 +26,9 @@ storage/*
 .claude/
 
 # Nunca versionar -- repositório é público no GitHub.
+anotacoes/credenciais-*.md
 anotacoes/credenciais-ssh-hostinger.md
+anotacoes/credenciais-vps-coyotebot.md
 anotacoes/credenciais-vps-easypanel.md
 anotacoes/id_ed25519_vps_easypanel
 
@@ -37,8 +39,17 @@ anotacoes/id_ed25519_vps_easypanel
 # resultados brutos do teste de carga na VPS (so no local)
 tests/estresse/vps/resultados/
 
+# segredos e capturas do teste "usuario novo na VPS" (senha, token do bot, credencial da gateway)
+tests/vps/usuario-novo/estado/
+
+# decisoes do reset de lancamento (admins que ficam, split e id do recebedor): so existe na VPS, nunca no GitHub
+resetar/config.env
+
 # saidas geradas pelos testes (prints e JSON de resultado): so no local. Um JSON de erro ja chegou a guardar a linha de
 # comando do plink com a senha SSH -- nunca versionar.
 tests/paginas/pg/
 tests/estresse/saida/
 tests/homologacao/ui_*.png
+
+# saidas dos testes "do zero" (telas e JSON): so no local
+tests/homologacao/ui/saida/

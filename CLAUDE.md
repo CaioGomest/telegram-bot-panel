@@ -18,6 +18,15 @@ Regras que valem sempre que alguém (eu ou outra sessão) tiver acesso SSH a ess
 - **Deploy NÃO é `git pull` na pasta do servidor.** O git do servidor de teste está dessincronizado e um `git pull`/`stash` lá já apagou o `config.php` real (19/09, quando ele ainda era versionado). Deploy na homologação = `pscp` só dos arquivos alterados (backup do original em `storage/backups-deploy/`); na VPS = `deploy/vps/atualizar.sh` (rsync que protege `config.php`, uploads, logs, storage e certificados). O que é código e o que é configuração: `deploy/PLANO-VPS.md` seção 15.
 - Os 7 crons (`cron/cron_verificar_pix.php`, `cron_ranking.php`, `cron_metricas_admin.php`, `cron_remarketing.php`, `cron_aviso_vencimento.php`, `cron_verificar_acessos.php`, `cron_renovacao.php`) já estão cadastrados no painel Hostinger (Avançado → Cron Jobs) — não são visíveis/editáveis via `crontab` por SSH nessa conta (comando não existe), só pelo hPanel.
 
+## Onde estão os acessos aos servidores (ler antes de pedir senha ao Caio)
+
+Dois ambientes, cada um com um arquivo de acesso **fora do GitHub** (`.gitignore`) na pasta `anotacoes/`:
+
+- **Homologação** (`https://telegram.stackcode.com.br`, SSH na Hostinger compartilhada): `anotacoes/credenciais-ssh-hostinger.md` — IP, porta, usuário, senhas, banco e regras da conta.
+- **VPS do cliente** (`https://coyotebot.com.br`, Ubuntu/PHP 8.5/MariaDB): `anotacoes/credenciais-vps-coyotebot.md` — IP, impressão digital do host, onde ficam código/config/backups, como publicar sem `git pull` e as regras da VPS.
+
+Nunca imprimir senha em resposta, log ou commit; ler para uma variável e usar só dentro do comando (`plink -pw "$PW"`). Se o arquivo não tiver a senha (ou ela mudou), pedir ao Caio e gravar lá, não em nota versionada.
+
 ## Fase atual: redesign de layout (concluído)
 
 O layout novo (redesign do painel, handoff de design fora do repositório) foi aplicado em **todas** as páginas do painel, incluindo as que originalmente estavam fora do escopo do handoff (não havia spec própria pra elas — foi seguido o mesmo padrão visual já estabelecido). Só layout — lógica, nomes de campo, queries, rotas e IDs usados pelo JS não mudaram.
@@ -36,13 +45,13 @@ O layout novo (redesign do painel, handoff de design fora do repositório) foi a
 - **Método de teste de fluxos sem tocar no Telegram:** cópia do painel em `/tmp` com `requisicaoTelegram()` e o gateway trocados por simuladores que só registram o que seria enviado — ver "Rodada de testes de fluxos com Telegram simulado" em `anotacoes/HISTORICO-CONSOLIDADO.md`. Cliente fictício sempre com chat id inventado; apagar tudo no fim.
 ## Testes de fluxos em homologação
 
-`tests/homologacao/` valida o Fluxo Guiado e o Editor Visual de ponta a ponta com Telegram e Pix simulados (e os editores num Chrome de verdade). O README explica como rodar; o resultado da última rodada (523 verificações) está em `anotacoes/HISTORICO-CONSOLIDADO.md`. Rode de novo depois de mexer em `funcoes/fluxo_blocos.php`, `funcoes/execucao_fluxo.php`, `webhook.php`, `webhook_omegapayments.php` ou nas crons de Pix/acesso/aviso.
+`tests/homologacao/` valida o Fluxo Guiado e o Editor Visual de ponta a ponta com Telegram e Pix simulados (e os editores num Chrome de verdade). O README explica como rodar; o resultado da última rodada (523 verificações) está em `anotacoes/HISTORICO-CONSOLIDADO.md`. Rode de novo depois de mexer em `funcoes/fluxo_blocos.php`, `funcoes/execucao_fluxo.php`, `webhook.php`, `webhook_omegapayments.php` ou nas crons de Pix/acesso/aviso. **Criar fluxo pela tela, como uma pessoa** (digitando, enviando mídia, ligando blocos): `tests/homologacao/ui/zero_guiado.js`, `zero_visual.js`, `zero_lista.js`, `zero_corrida.js` e os `zero_motor_*.sh` que rodam o fluxo criado no motor (ordem no README da pasta). Rode depois de mexer em `assets/edicao_fluxo*.js`, `fluxo.php`, `fluxo_basico.php` ou nas validações de `api.php`.
 
 ## Ranking
 
 `ranking.php` já é dado real (não é mais mock). Arquitetura pensada pra plataforma grande (700+ usuários): nada de agregar `vendas` ao vivo a cada carregamento de página.
 
-- `campanhas_ranking` / `campanhas_ranking_premios` — cadastro de campanha (nome, período, tipo `oficial`/`mensal`) e prêmios (até 5 posições), gerenciados em `admin/ranking.php`.
+- `campanhas_ranking` / `campanhas_ranking_premios` — cadastro de campanha (nome, período, tipo `oficial`/`mensal`) e prêmios (até 5 posições), gerenciados em `admin/ranking.php`. **Campanha nunca é apagada pela tela: é arquivada** (`arquivada_em`; some da lista, das telas do usuário e do cron, mas o registro, o placar final e os ganhadores ficam e dá para desarquivar). Quem lê campanha para o usuário ou para o cron precisa filtrar `arquivada_em IS NULL`.
 - `ranking_cache` (`campanha_id`, `id_usuario`, `faturamento`, `posicao`) — tabela pré-calculada. `ranking.php` só lê daqui, nunca faz `SUM(valor)` na hora.
 - `cron/cron_ranking.php` (precisa estar no crontab a cada 1 min) recalcula `ranking_cache` de toda campanha ativa via `RANK() OVER (...)` direto no MySQL (confirmado 8.3, tem window function). Se esquecer de colocar no crontab, o ranking fica com o cache antigo — não quebra, só para de atualizar.
 - `usuarios.apelido_publico` — nome que aparece pros outros usuários no ranking (nunca nome real/e-mail). Editável em Minha Conta. Sem apelido, cai em "Usuário #ID".
@@ -119,6 +128,10 @@ Reportar os achados antes de aplicar qualquer mudança — varredura é análise
 `deploy/PLANO-VPS.md` é o plano completo; `deploy/vps/` tem os scripts (`instalar.sh`, `verificar.sh`, `atualizar.sh`, `backup.sh`, `restaurar.sh`, `atualizar-banco.php`), `deploy/schema.sql` o schema completo do banco e `deploy/fluxos-teste/` os fluxos de teste para importar. Scripts de shell sempre com fim de linha LF (`.gitattributes`). Mudou o schema? Altere `instalacao.php` **e** `admin/atualiza_banco.php` e regenere o `schema.sql` com `tests/paginas/servidor/zz_schema.php` (modos `gerar` e `arquivo`). A pasta `deploy/` não vai para o servidor (o `instalar.sh` não a copia).
 
 **Controle do mantenedor da VPS (13/10/2026):** `deploy/vps/ssh-acessos.php` (vira `painel-ssh-acessos` + serviço systemd) registra os **logins SSH/Linux** da VPS com IP e localização (nada a ver com o login do painel web); `controle.php` (rota `/controle`) + `funcoes/controle.php` + `deploy/controle/gerar-chaves.php` e `enviar.php` formam a **suspensão remota** por comando assinado (RSA; o servidor só guarda a chave pública em `CONTROLE_ID`/`CONTROLE_CHAVE_PUBLICA` no `config.php`). A guarda é chamada cedo em `conexao.php` (só HTTP) e `funcoes/cron_guarda.php` para os crons no modo "total". Teste sem servidor: `php tests/controle/unitario.php`. Detalhes e limites em `deploy/PLANO-VPS.md` seções 8.1 e 8.2. **Teste de carga pesado na VPS** (13/10): `tests/estresse/vps/` (README com método, cuidados e como zerar; resultados brutos só no local); números em `anotacoes/TESTES.md` e gargalos em `OBSERVACOES.md` 6g.
+
+## Pasta /resetar (zerar a VPS para o lançamento)
+
+`resetar/` tem o roteiro (`PASSO-A-PASSO.md`) e os scripts (`00`–`09`, `resetar-tudo.sh`, `desfazer.sh`) que zeram a **VPS** para lançar: apagam dados de teste e mantêm admin, gateway/split, marca, SMTP, domínio e a suspensão remota. **Nunca execute nada dessa pasta sem o dono escrever explicitamente `RESETAR TUDO`** (os scripts também exigem a frase). Não vai para o site (`atualizar.sh`/`instalar.sh` excluem, `.htaccess` bloqueia); `config.env` (decisões do dono) fica só na VPS e está no `.gitignore`. Não restaurar o `/root/estado-zero` de 13/10 (volta domínio, SMTP, senha e esquema antigos). Se o banco ganhar tabela nova, classifique-a em `resetar/lib.sh` (`TABELAS_MANTER`/`TABELAS_APAGAR`) — o reset recusa rodar com tabela desconhecida.
 
 ## Pasta /anotacoes
 
