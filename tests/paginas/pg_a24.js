@@ -9,9 +9,9 @@ const { area, t, salvar, esp } = require('./pg_t.js');
     area('4h. Vendas no dashboard');
     const ler = async () => JSON.parse(await c.avaliar(`JSON.stringify((function(){
       var p = document.getElementById('vendas-dashboard'); if (!p) return {existe: false};
-      var cab = p.querySelector('.painel-cabecalho .texto-suave'); var linhas = [].slice.call(p.querySelectorAll('tbody tr'));
+      var cab = p.querySelector('.a-ch .a-mut'); var linhas = [].slice.call(p.querySelectorAll('tbody tr'));
       var vazio = linhas.length === 1 && linhas[0].innerText.indexOf('Nenhuma venda paga') >= 0;
-      var link = p.querySelector('.mini-ranking-rodape a');
+      var link = p.querySelector('.a-more a');
       return {existe: true, cab: cab ? cab.innerText : '', n: vazio ? 0 : linhas.length, vazio: vazio, href: link ? link.getAttribute('href') : '', erro: document.body.innerText.indexOf('Fatal') >= 0 || document.body.innerText.indexOf('Warning:') >= 0};
     })())`));
     const kpiAprov = async () => c.avaliar(`(function(){var x=document.body.innerText.match(/(\\d[\\d.]*) aprova/); return x ? Number(x[1].replace(/\\./g,'')) : -1})()`);

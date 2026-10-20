@@ -11,7 +11,7 @@ const BASE = 'https://coyotebot.com.br';
 const esp = (ms) => new Promise(r => setTimeout(r, ms));
 let ok = 0, falha = 0;
 const chk = (n, c, x = '') => { c ? ok++ : falha++; console.log((c ? 'OK     ' : 'FALHOU ') + n + (x ? '  -> ' + String(x).slice(0, 260) : '')); };
-const CLASSES = ['mini-ranking-valor', 'linha-ranking-valor', 'podio-valor'];
+const CLASSES = ['.a-mr .vl', '.a-rank .vl b', '.a-pod .vl'];
 (async () => {
   const c = await lancar();
   try {
@@ -24,11 +24,11 @@ const CLASSES = ['mini-ranking-valor', 'linha-ranking-valor', 'podio-valor'];
         const r = JSON.parse(await c.avaliar(`(function(){
           var out = {};
           ${JSON.stringify(CLASSES)}.forEach(function (k) {
-            var e = document.querySelector('.' + k), real = !!e;
-            if (!e) { e = document.createElement('div'); e.className = k; e.textContent = 'R$ 36,3 mil'; document.body.appendChild(e); }
+            var e = document.querySelector(k), real = !!e, amostra = null;
+            if (!e) { var pai = document.body; k.split(' ').forEach(function (p) { var n = document.createElement(p.charAt(0) === '.' ? 'div' : p); if (p.charAt(0) === '.') n.className = p.slice(1); pai.appendChild(n); if (!amostra) amostra = n; pai = n; }); pai.textContent = 'R$ 36,3 mil'; e = pai; }
             var s = getComputedStyle(e);
             out[k] = { real: real, fam: s.fontFamily, peso: s.fontWeight, tam: s.fontSize, num: s.fontVariantNumeric };
-            if (!real) e.remove();
+            if (!real && amostra) amostra.remove();
           });
           var corpo = getComputedStyle(document.body).fontFamily;
           out.corpo = corpo;
@@ -37,7 +37,7 @@ const CLASSES = ['mini-ranking-valor', 'linha-ranking-valor', 'podio-valor'];
         const tag = (larg) + ' ' + rota;
         for (const k of CLASSES) {
           const x = r[k];
-          chk(tag + ' .' + k + ': fonte do sistema (Manrope), não monoespaçada', /Manrope/i.test(x.fam) && !/Mono|monospace/i.test(x.fam) && x.fam === r.corpo, (x.real ? 'real' : 'amostra') + ' | ' + x.fam + ' | ' + x.peso + ' ' + x.tam + ' | ' + x.num);
+          chk(tag + ' ' + k + ': fonte do sistema (Manrope), não monoespaçada', /Manrope/i.test(x.fam) && !/Mono|monospace/i.test(x.fam) && x.fam === r.corpo, (x.real ? 'real' : 'amostra') + ' | ' + x.fam + ' | ' + x.peso + ' ' + x.tam + ' | ' + x.num);
         }
         if (rota === '/') await c.avaliar(`(function(){var e=document.getElementById('mini-ranking-link');if(e)e.scrollIntoView({block:'end'});return 1})()`).then(() => esp(500));
         if (rota === '/') await c.captura(path.join(ESTADO, 'ranking_fonte_' + larg + '.png')).catch(() => {});

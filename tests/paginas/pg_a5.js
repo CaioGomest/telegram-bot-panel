@@ -113,7 +113,7 @@ const { area, t, nota, salvar, esp } = require('./pg_t.js');
     }, 'leads');
     await t('filtros combinados (bot + status + busca) preservam os valores nos campos e links', async () => {
       await c.ir(BASE + '/leads?bot_id=311&status=pago&busca=Ma');
-      const r = await c.avaliar(`JSON.stringify({busca:document.getElementById('busca-lead').value, bot:document.querySelector('select[name=bot_id]').value, aba:(document.querySelector('.barra-filtros .ativo, .abas .ativo, .filtro-status .ativo')||{}).innerText||''})`);
+      const r = await c.avaliar(`JSON.stringify({busca:document.getElementById('busca-lead').value, bot:document.querySelector('select[name=bot_id]').value, aba:(document.querySelector('.a-seg a.on')||{}).innerText||''})`);
       const o = JSON.parse(r);
       return { ok: o.busca === 'Ma' && o.bot === '311', det: r };
     }, 'leads');

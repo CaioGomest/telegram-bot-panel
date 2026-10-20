@@ -580,3 +580,37 @@ html.layout-a .corpo-modal { padding: 18px 24px 24px; }
     html.layout-a .sobreposicao-modal { align-items: flex-end; padding: 0; }
     html.layout-a .modal-gateway { max-width: 100%; border-radius: 26px 26px 0 0; max-height: 92vh; padding-bottom: env(safe-area-inset-bottom, 0px); }
 }
+
+/* valores em R$ do ranking: fonte do sistema (Manrope 800, dígitos alinhados), como o dono pediu em 17/10; o "Passe do competidor", códigos, horários e legendas seguem monoespaçados */
+html.layout-a .a-mr .vl, html.layout-a .a-pod .vl, html.layout-a .a-rank .vl b { font-family: var(--f-b); font-weight: 800; font-variant-numeric: tabular-nums; }
+
+/* ---------- páginas com conteúdo antigo dentro do shell novo (remarketing, redirecionamento, traqueamento, webhooks, gateways...) ---------- */
+/* Texto escuro sobre o laranja (contraste ~8:1 em vez de 2,4:1), igual aos botões novos. O [data-theme] sobe a especificidade para vencer as regras do painel.css. */
+html.layout-a[data-theme] .botao-primario,
+html.layout-a[data-theme] a.botao-primario,
+html.layout-a[data-theme] a.botao-primario:hover,
+html.layout-a[data-theme] button.botao-primario,
+html.layout-a[data-theme] button.botao-primario:hover,
+html.layout-a[data-theme] .periodo-item.ativo,
+html.layout-a[data-theme] .aba-status.ativa,
+html.layout-a[data-theme] .aba-status.ativa:hover { color: var(--on-or); }
+html.layout-a[data-theme] .config-abas .aba-status.ativa .aba-contagem { background: rgba(27, 13, 4, .16); color: var(--on-or); }
+html.layout-a[data-theme] .aba-status.ativa .ponto-estado.ok { background: var(--on-or); }
+/* celular: áreas de toque de 44px nos controles antigos */
+@media (max-width: 900px) {
+    html.layout-a .botao, html.layout-a .aba-status, html.layout-a .periodo-item { min-height: 44px; }
+    html.layout-a .btn-icon { width: 44px; height: 44px; }
+    html.layout-a .campo input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=hidden]), html.layout-a .campo select { min-height: 44px; }
+    html.layout-a .exemplos-webhook summary { padding: 13px 0; }
+    html.layout-a .cabecalho-pagina p > a { display: inline-block; padding: 13px 0; }
+}
+/* cores de texto legíveis no tema claro (os tokens do painel antigo ficavam abaixo de 3:1 sobre o fundo suave) */
+html.layout-a .badge-sucesso { color: var(--okt); }
+html.layout-a .aviso-alerta { color: var(--t); border-color: var(--wat); }
+html.layout-a .traq-cartao-status { color: var(--t); }
+html.layout-a .traq-cartao-status.ligado { color: var(--okt); }
+html.layout-a .traq-eventos code { color: var(--ort); }
+html.layout-a[data-theme] .selo-prioridade.principal { color: var(--on-or); }
+html.layout-a .selo-metodo { color: var(--okt); }
+html.layout-a .status-gateway.conectado { color: var(--okt); }
+html.layout-a .status-gateway.pendente { color: var(--wat); }

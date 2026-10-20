@@ -21,7 +21,7 @@ const chk = (n, c, x = '') => { c ? ok++ : falha++; console.log((c ? 'OK     ' :
       await c.avaliar(`(function(){document.documentElement.setAttribute('data-theme','${tema}');return 1})()`);
       await c.avaliar(`document.getElementById('btn-abrir-escolha-modo').click(); 1`); await esp(600);
       const m = JSON.parse(await c.avaliar(`JSON.stringify((function(){
-        var cs=[...document.querySelectorAll('#modal-escolha-modo .cartao-escolha-modo')];
+        var cs=[...document.querySelectorAll('#modal-escolha-modo .a-opt')];
         return cs.map(function(a){var i=a.querySelector('.icone-escolha-modo');var b=i.getBoundingClientRect();return {href:a.getAttribute('href'),classe:a.className,titulo:a.querySelector('strong').innerText.trim(),texto:a.querySelector('.texto-suave').innerText.trim(),svg:!!i.querySelector('svg'),caixa:[Math.round(b.width),Math.round(b.height)],corIcone:getComputedStyle(i).color,fundoIcone:getComputedStyle(i).backgroundColor}})})())`));
       chk(tema + ': dois cartões, Guiado primeiro e Editor Visual depois', m.length === 2 && m[0].titulo === 'Guiado' && m[1].titulo === 'Editor Visual', m.map(x => x.titulo).join(' / '));
       chk(tema + ': descrições novas (texto do exemplo)', m[0].texto === 'Configuração guiada de mensagens, planos, upsell e entrega.' && m[1].texto === 'Editor visual com nós, condições, esperas e caminhos personalizados.', m.map(x => x.texto).join(' | '));
@@ -43,7 +43,7 @@ const chk = (n, c, x = '') => { c ? ok++ : falha++; console.log((c ? 'OK     ' :
     await c.enviar('Emulation.setDeviceMetricsOverride', { width: 390, height: 900, deviceScaleFactor: 2, mobile: true });
     await c.ir(BASE + '/fluxos'); await esp(1500);
     await c.avaliar(`document.getElementById('btn-abrir-escolha-modo').click(); 1`); await esp(600);
-    chk('celular: modal sem rolagem horizontal e cartões em coluna', (await c.avaliar(`document.documentElement.scrollWidth<=window.innerWidth+2`)) === true && (await c.avaliar(`(function(){var a=[...document.querySelectorAll('#modal-escolha-modo .cartao-escolha-modo')].map(function(x){return x.getBoundingClientRect().top});return a[1]>a[0]})()`)) === true);
+    chk('celular: modal sem rolagem horizontal e cartões em coluna', (await c.avaliar(`document.documentElement.scrollWidth<=window.innerWidth+2`)) === true && (await c.avaliar(`(function(){var a=[...document.querySelectorAll('#modal-escolha-modo .a-opt')].map(function(x){return x.getBoundingClientRect().top});return a[1]>a[0]})()`)) === true);
     await c.captura(path.join(ESTADO, 'fluxos_modal_390.png'));
     chk('erros de JS', c.errosJs().length === 0, c.errosJs().join(' | '));
   } catch (e) { console.log('ERRO', e.stack); falha++; }

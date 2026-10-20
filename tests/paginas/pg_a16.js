@@ -10,7 +10,7 @@ const { area, t, nota, salvar, esp } = require('./pg_t.js');
     const esperado = db(`SELECT m.id_usuario, SUM(m.valor_pago) f FROM metricas_horarias_usuario m JOIN usuarios u ON u.id=m.id_usuario WHERE m.data >= '${ini}' AND u.perfil='usuario' GROUP BY m.id_usuario HAVING SUM(m.valor_pago)>0 ORDER BY f DESC, m.id_usuario ASC LIMIT 10`);
     await c.ir(BASE + '/ranking?aba=mensal');
     await t('aba Mensal: o placar bate com a soma de vendas aprovadas do mês no banco (mesma ordem e valores)', async () => {
-      const vals = JSON.parse(await c.avaliar(`JSON.stringify([...document.querySelectorAll('.podio-valor, .linha-ranking .linha-ranking-valor')].map(function(e){return e.textContent.trim()}))`));
+      const vals = JSON.parse(await c.avaliar(`JSON.stringify([...document.querySelectorAll('.a-pod .vl, .a-rank li .vl b')].map(function(e){return e.textContent.trim()}))`));
       const fmt = (v) => { v = Number(v); if (v >= 1e6) return 'R$ ' + (v / 1e6).toFixed(1).replace('.', ',') + ' mi'; if (v >= 1000) return 'R$ ' + (v / 1000).toFixed(1).replace('.', ',') + ' mil'; return 'R$ ' + v.toFixed(2).replace('.', ','); };
       const exp = esperado.map(x => fmt(x.f));
       const ordenado = [vals[0], vals[1], vals[2]].filter(Boolean);
@@ -18,7 +18,7 @@ const { area, t, nota, salvar, esp } = require('./pg_t.js');
     }, 'ranking');
     await t('aba Mensal: mostra o mês corrente, "zera no dia 1", participantes e contagem até o fim do mês', async () => {
       const tx = await c.avaliar(`document.querySelector('.conteudo-principal').innerText`);
-      const fim = Number(await c.avaliar(`document.querySelector('.grade-contagem').getAttribute('data-alvo')`));
+      const fim = Number(await c.avaliar(`document.querySelector('.a-passe .cont').getAttribute('data-alvo')`));
       const esperadoFim = Math.floor(new Date(mes.getFullYear(), mes.getMonth() + 1, 0, 23, 59, 59).getTime() / 1000);
       return { ok: /outubro de 2026/i.test(tx) && /dia 1/.test(tx) && /participante/.test(tx) && Math.abs(fim - esperadoFim) < 86400, det: `alvo ${fim} vs ${esperadoFim}` };
     }, 'ranking');
@@ -26,15 +26,15 @@ const { area, t, nota, salvar, esp } = require('./pg_t.js');
       const r = [];
       for (const q of ['?aba=concurso', '?aba=mensal', '?aba=xyz', '?aba=%3Cscript%3E', '']) {
         await c.ir(BASE + '/ranking' + q);
-        r.push(await c.avaliar(`(document.querySelector('.aba-ranking.ativa span')||{}).textContent||'?'`));
+        r.push(await c.avaliar(`(document.querySelector('nav[aria-label="Tipo de ranking"] a.on')||{}).textContent||'?'`));
       }
       return { ok: r.join(',') === 'Concurso,Mensal,Concurso,Concurso,Concurso', det: r.join(',') };
     }, 'ranking');
     await t('contagem regressiva anda sozinha (segundos mudam sem recarregar) e o "Atualiza a cada 60 segundos" aparece', async () => {
       await c.ir(BASE + '/ranking?aba=mensal');
-      const a = await c.avaliar(`document.querySelector('.caixa-contagem-valor:last-child, .grade-contagem .caixa-contagem:last-child .caixa-contagem-valor').textContent`);
+      const a = await c.avaliar(`document.querySelector('.a-passe .cont div:last-child b').textContent`);
       await esp(2300);
-      const b = await c.avaliar(`document.querySelector('.grade-contagem .caixa-contagem:last-child .caixa-contagem-valor').textContent`);
+      const b = await c.avaliar(`document.querySelector('.a-passe .cont div:last-child b').textContent`);
       const txt = /Atualiza a cada 60 segundos/.test(await c.avaliar('document.body.innerText'));
       return { ok: a !== b && txt, det: `${a} → ${b}` };
     }, 'ranking');
