@@ -48,19 +48,19 @@ bloquearAdmin();
         </div>
         <div class="corpo-modal">
             <div class="grade-escolha-modo">
-                <a href="fluxo" class="cartao-escolha-modo">
+                <a href="fluxo_basico" class="cartao-escolha-modo basico">
                     <span class="icone-escolha-modo">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="7" height="6" rx="1.5"></rect><rect x="15" y="2" width="7" height="6" rx="1.5"></rect><rect x="15" y="14" width="7" height="6" rx="1.5"></rect><path d="M9 7h3a2 2 0 0 1 2 2v0"></path></svg>
-                    </span>
-                    <strong>Editor Visual</strong>
-                    <span class="texto-suave">Monte o fluxo arrastando blocos num canvas — mensagens, condições, pagamentos, upsell/downsell.</span>
-                </a>
-                <a href="fluxo_basico" class="cartao-escolha-modo">
-                    <span class="icone-escolha-modo">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
                     </span>
                     <strong>Guiado</strong>
-                    <span class="texto-suave">Preencha um formulário por seções (boas-vindas, planos, pagamentos) — sem montar fluxograma.</span>
+                    <span class="texto-suave">Configuração guiada de mensagens, planos, upsell e entrega.</span>
+                </a>
+                <a href="fluxo" class="cartao-escolha-modo visual">
+                    <span class="icone-escolha-modo">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"></line><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path></svg>
+                    </span>
+                    <strong>Editor Visual</strong>
+                    <span class="texto-suave">Editor visual com nós, condições, esperas e caminhos personalizados.</span>
                 </a>
             </div>
         </div>

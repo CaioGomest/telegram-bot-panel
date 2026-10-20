@@ -66,6 +66,34 @@ function logoSistema(string $caminho_base = ''): string
     return $caminho_base . configSistema('logo');
 }
 
+/**
+ * Login e cadastro mostram o mascote animado (assets/coyote_animado.*) no lugar da logo quando o admin liga a opção em Configurações → Identidade.
+ * Fica desligada por padrão: o painel é white-label e o mascote é a marca do Coyote, não deve aparecer na instalação de outra marca.
+ */
+function marcaAnimadaLogin(): bool
+{
+    return configSistema('login_marca_animada') === '1';
+}
+
+/** HTML do palco animado (a página põe o CSS e o JS). $classe é só para o login dimensionar cada uso (coluna do desktop, cabeçalho do celular). */
+function htmlMarcaAnimada(string $nome, string $classe = ''): string
+{
+    $img = 'assets/img/coyote-animado.webp';
+    return '<div class="coy-palco ' . htmlspecialchars($classe) . '" style="--coy-imagem:url(&quot;' . $img . '&quot;)">'
+        . '<canvas class="coy-brasas" aria-hidden="true"></canvas>'
+        . '<div class="coy-inclina"><div class="coy-flutua">'
+        . '<div class="coy-camada coy-tarde" aria-hidden="true"><div class="coy-aura"></div></div>'
+        . '<div class="coy-brilha"><div class="coy-camada coy-revela"><img class="coy-logo" src="' . $img . '?v=' . (int) @filemtime(__DIR__ . '/../' . $img) . '" width="900" height="900" alt="' . htmlspecialchars($nome) . '" decoding="async"></div></div>'
+        . '<div class="coy-camada coy-tarde" aria-hidden="true">'
+        . '<div class="coy-olho e"></div><div class="coy-olho d"></div>'
+        . '<div class="coy-sinal e"><i></i><i></i><i></i><span class="coy-nucleo"></span></div>'
+        . '<div class="coy-sinal d"><i></i><i></i><i></i><span class="coy-nucleo"></span></div>'
+        . '<div class="coy-reflexo"></div>'
+        . '</div>'
+        . '<div class="coy-linha" aria-hidden="true"></div><div class="coy-clarao" aria-hidden="true"></div>'
+        . '</div></div></div>';
+}
+
 /** Favicon é opcional: sem ele configurado, cai na logo. */
 function faviconSistema(string $caminho_base = ''): string
 {

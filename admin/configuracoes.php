@@ -54,6 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'identid
         // cor/domínio deixava o nome já alterado ("Cor inválida" e mesmo assim o nome mudava).
         definirConfigSistema('nome_sistema', mb_substr($nome, 0, 60));
         definirConfigSistema('cor_primaria', strtolower($cor_primaria));
+        definirConfigSistema('login_marca_animada', isset($_POST['login_marca_animada']) ? '1' : '0');
         if ($dominios_validos !== null) {
             definirConfigSistema('dominios_redirecionamento', implode("\n", $dominios_validos));
         }
@@ -315,6 +316,14 @@ if ($mensagem_dominios !== '') {
                                     </div>
                                 </div>
                                 <small>Usada em botões, links e destaques no painel inteiro (claro e escuro).</small>
+                            </div>
+
+                            <div class="campo">
+                                <label class="opcao-ativar-gateway">
+                                    <input type="checkbox" name="login_marca_animada" value="1" <?php echo marcaAnimadaLogin() ? 'checked' : ''; ?>>
+                                    <span>Mascote animado do Coyote no login e no cadastro</span>
+                                </label>
+                                <small>No lugar da logo, a tela de entrada mostra o Coyote com efeitos de luz. Deixe desligado se esta instalação não for do Coyote.</small>
                             </div>
 
                             <div class="linha-acoes">

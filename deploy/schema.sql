@@ -551,6 +551,7 @@ CREATE TABLE IF NOT EXISTS `campanhas_ranking` (
   `data_fim` datetime NOT NULL,
   `ativa` tinyint(1) DEFAULT 1,
   `finalizada_em` datetime DEFAULT NULL,
+  `arquivada_em` datetime DEFAULT NULL,
   `criado_em` datetime DEFAULT current_timestamp(),
   `atualizado_em` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),

@@ -678,6 +678,13 @@ try {
         echo "Coluna 'finalizada_em' adicionada em 'campanhas_ranking'.<br>";
     } catch (PDOException $e) {}
 
+    // Campanha arquivada: sai da lista principal do admin, das telas do usuário e do cron, mas o registro (período, prêmios,
+    // placar final e ganhadores) fica guardado e pode voltar. Campanha de ranking nunca é apagada pela tela.
+    try {
+        $pdo->exec("ALTER TABLE campanhas_ranking ADD COLUMN arquivada_em DATETIME DEFAULT NULL AFTER finalizada_em");
+        echo "Coluna 'arquivada_em' adicionada em 'campanhas_ranking'.<br>";
+    } catch (PDOException $e) {}
+
     // O ENUM 'tipo' ('oficial'/'mensal') saiu: a tela só buscava 'oficial', então uma campanha
     // criada como 'mensal' simplesmente nunca aparecia pra ninguém. Agora existe uma campanha
     // em cartaz por vez, escolhida pelas datas.

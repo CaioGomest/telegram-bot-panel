@@ -67,38 +67,60 @@ $erro = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verificarCsrf();
     if ($is_admin && isset($_POST['acao']) && $_POST['acao'] === 'salvar_admin') {
-        $salvos = 0;
-        $total = 0;
+        $ids = (!empty($_POST['ids']) && is_array($_POST['ids'])) ? $_POST['ids'] : [];
 
-        if (!empty($_POST['ids']) && is_array($_POST['ids'])) {
-            $ids = $_POST['ids'];
-            foreach ($ids as $id) {
-                $gateway_id = (int)$id;
-                $ativo = isset($_POST['ativo'][$gateway_id]) && $_POST['ativo'][$gateway_id] == '1';
-
-                if (saveAdminGatewayConfig($gateway_id, $ativo)) {
-                    $salvos++;
-                }
-                $total++;
-
-                // Split é salvo junto (mesmo form), mas não entra na contagem de sucesso/erro
-                // acima -- é best-effort e sempre um simples UPDATE, não deveria falhar sozinho.
-                $taxa_split_post = str_replace(',', '.', (string) ($_POST['taxa_split'][$gateway_id] ?? '0'));
-                $taxa_split = (float) $taxa_split_post;
-                $tipo_split = (string) ($_POST['tipo_split'][$gateway_id] ?? 'percentual');
-                $chave_pix_split = trim((string) ($_POST['chave_pix_split'][$gateway_id] ?? ''));
-                saveGatewaySplit($gateway_id, $taxa_split, $tipo_split, $chave_pix_split);
-            }
-
-            if ($salvos === $total) {
-                $mensagem = 'Configurações de todos os gateways foram salvas com sucesso!';
-            } elseif ($salvos > 0) {
-                $mensagem = "Salvas $salvos de $total gateways. Alguns não foram atualizados.";
-            } else {
-                $erro = 'Erro ao salvar configurações dos gateways.';
-            }
-        } else {
+        if (empty($ids)) {
             $erro = 'Nenhum gateway encontrado para salvar.';
+        } else {
+            // Valida TODOS antes de gravar qualquer coisa: um valor inválido não pode deixar a tela meio salva (o servidor decide o que
+            // o split pode valer em validarSplitGateway(); o min/max do campo só ajuda quem usa o navegador).
+            $para_salvar = [];
+            $problemas = [];
+            foreach ($ids as $id) {
+                $gateway_id = (int) $id;
+                $stmt_titulo = $pdo->prepare("SELECT titulo FROM gateways WHERE id = ?");
+                $stmt_titulo->execute([$gateway_id]);
+                $titulo_gateway = $stmt_titulo->fetchColumn();
+                if ($titulo_gateway === false) {
+                    $problemas[] = 'Gateway #' . $gateway_id . ' não existe.';
+                    continue;
+                }
+                [$split, $erro_split] = validarSplitGateway(
+                    (string) ($_POST['taxa_split'][$gateway_id] ?? '0'),
+                    (string) ($_POST['tipo_split'][$gateway_id] ?? 'percentual'),
+                    (string) ($_POST['chave_pix_split'][$gateway_id] ?? '')
+                );
+                if ($erro_split !== null) {
+                    $problemas[] = htmlspecialchars((string) $titulo_gateway) . ': ' . htmlspecialchars($erro_split);
+                    continue;
+                }
+                $para_salvar[$gateway_id] = [
+                    'ativo' => isset($_POST['ativo'][$gateway_id]) && $_POST['ativo'][$gateway_id] == '1',
+                    'split' => $split,
+                ];
+            }
+
+            if ($problemas) {
+                $erro = 'Nada foi salvo. ' . implode('<br>', $problemas);
+            } else {
+                $salvos = 0;
+                foreach ($para_salvar as $gateway_id => $dados) {
+                    $ok_ativo = saveAdminGatewayConfig($gateway_id, $dados['ativo']);
+                    $ok_split = saveGatewaySplit($gateway_id, $dados['split']['taxa'], $dados['split']['tipo'], $dados['split']['chave']);
+                    if ($ok_ativo && $ok_split) {
+                        $salvos++;
+                    }
+                }
+                $total = count($para_salvar);
+                if ($salvos === $total) {
+                    // Depois do salvar a tela redireciona (PRG): a mensagem vai pela sessão, senão ela se perdia e o admin ficava sem retorno.
+                    $_SESSION['gw_mensagem'] = 'Configurações de todos os gateways foram salvas com sucesso!';
+                } elseif ($salvos > 0) {
+                    $erro = "Salvas $salvos de $total gateways (ativação e split). Os demais não foram atualizados: confira os valores e tente de novo.";
+                } else {
+                    $erro = 'Erro ao salvar configurações dos gateways.';
+                }
+            }
         }
     } elseif (isset($_POST['acao']) && $_POST['acao'] === 'desativar_user') {
         $gateway_id = (int)$_POST['gateway_id'];

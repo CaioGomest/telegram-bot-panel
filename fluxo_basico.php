@@ -2,7 +2,6 @@
 require_once __DIR__ . '/funcoes/usuario.php';
 require_once __DIR__ . '/funcoes/icones.php';
 bloquearAdmin();
-$icone_cadeado = '<svg class="editor-fluxo-cadeado" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -33,7 +32,7 @@ $icone_cadeado = '<svg class="editor-fluxo-cadeado" width="12" height="12" viewB
             </div>
         </div>
         <div class="editor-fluxo-topo-dir">
-            <span class="basico-status" id="status-salvo">Tudo salvo</span>
+            <span class="basico-status" id="status-salvo"><?php echo ($_GET['id'] ?? '') !== '' ? 'Tudo salvo' : 'Fluxo ainda não salvo'; ?></span>
             <label class="basico-interruptor" title="Desligado: o bot responde que o atendimento está indisponível">
                 <input type="checkbox" id="fluxo-ativo" checked> <span id="fluxo-ativo-rotulo">Ativo</span>
             </label>
@@ -56,27 +55,27 @@ $icone_cadeado = '<svg class="editor-fluxo-cadeado" width="12" height="12" viewB
         </button>
         <nav class="basico-nav" id="basico-nav">
             <div class="basico-nav-topo">
-                <div><span class="basico-nav-titulo">Navegação</span><span class="basico-nav-contagem" id="nav-contagem">1 de 11 seções</span></div>
+                <div><span class="basico-nav-titulo">Navegação</span><span class="basico-nav-contagem" id="nav-contagem">11 seções</span></div>
                 <button type="button" class="editor-fluxo-icone-btn" id="btn-recolher-nav" aria-label="Recolher navegação">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg>
                 </button>
             </div>
             <div class="basico-nav-grupo">Estrutura</div>
             <button type="button" class="basico-nav-item ativo" data-secao="bots" title="Bots"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V4M9 14h.01M15 14h.01"/></svg><span class="basico-nav-rotulo">Bots</span></button>
-            <button type="button" class="basico-nav-item" data-secao="boasvindas" title="Boas-vindas"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="basico-nav-rotulo">Boas-vindas</span><?php echo $icone_cadeado; ?></button>
-            <button type="button" class="basico-nav-item" data-secao="planos" title="Planos"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg><span class="basico-nav-rotulo">Planos</span><?php echo $icone_cadeado; ?></button>
+            <button type="button" class="basico-nav-item" data-secao="boasvindas" title="Boas-vindas"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="basico-nav-rotulo">Boas-vindas</span></button>
+            <button type="button" class="basico-nav-item" data-secao="planos" title="Planos"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg><span class="basico-nav-rotulo">Planos</span></button>
             <div class="basico-nav-grupo">Conversão</div>
-            <button type="button" class="basico-nav-item" data-secao="upsell" title="Upsell"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8M15 7h6v6"/></svg><span class="basico-nav-rotulo">Upsell</span><?php echo $icone_cadeado; ?></button>
-            <button type="button" class="basico-nav-item" data-secao="downsell" title="Downsell"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l6 6 4-4 8 8M15 17h6v-6"/></svg><span class="basico-nav-rotulo">Downsell</span><?php echo $icone_cadeado; ?></button>
-            <button type="button" class="basico-nav-item" data-secao="orderbump" title="Order Bump"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7h12l1 13H5zM9 7a3 3 0 0 1 6 0"/></svg><span class="basico-nav-rotulo">Order Bump</span><?php echo $icone_cadeado; ?></button>
-            <button type="button" class="basico-nav-item" data-secao="packs" title="Packs"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5zM3 8v8l9 5 9-5V8"/></svg><span class="basico-nav-rotulo">Packs</span><?php echo $icone_cadeado; ?></button>
-            <button type="button" class="basico-nav-item" data-secao="previas" title="Prévias"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c1 4 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 1-9z"/></svg><span class="basico-nav-rotulo">Prévias</span><?php echo $icone_cadeado; ?></button>
+            <button type="button" class="basico-nav-item" data-secao="upsell" title="Upsell"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8M15 7h6v6"/></svg><span class="basico-nav-rotulo">Upsell</span></button>
+            <button type="button" class="basico-nav-item" data-secao="downsell" title="Downsell"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l6 6 4-4 8 8M15 17h6v-6"/></svg><span class="basico-nav-rotulo">Downsell</span></button>
+            <button type="button" class="basico-nav-item" data-secao="orderbump" title="Order Bump"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7h12l1 13H5zM9 7a3 3 0 0 1 6 0"/></svg><span class="basico-nav-rotulo">Order Bump</span></button>
+            <button type="button" class="basico-nav-item" data-secao="packs" title="Packs"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5zM3 8v8l9 5 9-5V8"/></svg><span class="basico-nav-rotulo">Packs</span></button>
+            <button type="button" class="basico-nav-item" data-secao="previas" title="Prévias"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c1 4 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 1-9z"/></svg><span class="basico-nav-rotulo">Prévias</span></button>
             <div class="basico-nav-grupo">Operação</div>
-            <button type="button" class="basico-nav-item" data-secao="pagamentos" title="Pagamentos"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg><span class="basico-nav-rotulo">Pagamentos</span><?php echo $icone_cadeado; ?></button>
-            <button type="button" class="basico-nav-item" data-secao="assinatura" title="Assinatura"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15 6.7L3 16M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M3 21v-5h5"/></svg><span class="basico-nav-rotulo">Assinatura</span><?php echo $icone_cadeado; ?></button>
+            <button type="button" class="basico-nav-item" data-secao="pagamentos" title="Pagamentos"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg><span class="basico-nav-rotulo">Pagamentos</span></button>
+            <button type="button" class="basico-nav-item" data-secao="assinatura" title="Assinatura"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15 6.7L3 16M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M3 21v-5h5"/></svg><span class="basico-nav-rotulo">Assinatura</span></button>
             <div class="basico-nav-grupo">Análise e ajustes</div>
-            <button type="button" class="basico-nav-item" data-secao="conversoes" title="Conversões"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg><span class="basico-nav-rotulo">Conversões</span><?php echo $icone_cadeado; ?></button>
-            <div class="basico-nav-aviso" id="nav-aviso">Salve o fluxo em <strong>Bots</strong> para liberar as demais seções.</div>
+            <button type="button" class="basico-nav-item" data-secao="conversoes" title="Conversões"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg><span class="basico-nav-rotulo">Conversões</span></button>
+            <div class="basico-nav-aviso" id="nav-aviso"><strong>Por onde começar:</strong> preencha <strong>Boas-vindas</strong> e adicione pelo menos 1 plano em <strong>Planos</strong>, depois clique em <strong>Salvar alterações</strong> (no topo). Você pode salvar e vincular o bot a qualquer momento; o bot só consegue vender depois que o fluxo tiver pelo menos 1 plano.</div>
         </nav>
 
         <div class="basico-conteudo" id="basico-conteudo">
@@ -92,7 +91,7 @@ $icone_cadeado = '<svg class="editor-fluxo-cadeado" width="12" height="12" viewB
                 <div class="painel">
                     <div class="painel-cabecalho"><h2>Bots vinculados</h2><span class="texto-ajuda" id="bots-contagem">0/10 bots</span></div>
                     <p class="texto-ajuda">Gerencie os bots que executam este fluxo.</p>
-                    <p class="texto-ajuda" id="bots-aviso-salvar">Salve o fluxo primeiro para poder vincular bots.</p>
+                    <p class="texto-ajuda" id="bots-aviso-salvar">Escolha abaixo o bot que vai executar este fluxo: ele é vinculado quando você clicar em <strong>Salvar alterações</strong> (no topo), Lembre de adicionar pelo menos 1 plano em <strong>Planos</strong>: sem plano o bot não tem o que vender.</p>
                     <div id="lista-bots-vinculados"></div>
                     <div class="basico-vincular" id="area-vincular" hidden>
                         <select id="select-bot-vincular" aria-label="Selecione um bot para adicionar"></select>
@@ -119,17 +118,19 @@ $icone_cadeado = '<svg class="editor-fluxo-cadeado" width="12" height="12" viewB
                             <label for="bv-mensagem">Mensagem inicial</label>
                             <textarea id="bv-mensagem" rows="3" placeholder="Olá! Bem-vindo(a)..."></textarea>
                         </div>
+                        <label class="basico-interruptor sem-caixa"><input type="checkbox" id="bv-mostrar-cta" checked> <span>Mostrar botão (CTA) na mensagem</span></label>
+                        <small class="texto-ajuda" id="bv-cta-dica" hidden>Sem o botão, a lista de planos é enviada logo depois da mensagem de boas-vindas.</small>
                         <div class="grade grade-2 grade-compacta">
                             <div class="campo">
                                 <label>Mídia (opcional)</label>
-                                <div class="area-previa-basico" id="bv-midia-previa" title="Clique para adicionar/trocar">Sem mídia</div>
+                                <div class="area-previa-basico" id="bv-midia-previa" data-estado="vazio" data-tipo="none">Sem mídia</div>
                                 <input type="file" id="bv-midia-arquivo" accept="image/*,video/*" style="display:none">
                             </div>
-                            <div class="campo">
+                            <div class="campo bv-cta-campo">
                                 <label for="bv-cta">Texto do botão (CTA)</label>
                                 <input type="text" id="bv-cta" placeholder="Ver Planos" value="Ver Planos">
                             </div>
-                            <div class="campo">
+                            <div class="campo bv-cta-campo">
                                 <label for="bv-cta-cor">Cor do botão</label>
                                 <select id="bv-cta-cor">
                                     <option value="">Padrão</option>
@@ -162,6 +163,10 @@ $icone_cadeado = '<svg class="editor-fluxo-cadeado" width="12" height="12" viewB
                             <div class="campo"><label>Desconto (%)</label><input type="number" min="0" max="100" step="1" class="of-desconto" value="0"></div>
                         </div>
                         <div class="campo"><label>Mensagem da oferta</label><textarea class="of-mensagem" rows="3" placeholder="Que tal levar o plano completo com desconto?"></textarea></div>
+                        <div class="campo"><label>Mídia (opcional)</label>
+                            <div class="area-previa-basico of-midia" data-estado="vazio" data-tipo="none">Sem mídia</div>
+                            <input type="file" class="of-midia-arquivo" accept="image/*,video/*" style="display:none">
+                        </div>
                         <div class="grade grade-2 grade-compacta">
                             <div class="campo"><label>Botão aceitar</label><input type="text" class="of-aceitar" placeholder="Sim, quero!"></div>
                             <div class="campo"><label>Cor do botão aceitar</label>
@@ -172,8 +177,10 @@ $icone_cadeado = '<svg class="editor-fluxo-cadeado" width="12" height="12" viewB
                                     <option value="danger">Vermelho</option>
                                 </select>
                             </div>
-                            <div class="campo"><label>Botão recusar</label><input type="text" class="of-recusar" placeholder="Não, obrigado"></div>
-                            <div class="campo"><label>Cor do botão recusar</label>
+                            <label class="basico-interruptor sem-caixa" style="grid-column:1/-1"><input type="checkbox" class="of-esconder-recusar"> <span>Esconder o botão de recusar</span></label>
+                            <small class="texto-ajuda of-esconder-recusar-dica" style="grid-column:1/-1" hidden>Só o botão aceitar aparece. Quem não quiser o upsell não consegue seguir com o plano escolhido, e o Downsell não chega a ser oferecido.</small>
+                            <div class="campo of-recusar-campo"><label>Botão recusar</label><input type="text" class="of-recusar" placeholder="Não, obrigado"></div>
+                            <div class="campo of-recusar-campo"><label>Cor do botão recusar</label>
                                 <select class="of-recusar-cor">
                                     <option value="">Padrão</option>
                                     <option value="primary">Azul</option>
@@ -189,33 +196,18 @@ $icone_cadeado = '<svg class="editor-fluxo-cadeado" width="12" height="12" viewB
                 <section class="basico-secao" data-secao="downsell">
                     <div class="painel" data-oferta="downsell">
                         <div class="painel-cabecalho"><h2>Downsell</h2></div>
-                        <p class="texto-ajuda">Se o cliente recusar o upsell (ou não houver upsell), oferece uma opção mais barata.</p>
+                        <p class="texto-ajuda">Se o cliente recusar o upsell (ou não houver upsell), mostra os planos que você escolher, com desconto, como botões. Não tem botão de aceitar nem de recusar: ele toca no plano que quiser e segue para o pagamento.</p>
                         <label class="basico-interruptor sem-caixa"><input type="checkbox" class="of-ativo"> <span>Ativar downsell</span></label>
                         <div class="of-detalhes" hidden>
-                        <div class="grade grade-2 grade-compacta">
-                            <div class="campo"><label>Plano oferecido</label><select class="of-plano"></select></div>
-                            <div class="campo"><label>Desconto (%)</label><input type="number" min="0" max="100" step="1" class="of-desconto" value="0"></div>
+                        <div class="campo"><label>Planos oferecidos</label>
+                            <div class="of-planos-lista"></div>
+                            <small class="texto-ajuda">Só os planos marcados aparecem para o cliente (o plano que ele já escolheu antes não é repetido).</small>
                         </div>
+                        <div class="campo"><label>Desconto (%)</label><input type="number" min="0" max="100" step="1" class="of-desconto" value="0"></div>
                         <div class="campo"><label>Mensagem da oferta</label><textarea class="of-mensagem" rows="3" placeholder="Espera! Tenho uma condição especial pra você."></textarea></div>
-                        <div class="grade grade-2 grade-compacta">
-                            <div class="campo"><label>Botão aceitar</label><input type="text" class="of-aceitar" placeholder="Sim, quero!"></div>
-                            <div class="campo"><label>Cor do botão aceitar</label>
-                                <select class="of-aceitar-cor">
-                                    <option value="">Padrão</option>
-                                    <option value="primary">Azul</option>
-                                    <option value="success">Verde</option>
-                                    <option value="danger">Vermelho</option>
-                                </select>
-                            </div>
-                            <div class="campo"><label>Botão recusar</label><input type="text" class="of-recusar" placeholder="Não, obrigado"></div>
-                            <div class="campo"><label>Cor do botão recusar</label>
-                                <select class="of-recusar-cor">
-                                    <option value="">Padrão</option>
-                                    <option value="primary">Azul</option>
-                                    <option value="success">Verde</option>
-                                    <option value="danger">Vermelho</option>
-                                </select>
-                            </div>
+                        <div class="campo"><label>Mídia (opcional)</label>
+                            <div class="area-previa-basico of-midia" data-estado="vazio" data-tipo="none">Sem mídia</div>
+                            <input type="file" class="of-midia-arquivo" accept="image/*,video/*" style="display:none">
                         </div>
                     </div>
                     </div>
@@ -232,6 +224,10 @@ $icone_cadeado = '<svg class="editor-fluxo-cadeado" width="12" height="12" viewB
                             <div class="campo"><label>Valor extra (R$)</label><input type="number" min="0" step="0.01" class="of-valor-extra" value="0"></div>
                         </div>
                         <div class="campo"><label>Mensagem da oferta</label><textarea class="of-mensagem" rows="3" placeholder="Quer adicionar o bônus por só mais R$ 9,90?"></textarea></div>
+                        <div class="campo"><label>Mídia (opcional)</label>
+                            <div class="area-previa-basico of-midia" data-estado="vazio" data-tipo="none">Sem mídia</div>
+                            <input type="file" class="of-midia-arquivo" accept="image/*,video/*" style="display:none">
+                        </div>
                         <div class="grade grade-2 grade-compacta">
                             <div class="campo"><label>Botão aceitar</label><input type="text" class="of-aceitar" placeholder="Sim, quero!"></div>
                             <div class="campo"><label>Cor do botão aceitar</label>

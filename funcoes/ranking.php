@@ -31,7 +31,7 @@ function buscarCampanhaVigente(): ?array
     ];
 
     foreach ($tentativas as [$estado, $condicao, $ordem]) {
-        $stmt = $pdo->prepare("SELECT * FROM campanhas_ranking WHERE ativa = 1 AND $condicao ORDER BY $ordem LIMIT 1");
+        $stmt = $pdo->prepare("SELECT * FROM campanhas_ranking WHERE ativa = 1 AND arquivada_em IS NULL AND $condicao ORDER BY $ordem LIMIT 1");
         $stmt->execute();
         $campanha = $stmt->fetch(PDO::FETCH_ASSOC);
         if ($campanha) {
@@ -48,6 +48,7 @@ function buscarCampanhaVigente(): ?array
 function situacaoCampanhaRanking(array $c): array
 {
     $agora = time();
+    if (!empty($c['arquivada_em']))            { return ['Arquivada', 'badge-neutro']; }
     if (!$c['ativa'])                          { return ['Desligada', 'badge-neutro']; }
     if (strtotime($c['data_inicio']) > $agora) { return ['Agendada', 'badge-alerta']; }
     if (strtotime($c['data_fim']) < $agora)    { return ['Encerrada', 'badge-neutro']; }
@@ -66,7 +67,7 @@ function buscarPremiosCampanha(int $campanha_id): array
 function buscarProximaCampanha(): ?array
 {
     global $pdo;
-    $stmt = $pdo->query("SELECT id, titulo, data_inicio FROM campanhas_ranking WHERE ativa = 1 AND data_inicio > NOW() ORDER BY data_inicio ASC LIMIT 1");
+    $stmt = $pdo->query("SELECT id, titulo, data_inicio FROM campanhas_ranking WHERE ativa = 1 AND arquivada_em IS NULL AND data_inicio > NOW() ORDER BY data_inicio ASC LIMIT 1");
     return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
 }
 

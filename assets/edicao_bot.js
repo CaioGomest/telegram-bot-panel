@@ -76,7 +76,11 @@
         $('#btn-salvar-bot').text(eh_edicao ? 'Salvar alterações' : 'Criar bot');
         $('#dica-conexao').text(eh_edicao
             ? 'Token gerado pelo @BotFather e fluxo que o bot executa.'
-            : 'Cole o token gerado pelo @BotFather. Nome e username são preenchidos automaticamente.');
+            : 'Cole o token do @BotFather e clique em “Trazer dados”: o painel busca o nome e o username do bot para você.');
+        $('#btn-testar-token').text(eh_edicao ? 'Testar token' : 'Trazer dados');
+        $('#dica-token').html(eh_edicao
+            ? 'Obtenha este token com o @BotFather no Telegram.'
+            : 'O nome e o username só aparecem <strong>depois de clicar em “Trazer dados”</strong>: colar o token não basta.');
         $('#link-fluxo-secundario').text(eh_edicao ? 'Editar fluxo' : 'Novo Fluxo');
     }
 
@@ -189,9 +193,10 @@
             return;
         }
 
+        const criando = !$('#id-bot').val();
         const $btn = $('#btn-testar-token');
         const original_text = $btn.text();
-        $btn.text('Testando...').prop('disabled', true);
+        $btn.text(criando ? 'Trazendo...' : 'Testando...').prop('disabled', true);
 
         $.ajax({
             url: url_api + '?action=testar_bot',
@@ -215,7 +220,8 @@
                 // foto não vem no getMe simples geralmente, mas ok
             }, true);
             
-            exibirAviso('Conexão bem sucedida! Bot Online.');
+            $btn.removeClass('destaque-acao');
+            exibirAviso(criando ? ('Dados trazidos! @' + (info.username || '') + ' está online. Confira o nome e clique em Criar bot.') : 'Conexão bem sucedida! Bot Online.');
         }).fail(function (xhr) {
             exibirAviso(mensagemDoErro(xhr, 'Erro ao testar conexão.'), 'erro');
             atualizarCardStatus({ first_name: 'Erro de Conexão' }, false);
@@ -310,6 +316,17 @@
         });
     }
 
+    // O BotFather mostra o token quebrado em duas linhas no celular; ao copiar e colar entra um espaço no meio e o Telegram recusa. O token só tem
+    // letras, números, "_", "-" e ":", então tudo o mais sai na hora (e o servidor limpa de novo por garantia).
+    $('#token').attr({ spellcheck: 'false', autocapitalize: 'off', autocorrect: 'off' }).on('input', function () {
+        const limpo = this.value.replace(/[^A-Za-z0-9:_-]+/g, '');
+        if (limpo !== this.value) {
+            this.value = limpo;
+        }
+        // Token com cara de completo e dados ainda não trazidos: o botão pulsa (muita gente cola e acha que já puxou sozinho).
+        const parece_completo = /^\d{6,}:[A-Za-z0-9_-]{30,}$/.test(limpo);
+        $('#btn-testar-token').toggleClass('destaque-acao', parece_completo && !$('#id-bot').val());
+    });
     $('#btn-testar-token').on('click', testarConexaoBot);
     $('#btn-mostrar-token').on('click', function () {
         const $token = $('#token');

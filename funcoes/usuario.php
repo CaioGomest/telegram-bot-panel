@@ -337,7 +337,8 @@ function removerFotoPerfil(int $id): array {
 function verificarAdmin(): void {
     verificarLogin();
     if (!ehAdmin()) {
-        header('Location: /index?erro=sem_permissao');
+        // Sem aviso: quem não é admin não precisa nem saber que a área existe (o link nunca aparece para ele; só chega aqui por endereço digitado/favorito).
+        header('Location: /index');
         exit;
     }
 }
@@ -568,8 +569,7 @@ function atualizarPerfilUsuario(int $id, string $nome, string $email, ?string $s
 }
 
 /**
- * WHERE dos filtros da lista de usuários do admin. Filtros: busca (nome, e-mail, apelido ou ID), perfil (admin|usuario),
- * email (confirmado|pendente), bots (com|sem). Tudo com parâmetros: nada do que vem da URL entra solto no SQL.
+ * WHERE do filtro da lista de usuários do admin: busca por nome, e-mail, apelido ou ID. Tudo com parâmetros: nada do que vem da URL entra solto no SQL.
  * @return array{0:string, 1:array}
  */
 function montarFiltroUsuarios(array $f): array {
@@ -585,20 +585,6 @@ function montarFiltroUsuarios(array $f): array {
             $params[] = (int) $busca;
         }
         $where[] = $cond . ')';
-    }
-    if (in_array($f['perfil'] ?? '', ['admin', 'usuario'], true)) {
-        $where[] = 'u.perfil = ?';
-        $params[] = $f['perfil'];
-    }
-    if (($f['email'] ?? '') === 'confirmado') {
-        $where[] = 'u.email_verificado_em IS NOT NULL';
-    } elseif (($f['email'] ?? '') === 'pendente') {
-        $where[] = 'u.email_verificado_em IS NULL';
-    }
-    if (($f['bots'] ?? '') === 'com') {
-        $where[] = 'EXISTS (SELECT 1 FROM bots b WHERE b.id_usuario = u.id)';
-    } elseif (($f['bots'] ?? '') === 'sem') {
-        $where[] = 'NOT EXISTS (SELECT 1 FROM bots b WHERE b.id_usuario = u.id)';
     }
     return [implode(' AND ', $where), $params];
 }
@@ -641,21 +627,6 @@ function listarUsuariosFiltrados(array $f, int $limite, int $offset): array {
         error_log('Erro ao listar usuários filtrados: ' . $e->getMessage());
         return [];
     }
-}
-
-/** Contagem por perfil para os números das abas (independe dos outros filtros). @return array{todos:int, admin:int, usuario:int} */
-function contarUsuariosPorPerfil(): array {
-    global $pdo;
-    $r = ['todos' => 0, 'admin' => 0, 'usuario' => 0];
-    try {
-        foreach ($pdo->query('SELECT perfil, COUNT(*) AS n FROM usuarios GROUP BY perfil')->fetchAll(PDO::FETCH_ASSOC) as $l) {
-            $r[(string) $l['perfil'] === 'admin' ? 'admin' : 'usuario'] += (int) $l['n'];
-        }
-        $r['todos'] = $r['admin'] + $r['usuario'];
-    } catch (PDOException $e) {
-        error_log('Erro ao contar usuários por perfil: ' . $e->getMessage());
-    }
-    return $r;
 }
 
 function contarTotalUsuarios(): int {

@@ -317,38 +317,45 @@ function celulaSplit(array $venda, array $linhas_split): string {
         </div>
 
 
-        <div class="barra-filtros" style="flex-wrap:wrap;">
-            <form method="GET" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;flex:1;">
-                <select name="usuario_id" id="usuario_id">
-                    <option value="">Todos os usuários</option>
-                    <?php foreach ($usuarios_filtro as $u): ?>
-                        <option value="<?php echo $u['id']; ?>" <?php echo $usuario_id === (int)$u['id'] ? 'selected' : ''; ?>>
-                            <?php echo htmlspecialchars($u['nome'] . ' — ' . $u['email']); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-                <select name="status" id="status">
-                    <option value="">Todos os status</option>
-                    <option value="pago" <?php echo $status === 'pago' ? 'selected' : ''; ?>>Pago</option>
-                    <option value="gerado" <?php echo $status === 'gerado' ? 'selected' : ''; ?>>Aguardando Pix</option>
-                    <option value="cancelado" <?php echo $status === 'cancelado' ? 'selected' : ''; ?>>Cancelado</option>
-                    <option value="expirado" <?php echo $status === 'expirado' ? 'selected' : ''; ?>>Expirado</option>
-                </select>
-                <select name="split_status" id="split_status">
-                    <option value="">Split: todos</option>
-                    <option value="pago" <?php echo $split_status === 'pago' ? 'selected' : ''; ?>>Pago (todos)</option>
-                    <option value="parcial" <?php echo $split_status === 'parcial' ? 'selected' : ''; ?>>Parcial (alguns falharam)</option>
-                    <option value="pendente" <?php echo $split_status === 'pendente' ? 'selected' : ''; ?>>Pendente</option>
-                    <option value="falhou" <?php echo $split_status === 'falhou' ? 'selected' : ''; ?>>Falhou (todos)</option>
-                    <option value="sem_split" <?php echo $split_status === 'sem_split' ? 'selected' : ''; ?>>Sem split configurado</option>
-                    <option value="sem_credenciais" <?php echo $split_status === 'sem_credenciais' ? 'selected' : ''; ?>>Sem credenciais de Cash-Out</option>
-                </select>
-                <input type="date" name="data_inicio" id="data_inicio" aria-label="Data inicial" value="<?php echo htmlspecialchars($data_inicio); ?>" style="width:150px;">
-                <input type="date" name="data_fim" id="data_fim" aria-label="Data final" value="<?php echo htmlspecialchars($data_fim); ?>" style="width:150px;">
-                <div class="filtro-linha-busca">
-                    <input type="text" name="busca" id="busca" placeholder="TXID ou ID do Telegram" value="<?php echo htmlspecialchars($busca); ?>">
+        <?php $tem_filtro = $usuario_id > 0 || $status !== '' || $split_status !== '' || $data_inicio !== '' || $data_fim !== '' || $busca !== ''; ?>
+        <div class="filtros-vendas">
+            <form method="GET" class="filtros-vendas-form filtros-transacoes-form">
+                <label class="filtro-campo"><span>Usuário</span>
+                    <select name="usuario_id" id="usuario_id">
+                        <option value="">Todos os usuários</option>
+                        <?php foreach ($usuarios_filtro as $u): ?>
+                            <option value="<?php echo $u['id']; ?>" <?php echo $usuario_id === (int)$u['id'] ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($u['nome'] . ' — ' . $u['email']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+                <label class="filtro-campo"><span>Status</span>
+                    <select name="status" id="status">
+                        <option value="">Todos os status</option>
+                        <option value="pago" <?php echo $status === 'pago' ? 'selected' : ''; ?>>Pago</option>
+                        <option value="gerado" <?php echo $status === 'gerado' ? 'selected' : ''; ?>>Aguardando Pix</option>
+                        <option value="cancelado" <?php echo $status === 'cancelado' ? 'selected' : ''; ?>>Cancelado</option>
+                        <option value="expirado" <?php echo $status === 'expirado' ? 'selected' : ''; ?>>Expirado</option>
+                    </select>
+                </label>
+                <label class="filtro-campo"><span>Split</span>
+                    <select name="split_status" id="split_status">
+                        <option value="">Todos os splits</option>
+                        <option value="pago" <?php echo $split_status === 'pago' ? 'selected' : ''; ?>>Pago (todos)</option>
+                        <option value="parcial" <?php echo $split_status === 'parcial' ? 'selected' : ''; ?>>Parcial (alguns falharam)</option>
+                        <option value="pendente" <?php echo $split_status === 'pendente' ? 'selected' : ''; ?>>Pendente</option>
+                        <option value="falhou" <?php echo $split_status === 'falhou' ? 'selected' : ''; ?>>Falhou (todos)</option>
+                        <option value="sem_split" <?php echo $split_status === 'sem_split' ? 'selected' : ''; ?>>Sem split configurado</option>
+                        <option value="sem_credenciais" <?php echo $split_status === 'sem_credenciais' ? 'selected' : ''; ?>>Sem credenciais de Cash-Out</option>
+                    </select>
+                </label>
+                <label class="filtro-campo filtro-data"><span>De</span><input type="date" name="data_inicio" id="data_inicio" value="<?php echo htmlspecialchars($data_inicio); ?>"></label>
+                <label class="filtro-campo filtro-data"><span>Até</span><input type="date" name="data_fim" id="data_fim" value="<?php echo htmlspecialchars($data_fim); ?>"></label>
+                <label class="filtro-campo filtro-busca"><span>Buscar</span><input type="text" name="busca" id="busca" maxlength="100" value="<?php echo htmlspecialchars($busca); ?>" placeholder="TXID ou ID do Telegram"></label>
+                <div class="filtro-acoes">
                     <button type="submit" class="botao botao-primario">Filtrar</button>
-                    <a href="transacoes" class="botao">Limpar</a>
+                    <?php if ($tem_filtro): ?><a href="transacoes" class="botao">Limpar</a><?php endif; ?>
                 </div>
             </form>
         </div>

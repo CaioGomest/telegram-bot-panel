@@ -8,6 +8,7 @@ $caminho_base = '../';
 
 $mensagem = '';
 $erro = '';
+$erro_lista = ''; // recusa de arquivar: aviso na lista, não no formulário
 
 function salvarPremiosCampanha(PDO $pdo, int $campanha_id, array $titulos, array $descricoes): void
 {
@@ -35,6 +36,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $data_fim = trim($_POST['data_fim'] ?? '');
         $ativa = isset($_POST['ativa']) ? 1 : 0;
 
+        // Campanha arquivada é registro guardado: não se edita (nem por POST direto) sem desarquivar antes.
+        if ($id) {
+            $stmt_arq = $pdo->prepare("SELECT arquivada_em FROM campanhas_ranking WHERE id = ?");
+            $stmt_arq->execute([$id]);
+            if (!empty($stmt_arq->fetchColumn())) {
+                $erro = 'Campanha arquivada não pode ser editada. Desarquive antes.';
+            }
+        }
+
         // Banner é opcional: sem upload novo, mantém o que já estava salvo (edição) ou fica
         // vazio (campanha nova) — igual ao padrão já usado pra foto de bot em api.php.
         $imagem_banner = null;
@@ -43,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt_atual->execute([$id]);
             $imagem_banner = $stmt_atual->fetchColumn() ?: null;
         }
-        if (!empty($_FILES['imagem_banner']['tmp_name'])) {
+        if ($erro === '' && !empty($_FILES['imagem_banner']['tmp_name'])) {
             $tmp = $_FILES['imagem_banner']['tmp_name'];
             $tamanho = (int) ($_FILES['imagem_banner']['size'] ?? 0);
             if ($tamanho <= 0 || $tamanho > 5 * 1024 * 1024 || !@getimagesize($tmp)) {
@@ -105,7 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 salvarPremiosCampanha($pdo, $campanha_id, $_POST['premio_titulo'] ?? [], $_POST['premio_descricao'] ?? []);
 
                 // A tela de Ranking mostra UMA campanha por vez; períodos que se cruzam disputam o espaço.
-                $stmt_sobrepoe = $pdo->prepare("SELECT titulo FROM campanhas_ranking WHERE id <> ? AND ativa = 1 AND data_inicio < ? AND data_fim > ? LIMIT 1");
+                $stmt_sobrepoe = $pdo->prepare("SELECT titulo FROM campanhas_ranking WHERE id <> ? AND ativa = 1 AND arquivada_em IS NULL AND data_inicio < ? AND data_fim > ? LIMIT 1");
                 $stmt_sobrepoe->execute([$campanha_id, $data_fim, $data_inicio]);
                 $sobreposta = $stmt_sobrepoe->fetchColumn();
 
@@ -119,17 +129,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } elseif ($acao === 'alternar_ativa') {
         $id = (int) ($_POST['id'] ?? 0);
-        $pdo->prepare("UPDATE campanhas_ranking SET ativa = NOT ativa WHERE id = ?")->execute([$id]);
+        $pdo->prepare("UPDATE campanhas_ranking SET ativa = NOT ativa WHERE id = ? AND arquivada_em IS NULL")->execute([$id]);
         header('Location: ranking');
+        exit;
+    } elseif ($acao === 'arquivar_campanha') {
+        // Arquivar guarda o registro (período, prêmios, placar final, ganhadores) e tira a campanha da lista, das telas do usuário
+        // e do cron. Nunca apaga. Não deixa arquivar a que ainda está valendo: em andamento e ligada, ou já encerrada mas com o
+        // placar final ainda por fechar pelo cron — senão o resultado oficial se perderia.
+        $id = (int) ($_POST['id'] ?? 0);
+        $stmt_c = $pdo->prepare("SELECT ativa, data_inicio, finalizada_em, arquivada_em FROM campanhas_ranking WHERE id = ?");
+        $stmt_c->execute([$id]);
+        $alvo = $stmt_c->fetch(PDO::FETCH_ASSOC);
+        if (!$alvo) {
+            $erro_lista = 'Campanha não encontrada.';
+        } elseif (!empty($alvo['arquivada_em'])) {
+            header('Location: ranking');
+            exit;
+        } elseif ((int) $alvo['ativa'] === 1 && strtotime((string) $alvo['data_inicio']) <= time() && empty($alvo['finalizada_em'])) {
+            $erro_lista = 'Esta campanha está valendo (em andamento, ou já terminou e o cron ainda vai fechar o placar final). Desligue-a ou espere o placar final antes de arquivar.';
+        } else {
+            $pdo->prepare("UPDATE campanhas_ranking SET arquivada_em = NOW() WHERE id = ? AND arquivada_em IS NULL")->execute([$id]);
+            header('Location: ranking?arquivada=1');
+            exit;
+        }
+    } elseif ($acao === 'desarquivar_campanha') {
+        // Volta para a lista como estava (a chave "ativa" não muda: se estava desligada, continua desligada).
+        $id = (int) ($_POST['id'] ?? 0);
+        $stmt_d = $pdo->prepare("UPDATE campanhas_ranking SET arquivada_em = NULL WHERE id = ? AND arquivada_em IS NOT NULL");
+        $stmt_d->execute([$id]);
+        header('Location: ranking' . ($stmt_d->rowCount() > 0 ? '?desarquivada=1' : '?arquivadas=1'));
         exit;
     }
 }
 
+if (($_GET['aviso'] ?? '') === 'editar') {
+    $mensagem = 'Campanha arquivada não pode ser editada: desarquive antes.';
+}
 if (isset($_GET['salvo'])) {
     $mensagem = 'Campanha salva com sucesso.';
     if (!empty($_GET['sobrepoe'])) {
         $mensagem .= ' Atenção: o período cruza com "' . (string) $_GET['sobrepoe'] . '" e a tela de Ranking mostra uma campanha por vez (a que termina primeiro). Ajuste as datas ou desligue uma delas.';
     }
+}
+
+if (isset($_GET['arquivada'])) {
+    $mensagem = 'Campanha arquivada. O registro (período, prêmios, placar final e ganhadores) está guardado na aba Arquivadas e dá para desarquivar.';
+} elseif (isset($_GET['desarquivada'])) {
+    $mensagem = 'Campanha desarquivada: voltou para a lista (com a chave "ativa" como estava).';
 }
 
 $campanha_edicao = null;
@@ -138,6 +184,11 @@ if (isset($_GET['editar'])) {
     $stmt = $pdo->prepare("SELECT * FROM campanhas_ranking WHERE id = ?");
     $stmt->execute([(int) $_GET['editar']]);
     $campanha_edicao = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if ($campanha_edicao && !empty($campanha_edicao['arquivada_em'])) {
+        // Arquivada é registro guardado: para editar, desarquive primeiro.
+        header('Location: ranking?arquivadas=1&aviso=editar');
+        exit;
+    }
     if ($campanha_edicao) {
         $stmt = $pdo->prepare("SELECT posicao, titulo, descricao FROM campanhas_ranking_premios WHERE campanha_id = ?");
         $stmt->execute([$campanha_edicao['id']]);
@@ -147,7 +198,10 @@ if (isset($_GET['editar'])) {
     }
 }
 
-$campanhas = $pdo->query("SELECT * FROM campanhas_ranking ORDER BY data_inicio DESC")->fetchAll(PDO::FETCH_ASSOC);
+$ver_arquivadas = isset($_GET['arquivadas']);
+$campanhas = $pdo->query("SELECT * FROM campanhas_ranking WHERE arquivada_em IS " . ($ver_arquivadas ? "NOT NULL ORDER BY arquivada_em DESC, data_inicio DESC" : "NULL ORDER BY data_inicio DESC"))->fetchAll(PDO::FETCH_ASSOC);
+$qtd_arquivadas = (int) $pdo->query("SELECT COUNT(*) FROM campanhas_ranking WHERE arquivada_em IS NOT NULL")->fetchColumn();
+$qtd_em_uso = (int) $pdo->query("SELECT COUNT(*) FROM campanhas_ranking WHERE arquivada_em IS NULL")->fetchColumn();
 
 function campoPremio(int $posicao, array $premios_edicao): array
 {
@@ -188,6 +242,9 @@ $abrir_modal = $campanha_edicao !== null || $erro !== '';
 
         <?php if ($mensagem): ?>
             <div class="painel"><div class="aviso aviso-sucesso"><?php echo htmlspecialchars($mensagem); ?></div></div>
+        <?php endif; ?>
+        <?php if ($erro_lista): ?>
+            <div class="painel"><div class="aviso aviso-erro"><?php echo htmlspecialchars($erro_lista); ?></div></div>
         <?php endif; ?>
         <?php if ($erro && !$abrir_modal): ?>
             <div class="painel"><div class="aviso aviso-erro"><?php echo htmlspecialchars($erro); ?></div></div>
@@ -280,7 +337,16 @@ $abrir_modal = $campanha_edicao !== null || $erro !== '';
         </div>
 
         <div class="painel">
-            <div class="painel-cabecalho"><h2>Campanhas cadastradas</h2></div>
+            <div class="painel-cabecalho">
+                <h2><?php echo $ver_arquivadas ? 'Campanhas arquivadas' : 'Campanhas cadastradas'; ?></h2>
+                <div class="abas-status">
+                    <a href="ranking" class="aba-status<?php echo $ver_arquivadas ? '' : ' ativa'; ?>">Em uso (<?php echo $qtd_em_uso; ?>)</a>
+                    <a href="ranking?arquivadas=1" class="aba-status<?php echo $ver_arquivadas ? ' ativa' : ''; ?>">Arquivadas (<?php echo $qtd_arquivadas; ?>)</a>
+                </div>
+            </div>
+            <?php if ($ver_arquivadas): ?>
+                <p class="texto-suave" style="margin:0 0 12px;">Registro das campanhas já encerradas: período, prêmios, placar final e ganhadores continuam guardados (clique no título ou no troféu). Não aparecem para os usuários nem são recalculadas. Campanha de ranking nunca é apagada.</p>
+            <?php endif; ?>
             <div class="tabela-dados">
                 <table>
                     <thead>
@@ -294,7 +360,7 @@ $abrir_modal = $campanha_edicao !== null || $erro !== '';
                     </thead>
                     <tbody>
                         <?php if (empty($campanhas)): ?>
-                            <tr><td colspan="5" style="text-align:center;padding:32px;" class="texto-suave">Nenhuma campanha cadastrada ainda.</td></tr>
+                            <tr><td colspan="5" style="text-align:center;padding:32px;" class="texto-suave"><?php echo $ver_arquivadas ? 'Nenhuma campanha arquivada.' : 'Nenhuma campanha cadastrada ainda.'; ?></td></tr>
                         <?php else: foreach ($campanhas as $c): ?>
                             <tr>
                                 <td><a href="ranking_classificacao?id=<?php echo (int) $c['id']; ?>" style="color:inherit;font-weight:600;"><?php echo htmlspecialchars($c['titulo']); ?></a><div class="celula-sub mono"><?php echo htmlspecialchars($c['slug']); ?></div></td>
@@ -307,7 +373,8 @@ $abrir_modal = $campanha_edicao !== null || $erro !== '';
                                 <td><span class="badge <?php echo $sit[1]; ?>"><?php echo $sit[0]; ?></span></td>
                                 <td class="mono texto-suave"><?php echo date('d/m/y', strtotime($c['data_inicio'])); ?> — <?php echo date('d/m/y', strtotime($c['data_fim'])); ?></td>
                                 <td class="texto-suave">
-                                    <?php if (!empty($c['finalizada_em'])): ?>Fechada em <?php echo date('d/m/y H:i', strtotime($c['finalizada_em'])); ?>
+                                    <?php if (!empty($c['arquivada_em'])): ?>Arquivada em <?php echo date('d/m/y H:i', strtotime($c['arquivada_em'])); ?><?php if (!empty($c['finalizada_em'])): ?> · placar fechado em <?php echo date('d/m/y H:i', strtotime($c['finalizada_em'])); ?><?php endif; ?>
+                                    <?php elseif (!empty($c['finalizada_em'])): ?>Fechada em <?php echo date('d/m/y H:i', strtotime($c['finalizada_em'])); ?>
                                     <?php elseif (strtotime($c['data_fim']) < $agora_ts): ?><span title="O cron do ranking fecha o placar na próxima rodada">Aguardando o cron</span>
                                     <?php elseif (strtotime($c['data_inicio']) > $agora_ts): ?>—
                                     <?php else: ?>Recalculando a cada rodada do cron<?php endif; ?>
@@ -317,6 +384,16 @@ $abrir_modal = $campanha_edicao !== null || $erro !== '';
                                         <a href="ranking_classificacao?id=<?php echo (int) $c['id']; ?>" class="btn-icon" title="Ver classificação e ganhadores">
                                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
                                         </a>
+                                        <?php if (!empty($c['arquivada_em'])): ?>
+                                        <form method="POST" style="display:inline;">
+                                            <?php echo campoCsrf(); ?>
+                                            <input type="hidden" name="acao" value="desarquivar_campanha">
+                                            <input type="hidden" name="id" value="<?php echo (int) $c['id']; ?>">
+                                            <button type="submit" class="btn-icon" title="Desarquivar" aria-label="Desarquivar">
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+                                            </button>
+                                        </form>
+                                        <?php else: ?>
                                         <a href="ranking.php?editar=<?php echo (int) $c['id']; ?>" class="btn-icon editar" title="Editar">
                                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                                         </a>
@@ -329,6 +406,15 @@ $abrir_modal = $campanha_edicao !== null || $erro !== '';
                                                 <span class="chave-gateway-trilho"></span>
                                             </label>
                                         </form>
+                                        <form method="POST" style="display:inline;" onsubmit="return confirm('Arquivar esta campanha? O registro (período, prêmios, placar final e ganhadores) fica guardado na aba Arquivadas e dá para desarquivar. Ela deixa de aparecer para os usuários.');">
+                                            <?php echo campoCsrf(); ?>
+                                            <input type="hidden" name="acao" value="arquivar_campanha">
+                                            <input type="hidden" name="id" value="<?php echo (int) $c['id']; ?>">
+                                            <button type="submit" class="btn-icon" title="Arquivar" aria-label="Arquivar">
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8M10 12h4"/></svg>
+                                            </button>
+                                        </form>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>

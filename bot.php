@@ -75,29 +75,29 @@ $eh_edicao = isset($_GET['id']) && $_GET['id'] !== '';
                         <h2>Conexão</h2>
                     </div>
                     <p class="texto-suave" id="dica-conexao" style="margin:-8px 0 16px;">
-                        <?php echo $eh_edicao ? 'Token gerado pelo @BotFather e fluxo que o bot executa.' : 'Cole o token gerado pelo @BotFather. Nome e username são preenchidos automaticamente.'; ?>
+                        <?php echo $eh_edicao ? 'Token gerado pelo @BotFather e fluxo que o bot executa.' : 'Cole o token do @BotFather e clique em “Trazer dados”: o painel busca o nome e o username do bot para você.'; ?>
                     </p>
                     <form id="formulario-bot">
                         <input type="hidden" name="id" id="id-bot">
                         <div class="grade grade-1">
                             <div class="campo">
                                 <label for="token">Token do Bot</label>
-                                <div class="campo-com-acao">
+                                <div class="campo-com-acao campo-token">
                                     <input type="password" id="token" name="token" class="mono" autocomplete="off" placeholder="123456789:AAH-xxxxxxxxxxxxxxxxxxxx">
                                     <button type="button" class="botao botao-claro" id="btn-mostrar-token" aria-label="Mostrar token">Mostrar</button>
-                                    <button type="button" class="botao botao-claro" id="btn-testar-token">Testar</button>
+                                    <button type="button" class="botao botao-claro" id="btn-testar-token"><?php echo $eh_edicao ? 'Testar token' : 'Trazer dados'; ?></button>
                                 </div>
-                                <p class="texto-ajuda">Obtenha este token com o @BotFather no Telegram.</p>
+                                <p class="texto-ajuda" id="dica-token"><?php echo $eh_edicao ? 'Obtenha este token com o @BotFather no Telegram.' : 'O nome e o username só aparecem <strong>depois de clicar em “Trazer dados”</strong>: colar o token não basta.'; ?></p>
                             </div>
 
                             <div class="grade grade-2 grade-compacta" id="linha-preview-criacao"<?php echo $eh_edicao ? ' hidden' : ''; ?>>
                                 <div class="campo">
                                     <label for="nome-preview-criacao">Nome</label>
-                                    <input type="text" id="nome-preview-criacao" placeholder="Automático" readonly>
+                                    <input type="text" id="nome-preview-criacao" placeholder="Clique em “Trazer dados”" readonly>
                                 </div>
                                 <div class="campo">
                                     <label for="username-preview-criacao">Username</label>
-                                    <input type="text" id="username-preview-criacao" class="mono" placeholder="@automatico_bot" readonly>
+                                    <input type="text" id="username-preview-criacao" class="mono" placeholder="Clique em “Trazer dados”" readonly>
                                 </div>
                             </div>
 

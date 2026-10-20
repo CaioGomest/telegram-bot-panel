@@ -549,19 +549,19 @@ function obterFileIdCacheMidia(string $token, string $id_cache, string $metodo, 
     @file_put_contents($arquivo_cache, json_encode($mapa), LOCK_EX);
     return $file_id;
 }
-function enviarBoasVindasBasico(string $token, $id_chat, array $boas_vindas, string $id_cache = ''): void {
-    $mensagem = trim((string) ($boas_vindas['mensagem'] ?? '')) ?: 'Bem-vindo(a)!';
-    $texto_cta = trim((string) ($boas_vindas['texto_cta'] ?? '')) ?: 'Ver Planos';
-    $teclado = json_encode(['inline_keyboard' => [[['text' => $texto_cta, 'callback_data' => 'basico::ver_planos'] + estiloBotaoBasicoValor((string) ($boas_vindas['cor_cta'] ?? ''))]]]);
-    $midia_tipo = $boas_vindas['midia_tipo'] ?? 'none';
-    $midia_path = resolverCaminhoUploadSeguro((string) ($boas_vindas['midia_path'] ?? ''));
+/**
+ * Mensagem do modo Guiado (boas-vindas e ofertas) com foto ou vídeo opcional. Com mídia, o texto vai na legenda junto com o teclado; legenda
+ * aceita no máximo 1024 caracteres, então acima disso a mídia vai sozinha e o texto (com o teclado) segue numa mensagem normal (até 4096).
+ * Mídia que sumiu do servidor ou que o Telegram recusa: o lead não pode ficar sem a mensagem e sem os botões, então o texto vai mesmo assim.
+ */
+function enviarMensagemComMidiaBasico(string $token, $id_chat, string $mensagem, string $teclado, string $midia_tipo, string $midia_bruta, string $id_cache = ''): void {
+    $midia_path = resolverCaminhoUploadSeguro($midia_bruta);
+    $botoes = $teclado !== '' ? ['reply_markup' => $teclado] : [];  // teclado vazio = mensagem sem botão (Boas-vindas com o CTA desligado)
     if (in_array($midia_tipo, ['image', 'video'], true) && $midia_path) {
         $metodo = $midia_tipo === 'image' ? 'sendPhoto' : 'sendVideo';
         $campo = $midia_tipo === 'image' ? 'photo' : 'video';
-        // Legenda de mídia aceita no máximo 1024 caracteres: com texto maior, a mídia vai sem legenda
-        // e o texto (com o botão) segue logo depois numa mensagem normal (até 4096 caracteres).
         $legenda_cabe = mb_strlen($mensagem) <= 1024;
-        $parametros = $legenda_cabe ? ['chat_id' => $id_chat, 'caption' => $mensagem, 'reply_markup' => $teclado] : ['chat_id' => $id_chat];
+        $parametros = $legenda_cabe ? ['chat_id' => $id_chat, 'caption' => $mensagem] + $botoes : ['chat_id' => $id_chat];
         $file_id = $id_cache !== '' ? obterFileIdCacheMidia($token, $id_cache, $metodo, $campo, $midia_path) : null;
         $enviou = false;
         if ($file_id) {
@@ -573,16 +573,27 @@ function enviarBoasVindasBasico(string $token, $id_chat, array $boas_vindas, str
             $enviou = (bool) ($resposta_envio['ok'] ?? false);
         }
         if (!$enviou) {
-            // O Telegram recusou a mídia (tamanho, dimensões, arquivo): o lead não pode ficar sem a mensagem e sem o botão.
-            requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => mb_substr($mensagem, 0, 4096), 'reply_markup' => $teclado]);
+            requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => mb_substr($mensagem, 0, 4096)] + $botoes);
             return;
         }
         if (!$legenda_cabe) {
-            requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => mb_substr($mensagem, 0, 4096), 'reply_markup' => $teclado]);
+            requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => mb_substr($mensagem, 0, 4096)] + $botoes);
         }
         return;
     }
-    requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => mb_substr($mensagem, 0, 4096), 'reply_markup' => $teclado]);
+    requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => mb_substr($mensagem, 0, 4096)] + $botoes);
+}
+/** O botão CTA das boas-vindas é opcional ("mostrar_cta"); fluxo antigo, sem o campo, continua com o botão. */
+function boasVindasMostraCtaBasico(array $boas_vindas): bool {
+    return ($boas_vindas['mostrar_cta'] ?? true) !== false;
+}
+function enviarBoasVindasBasico(string $token, $id_chat, array $boas_vindas, string $id_cache = ''): void {
+    $mensagem = trim((string) ($boas_vindas['mensagem'] ?? '')) ?: 'Bem-vindo(a)!';
+    $texto_cta = trim((string) ($boas_vindas['texto_cta'] ?? '')) ?: 'Ver Planos';
+    $teclado = boasVindasMostraCtaBasico($boas_vindas)
+        ? json_encode(['inline_keyboard' => [[['text' => $texto_cta, 'callback_data' => 'basico::ver_planos'] + estiloBotaoBasicoValor((string) ($boas_vindas['cor_cta'] ?? ''))]]])
+        : '';
+    enviarMensagemComMidiaBasico($token, $id_chat, $mensagem, $teclado, (string) ($boas_vindas['midia_tipo'] ?? 'none'), (string) ($boas_vindas['midia_path'] ?? ''), $id_cache);
 }
 /**
  * Cor por botão (não mais uma cor "geral" por papel): cada plano, cada oferta e o CTA de
@@ -654,26 +665,71 @@ function planoDaOfertaBasico(array $dados_basico, string $tipo): ?array {
     }
     return localizarPlanoBasico($dados_basico['planos'] ?? [], (string) ($oferta['id_plano_destino'] ?? ''));
 }
-function enviarOfertaBasico(string $token, $id_chat, array $oferta, string $prefixo_callback, string $texto_padrao): void {
+/** Upsell, downsell e order bump: texto + botões Aceitar/Recusar e, se a oferta tiver, foto ou vídeo (mesma regra das boas-vindas). */
+/**
+ * Downsell no formato novo: sem botões Aceitar/Recusar, o cliente vê um botão para cada plano que o dono marcou (ofertas.downsell.planos_oferecidos).
+ * Devolve os planos marcados que ainda existem, com a POSIÇÃO de cada um na lista salva como chave (a posição vai no callback_data: "p<posição>").
+ * Fluxo antigo (id_plano_destino + Aceitar/Recusar, sem planos_oferecidos): devolve [] e segue o caminho antigo (downsellNovoFormatoBasico = false).
+ */
+function downsellNovoFormatoBasico(array $dados_basico): bool {
+    return is_array($dados_basico['ofertas']['downsell']['planos_oferecidos'] ?? null);
+}
+function planosDoDownsellBasico(array $dados_basico): array {
+    $oferta = $dados_basico['ofertas']['downsell'] ?? [];
+    if (empty($oferta['ativo']) || !downsellNovoFormatoBasico($dados_basico)) {
+        return [];
+    }
+    $planos = [];
+    foreach (array_values($oferta['planos_oferecidos']) as $posicao => $id) {
+        $plano = localizarPlanoBasico($dados_basico['planos'] ?? [], (string) $id);
+        if ($plano) {
+            $planos[$posicao] = $plano;
+        }
+    }
+    return $planos;
+}
+/** Plano final de quem aceitou o downsell: variante "d<posição>" (novo) ou "d" (formato antigo, 1 plano). */
+function planoDoDownsellPorVariante(array $dados_basico, string $variante): ?array {
+    if ($variante === 'd') {
+        return planoDaOfertaBasico($dados_basico, 'downsell');
+    }
+    if (preg_match('/^d(\d+)$/', $variante, $m)) {
+        return planosDoDownsellBasico($dados_basico)[(int) $m[1]] ?? null;
+    }
+    return null;
+}
+function enviarDownsellBasico(string $token, $id_chat, array $dados_basico, array $planos, string $id_plano_original, string $id_cache = ''): void {
+    $oferta = $dados_basico['ofertas']['downsell'] ?? [];
+    $desconto = max(0.0, min(100.0, (float) ($oferta['desconto_percentual'] ?? 0)));
+    $mensagem = trim((string) ($oferta['mensagem'] ?? '')) ?: (count($planos) > 1 ? 'Que tal uma destas opções?' : 'Que tal esta opção?');
+    $botoes = [];
+    foreach ($planos as $posicao => $plano) {
+        $valor = round((float) ($plano['valor'] ?? 0) * (1 - $desconto / 100), 2);
+        $rotulo = trim((string) ($plano['nome'] ?? 'Plano')) . ' — R$ ' . number_format($valor, 2, ',', '.') . (planoRecorrenteBasico($plano) ? PERIODICIDADES_BASICO[periodicidadePlanoBasico($plano)] : '')
+            . ($desconto > 0 ? ' (-' . rtrim(rtrim(number_format($desconto, 2, ',', ''), '0'), ',') . '%)' : '');
+        $botoes[] = [['text' => $rotulo, 'callback_data' => 'basico::of::dn::' . $id_plano_original . '::p' . $posicao] + estiloBotaoBasicoValor((string) ($plano['cor'] ?? ''))];
+    }
+    enviarMensagemComMidiaBasico($token, $id_chat, $mensagem, json_encode(['inline_keyboard' => $botoes]), (string) ($oferta['midia_tipo'] ?? 'none'), (string) ($oferta['midia_path'] ?? ''), $id_cache);
+}
+function enviarOfertaBasico(string $token, $id_chat, array $oferta, string $prefixo_callback, string $texto_padrao, string $id_cache = '', bool $permite_esconder_recusar = false): void {
     $mensagem = trim((string) ($oferta['mensagem'] ?? '')) ?: $texto_padrao;
     $aceitar = trim((string) ($oferta['texto_aceitar'] ?? '')) ?: 'Sim, quero!';
     $recusar = trim((string) ($oferta['texto_recusar'] ?? '')) ?: 'Não, obrigado';
-    requisicaoTelegram($token, 'sendMessage', [
-        'chat_id' => $id_chat,
-        'text' => $mensagem,
-        'reply_markup' => json_encode(['inline_keyboard' => [[
-            ['text' => $aceitar, 'callback_data' => $prefixo_callback . '::1'] + estiloBotaoBasicoValor((string) ($oferta['cor_aceitar'] ?? '')),
-            ['text' => $recusar, 'callback_data' => $prefixo_callback . '::0'] + estiloBotaoBasicoValor((string) ($oferta['cor_recusar'] ?? '')),
-        ]]])
-    ]);
+    $botoes = [['text' => $aceitar, 'callback_data' => $prefixo_callback . '::1'] + estiloBotaoBasicoValor((string) ($oferta['cor_aceitar'] ?? ''))];
+    // Só o Upsell pode esconder o botão Recusar (no Downsell e no Order Bump o cliente ficaria sem como seguir para o Pix).
+    if (!($permite_esconder_recusar && !empty($oferta['esconder_recusar']))) {
+        $botoes[] = ['text' => $recusar, 'callback_data' => $prefixo_callback . '::0'] + estiloBotaoBasicoValor((string) ($oferta['cor_recusar'] ?? ''));
+    }
+    $teclado = json_encode(['inline_keyboard' => [$botoes]]);
+    enviarMensagemComMidiaBasico($token, $id_chat, $mensagem, $teclado, (string) ($oferta['midia_tipo'] ?? 'none'), (string) ($oferta['midia_path'] ?? ''), $id_cache);
 }
 function gerarPixBasico(string $token, $id_chat, array $dados_basico, string $id_plano, string $variante, bool $com_bump): void {
     $pagamentos = $dados_basico['pagamentos'] ?? [];
     $plano = localizarPlanoBasico($dados_basico['planos'] ?? [], $id_plano);
     $desconto = 0.0;
-    if ($variante === 'u' || $variante === 'd') {
+    if ($variante === 'u' || preg_match('/^d\d*$/', $variante)) {
         $tipo = $variante === 'u' ? 'upsell' : 'downsell';
-        $destino = planoDaOfertaBasico($dados_basico, $tipo);
+        $destino = $tipo === 'upsell' ? planoDaOfertaBasico($dados_basico, 'upsell') : planoDoDownsellPorVariante($dados_basico, $variante);
         if ($destino) {
             $plano = $destino;
             $desconto = max(0.0, min(100.0, (float) ($dados_basico['ofertas'][$tipo]['desconto_percentual'] ?? 0)));
@@ -717,27 +773,37 @@ function gerarPixBasico(string $token, $id_chat, array $dados_basico, string $id
 }
 function avancarOfertasBasico(string $token, $id_chat, array $dados_basico, string $etapa, string $id_plano, string $variante = 'o'): void {
     $ofertas = $dados_basico['ofertas'] ?? [];
+    $id_cache = (string) ($dados_basico['cache_chat_id'] ?? '');  // canal/grupo de cache das mídias (mesmo das boas-vindas)
     if ($etapa === 'up') {
         $destino = planoDaOfertaBasico($dados_basico, 'upsell');
         if ($destino && (string) $destino['id'] !== $id_plano) {
-            enviarOfertaBasico($token, $id_chat, $ofertas['upsell'], 'basico::of::up::' . $id_plano, 'Quer fazer um upgrade para ' . ($destino['nome'] ?? 'outro plano') . '?');
+            enviarOfertaBasico($token, $id_chat, $ofertas['upsell'], 'basico::of::up::' . $id_plano, 'Quer fazer um upgrade para ' . ($destino['nome'] ?? 'outro plano') . '?', $id_cache, true);
             return;
         }
         $etapa = 'dn';
     }
     if ($etapa === 'dn') {
-        $destino = planoDaOfertaBasico($dados_basico, 'downsell');
-        if ($destino && (string) $destino['id'] !== $id_plano) {
-            enviarOfertaBasico($token, $id_chat, $ofertas['downsell'], 'basico::of::dn::' . $id_plano, 'Que tal esta opção: ' . ($destino['nome'] ?? 'outro plano') . '?');
-            return;
+        if (downsellNovoFormatoBasico($dados_basico)) {
+            // Formato novo: um botão por plano marcado (o plano que o cliente já escolheu não é repetido). Sem plano sobrando, pula o downsell.
+            $candidatos = array_filter(planosDoDownsellBasico($dados_basico), function ($p) use ($id_plano) { return (string) ($p['id'] ?? '') !== $id_plano; });
+            if ($candidatos) {
+                enviarDownsellBasico($token, $id_chat, $dados_basico, $candidatos, $id_plano, $id_cache);
+                return;
+            }
+        } else {
+            $destino = planoDaOfertaBasico($dados_basico, 'downsell');
+            if ($destino && (string) $destino['id'] !== $id_plano) {
+                enviarOfertaBasico($token, $id_chat, $ofertas['downsell'], 'basico::of::dn::' . $id_plano, 'Que tal esta opção: ' . ($destino['nome'] ?? 'outro plano') . '?', $id_cache);
+                return;
+            }
         }
         $etapa = 'bp';
     }
     if ($etapa === 'bp') {
         $bump = $ofertas['order_bump'] ?? [];
-        $plano_final = $variante === 'u' ? planoDaOfertaBasico($dados_basico, 'upsell') : ($variante === 'd' ? planoDaOfertaBasico($dados_basico, 'downsell') : localizarPlanoBasico($dados_basico['planos'] ?? [], $id_plano));
+        $plano_final = $variante === 'u' ? planoDaOfertaBasico($dados_basico, 'upsell') : (strpos($variante, 'd') === 0 ? planoDoDownsellPorVariante($dados_basico, $variante) : localizarPlanoBasico($dados_basico['planos'] ?? [], $id_plano));
         if (!planoRecorrenteBasico($plano_final) && !empty($bump['ativo']) && (float) ($bump['valor_extra'] ?? 0) > 0) {
-            enviarOfertaBasico($token, $id_chat, $bump, 'basico::of::bp::' . $id_plano . '::' . $variante, 'Adicione um extra ao seu pedido por R$ ' . number_format((float) $bump['valor_extra'], 2, ',', '.') . '.');
+            enviarOfertaBasico($token, $id_chat, $bump, 'basico::of::bp::' . $id_plano . '::' . $variante, 'Adicione um extra ao seu pedido por R$ ' . number_format((float) $bump['valor_extra'], 2, ',', '.') . '.', $id_cache);
             return;
         }
     }
@@ -755,6 +821,10 @@ function executarFluxoBasico(string $token, $id_chat, array $dados_basico, strin
     }
     if ($texto === '/start') {
         enviarBoasVindasBasico($token, $id_chat, $boas_vindas, (string) ($dados_basico['cache_chat_id'] ?? ''));
+        if (!boasVindasMostraCtaBasico($boas_vindas)) {
+            // Sem o botão CTA o cliente não teria como ver os planos: a lista vai logo depois da mensagem.
+            enviarListaPlanosBasico($token, $id_chat, $planos, (string) ($dados_basico['suporte'] ?? ''), (string) ($dados_basico['suporte_cor'] ?? ''), $dados_basico['previas'] ?? [], $dados_basico['packs'] ?? []);
+        }
         return;
     }
     if ($texto === 'basico::ver_planos') {
@@ -806,10 +876,20 @@ function executarFluxoBasico(string $token, $id_chat, array $dados_basico, strin
             $aceitou ? avancarOfertasBasico($token, $id_chat, $dados_basico, 'bp', $id_plano, 'u')
                      : avancarOfertasBasico($token, $id_chat, $dados_basico, 'dn', $id_plano);
         } elseif ($etapa === 'dn') {
-            $aceitou = ($partes[2] ?? '') === '1';
-            avancarOfertasBasico($token, $id_chat, $dados_basico, 'bp', $id_plano, $aceitou ? 'd' : 'o');
+            if (preg_match('/^p(\d+)$/', (string) ($partes[2] ?? ''), $m)) {
+                // formato novo: o cliente tocou num dos planos do downsell
+                if (!(planosDoDownsellBasico($dados_basico)[(int) $m[1]] ?? null)) {
+                    requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Essa opção não está mais disponível. Toque em "Ver Planos" de novo.']);
+                    return;
+                }
+                avancarOfertasBasico($token, $id_chat, $dados_basico, 'bp', $id_plano, 'd' . (int) $m[1]);
+            } else {
+                // formato antigo (botões Aceitar/Recusar de mensagens já enviadas)
+                $aceitou = ($partes[2] ?? '') === '1';
+                avancarOfertasBasico($token, $id_chat, $dados_basico, 'bp', $id_plano, $aceitou ? 'd' : 'o');
+            }
         } elseif ($etapa === 'bp') {
-            $variante = in_array($partes[2] ?? '', ['o', 'u', 'd'], true) ? $partes[2] : 'o';
+            $variante = preg_match('/^(o|u|d\d*)$/', (string) ($partes[2] ?? '')) ? $partes[2] : 'o';
             gerarPixBasico($token, $id_chat, $dados_basico, $id_plano, $variante, ($partes[3] ?? '') === '1');
         }
         return;

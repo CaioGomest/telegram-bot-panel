@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../conexao.php';
 require_once __DIR__ . '/log.php';
 require_once __DIR__ . '/criptografia.php';
+require_once __DIR__ . '/split_validacao.php';
 
 function getAdminGatewayConfig(string $nome): ?array {
     global $pdo;
@@ -46,12 +47,19 @@ function getGatewaySplit(string $gateway_nome): ?array {
 
 function saveGatewaySplit(int $gateway_id, float $taxa_split, string $tipo_split, string $chave_pix_split): bool {
     global $pdo;
-    $tipo_split = in_array($tipo_split, ['percentual', 'fixo'], true) ? $tipo_split : 'percentual';
+    // Não confia em quem chama: o que o split pode valer é decidido em validarSplitGateway() (funcoes/split_validacao.php). Valor fora da regra
+    // não é "consertado" nem cortado — não grava e devolve false.
+    [$split, $erro_split] = validarSplitGateway(number_format($taxa_split, 2, '.', ''), $tipo_split, $chave_pix_split);
+    if ($split === null) {
+        error_log("Split recusado para o gateway ID $gateway_id: $erro_split");
+        return false;
+    }
     try {
         $stmt = $pdo->prepare("UPDATE gateways SET taxa_split = ?, tipo_split = ?, chave_pix_split = ? WHERE id = ?");
-        $sucesso = $stmt->execute([$taxa_split, $tipo_split, $chave_pix_split, $gateway_id]);
+        $sucesso = $stmt->execute([$split['taxa'], $split['tipo'], $split['chave'], $gateway_id]);
         if ($sucesso && isset($_SESSION['usuario_id'])) {
-            registrarAtividade((int)$_SESSION['usuario_id'], 'admin', 'Gateway Admin', "Atualizou split padrão do gateway ID $gateway_id ($taxa_split% $tipo_split)");
+            $descricao_taxa = $split['tipo'] === 'fixo' ? 'R$ ' . number_format($split['taxa'], 2, ',', '.') . ' fixo' : $split['taxa'] . '%';
+            registrarAtividade((int)$_SESSION['usuario_id'], 'admin', 'Gateway Admin', "Atualizou split padrão do gateway ID $gateway_id ($descricao_taxa)");
         }
         return $sucesso;
     } catch (PDOException $e) {
@@ -254,6 +262,30 @@ function precoMinimoOmegaPayments(?array $split): float {
  * Confere se todo preço vendável do Fluxo Guiado (planos, packs e planos de upsell/downsell já com desconto)
  * é aceito pelo gateway com o split atual. Retorna a mensagem de erro (pronta pra mostrar) ou null se está tudo certo.
  */
+/**
+ * Mesma regra do Guiado para o Editor Visual: o valor de um bloco PIX que a OmegaPayments recusaria com a comissão atual não pode ser salvo
+ * (antes só falhava na hora em que um cliente tentava pagar). Valor 0 não entra aqui: é bloco ainda sem preço, não preço baixo demais.
+ */
+function validarPrecosFluxoVisual(array $dados, float $minimo): ?string {
+    $reais = static fn(float $v): string => 'R$ ' . number_format($v, 2, ',', '.');
+    $problemas = [];
+    foreach ((array)($dados['operators'] ?? []) as $operador) {
+        $p = is_array($operador) ? ($operador['properties'] ?? []) : [];
+        if (($p['type'] ?? '') !== 'pix') {
+            continue;
+        }
+        $valor = (float)($p['valor'] ?? 0);
+        if ($valor > 0 && $valor < $minimo) {
+            $problemas[] = 'o bloco PIX "' . trim((string)($p['title'] ?? 'PIX')) . '" (' . $reais($valor) . ')';
+        }
+    }
+    if (!$problemas) {
+        return null;
+    }
+    // Só o valor: o dono do fluxo não precisa saber da comissão da plataforma nem da lista do que está abaixo.
+    return 'Para a Omega, o valor mínimo é ' . $reais($minimo) . '.';
+}
+
 function validarPrecosFluxoGuiado(array $dados, float $minimo): ?string {
     $reais = static fn(float $v): string => 'R$ ' . number_format($v, 2, ',', '.');
     $problemas = [];
@@ -276,17 +308,22 @@ function validarPrecosFluxoGuiado(array $dados, float $minimo): ?string {
     }
     foreach (['upsell' => 'Upsell', 'downsell' => 'Downsell'] as $tipo => $rotulo) {
         $oferta = $dados['ofertas'][$tipo] ?? [];
-        $destino = $planos_por_id[(string)($oferta['id_plano_destino'] ?? '')] ?? null;
-        if (!empty($oferta['ativo']) && $destino) {
-            $desconto = max(0.0, min(100.0, (float)($oferta['desconto_percentual'] ?? 0)));
-            $final = round((float)($destino['valor'] ?? 0) * (1 - $desconto / 100), 2);
-            if ($final > 0 && $final < $minimo) {
-                $problemas[] = 'o ' . $rotulo . ' (plano "' . trim((string)($destino['nome'] ?? '')) . '" com ' . rtrim(rtrim(number_format($desconto, 2, ',', ''), '0'), ',') . '% sai por ' . $reais($final) . ')';
+        // Downsell novo: vários planos (planos_oferecidos); Upsell e Downsell antigo: um (id_plano_destino).
+        $ids_destino = ($tipo === 'downsell' && is_array($oferta['planos_oferecidos'] ?? null)) ? $oferta['planos_oferecidos'] : [$oferta['id_plano_destino'] ?? ''];
+        foreach ($ids_destino as $id_destino) {
+            $destino = $planos_por_id[(string)$id_destino] ?? null;
+            if (!empty($oferta['ativo']) && $destino) {
+                $desconto = max(0.0, min(100.0, (float)($oferta['desconto_percentual'] ?? 0)));
+                $final = round((float)($destino['valor'] ?? 0) * (1 - $desconto / 100), 2);
+                if ($final > 0 && $final < $minimo) {
+                    $problemas[] = 'o ' . $rotulo . ' (plano "' . trim((string)($destino['nome'] ?? '')) . '" com ' . rtrim(rtrim(number_format($desconto, 2, ',', ''), '0'), ',') . '% sai por ' . $reais($final) . ')';
+                }
             }
         }
     }
     if (!$problemas) {
         return null;
     }
-    return 'A OmegaPayments só aceita Pix a partir de ' . $reais($minimo) . ' com a comissão atual da plataforma. Ajuste: ' . implode('; ', array_slice($problemas, 0, 4)) . '.';
+    // Só o valor: o dono do fluxo não precisa saber da comissão da plataforma nem da lista do que está abaixo.
+    return 'Para a Omega, o valor mínimo é ' . $reais($minimo) . '.';
 }

@@ -32,7 +32,11 @@
         trash: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>'
     };
 
-    const miniatura_fluxo = '<svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="var(--m)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="9" width="6.5" height="6" rx="1.5"></rect><rect x="15.5" y="3" width="7" height="6" rx="1.5"></rect><rect x="15.5" y="15" width="7" height="6" rx="1.5"></rect><path d="M8 12h3.75M11.75 6v12M11.75 6h3.75M11.75 18h3.75"></path></svg>';
+    // Mesmos ícones do modal "Como deseja criar?" (fluxos.php): raio = Guiado, ramificação = Editor Visual. O tamanho vem do CSS.
+    const icone_modo = {
+        basico: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M13 2L3 14h9l-1 8 10-12h-9l1-8z\"></path></svg>",
+        visual: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><line x1=\"6\" y1=\"3\" x2=\"6\" y2=\"15\"></line><circle cx=\"18\" cy=\"6\" r=\"3\"></circle><circle cx=\"6\" cy=\"18\" r=\"3\"></circle><path d=\"M18 9a9 9 0 0 1-9 9\"></path></svg>"
+    };
 
     let limite_fluxos = 50;
 
@@ -119,10 +123,10 @@
                     const rotulo_modo = eh_basico ? 'Guiado' : 'Editor Visual';
                     $list.append(`
                         <div class="cartao-bot-item cartao-fluxo">
-                            <div class="miniatura-fluxo">${miniatura_fluxo}</div>
+                            <div class="miniatura-fluxo">${eh_basico ? icone_modo.basico : icone_modo.visual}</div>
                             <div class="cartao-cabecalho">
                                 <h3>${escaparHtml(flow.nome || 'Sem nome')}</h3>
-                                <span class="badge-modo-fluxo${eh_basico ? ' basico' : ' visual'}">${rotulo_modo}</span>
+                                <span class="badge-modo-fluxo${eh_basico ? ' basico' : ' visual'}">${eh_basico ? icone_modo.basico : icone_modo.visual}${rotulo_modo}</span>
                             </div>
                             <div class="cartao-corpo">
                                 <p>${escaparHtml(flow.descricao || 'Sem descrição')}</p>

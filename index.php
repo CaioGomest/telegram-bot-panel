@@ -568,9 +568,6 @@ $taxa_aprovacao_percentual = $pix_gerados > 0 ? ($pix_pagos / $pix_gerados) * 10
     <?php include 'barra_lateral.php'; ?>
 
     <main class="conteudo-principal">
-        <?php if (($_GET['erro'] ?? '') === 'sem_permissao'): ?>
-            <div class="aviso aviso-erro" style="margin-top:20px;">Você não tem acesso à área de administração.</div>
-        <?php endif; ?>
         <div class="cabecalho-pagina">
             <div>
                 <h1>Dashboard</h1>

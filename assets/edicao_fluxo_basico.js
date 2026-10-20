@@ -11,6 +11,10 @@
     let midia_path_atual = '';
     let carregando = false;
     let ids_bots_vinculados = [];
+    // Fluxo novo: bots que a pessoa já escolheu e que serão vinculados no primeiro "Salvar alterações" (o vínculo precisa do id do fluxo).
+    let bots_pendentes = [];
+    let bots_do_usuario = [];
+    let bots_disponiveis = []; // fluxo salvo: bots que ainda não estão neste fluxo (com nome_fluxo = fluxo em que estão hoje)
     let cache_chat_id_salvo = '';
     const oferta_tipos = ['upsell', 'downsell', 'order_bump'];
     const max_bots = 10;
@@ -48,13 +52,17 @@
         if (d.packs.ativo) d.packs.itens.forEach(function (k) { if (k.ativo !== false && k.preco > 0 && k.preco < preco_minimo) problemas.push('o pack "' + (k.nome || 'sem nome') + '" (' + reais(k.preco) + ')'); });
         ['upsell', 'downsell'].forEach(function (tipo) {
             const o = d.ofertas[tipo];
-            const destino = d.planos.filter(function (p) { return String(p.id) === String(o.id_plano_destino); })[0];
-            if (o.ativo && destino) {
-                const final = Math.round(destino.valor * (1 - (o.desconto_percentual || 0) / 100) * 100) / 100;
-                if (final > 0 && final < preco_minimo) problemas.push('o ' + (tipo === 'upsell' ? 'Upsell' : 'Downsell') + ' (' + reais(final) + ' após o desconto)');
-            }
+            const ids = tipo === 'downsell' ? (o.planos_oferecidos || []) : [o.id_plano_destino];
+            ids.forEach(function (id) {
+                const destino = d.planos.filter(function (p) { return String(p.id) === String(id); })[0];
+                if (o.ativo && destino) {
+                    const final = Math.round(destino.valor * (1 - (o.desconto_percentual || 0) / 100) * 100) / 100;
+                    if (final > 0 && final < preco_minimo) problemas.push('o ' + (tipo === 'upsell' ? 'Upsell' : 'Downsell') + ' (' + reais(final) + ' após o desconto)');
+                }
+            });
         });
-        return problemas.length ? 'A OmegaPayments só aceita Pix a partir de ' + reais(preco_minimo) + ' com a comissão atual da plataforma. Ajuste: ' + problemas.slice(0, 4).join('; ') + '.' : '';
+        // Só o valor: sem comissão da plataforma e sem a lista do que está abaixo.
+        return problemas.length ? 'Para a Omega, o valor mínimo é ' + reais(preco_minimo) + '.' : '';
     }
 
     function carregarGruposUsuario() {
@@ -160,13 +168,71 @@
         });
     }
 
-    function atualizarPreviaMidia() {
-        const $previa = $('#bv-midia-previa');
-        if (midia_path_atual) {
-            $previa.text('Mídia anexada (' + midia_tipo_atual + ') — clique para trocar');
-        } else {
-            $previa.text('Sem mídia — clique para adicionar');
+    // Mídia das boas-vindas: 3 estados bem diferentes na tela (vazio, enviando, anexada com miniatura/nome/Trocar/Tirar), para dar para ver que algo mudou.
+    const MIDIA_ICONES = {
+        imagem: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"></rect><circle cx="9" cy="9" r="1.8"></circle><path d="M21 15l-5-5L5 21"></path></svg>',
+        video: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"></rect><path d="M10 9.5v5l4.5-2.5z"></path></svg>',
+        ok: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>'
+    };
+
+    function desenharMidia($caixa, tipo, caminho, enviando, destino) {
+        if (enviando) {
+            $caixa.attr({ 'data-estado': 'enviando', 'data-tipo': tipo || 'none' }).html('<span class="midia-basico-giro"></span><span>Enviando mídia…</span>');
+            return;
         }
+        if (!caminho) {
+            $caixa.attr({ 'data-estado': 'vazio', 'data-tipo': 'none' }).html(
+                '<button type="button" class="midia-basico-escolher midia-escolher">' +
+                '<span class="midia-basico-icone">' + MIDIA_ICONES.imagem + '</span>' +
+                '<span class="midia-basico-info"><strong>Adicionar foto ou vídeo</strong><small>Vai junto com ' + destino + '</small></span>' +
+                '</button>');
+            return;
+        }
+        const eh_video = tipo === 'video';
+        const nome = caminho.replace('uploads/', '');
+        $caixa.attr({ 'data-estado': 'anexada', 'data-tipo': eh_video ? 'video' : 'image' }).html(
+            '<span class="midia-basico-mini">' + (eh_video ? MIDIA_ICONES.video : '<img src="' + escaparHtml(caminho) + '" alt="">') + '</span>' +
+            '<span class="midia-basico-info"><strong>' + MIDIA_ICONES.ok + (eh_video ? 'Vídeo anexado' : 'Foto anexada') + '</strong><small title="' + escaparHtml(nome) + '">' + escaparHtml(nome) + '</small></span>' +
+            '<span class="midia-basico-acoes"><button type="button" class="botao botao-claro midia-trocar">Trocar</button>' +
+            '<button type="button" class="btn-icon excluir midia-tirar" title="Tirar a mídia" aria-label="Tirar a mídia">' + ACAO_SVG.fechar + '</button></span>');
+        // arquivo que não abre como imagem (apagado do servidor etc.): cai no ícone em vez de mostrar um quadrado quebrado
+        $caixa.find('.midia-basico-mini img').on('error', function () { $(this).replaceWith(MIDIA_ICONES.imagem); });
+    }
+
+    // Sobe a foto/vídeo escolhido (mesmo envio das boas-vindas, das ofertas e dos packs) e devolve o tipo e o caminho pelo callback.
+    function enviarMidiaBasico(arquivo, aoTerminar) {
+        const eh_video = arquivo.type.indexOf('video') === 0;
+        const fd = new FormData();
+        fd.append(eh_video ? 'video' : 'image', arquivo);
+        $.ajax({
+            url: api_url + '?action=' + (eh_video ? 'upload_video_fluxo' : 'upload_imagem_fluxo'),
+            method: 'POST',
+            data: fd,
+            processData: false,
+            contentType: false
+        }).done(function (resp) {
+            if (!resp.sucesso) { aoTerminar(null, resp.mensagem || 'Erro ao enviar mídia.'); return; }
+            aoTerminar({ tipo: eh_video ? 'video' : 'image', caminho: resp.caminho || '' }, '');
+        }).fail(function (xhr) {
+            aoTerminar(null, (xhr.responseJSON && xhr.responseJSON.mensagem) || 'Erro ao enviar mídia.');
+        });
+    }
+
+    // Boas-vindas: com "Mostrar botão (CTA)" desligado, o texto e a cor do botão somem da tela (o bot manda a lista de planos logo depois da mensagem).
+    function mostrarCamposCta() {
+        const mostra = $('#bv-mostrar-cta').is(':checked');
+        $('.bv-cta-campo').toggle(mostra);
+        $('#bv-cta-dica').prop('hidden', mostra);
+    }
+
+    function atualizarPreviaMidia(enviando) {
+        desenharMidia($('#bv-midia-previa'), midia_tipo_atual, midia_path_atual, enviando, 'a mensagem de boas-vindas');
+    }
+
+    // Mídia de cada oferta (Upsell, Downsell, Order Bump): fica aqui e vai no JSON junto com o resto da oferta.
+    const ofertas_midia = { upsell: { tipo: 'none', path: '' }, downsell: { tipo: 'none', path: '' }, order_bump: { tipo: 'none', path: '' } };
+    function atualizarMidiaOferta(tipo, enviando) {
+        desenharMidia($('.painel[data-oferta="' + tipo + '"] .of-midia'), ofertas_midia[tipo].tipo, ofertas_midia[tipo].path, enviando, 'a mensagem da oferta');
     }
 
     // Canais/grupos onde algum bot vinculado a este fluxo já foi adicionado (tabela bot_grupos).
@@ -196,21 +262,16 @@
     }
 
     function marcarLimpo() {
-        $('#status-salvo').removeClass('sujo').text('Tudo salvo');
+        // Fluxo novo ainda não existe no servidor: "Tudo salvo" enganava quem acabou de abrir a tela.
+        $('#status-salvo').removeClass('sujo').text($('#id-fluxo').val() ? 'Tudo salvo' : 'Fluxo ainda não salvo');
     }
 
-    const total_secoes = 11;
-
-    // Só "Bots" fica livre num fluxo novo; as demais liberam depois que o fluxo é salvo.
-    function atualizarBloqueioSecoes() {
-        const salvo = !!$('#id-fluxo').val();
-        $('.basico-nav-item').each(function () {
-            const bloquear = !salvo && $(this).data('secao') !== 'bots';
-            $(this).toggleClass('bloqueado', bloquear);
-        });
-        $('#nav-aviso').prop('hidden', salvo);
+    // Nenhuma seção fica trancada. O fluxo só salva com pelo menos 1 plano e o plano se cria na seção Planos: trancar as seções até salvar prendia a pessoa
+    // (e "salvar para ir para a próxima aba" não faz sentido). O que depende de o fluxo existir (vincular bot, números de Conversões) explica isso na própria seção.
+    // O aviso do menu só orienta o primeiro passo e some quando o fluxo é salvo.
+    function atualizarAvisoNovoFluxo() {
+        $('#nav-aviso').prop('hidden', !!$('#id-fluxo').val());
         atualizarNavegacaoMobile();
-        $('#nav-contagem').text((salvo ? total_secoes : 1) + ' de ' + total_secoes + ' seções');
     }
 
     function atualizarTituloFluxo() {
@@ -393,11 +454,20 @@
 
     function carregarConversoes() {
         const id = $('#id-fluxo').val();
-        if (!id) return;
+        if (!id) {
+            // Fluxo novo: os números vêm do banco, então ainda não há o que mostrar. Em vez de trancar a seção, explica o que fazer.
+            $('#conv-vazio strong').text('Salve o fluxo para acompanhar as conversões.');
+            $('#conv-vazio span').text('Quando o fluxo estiver salvo e começar a vender, os números aparecem aqui.');
+            $('#conv-vazio').prop('hidden', false);
+            $('#conv-conteudo').prop('hidden', true);
+            return;
+        }
         $.getJSON(api_url + '?action=conversoes_fluxo&id=' + encodeURIComponent(id) + '&periodo=' + encodeURIComponent(periodo_conversoes)).done(function (resp) {
             if (!resp.sucesso) return;
             const c = resp.conversoes;
             const sem_dados = !c.gerados && !c.leads;
+            $('#conv-vazio strong').text('Nenhuma venda registrada neste fluxo ainda.');
+            $('#conv-vazio span').text('Os dados aparecerão quando houver pagamentos.');
             $('#conv-vazio').prop('hidden', !sem_dados || c.gerados > 0);
             $('#conv-conteudo').prop('hidden', sem_dados);
             if (sem_dados) return;
@@ -426,7 +496,7 @@
     // ===== Navegação mobile (cartão "Seção atual" + folha de baixo pra cima + barra anterior/próxima) =====
     function itensNavegacao() {
         return $('#basico-nav .basico-nav-item').map(function () {
-            return { secao: String($(this).data('secao')), nome: $(this).find('.basico-nav-rotulo').text(), icone: $(this).find('svg').first().prop('outerHTML'), bloqueado: $(this).hasClass('bloqueado'), ativo: $(this).hasClass('ativo') };
+            return { secao: String($(this).data('secao')), nome: $(this).find('.basico-nav-rotulo').text(), icone: $(this).find('svg').first().prop('outerHTML'), ativo: $(this).hasClass('ativo') };
         }).get();
     }
 
@@ -444,9 +514,8 @@
         $('#barra-proxima').prop('disabled', i === itens.length - 1);
         $('#barra-proxima-nome').text(i < itens.length - 1 ? itens[i + 1].nome : 'Fim');
         $('#folha-secoes-lista').html(itens.map(function (x, n) {
-            return '<button type="button" class="folha-secoes-item' + (x.ativo ? ' ativo' : '') + (x.bloqueado ? ' bloqueado' : '') + '" data-secao="' + x.secao + '">' +
+            return '<button type="button" class="folha-secoes-item' + (x.ativo ? ' ativo' : '') + '" data-secao="' + x.secao + '">' +
                 '<span class="folha-secoes-icone">' + x.icone + '</span><span class="folha-secoes-nome">' + escaparHtml(x.nome) + '</span>' +
-                (x.bloqueado ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>' : '') +
                 '<span class="folha-secoes-numero">' + (n + 1) + '</span></button>';
         }).join(''));
     }
@@ -473,10 +542,6 @@
     }
 
     function trocarSecao(nome) {
-        if ($('.basico-nav-item[data-secao="' + nome + '"]').hasClass('bloqueado')) {
-            exibirAviso('Salve o fluxo em Bots para liberar esta seção.', 'erro');
-            return;
-        }
         sincronizarPlanosDoDom();
         atualizarSelectsOfertas();
         $('.basico-nav-item').removeClass('ativo').filter('[data-secao="' + nome + '"]').addClass('ativo');
@@ -491,16 +556,24 @@
     }
 
     function atualizarSelectsOfertas() {
-        ['upsell', 'downsell'].forEach(function (tipo) {
-            const $sel = $painelOferta(tipo).find('.of-plano');
-            const atual = $sel.data('valor') != null ? String($sel.data('valor')) : String($sel.val() || '');
-            let html = '<option value="">Escolha um plano</option>';
-            planos.forEach(function (p) {
-                html += '<option value="' + escaparHtml(p.id) + '"' + (String(p.id) === atual ? ' selected' : '') + '>' +
-                    escaparHtml((p.nome || 'Plano sem nome') + ' — R$ ' + (Number(p.valor) || 0).toFixed(2).replace('.', ',')) + '</option>';
-            });
-            $sel.html(html).removeData('valor');
+        // Upsell: um plano só (lista suspensa).
+        const $sel = $painelOferta('upsell').find('.of-plano');
+        const atual = $sel.data('valor') != null ? String($sel.data('valor')) : String($sel.val() || '');
+        let html = '<option value="">Escolha um plano</option>';
+        planos.forEach(function (p) {
+            html += '<option value="' + escaparHtml(p.id) + '"' + (String(p.id) === atual ? ' selected' : '') + '>' +
+                escaparHtml((p.nome || 'Plano sem nome') + ' — R$ ' + (Number(p.valor) || 0).toFixed(2).replace('.', ',')) + '</option>';
         });
+        $sel.html(html).removeData('valor');
+        // Downsell: vários planos (caixa de marcar); cada plano marcado vira um botão no bot. Mantém o que já estava marcado.
+        const $lista = $painelOferta('downsell').find('.of-planos-lista');
+        const marcados = $lista.data('valor') != null ? $lista.data('valor') : $lista.find('input:checked').map(function () { return String(this.value); }).get();
+        let caixas = '';
+        planos.forEach(function (p) {
+            caixas += '<label class="of-plano-opcao"><input type="checkbox" value="' + escaparHtml(p.id) + '"' + (marcados.indexOf(String(p.id)) !== -1 ? ' checked' : '') + '> <span>' +
+                escaparHtml((p.nome || 'Plano sem nome') + ' — R$ ' + (Number(p.valor) || 0).toFixed(2).replace('.', ',')) + '</span></label>';
+        });
+        $lista.html(caixas || '<div class="of-planos-vazio">Crie pelo menos 1 plano na seção Planos para oferecê-lo aqui.</div>').removeData('valor');
     }
 
     // Os campos da oferta só aparecem com o interruptor "Ativar" ligado.
@@ -508,19 +581,36 @@
         $painel.find('.of-detalhes').prop('hidden', !$painel.find('.of-ativo').is(':checked'));
     }
 
+    // Upsell: com "Esconder o botão de recusar" ligado, só o botão aceitar vai para o cliente (os campos do Recusar somem da tela).
+    function mostrarCamposRecusar($painel) {
+        const esconder = $painel.find('.of-esconder-recusar').is(':checked');
+        $painel.find('.of-recusar-campo').toggle(!esconder);
+        $painel.find('.of-esconder-recusar-dica').prop('hidden', !esconder);
+    }
+
     function coletarOferta(tipo) {
         const $p = $painelOferta(tipo);
         const oferta = {
             ativo: $p.find('.of-ativo').is(':checked'),
             mensagem: $p.find('.of-mensagem').val().trim(),
-            texto_aceitar: $p.find('.of-aceitar').val().trim(),
-            cor_aceitar: $p.find('.of-aceitar-cor').val() || '',
-            texto_recusar: $p.find('.of-recusar').val().trim(),
-            cor_recusar: $p.find('.of-recusar-cor').val() || ''
+            midia_tipo: ofertas_midia[tipo].path ? ofertas_midia[tipo].tipo : 'none',
+            midia_path: ofertas_midia[tipo].path
         };
+        // O Downsell não tem botões de aceitar/recusar: o cliente vê um botão por plano marcado.
+        if (tipo !== 'downsell') {
+            oferta.texto_aceitar = $p.find('.of-aceitar').val().trim();
+            oferta.cor_aceitar = $p.find('.of-aceitar-cor').val() || '';
+            oferta.texto_recusar = $p.find('.of-recusar').val().trim();
+            oferta.cor_recusar = $p.find('.of-recusar-cor').val() || '';
+        }
+        if ($p.find('.of-esconder-recusar').length) oferta.esconder_recusar = $p.find('.of-esconder-recusar').is(':checked');
         if (tipo === 'order_bump') {
             oferta.nome = $p.find('.of-nome').val().trim();
             oferta.valor_extra = parseFloat($p.find('.of-valor-extra').val()) || 0;
+        } else if (tipo === 'downsell') {
+            oferta.planos_oferecidos = $p.find('.of-planos-lista input:checked').map(function () { return String(this.value); }).get();
+            oferta.id_plano_destino = oferta.planos_oferecidos[0] || '';   // 1º marcado: mantém compatível com quem lê o formato antigo
+            oferta.desconto_percentual = Math.min(100, Math.max(0, parseFloat($p.find('.of-desconto').val()) || 0));
         } else {
             oferta.id_plano_destino = $p.find('.of-plano').val() || '';
             oferta.desconto_percentual = Math.min(100, Math.max(0, parseFloat($p.find('.of-desconto').val()) || 0));
@@ -538,9 +628,18 @@
         $p.find('.of-aceitar-cor').val(oferta.cor_aceitar || '');
         $p.find('.of-recusar').val(oferta.texto_recusar || '');
         $p.find('.of-recusar-cor').val(oferta.cor_recusar || '');
+        ofertas_midia[tipo] = { tipo: oferta.midia_path ? (oferta.midia_tipo || 'image') : 'none', path: oferta.midia_path || '' };
+        atualizarMidiaOferta(tipo);
+        $p.find('.of-esconder-recusar').prop('checked', !!oferta.esconder_recusar);
+        mostrarCamposRecusar($p);
         if (tipo === 'order_bump') {
             $p.find('.of-nome').val(oferta.nome || '');
             $p.find('.of-valor-extra').val(oferta.valor_extra != null ? oferta.valor_extra : 0);
+        } else if (tipo === 'downsell') {
+            // formato novo: planos_oferecidos; fluxo antigo: só id_plano_destino (vira 1 plano marcado)
+            const ids = Array.isArray(oferta.planos_oferecidos) ? oferta.planos_oferecidos : (oferta.id_plano_destino ? [oferta.id_plano_destino] : []);
+            $p.find('.of-planos-lista').data('valor', ids.map(String));
+            $p.find('.of-desconto').val(oferta.desconto_percentual != null ? oferta.desconto_percentual : 0);
         } else {
             $p.find('.of-plano').data('valor', oferta.id_plano_destino || '');
             $p.find('.of-desconto').val(oferta.desconto_percentual != null ? oferta.desconto_percentual : 0);
@@ -549,7 +648,7 @@
 
     function validarDados(dados) {
         const d = dados.dados_fluxograma;
-        if (!d.planos.length) return 'Adicione pelo menos 1 plano antes de salvar.';
+        // Fluxo sem plano pode ser salvo (rascunho) e pode ter bot vinculado: o que muda é só o aviso (quem chama o bot vê "Nenhum plano disponível").
         for (let i = 0; i < d.planos.length; i++) {
             if (!d.planos[i].nome) return 'O plano ' + (i + 1) + ' está sem nome.';
             if (!(d.planos[i].valor > 0)) return 'O plano "' + d.planos[i].nome + '" precisa ter valor maior que zero.';
@@ -560,10 +659,8 @@
         }
         const erro_minimo = validarPrecoMinimo(d);
         if (erro_minimo) return erro_minimo;
-        for (const tipo of ['upsell', 'downsell']) {
-            const o = d.ofertas[tipo];
-            if (o.ativo && !o.id_plano_destino) return 'Escolha o plano oferecido no ' + (tipo === 'upsell' ? 'Upsell' : 'Downsell') + ' ou desative-o.';
-        }
+        if (d.ofertas.upsell.ativo && !d.ofertas.upsell.id_plano_destino) return 'Escolha o plano oferecido no Upsell ou desative-o.';
+        if (d.ofertas.downsell.ativo && !d.ofertas.downsell.planos_oferecidos.length) return 'Marque pelo menos 1 plano oferecido no Downsell ou desative-o.';
         if (d.assinatura.avisos_antes.ativo && !d.assinatura.avisos_antes.dias.length) return 'Escolha pelo menos 1 dia nos avisos de renovação ou desative-os.';
         if (d.assinatura.avisos_no_dia.ativo && d.assinatura.avisos_no_dia.horarios.length !== (parseInt($('#as-dia-qtd').val(), 10) || 1)) return 'Escolha os horários dos avisos no dia da expiração (' + ($('#as-dia-qtd').val() || 1) + ').';
         if (d.packs.ativo) {
@@ -583,15 +680,64 @@
         return 'R$ ' + (Number(v) || 0).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
     }
 
+    // Só pergunta quando há risco real: o bot está hoje em OUTRO fluxo (que funciona) e este fluxo ainda não tem plano.
+    function avisoBotSemPlano(b, acao) {
+        return 'O bot ' + nomeBot(b) + ' hoje está no fluxo "' + b.nome_fluxo + '". ' + acao + ' tira ele de lá, e este fluxo ainda não tem plano: ' +
+            'quem chamar o bot vai ver "Nenhum plano disponível" até você adicionar um. Continuar mesmo assim?';
+    }
+
+    function nomeBot(b) {
+        return b.primeiro_nome || b.nome_usuario || ('Bot #' + b.id);
+    }
+
+    // Seção Bots de um fluxo ainda não salvo: lista o que foi escolhido ("será vinculado ao salvar") e oferece o restante no seletor.
+    function renderBotsPendentes() {
+        let html = '';
+        bots_pendentes.forEach(function (b) {
+            html += '<div class="basico-bot"><span>' + escaparHtml(nomeBot(b)) + (b.nome_usuario ? ' <small>@' + escaparHtml(b.nome_usuario) + '</small>' : '') +
+                ' <small>· será vinculado ao salvar</small></span>' +
+                '<button type="button" class="btn-icon desativar tirar-bot-pendente" data-id="' + b.id + '" title="Tirar da lista" aria-label="Tirar da lista">' + ACAO_SVG.fechar + '</button></div>';
+        });
+        $('#bots-contagem').text(bots_pendentes.length + '/' + max_bots + ' bots');
+        $('#lista-bots-vinculados').html(html || '<div class="basico-bots-vazio"><strong>Nenhum bot escolhido</strong><span>Escolha abaixo o bot que vai executar este fluxo</span></div>');
+        const escolhidos = bots_pendentes.map(function (b) { return String(b.id); });
+        let opts = '<option value="">Selecione um bot para adicionar...</option>';
+        bots_do_usuario.filter(function (b) { return escolhidos.indexOf(String(b.id)) === -1; }).forEach(function (b) {
+            opts += '<option value="' + b.id + '">' + escaparHtml(nomeBot(b) + (b.nome_fluxo ? ' (hoje em: ' + b.nome_fluxo + ')' : '')) + '</option>';
+        });
+        $('#select-bot-vincular').html(opts).prop('disabled', bots_pendentes.length >= max_bots);
+        $('#area-vincular').prop('hidden', false);
+    }
+
+    // Primeiro salvar de um fluxo novo: vincula os bots que a pessoa já tinha escolhido.
+    function vincularBotsPendentes(id_fluxo, sem_plano) {
+        const lote = bots_pendentes.slice();
+        bots_pendentes = [];
+        const chamadas = lote.map(function (b) {
+            return $.ajax({ url: api_url + '?action=vincular_bot_fluxo', method: 'POST', contentType: 'application/json', data: JSON.stringify({ id_bot: b.id, id_fluxo: id_fluxo }) });
+        });
+        $.when.apply($, chamadas)
+            .done(function () {
+                exibirAviso('Fluxo salvo e ' + lote.length + (lote.length === 1 ? ' bot vinculado.' : ' bots vinculados.') +
+                    (sem_plano ? ' Atenção: o fluxo ainda não tem plano, então quem chamar o bot vai ver "Nenhum plano disponível" até você adicionar um.' : ''), sem_plano ? 'erro' : 'sucesso');
+            })
+            .fail(function () { exibirAviso('Fluxo salvo, mas não consegui vincular o bot. Escolha-o de novo na seção Bots.', 'erro'); })
+            .always(carregarBots);
+    }
+
     function carregarBots() {
         const id = $('#id-fluxo').val();
         if (!id) {
+            // Fluxo novo: o bot já pode ser escolhido aqui; ele é vinculado quando o fluxo for salvo pela primeira vez.
             $('#bots-aviso-salvar').show();
-            $('#area-vincular').prop('hidden', true);
-            $('#lista-bots-vinculados').empty();
-            $('#bots-contagem').text('0/' + max_bots + ' bots');
             ids_bots_vinculados = [];
             renderCacheGrupos();
+            renderBotsPendentes();
+            $.getJSON(api_url + '?action=listar_bots').done(function (resp) {
+                if (!resp.sucesso) return;
+                bots_do_usuario = resp.bots || [];
+                renderBotsPendentes();
+            });
             return;
         }
         $('#bots-aviso-salvar').hide();
@@ -613,6 +759,7 @@
                 const nome = (b.primeiro_nome || b.nome_usuario || ('Bot #' + b.id)) + (b.nome_fluxo ? ' (hoje em: ' + b.nome_fluxo + ')' : '');
                 opts += '<option value="' + b.id + '">' + escaparHtml(nome) + '</option>';
             });
+            bots_disponiveis = resp.disponiveis || [];
             $('#select-bot-vincular').html(opts).prop('disabled', qtd_vinculados >= max_bots);
             $('#area-vincular').prop('hidden', false);
         });
@@ -654,7 +801,8 @@
                 ativo: $('#fluxo-ativo').is(':checked'),
                 suporte: $('#suporte-usuario').val().trim(),
                 suporte_cor: $('#suporte-cor').val() || '',
-                cache_chat_id: $('#cache-chat-id').val() || '',
+                // O campo "Cache de mídia" saiu da tela em 13/10; sem ele, salvar não pode apagar o canal que o fluxo já tinha (importado ou de antes).
+                cache_chat_id: $('#cache-chat-id').length ? ($('#cache-chat-id').val() || '') : cache_chat_id_salvo,
                 ofertas: {
                     upsell: coletarOferta('upsell'),
                     downsell: coletarOferta('downsell'),
@@ -664,6 +812,7 @@
                     mensagem: $('#bv-mensagem').val(),
                     midia_tipo: midia_tipo_atual,
                     midia_path: midia_path_atual,
+                    mostrar_cta: $('#bv-mostrar-cta').is(':checked'),
                     texto_cta: $('#bv-cta').val().trim() || 'Ver Planos',
                     cor_cta: $('#bv-cta-cor').val() || ''
                 },
@@ -691,6 +840,8 @@
         const dados = fluxo.dados_fluxograma || {};
         const bv = dados.boas_vindas || {};
         $('#bv-mensagem').val(bv.mensagem || '');
+        $('#bv-mostrar-cta').prop('checked', bv.mostrar_cta !== false);   // fluxo antigo (sem o campo) = botão ligado
+        mostrarCamposCta();
         $('#bv-cta').val(bv.texto_cta || 'Ver Planos');
         $('#bv-cta-cor').val(bv.cor_cta || '');
         midia_tipo_atual = bv.midia_tipo || 'none';
@@ -723,7 +874,7 @@
             $('#btn-excluir-fluxo-basico').css('display', 'inline-flex');
         }
         atualizarTituloFluxo();
-        atualizarBloqueioSecoes();
+        atualizarAvisoNovoFluxo();
         carregarBots();
         carregando = false;
         marcarLimpo();
@@ -755,6 +906,9 @@
             exibirAviso(erro_validacao, 'erro');
             return;
         }
+        const sem_plano = !dados.dados_fluxograma.planos.length;
+        const bot_em_uso = bots_pendentes.filter(function (b) { return b.nome_fluxo; })[0];
+        if (sem_plano && bot_em_uso && !window.confirm(avisoBotSemPlano(bot_em_uso, 'Salvar e vincular'))) return;
         $.ajax({
             url: api_url + '?action=salvar_fluxo',
             method: 'POST',
@@ -765,13 +919,21 @@
                 exibirAviso(resp.mensagem || 'Erro ao salvar fluxo.', 'erro');
                 return;
             }
+            const era_novo = !$('#id-fluxo').val();
             $('#id-fluxo').val(resp.fluxo.id || '');
             $('#btn-excluir-fluxo-basico').css('display', 'inline-flex');
             marcarLimpo();
             atualizarTituloFluxo();
-            atualizarBloqueioSecoes();
-            carregarBots();
-            exibirAviso(resp.mensagem || 'Fluxo salvo com sucesso.');
+            atualizarAvisoNovoFluxo();
+            if (era_novo && bots_pendentes.length && resp.fluxo && resp.fluxo.id) {
+                vincularBotsPendentes(resp.fluxo.id, sem_plano);
+            } else {
+                const com_bot = ids_bots_vinculados.length > 0;
+                carregarBots();
+                if (sem_plano && com_bot) exibirAviso('Salvo. Atenção: o fluxo ainda não tem plano, então quem chamar o bot vai ver "Nenhum plano disponível" até você adicionar um.', 'erro');
+                else if (sem_plano) exibirAviso('Rascunho salvo. Adicione pelo menos 1 plano em Planos para o fluxo poder vender.');
+                else exibirAviso(resp.mensagem || 'Fluxo salvo com sucesso.');
+            }
             if (window.history.pushState && resp.fluxo && resp.fluxo.id) {
                 const new_url = window.location.pathname + '?id=' + resp.fluxo.id;
                 window.history.pushState({ path: new_url }, '', new_url);
@@ -810,12 +972,14 @@
             if (flow_id) {
                 abrirFluxo(flow_id);
             } else {
+                atualizarPreviaMidia();
+                ['upsell', 'downsell', 'order_bump'].forEach(function (tipo) { atualizarMidiaOferta(tipo); });
                 renderPlanos();
                 atualizarSelectsOfertas();
                 preencherPrevias({});
                 preencherPacks({});
                 preencherAssinatura({});
-                atualizarBloqueioSecoes();
+                atualizarAvisoNovoFluxo();
                 carregarBots();
             }
         });
@@ -988,10 +1152,31 @@
         });
         $('#select-bot-vincular').on('change', function () {
             const id_bot = parseInt($(this).val(), 10);
-            if (id_bot) vincularBot(id_bot, parseInt($('#id-fluxo').val(), 10));
+            if (!id_bot) return;
+            const id_fluxo = parseInt($('#id-fluxo').val(), 10);
+            if (id_fluxo) {
+                const bot_escolhido = bots_disponiveis.filter(function (b) { return String(b.id) === String(id_bot); })[0];
+                if (!$('#lista-planos .campo-plano-nome').length && bot_escolhido && bot_escolhido.nome_fluxo && !window.confirm(avisoBotSemPlano(bot_escolhido, 'Vincular aqui'))) {
+                    $(this).val('');
+                    return;
+                }
+                vincularBot(id_bot, id_fluxo);
+                return;
+            }
+            // Fluxo novo: guarda a escolha; o vínculo acontece no primeiro "Salvar alterações".
+            const bot = bots_do_usuario.filter(function (b) { return String(b.id) === String(id_bot); })[0];
+            if (bot && !bots_pendentes.some(function (b) { return String(b.id) === String(id_bot); })) { bots_pendentes.push(bot); marcarSujo(); }
+            renderBotsPendentes();
+        });
+        $(document).on('click', '.tirar-bot-pendente', function () {
+            const id_bot = String($(this).data('id'));
+            bots_pendentes = bots_pendentes.filter(function (b) { return String(b.id) !== id_bot; });
+            renderBotsPendentes();
         });
         $('#basico-conteudo').on('change', '.of-ativo', function () {
             mostrarDetalhesOferta($(this).closest('.painel'));
+        }).on('change', '.of-esconder-recusar', function () {
+            mostrarCamposRecusar($(this).closest('.painel'));
         });
         $('#btn-atualizar-bots, #btn-atualizar-cache').on('click', function () {
             carregarGruposUsuario().always(carregarBots);
@@ -1021,34 +1206,62 @@
             marcarSujo();
         });
 
-        $('#bv-midia-previa').on('click', function () {
+        $('#bv-mostrar-cta').on('change', mostrarCamposCta);
+        $('#bv-midia-previa').on('click', '.midia-escolher, .midia-trocar', function () {
             $('#bv-midia-arquivo').trigger('click');
+        }).on('click', '.midia-tirar', function () {
+            midia_path_atual = '';
+            midia_tipo_atual = 'none';
+            atualizarPreviaMidia();
+            marcarSujo();
+            exibirAviso('Mídia tirada das boas-vindas. Clique em Salvar alterações para aplicar.');
         });
         $('#bv-midia-arquivo').on('change', function () {
             const input = this;
             if (!input.files || !input.files[0]) return;
             const arquivo = input.files[0];
-            const eh_video = arquivo.type.indexOf('video') === 0;
-            const fd = new FormData();
-            fd.append(eh_video ? 'video' : 'image', arquivo);
-            $.ajax({
-                url: api_url + '?action=' + (eh_video ? 'upload_video_fluxo' : 'upload_imagem_fluxo'),
-                method: 'POST',
-                data: fd,
-                processData: false,
-                contentType: false
-            }).done(function (resp) {
-                if (!resp.sucesso) {
-                    exibirAviso(resp.mensagem || 'Erro ao enviar mídia.', 'erro');
+            input.value = '';  // permite escolher o mesmo arquivo de novo depois (sem isso o "change" não dispara)
+            atualizarPreviaMidia(true);
+            enviarMidiaBasico(arquivo, function (midia, erro) {
+                if (!midia) {
+                    atualizarPreviaMidia();
+                    exibirAviso(erro, 'erro');
                     return;
                 }
-                midia_path_atual = resp.caminho || '';
-                midia_tipo_atual = eh_video ? 'video' : 'image';
+                midia_path_atual = midia.caminho;
+                midia_tipo_atual = midia.tipo;
                 atualizarPreviaMidia();
                 marcarSujo();
-                exibirAviso('Mídia anexada.');
-            }).fail(function (xhr) {
-                exibirAviso((xhr.responseJSON && xhr.responseJSON.mensagem) || 'Erro ao enviar mídia.', 'erro');
+                exibirAviso('Mídia anexada. Clique em Salvar alterações para aplicar.');
+            });
+        });
+
+        // Mídia das ofertas (Upsell, Downsell e Order Bump): um único conjunto de handlers para as 3.
+        $('#basico-conteudo').on('click', '.of-midia .midia-escolher, .of-midia .midia-trocar', function () {
+            $(this).closest('.painel[data-oferta]').find('.of-midia-arquivo').trigger('click');
+        }).on('click', '.of-midia .midia-tirar', function () {
+            const tipo = $(this).closest('.painel[data-oferta]').data('oferta');
+            ofertas_midia[tipo] = { tipo: 'none', path: '' };
+            atualizarMidiaOferta(tipo);
+            marcarSujo();
+            exibirAviso('Mídia tirada da oferta. Clique em Salvar alterações para aplicar.');
+        }).on('change', '.of-midia-arquivo', function () {
+            const input = this;
+            if (!input.files || !input.files[0]) return;
+            const arquivo = input.files[0];
+            input.value = '';
+            const tipo = $(input).closest('.painel[data-oferta]').data('oferta');
+            atualizarMidiaOferta(tipo, true);
+            enviarMidiaBasico(arquivo, function (midia, erro) {
+                if (!midia) {
+                    atualizarMidiaOferta(tipo);
+                    exibirAviso(erro, 'erro');
+                    return;
+                }
+                ofertas_midia[tipo] = { tipo: midia.tipo, path: midia.caminho };
+                atualizarMidiaOferta(tipo);
+                marcarSujo();
+                exibirAviso('Mídia anexada à oferta. Clique em Salvar alterações para aplicar.');
             });
         });
     });

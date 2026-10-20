@@ -898,7 +898,17 @@
     function deleteFlow() {
         const id = $('#id-fluxo').val();
         if (!id) {
-            showToast('Salve o fluxo antes de excluir.', 'erro');
+            // Fluxo novo, ainda sem registro no servidor: não há o que excluir lá, então a lixeira DESCARTA o rascunho e volta para a lista.
+            // Só pergunta se já houver bloco montado. O salvamento automático (cria o fluxo ~2 s depois do 1º bloco) é cancelado antes de sair,
+            // senão o fluxo descartado nasceria no servidor.
+            const total_blocos = Math.max(0, Object.keys(getChartData().operators || {}).length - 1); // exclui o Início
+            if (total_blocos > 0 && !window.confirm('Descartar este fluxo novo? ' + (total_blocos === 1 ? 'O bloco que você montou será perdido.' : 'Os ' + total_blocos + ' blocos que você montou serão perdidos.'))) {
+                return;
+            }
+            clearTimeout(timer_auto_salvar);
+            if (intervalo_backup) { clearInterval(intervalo_backup); }
+            fluxo_sujo = false;
+            window.location.href = 'fluxos';
             return;
         }
 
@@ -1395,6 +1405,13 @@
                 showToast(response.mensagem || 'Erro ao enviar imagem.', 'erro');
                 return;
             }
+            // Lê o estado de AGORA, não o de quando o arquivo foi escolhido: o que a pessoa digitou nos blocos durante o envio não pode ser desfeito.
+            const data = getChartData();
+            const props = data.operators[id] && data.operators[id].properties;
+            if (!props) {
+                showToast('O bloco foi removido antes do fim do envio.', 'erro');
+                return;
+            }
             const path = response.caminho || '';
             props.image_path = path;
             props.body = renderCorpoDoBloco(props);
@@ -1432,6 +1449,13 @@
                 showToast(response.mensagem || 'Erro ao enviar vídeo.', 'erro');
                 return;
             }
+            // Lê o estado de AGORA, não o de quando o arquivo foi escolhido: o que a pessoa digitou nos blocos durante o envio não pode ser desfeito.
+            const data = getChartData();
+            const props = data.operators[id] && data.operators[id].properties;
+            if (!props) {
+                showToast('O bloco foi removido antes do fim do envio.', 'erro');
+                return;
+            }
             const path = response.caminho || '';
             props.video_path = path;
             props.body = renderCorpoDoBloco(props);
@@ -1467,6 +1491,13 @@
         }).done(function (response) {
             if (!response.sucesso) {
                 showToast(response.mensagem || 'Erro ao enviar áudio.', 'erro');
+                return;
+            }
+            // Lê o estado de AGORA, não o de quando o arquivo foi escolhido: o que a pessoa digitou nos blocos durante o envio não pode ser desfeito.
+            const data = getChartData();
+            const props = data.operators[id] && data.operators[id].properties;
+            if (!props) {
+                showToast('O bloco foi removido antes do fim do envio.', 'erro');
                 return;
             }
             const path = response.caminho || '';

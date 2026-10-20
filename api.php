@@ -144,6 +144,16 @@ function exigirFormatoDoModo(string $modo, array $dados): void
     }
 }
 
+/**
+ * Token de bot como veio do formulário, sem o que o copiar/colar costuma trazer: espaço, quebra de linha (o BotFather quebra o token em duas
+ * linhas no celular), aspas e caracteres invisíveis. Token do Telegram só tem letras, números, "_", "-" e o ":"; um espaço no meio fazia a
+ * chamada ao Telegram nem sair (curl recusa a URL) e a tela só dizia "Não foi possível validar o token".
+ */
+function limparTokenBot(?string $valor): string
+{
+    return (string) preg_replace('/[^A-Za-z0-9:_-]+/', '', (string) $valor);
+}
+
 function sanitizarTexto(?string $valor, int $tamanho_maximo = 0): string
 {
     $valor = trim((string) $valor);
@@ -175,7 +185,7 @@ function caminhoUploadValido(string $valor): bool
 
 function sanitizarCaminhosMidiaFluxo(array $dados_grafico): array
 {
-    // Modo básico: só tem 1 caminho de mídia possível hoje, na Boas-vindas.
+    // Modo básico: mídia nas Boas-vindas (aqui), nas Ofertas, nas Prévias, nos Packs e na Assinatura (mais abaixo).
     if (isset($dados_grafico['boas_vindas']) && is_array($dados_grafico['boas_vindas'])) {
         $midia = (string) ($dados_grafico['boas_vindas']['midia_path'] ?? '');
         if (!caminhoUploadValido($midia)) {
@@ -194,6 +204,12 @@ function sanitizarCaminhosMidiaFluxo(array $dados_grafico): array
     foreach ((array) ($dados_grafico['packs']['itens'] ?? []) as $i => $item) {
         if (!is_array($item) || !caminhoUploadValido((string) ($item['midia_path'] ?? ''))) {
             $dados_grafico['packs']['itens'][$i]['midia_path'] = '';
+        }
+    }
+    // Ofertas (upsell, downsell, order bump): mídia opcional, mesma regra.
+    foreach (['upsell', 'downsell', 'order_bump'] as $tipo_oferta) {
+        if (isset($dados_grafico['ofertas'][$tipo_oferta]) && is_array($dados_grafico['ofertas'][$tipo_oferta]) && !caminhoUploadValido((string) ($dados_grafico['ofertas'][$tipo_oferta]['midia_path'] ?? ''))) {
+            $dados_grafico['ofertas'][$tipo_oferta]['midia_path'] = '';
         }
     }
     foreach (['avisos_antes', 'avisos_no_dia', 'ao_expirar'] as $bloco) {
@@ -262,7 +278,14 @@ function traduzirErroTelegramBot(string $description, string $fallback): string
         'Unauthorized' => 'Token inválido ou revogado. Confira se copiou certo no @BotFather.',
         'Not Found' => 'Bot não encontrado. Confira se o token está completo.',
     ];
-    return $mapa[$description] ?? $fallback;
+    if (isset($mapa[$description])) {
+        return $mapa[$description];
+    }
+    // Erros de comunicação (o servidor não chegou ao Telegram ou a resposta veio quebrada): não é culpa do token.
+    if (strpos($description, 'Falha de comunicação') === 0 || strpos($description, 'Resposta inválida') === 0) {
+        return 'Não consegui falar com o Telegram agora (o servidor não alcançou o api.telegram.org). Tente de novo em instantes; se continuar, avise o suporte.';
+    }
+    return $fallback;
 }
 
 function obterBotComInfoLive(string $token): array
@@ -404,12 +427,11 @@ try {
             }
             exigirVagaParaNovoFluxo($pdo, $usuario_id);
             $dados = sanitizarCaminhosMidiaFluxo($dados);
-            if ($modo === 'basico') {
-                require_once __DIR__ . '/funcoes/gateways.php';
-                $erro_preco = validarPrecosFluxoGuiado($dados, precoMinimoOmegaPayments(getGatewaySplit('omegapayments')));
-                if ($erro_preco !== null) {
-                    responder(false, ['mensagem' => $erro_preco], 422);
-                }
+            require_once __DIR__ . '/funcoes/gateways.php';
+            $minimo_pix = precoMinimoOmegaPayments(getGatewaySplit('omegapayments'));
+            $erro_preco = $modo === 'basico' ? validarPrecosFluxoGuiado($dados, $minimo_pix) : validarPrecosFluxoVisual($dados, $minimo_pix);
+            if ($erro_preco !== null) {
+                responder(false, ['mensagem' => $erro_preco], 422);
             }
             $stmt = $pdo->prepare("INSERT INTO fluxos (id_usuario, nome, descricao, link_suporte, modo, dados_fluxograma) VALUES (?, ?, ?, ?, ?, ?)");
             $stmt->execute([$usuario_id, $nome, $descricao, $link_suporte, $modo, json_encode($dados, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]);
@@ -455,10 +477,11 @@ try {
                 }
             }
             exigirFormatoDoModo($modo_destino, $dados_grafico);
-            if (isset($dados_grafico['planos'])) {
-                // Fluxo Guiado: preço que a OmegaPayments recusaria com a comissão atual não pode ser salvo.
+            if (isset($dados_grafico['planos']) || isset($dados_grafico['operators'])) {
+                // Preço que a OmegaPayments recusaria com a comissão atual não pode ser salvo (Guiado: planos/packs/ofertas; Visual: blocos PIX).
                 require_once __DIR__ . '/funcoes/gateways.php';
-                $erro_preco = validarPrecosFluxoGuiado($dados_grafico, precoMinimoOmegaPayments(getGatewaySplit('omegapayments')));
+                $minimo_pix = precoMinimoOmegaPayments(getGatewaySplit('omegapayments'));
+                $erro_preco = isset($dados_grafico['planos']) ? validarPrecosFluxoGuiado($dados_grafico, $minimo_pix) : validarPrecosFluxoVisual($dados_grafico, $minimo_pix);
                 if ($erro_preco !== null) {
                     responder(false, ['mensagem' => $erro_preco], 422);
                 }
@@ -726,7 +749,7 @@ try {
             break;
 
         case 'testar_bot':
-            $token = sanitizarTexto($entrada['token'] ?? '');
+            $token = limparTokenBot($entrada['token'] ?? '');
             if ($token === '') {
                 responder(false, ['mensagem' => 'Informe o token do bot.'], 422);
             }
@@ -740,7 +763,7 @@ try {
             break;
 
         case 'salvar_bot':
-            $token = sanitizarTexto($entrada['token'] ?? '');
+            $token = limparTokenBot($entrada['token'] ?? '');
             $id_fluxo = !empty($entrada['id_fluxo_conectado']) ? (int)$entrada['id_fluxo_conectado'] : null;
             // O fluxo precisa ser do próprio usuário: sem isto dava pra ligar o bot ao fluxo de OUTRA conta
             // (mensagens, preços e grupos de outra pessoa passariam a rodar no bot de quem mandou o id).
@@ -858,7 +881,7 @@ try {
             break;
 
         case 'atualizar_perfil_bot':
-            $token = sanitizarTexto($entrada['token'] ?? '');
+            $token = limparTokenBot($entrada['token'] ?? '');
             $id_bot = (int) ($entrada['id'] ?? 0);
             $nome = sanitizarTexto($entrada['nome'] ?? '', 64);
             $descricao = sanitizarTexto($entrada['descricao'] ?? '', 512);
@@ -1094,7 +1117,7 @@ try {
             break;
 
         case 'enviar_imagem_teste':
-            $token = sanitizarTexto($entrada['token'] ?? '');
+            $token = limparTokenBot($entrada['token'] ?? '');
             $chat_id = sanitizarTexto($entrada['chat_id'] ?? '');
             $modo = sanitizarTexto($entrada['mode'] ?? 'foto');
             $legenda = sanitizarTexto($entrada['caption'] ?? '', 1024);
@@ -1151,7 +1174,7 @@ try {
             break;
 
         case 'descobrir_chat_id':
-            $token = sanitizarTexto($entrada['token'] ?? '');
+            $token = limparTokenBot($entrada['token'] ?? '');
             if ($token === '') {
                 responder(false, ['mensagem' => 'Informe o token do bot.'], 422);
             }
@@ -1173,7 +1196,7 @@ try {
             break;
 
         case 'excluir_webhook':
-            $token = sanitizarTexto($entrada['token'] ?? '');
+            $token = limparTokenBot($entrada['token'] ?? '');
             if ($token === '') {
                 responder(false, ['mensagem' => 'Informe o token do bot.'], 422);
             }
@@ -1194,7 +1217,7 @@ try {
             break;
 
         case 'obter_info_webhook':
-            $token = sanitizarTexto($entrada['token'] ?? '');
+            $token = limparTokenBot($entrada['token'] ?? '');
             if ($token === '') {
                 responder(false, ['mensagem' => 'Informe o token do bot.'], 422);
             }
@@ -1206,7 +1229,7 @@ try {
             break;
 
         case 'reiniciar_webhook':
-            $token = sanitizarTexto($entrada['token'] ?? '');
+            $token = limparTokenBot($entrada['token'] ?? '');
             $id_bot = (int) ($entrada['id'] ?? 0);
             
             if ($token === '') {

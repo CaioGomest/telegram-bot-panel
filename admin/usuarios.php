@@ -4,30 +4,20 @@ require_once __DIR__ . '/../funcoes/paginador.php';
 verificarAdmin();
 $caminho_base = '../';
 
-// Filtros (tudo vem da URL, então a lista é compartilhável): busca, perfil, e-mail, bots e ordem. Valores fora da lista viram "sem filtro".
+// Filtros (tudo vem da URL, então a lista é compartilhável): busca e ordem. Valor de ordem fora da lista vira "mais recentes".
 $filtros = [
-    'busca'  => mb_substr(trim((string) ($_GET['busca'] ?? '')), 0, 100),
-    'perfil' => in_array($_GET['perfil'] ?? '', ['usuario', 'admin'], true) ? (string) $_GET['perfil'] : '',
-    'email'  => in_array($_GET['email'] ?? '', ['confirmado', 'pendente'], true) ? (string) $_GET['email'] : '',
-    'bots'   => in_array($_GET['bots'] ?? '', ['com', 'sem'], true) ? (string) $_GET['bots'] : '',
-    'ordem'  => in_array($_GET['ordem'] ?? '', ['antigos', 'nome'], true) ? (string) $_GET['ordem'] : '',
+    'busca' => mb_substr(trim((string) ($_GET['busca'] ?? '')), 0, 100),
+    'ordem' => in_array($_GET['ordem'] ?? '', ['antigos', 'nome'], true) ? (string) $_GET['ordem'] : '',
 ];
-$filtros_ativos = $filtros['busca'] !== '' || $filtros['perfil'] !== '' || $filtros['email'] !== '' || $filtros['bots'] !== '';
+$filtros_ativos = $filtros['busca'] !== '';
 
 $por_pagina = 15;
-$contagem_perfis = contarUsuariosPorPerfil();
 $total_usuarios = contarUsuariosFiltrados($filtros);
+$total_geral = $filtros_ativos ? contarTotalUsuarios() : $total_usuarios;
 $paginas_total = max(1, (int) ceil($total_usuarios / $por_pagina));
 $pagina_atual = min($paginas_total, max(1, (int) ($_GET['pagina'] ?? 1)));
 $offset = ($pagina_atual - 1) * $por_pagina;
 $usuarios = listarUsuariosFiltrados($filtros, $por_pagina, $offset);
-
-/** Link (já escapado para HTML) da própria lista mantendo os filtros atuais, trocando só o que vier em $extra (valor vazio tira o filtro). */
-function urlUsuarios(array $filtros, array $extra = []): string
-{
-    $q = array_filter(array_merge($filtros, $extra), fn($v) => $v !== '' && $v !== null);
-    return $q ? '?' . htmlspecialchars(http_build_query($q)) : 'usuarios';
-}
 
 ?>
 <!DOCTYPE html>
@@ -65,29 +55,14 @@ function urlUsuarios(array $filtros, array $extra = []): string
                 </button>
                 <input type="text" name="busca" value="<?php echo htmlspecialchars($filtros['busca']); ?>" maxlength="100" placeholder="Buscar por nome, e-mail, apelido ou ID">
             </div>
-            <?php if ($filtros['perfil'] !== ''): ?><input type="hidden" name="perfil" value="<?php echo htmlspecialchars($filtros['perfil']); ?>"><?php endif; ?>
-            <div class="abas-status" role="tablist" aria-label="Perfil">
-                <a href="<?php echo urlUsuarios($filtros, ['perfil' => '']); ?>" class="aba-status<?php echo $filtros['perfil'] === '' ? ' ativa' : ''; ?>">Todos <span class="aba-contagem"><?php echo number_format($contagem_perfis['todos'], 0, ',', '.'); ?></span></a>
-                <a href="<?php echo urlUsuarios($filtros, ['perfil' => 'usuario']); ?>" class="aba-status<?php echo $filtros['perfil'] === 'usuario' ? ' ativa' : ''; ?>">Usuários <span class="aba-contagem"><?php echo number_format($contagem_perfis['usuario'], 0, ',', '.'); ?></span></a>
-                <a href="<?php echo urlUsuarios($filtros, ['perfil' => 'admin']); ?>" class="aba-status<?php echo $filtros['perfil'] === 'admin' ? ' ativa' : ''; ?>">Admins <span class="aba-contagem"><?php echo number_format($contagem_perfis['admin'], 0, ',', '.'); ?></span></a>
-            </div>
-            <select name="email" onchange="this.form.submit()" aria-label="Situação do e-mail">
-                <option value="">E-mail: todos</option>
-                <option value="confirmado"<?php echo $filtros['email'] === 'confirmado' ? ' selected' : ''; ?>>E-mail confirmado</option>
-                <option value="pendente"<?php echo $filtros['email'] === 'pendente' ? ' selected' : ''; ?>>E-mail não confirmado</option>
-            </select>
-            <select name="bots" onchange="this.form.submit()" aria-label="Bots">
-                <option value="">Bots: todos</option>
-                <option value="com"<?php echo $filtros['bots'] === 'com' ? ' selected' : ''; ?>>Com bots</option>
-                <option value="sem"<?php echo $filtros['bots'] === 'sem' ? ' selected' : ''; ?>>Sem bots</option>
-            </select>
-            <select name="ordem" onchange="this.form.submit()" aria-label="Ordenar por">
+            <select name="ordem" aria-label="Ordenar por">
                 <option value="">Mais recentes</option>
                 <option value="antigos"<?php echo $filtros['ordem'] === 'antigos' ? ' selected' : ''; ?>>Mais antigos</option>
                 <option value="nome"<?php echo $filtros['ordem'] === 'nome' ? ' selected' : ''; ?>>Nome (A–Z)</option>
             </select>
+            <button type="submit" class="botao botao-primario">Filtrar</button>
             <?php if ($filtros_ativos || $filtros['ordem'] !== ''): ?>
-                <a href="usuarios" class="botao">Limpar filtros</a>
+                <a href="usuarios" class="botao">Limpar</a>
             <?php endif; ?>
         </form>
 
@@ -170,7 +145,7 @@ function urlUsuarios(array $filtros, array $extra = []): string
 
             <?php if ($total_usuarios > 0): ?>
                 <div class="texto-suave resumo-lista">
-                    Mostrando <?php echo number_format($offset + 1, 0, ',', '.'); ?>–<?php echo number_format($offset + count($usuarios), 0, ',', '.'); ?> de <?php echo number_format($total_usuarios, 0, ',', '.'); ?> usuário(s)<?php echo $filtros_ativos ? ' (de ' . number_format($contagem_perfis['todos'], 0, ',', '.') . ' no total)' : ''; ?>
+                    Mostrando <?php echo number_format($offset + 1, 0, ',', '.'); ?>–<?php echo number_format($offset + count($usuarios), 0, ',', '.'); ?> de <?php echo number_format($total_usuarios, 0, ',', '.'); ?> usuário(s)<?php echo $filtros_ativos ? ' (de ' . number_format($total_geral, 0, ',', '.') . ' no total)' : ''; ?>
                 </div>
             <?php endif; ?>
             <?php echo paginador($total_usuarios, $por_pagina); ?>

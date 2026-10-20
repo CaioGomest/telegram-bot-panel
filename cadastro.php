@@ -48,6 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>Cadastro - <?php echo htmlspecialchars(nomeSistema()); ?></title>
     <?php include 'tema_inline.php'; ?>
     <link rel="stylesheet" href="assets/css/painel.css?v=<?php echo @filemtime(__DIR__.'/assets/css/painel.css'); ?>">
+    <?php if (marcaAnimadaLogin()): ?><link rel="stylesheet" href="assets/css/coyote_animado.css?v=<?php echo @filemtime(__DIR__.'/assets/css/coyote_animado.css'); ?>"><?php endif; ?>
 </head>
 <body>
 <button type="button" class="alternador-tema alternador-tema-flutuante" onclick="alternarTema()" aria-label="Alternar tema" style="position:absolute;top:20px;right:20px;z-index:2;">
@@ -57,7 +58,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <div class="tela-login">
     <div class="login-marca">
-        <img src="<?php echo htmlspecialchars(logoSistema()); ?>" alt="<?php echo htmlspecialchars(nomeSistema()); ?>" class="login-logo">
+        <?php if (marcaAnimadaLogin()): ?>
+            <?php echo htmlMarcaAnimada(nomeSistema(), 'coy-desktop'); ?>
+        <?php else: ?>
+            <img src="<?php echo htmlspecialchars(logoSistema()); ?>" alt="<?php echo htmlspecialchars(nomeSistema()); ?>" class="login-logo">
+        <?php endif; ?>
         <h1 class="login-titulo">Junte-se à plataforma</h1>
         <p class="login-descricao">Crie sua conta e comece a gerenciar seus bots e fluxos de mensagens com eficiência.</p>
     </div>
@@ -65,17 +70,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="login-formulario">
         <div class="login-formulario-conteudo">
             <div class="login-cabecalho-mobile">
-                <img src="<?php echo htmlspecialchars(logoSistema()); ?>" alt="<?php echo htmlspecialchars(nomeSistema()); ?>" class="login-cabecalho-logo">
-                <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
+                <?php if (marcaAnimadaLogin()): ?>
+                    <?php echo htmlMarcaAnimada(nomeSistema(), 'coy-mobile'); ?>
+                <?php else: ?>
+                    <img src="<?php echo htmlspecialchars(logoSistema()); ?>" alt="<?php echo htmlspecialchars(nomeSistema()); ?>" class="login-cabecalho-logo">
+                    <span class="login-cabecalho-nome"><?php echo htmlspecialchars(nomeSistema()); ?></span>
+                <?php endif; ?>
+                <span class="login-cabecalho-lema">Seus bots vendendo no automático</span>
+                <button type="button" class="alternador-tema login-tema-mobile" onclick="alternarTema()" aria-label="Alternar tema">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>
                 </button>
             </div>
+            <div class="login-cartao">
             <h2>Criar sua conta</h2>
-            <p class="texto-suave" style="margin:8px 0 0;">Leva menos de um minuto. Depois você conecta seu primeiro bot.</p>
-            <nav class="login-abas">
-                <a href="login" class="login-aba">Entrar</a>
-                <a href="cadastro" class="login-aba ativa">Criar conta</a>
-            </nav>
+            <p class="texto-suave login-subtitulo">Leva menos de um minuto. Depois você conecta seu primeiro bot.</p>
 
             <?php if ($erro): ?>
                 <div class="aviso aviso-erro"><?php echo htmlspecialchars($erro); ?></div>
@@ -93,28 +101,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <?php echo campoCsrf(); ?>
                 <div class="campo">
                     <label for="nome">Nome</label>
-                    <input type="text" id="nome" name="nome" required placeholder="Seu nome completo"
-                           value="<?php echo htmlspecialchars($_POST['nome'] ?? ''); ?>">
+                    <div class="campo-icone">
+                        <span class="campo-icone-simbolo" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21a8 8 0 0 1 16 0"></path></svg></span>
+                        <input type="text" id="nome" name="nome" required placeholder="Seu nome completo" autocomplete="name"
+                               value="<?php echo htmlspecialchars($_POST['nome'] ?? ''); ?>">
+                    </div>
                 </div>
 
                 <div class="campo" style="margin-top:16px;">
                     <label for="email">E-mail</label>
-                    <input type="email" id="email" name="email" required placeholder="voce@email.com"
-                           value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>">
+                    <div class="campo-icone">
+                        <span class="campo-icone-simbolo" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"></path></svg></span>
+                        <input type="email" id="email" name="email" required placeholder="voce@email.com" autocomplete="email" autocapitalize="none"
+                               value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>">
+                    </div>
                 </div>
 
                 <div class="campo" style="margin-top:16px;">
                     <label for="senha">Senha</label>
-                    <input type="password" id="senha" name="senha" required>
+                    <div class="campo-icone">
+                        <span class="campo-icone-simbolo" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg></span>
+                        <input type="password" id="senha" name="senha" required placeholder="Crie uma senha" autocomplete="new-password">
+                    </div>
                 </div>
 
                 <div class="campo" style="margin-top:16px;">
                     <label for="confirma_senha">Confirmar Senha</label>
-                    <input type="password" id="confirma_senha" name="confirma_senha" required>
+                    <div class="campo-icone">
+                        <span class="campo-icone-simbolo" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg></span>
+                        <input type="password" id="confirma_senha" name="confirma_senha" required placeholder="Repita a senha" autocomplete="new-password">
+                    </div>
                 </div>
 
                 <p class="texto-suave" style="margin:18px 0 0;font-size:12.5px;line-height:1.5;">Ao criar a conta você concorda com os <a href="termos" class="login-link-esqueci">termos de uso</a>.</p>
-                <button type="submit" class="botao botao-primario botao-bloco" style="margin-top:14px;padding:15px;">Criar conta</button>
+                <button type="submit" class="botao botao-primario botao-bloco login-botao-entrar">Criar conta <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg></button>
             </form>
 
             <?php if (googleLoginConfigurado()): ?>
@@ -125,14 +145,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </a>
             <?php endif; ?>
             <?php endif; ?>
+            </div>
 
-            <p style="margin:18px 0 0;text-align:center;font-size:12.5px;" class="texto-suave login-rodape-alternar">
+            <p class="texto-suave login-rodape-alternar">
                 Já tem uma conta? <a href="login" class="login-link-esqueci">Fazer login</a>
             </p>
+            <p class="login-copyright">© <?php echo date('Y'); ?> <?php echo htmlspecialchars(nomeSistema()); ?>. Todos os direitos reservados.</p>
         </div>
     </div>
 </div>
 
 <script src="assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/tema.js'); ?>"></script>
+<?php if (marcaAnimadaLogin()): ?><script src="assets/js/coyote_animado.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/coyote_animado.js'); ?>" defer></script><?php endif; ?>
 </body>
 </html>

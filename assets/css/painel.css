@@ -1303,12 +1303,23 @@ html[data-theme] .barra-filtros select {
     transition: border-color .15s;
 }
 .cartao-escolha-modo:hover { border-color: var(--or); }
-.icone-escolha-modo { width: 34px; height: 34px; color: var(--or); }
-.icone-escolha-modo svg { width: 100%; height: 100%; }
+/* Ícone do modo num quadrado arredondado com a cor do modo (Guiado = azul, Editor Visual = roxo; as mesmas do selo na lista de fluxos) */
+.icone-escolha-modo { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; border: 1px solid var(--bd); background: var(--p); color: var(--or); margin-bottom: 4px; }
+.icone-escolha-modo svg { width: 22px; height: 22px; }
+.cartao-escolha-modo strong { font: 700 15px 'Manrope', sans-serif; }
+.cartao-escolha-modo .texto-suave { font-size: 13px; line-height: 1.5; }
+.cartao-escolha-modo.basico .icone-escolha-modo { background: rgba(77, 141, 255, .14); color: #5b9bff; border-color: transparent; }
+.cartao-escolha-modo.visual .icone-escolha-modo { background: rgba(155, 109, 255, .14); color: #a881ff; border-color: transparent; }
+html[data-theme="light"] .cartao-escolha-modo.basico .icone-escolha-modo { background: rgba(37, 99, 235, .1); color: #1d4ed8; }
+html[data-theme="light"] .cartao-escolha-modo.visual .icone-escolha-modo { background: rgba(124, 58, 237, .1); color: #6d28d9; }
+/* Miniatura do card na lista de fluxos: o ícone do modo, discreto */
+.miniatura-fluxo svg { width: 46px; height: 46px; color: var(--m); }
 .badge-modo-fluxo {
+    display: inline-flex; align-items: center; gap: 5px;
     font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 2px 8px; border-radius: 999px;
     background: var(--p2); color: var(--m); border: 1px solid var(--bd); margin-left: 8px;
 }
+.badge-modo-fluxo svg { width: 11px; height: 11px; flex-shrink: 0; }
 /* Guiado = azul, Editor Visual = roxo (cores só deste selo; o tema não tem token azul/roxo) */
 .badge-modo-fluxo.basico { background: rgba(77, 141, 255, .14); color: #5b9bff; border-color: transparent; }
 .badge-modo-fluxo.visual { background: rgba(155, 109, 255, .14); color: #a881ff; border-color: transparent; }
@@ -1319,6 +1330,34 @@ html[data-theme="light"] .badge-modo-fluxo.visual { background: rgba(124, 58, 23
     font-size: 12px; color: var(--m); cursor: pointer; background: var(--p2);
 }
 .area-previa-basico:hover { border-color: var(--or); }
+/* Downsell (editor Guiado): um quadro com caixa de marcar para cada plano que pode aparecer como botão para o cliente */
+.of-planos-lista { display: flex; flex-direction: column; gap: 8px; }
+.of-plano-opcao { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--bd); border-radius: 10px; background: var(--p2); cursor: pointer; font: 600 13px 'Manrope', sans-serif; }
+.campo .of-plano-opcao { text-transform: none; letter-spacing: normal; color: var(--t); margin: 0; font: 600 13px 'Manrope', sans-serif; }  /* sobrepõe o estilo de rótulo em caixa alta do ".campo label" */
+.of-plano-opcao input { width: 17px; height: 17px; margin: 0; accent-color: var(--or); flex: none; cursor: pointer; }
+.of-plano-opcao:hover { border-color: var(--bd2); }
+.of-plano-opcao:has(input:checked) { border-color: var(--or); background: var(--orsoft); }
+.of-planos-vazio { padding: 12px; border: 1px dashed var(--bd); border-radius: 10px; color: var(--m); font-size: 12.5px; }
+/* Mídia das boas-vindas (editor Guiado): vazio / enviando / anexada. A anexada ganha borda e fundo verdes + miniatura, para a mudança ser visível. */
+.area-previa-basico[data-estado] { display: flex; align-items: center; gap: 12px; padding: 0; min-height: 66px; text-align: left; font-size: 13px; color: var(--t); cursor: default; }
+.area-previa-basico[data-estado="vazio"] { cursor: pointer; }
+.area-previa-basico[data-estado="anexada"] { padding: 10px 12px; border-style: solid; border-color: var(--ok); background: var(--oksoft); }
+.area-previa-basico[data-estado="anexada"]:hover { border-color: var(--ok); }
+.area-previa-basico[data-estado="enviando"] { justify-content: center; border-color: var(--or); color: var(--m); }
+.midia-basico-escolher { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; padding: 10px 12px; border: 0; border-radius: 10px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.midia-basico-icone, .midia-basico-mini { flex: none; width: 44px; height: 44px; border-radius: 10px; display: grid; place-items: center; overflow: hidden; background: var(--p3); color: var(--m); }
+.midia-basico-icone svg, .midia-basico-mini svg { width: 22px; height: 22px; }
+.midia-basico-mini img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.midia-basico-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.midia-basico-info strong { display: flex; align-items: center; gap: 6px; font: 700 13px 'Manrope', sans-serif; }
+.midia-basico-info small { font-size: 11.5px; color: var(--m); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.area-previa-basico[data-estado="anexada"] .midia-basico-info strong { color: var(--ok); }
+.area-previa-basico[data-estado="anexada"] .midia-basico-info strong svg { width: 14px; height: 14px; flex: none; }
+.midia-basico-acoes { flex: none; display: flex; align-items: center; gap: 6px; }
+.midia-basico-acoes .botao { height: 34px; padding: 0 12px; font-size: 12.5px; }
+.midia-basico-giro { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--bd2); border-top-color: var(--or); animation: midia-basico-giro .7s linear infinite; }
+@keyframes midia-basico-giro { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .midia-basico-giro { animation-duration: 2s; } }
 
 .icone-vazio { width: 60px; height: 60px; background: var(--p2); border-radius: 50%; display: grid; place-items: center; margin: 0 auto 14px; color: var(--m); }
 .opcao-ativar-gateway { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; cursor: pointer; }
@@ -1541,7 +1580,8 @@ html[data-theme="light"] .badge-modo-fluxo.visual { background: rgba(124, 58, 23
 /* ===== Login ===== */
 .tela-login { min-height: 100vh; display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
 .login-marca, .login-formulario { padding: 60px 8vw; display: flex; flex-direction: column; justify-content: center; }
-.login-marca { background: var(--p); }
+/* Coluna da marca: logo/mascote, título e descrição centralizados na coluna (antes ficavam colados à esquerda) */
+.login-marca { background: var(--p); align-items: center; text-align: center; }
 .login-logo { width: 88px; height: 88px; border-radius: 24px; object-fit: cover; border: 1px solid var(--bd); }
 .login-titulo { margin: 26px 0 0; font-size: 42px; line-height: 1; max-width: 16ch; }
 .login-descricao { margin: 16px 0 0; font-size: 14px; color: var(--m); line-height: 1.6; max-width: 44ch; }
@@ -1549,12 +1589,26 @@ html[data-theme="light"] .badge-modo-fluxo.visual { background: rgba(124, 58, 23
 .login-metrica-valor { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 30px; color: var(--or); }
 .login-metrica-rotulo { font: 700 10.5px 'Manrope', sans-serif; letter-spacing: .1em; text-transform: uppercase; color: var(--m); margin-top: 2px; }
 .login-formulario-conteudo { width: 100%; max-width: 380px; margin: 0 auto; }
-.login-opcoes { display: flex; align-items: center; margin: 16px 0 0; }
+.login-opcoes { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 0 0; }
+.login-subtitulo { margin: 8px 0 24px; }
+.login-rodape-alternar { margin: 18px 0 0; text-align: center; font-size: 12.5px; }
+.login-botao-entrar { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 20px; padding: 15px; }
+.login-copyright { display: none; }
+/* Campo com ícone à esquerda: só aparece no mobile (ver o @media abaixo); no desktop o símbolo some e o campo é o de sempre. */
+.campo-icone-simbolo { display: none; }
+/* "Lembrar": caixa de seleção própria (substituiu o interruptor). */
+.login-lembrar { position: relative; display: inline-flex; align-items: center; gap: 10px; cursor: pointer; color: var(--m); font: 600 13px 'Manrope', sans-serif; }
+.login-lembrar input { position: absolute; opacity: 0; width: 0; height: 0; }
+.login-lembrar-caixa { position: relative; flex-shrink: 0; width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--bd2); background: var(--p2); transition: background .15s, border-color .15s; }
+.login-lembrar input:checked + .login-lembrar-caixa { background: var(--or); border-color: var(--or); }
+.login-lembrar input:checked + .login-lembrar-caixa::after { content: ''; position: absolute; left: 5.5px; top: 1.5px; width: 5px; height: 10px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.login-lembrar input:focus-visible + .login-lembrar-caixa { outline: 2px solid var(--or); outline-offset: 2px; }
 
 /* Cabeçalho compacto e abas Entrar/Criar conta: só existem no mobile (ver o @media abaixo).
    No desktop quem faz esse papel é a coluna de marca à esquerda e o link no rodapé. */
 .login-cabecalho-mobile { display: none; }
 .login-cabecalho-logo { width: 54px; height: 54px; border-radius: 16px; object-fit: cover; }
+.login-cabecalho-nome, .login-cabecalho-lema { display: block; }
 html[data-theme] .login-cabecalho-logo { border: 1px solid var(--bd); }
 
 /* ===== Minha Conta: cartões "Dados pessoais" / "Segurança" + lista de links ===== */
@@ -1668,7 +1722,7 @@ html[data-theme="light"] .hero-ranking-moldura { opacity: .5; }
 .podio-avatar { width: 56px; height: 56px; border-radius: 50%; background: var(--p3); border: 2px solid var(--m); display: grid; place-items: center; font: 800 16px 'Manrope', sans-serif; color: var(--t); }
 .podio-1 .podio-avatar { width: 76px; height: 76px; font-size: 20px; border-color: var(--or); color: var(--or); box-shadow: 0 0 0 5px var(--orsoft), 0 0 30px rgba(255, 136, 0, .35); }
 .podio-nome { max-width: 100%; text-align: center; font: 800 13px 'Manrope', sans-serif; margin-top: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.podio-valor { text-align: center; font: 700 12px 'JetBrains Mono', monospace; color: var(--m); margin-top: 3px; }
+.podio-valor { text-align: center; font: 800 12.5px 'Manrope', sans-serif; font-variant-numeric: tabular-nums; color: var(--m); margin-top: 3px; }
 .podio-base { width: 100%; border-radius: 14px 14px 0 0; border: 1px solid var(--bd); border-bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; margin-top: 12px; height: 74px; background: linear-gradient(180deg, var(--p3), var(--p2)); position: relative; overflow: hidden; }
 .podio-base::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 12px; background: repeating-linear-gradient(90deg, rgba(255, 255, 255, .05) 0 6px, transparent 6px 12px); }
 .podio-1 .podio-base { height: 108px; background: linear-gradient(180deg, var(--orsoft), var(--p2)); border-color: var(--or); }
@@ -1687,7 +1741,7 @@ html[data-theme="light"] .hero-ranking-moldura { opacity: .5; }
 .linha-ranking-avatar { width: 38px; height: 38px; flex: none; border-radius: 50%; background: var(--p3); border: 1px solid var(--bd2); display: grid; place-items: center; font: 800 11.5px 'Manrope', sans-serif; color: var(--m); }
 .linha-ranking-nome { font: 700 13.5px 'Manrope', sans-serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .linha-ranking-zona { font-size: 11.5px; margin-top: 2px; }
-.linha-ranking-valor { font: 700 13.5px 'JetBrains Mono', monospace; text-align: right; }
+.linha-ranking-valor { font: 800 13.5px 'Manrope', sans-serif; font-variant-numeric: tabular-nums; text-align: right; }
 .linha-ranking-gap { font-size: 11px; color: var(--m); margin-top: 2px; text-align: right; }
 
 .rotulo-sua-posicao { font: 800 10px 'Manrope', sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--m); margin: 26px 4px 10px; padding-top: 18px; border-top: 1px dashed var(--bd2); }
@@ -1718,7 +1772,7 @@ html[data-theme="light"] .hero-ranking-moldura { opacity: .5; }
 .mini-ranking-voce-tag { flex: none; color: var(--or); font-weight: 800; }
 .mini-ranking-pos { flex: none; font: 800 10.5px 'Manrope', sans-serif; padding: 1px 6px; border-radius: 99px; background: var(--p3); color: var(--m); }
 .mini-ranking-item.lider .mini-ranking-pos { background: var(--or); color: #fff; }
-.mini-ranking-valor { font: 700 12.5px 'JetBrains Mono', monospace; padding: 5px 10px; border-radius: 99px; background: var(--p3); color: var(--t); white-space: nowrap; }
+.mini-ranking-valor { font: 800 12.5px 'Manrope', sans-serif; font-variant-numeric: tabular-nums; padding: 5px 10px; border-radius: 99px; background: var(--p3); color: var(--t); white-space: nowrap; }
 .mini-ranking-item.lider .mini-ranking-valor { background: rgba(255, 106, 26, .16); color: var(--or); }
 .mini-ranking-rodape { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--bd); text-align: center; }
 .mini-ranking-rodape a { font: 700 12px 'Manrope', sans-serif; color: var(--or); }
@@ -1889,30 +1943,39 @@ html[data-theme="light"] .hero-ranking-moldura { opacity: .5; }
 }
 
 @media (max-width: 860px) {
-    /* Login e cadastro no mobile seguem o protótipo: o bloco de marketing (logo gigante,
-       manchete e métricas) sai, porque empurrava o formulário pra fora da primeira tela --
-       era preciso rolar pra ver o campo de e-mail. No lugar entra um cabeçalho compacto
-       (logo à esquerda, tema à direita) e a troca entre entrar/criar conta vira pills.
-       No desktop nada disso muda: a coluna de marca continua como era. */
-    .tela-login { display: block; }
+    /* Login e cadastro no mobile (redesenho de 16/10/2026): marca centralizada no alto, cartão com o formulário, campos com ícone, botão cheio
+       com seta, "Não tem conta?" embaixo e o © no rodapé. O bloco de marketing da esquerda (só do desktop) sai, como já saía. As cores são as do
+       tema (laranja de destaque, escuro/claro): nada fixo aqui. */
+    .tela-login { display: block; background: radial-gradient(120% 52% at 50% -6%, color-mix(in srgb, var(--or) 16%, transparent), transparent 66%) no-repeat; }
     .login-marca { display: none; }
-    .alternador-tema-flutuante { display: none; }  /* o absoluto do canto; no mobile o tema fica no cabeçalho */
-    .login-formulario { padding: 20px 20px 36px; justify-content: flex-start; min-height: 100vh; }
-    .login-formulario-conteudo { max-width: none; }
-    .login-cabecalho-mobile { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
-    .login-formulario-conteudo h2 { font-size: 34px; line-height: 1.02; }
-    .login-abas { display: flex; }
-    .login-rodape-alternar { display: none; }  /* as pills já fazem isso */
+    .alternador-tema-flutuante { display: none; }  /* o absoluto do canto; no mobile o tema fica no alto, à direita */
+    .login-formulario { position: relative; padding: 30px 20px calc(22px + env(safe-area-inset-bottom, 0px)); justify-content: flex-start; min-height: 100vh; min-height: 100dvh; }
+    .login-formulario-conteudo { max-width: 440px; flex: 1; display: flex; flex-direction: column; }
+    .login-cabecalho-mobile { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-bottom: 22px; text-align: center; }
+    .login-cabecalho-logo { width: 68px; height: 68px; border-radius: 19px; }
+    .login-cabecalho-nome { margin-top: 8px; font: 700 34px/1 'Barlow Condensed', sans-serif; letter-spacing: .05em; text-transform: uppercase; }
+    .login-cabecalho-lema { font-size: 14px; color: var(--m); }
+    .login-tema-mobile { position: absolute; top: 14px; right: 16px; }
 
-    /* O olho de mostrar senha vira ícone dentro do campo: no protótipo a senha ocupa a
-       largura toda, igual aos outros campos. Escopado no .login-formulario pra não mexer
-       no .campo-com-acao das telas de admin. */
-    .login-formulario .campo-com-acao { position: relative; display: block; }
-    .login-formulario .campo-com-acao input { width: 100%; padding-right: 46px; }
-    .login-formulario .campo-com-acao .botao {
-        position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
-        background: transparent; border: 0; padding: 8px 10px; min-width: 0;
-    }
+    .login-cartao { background: var(--p); border: 1px solid var(--bd); border-radius: 22px; padding: 26px 22px 24px; box-shadow: 0 22px 44px -28px rgba(0, 0, 0, .6); }
+    .login-formulario-conteudo h2 { margin: 0; font-size: 30px; line-height: 1.05; }
+    .login-subtitulo { margin: 8px 0 20px; font-size: 14px; }
+    .login-cartao .campo label { font-size: 14px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--t); }
+    .login-cartao .campo-icone { display: flex; align-items: stretch; gap: 0; height: 54px; overflow: hidden; border: 1px solid var(--bd); border-radius: 14px; background: var(--p2); transition: border-color .15s; }
+    .login-cartao .campo-icone:focus-within { border-color: var(--or); }
+    .login-cartao .campo-icone-simbolo { display: grid; place-items: center; flex: 0 0 52px; background: var(--p3); border-right: 1px solid var(--bd); color: var(--m); }
+    html[data-theme] .login-cartao .campo-icone input { flex: 1; min-width: 0; width: auto; height: 100%; padding: 0 14px; border: 0; border-radius: 0; background: transparent; font: 600 15px 'Manrope', sans-serif; }
+    html[data-theme] .login-cartao .campo-icone input:focus { border: 0; }
+    /* o olho de mostrar senha fica dentro do campo, à direita */
+    .login-cartao .campo-icone .botao { flex: 0 0 auto; min-width: 0; padding: 0 16px; border: 0; background: transparent; box-shadow: none; color: var(--m); }
+    .login-opcoes { margin: 18px 0 0; }
+    .login-lembrar, .login-opcoes .login-link-esqueci { font-size: 14px; }
+    .login-botao-entrar { height: 56px; margin-top: 22px; padding: 0 20px; border-radius: 14px; font-size: 16px; }
+    .login-divisor { margin: 18px 0; }
+    .login-cartao .botao-google { height: 52px; border-radius: 14px; }
+    .login-rodape-alternar { margin: 26px 0 0; font-size: 15px; }
+    .login-rodape-alternar .login-link-esqueci { font-size: 15px; }
+    .login-copyright { display: block; margin: auto 0 0; padding-top: 32px; text-align: center; font-size: 12.5px; color: var(--m); }
 
     .barra-lateral { display: none; }
     .layout-painel { flex-direction: column; padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
@@ -2522,7 +2585,10 @@ html[data-theme] .rd-sec h3 { margin: 0 0 14px; font-size: 19px; }
 .aviso-email { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 12px 10px; padding: 8px 10px; border-radius: 10px; background: var(--wasoft); color: var(--wa); font: 600 12px 'Manrope', sans-serif; }
 .aviso-email button { cursor: pointer; border: 1px solid currentColor; background: transparent; color: inherit; border-radius: 8px; padding: 3px 9px; font: 700 11px 'Manrope', sans-serif; }
 .aviso-email button:disabled { opacity: .7; cursor: default; }
-.folha-menu-caixa .aviso-email { margin: 0 0 10px; }
+/* Menu "Mais" do celular: o aviso ficava colado nas bordas da folha (sem margem) e na linha do topo, com o botão "Reenviar" de 23 px de altura.
+   Agora fica alinhado com as bordas dos itens do menu (10 px), com respiro em cima e botão de toque confortável. */
+.folha-menu-caixa .aviso-email { margin: 12px 10px 0; padding: 6px 6px 6px 12px; }
+.folha-menu-caixa .aviso-email button { min-height: 34px; padding: 0 14px; font-size: 12px; }
 
 /* ===== Cabeçalho superior do cliente (faturamento, saudação, ações) -- ref. SharkBot ===== */
 .topo-painel { display: none; }
@@ -2878,17 +2944,51 @@ html[data-theme] .painel-cabecalho small.texto-ajuda { display: inline; margin: 
 .estados-fila .com-falha strong { color: var(--da); }
 .dica-fila { margin: 0 0 12px; font-size: 12.5px; line-height: 1.55; }
 
-/* Admin → Usuários: números nas abas de perfil e resumo da lista */
-.abas-status .aba-contagem { margin-left: 6px; padding: 1px 7px; border-radius: 99px; background: var(--p3); color: var(--m); font-size: 11px; }
-.abas-status .aba-status.ativa .aba-contagem { background: rgba(255,255,255,.25); color: #fff; }
+/* Admin → Usuários: resumo da lista e botões do filtro (mesma altura da busca e da lista de ordem) */
+#form-filtros-usuarios .botao { height: 46px; border-radius: 14px; }
 .resumo-lista { padding: 12px 18px 4px; font-size: 12.5px; }
 
-/* Filtros com busca + botões (Transações): a busca ocupa a linha e "Filtrar / Limpar" ficam à direita dela. */
-.filtro-linha-busca { display: flex; align-items: center; gap: 10px; flex: 1 1 100%; min-width: 0; }
-html[data-theme] .filtro-linha-busca input[type="text"] { flex: 1; width: auto; min-width: 0; }
-.filtro-linha-busca .botao { flex-shrink: 0; white-space: nowrap; }
+/* Admin → Transações: mesmo padrão da página Vendas (campo com rótulo em cima, em grade), com 3 listas + 2 datas na 1ª linha;
+   na 2ª, a busca ocupa o espaço e "Filtrar / Limpar" ficam à direita. Abaixo de 1181px valem as regras de .filtros-vendas (3 colunas, busca e ações em linha inteira). */
+@media (min-width: 1181px) {
+    .filtros-vendas .filtros-transacoes-form { grid-template-columns: minmax(200px, 1.5fr) minmax(150px, 1fr) minmax(190px, 1fr) 150px 150px; }
+    .filtros-vendas .filtros-transacoes-form .filtro-busca { grid-column: 1 / span 4; }
+}
+/* Listas, datas e busca com a mesma altura (a busca saía 2px mais baixa que as listas). */
+.filtros-vendas .filtros-transacoes-form .filtro-campo select,
+.filtros-vendas .filtros-transacoes-form .filtro-campo input { height: 42px; }
+@media (max-width: 640px) {
+    /* O usuário (nome + e-mail) é o campo mais largo: linha própria; as outras ficam em pares (Status|Split, De|Até) sem campo sozinho. */
+    .filtros-vendas .filtros-transacoes-form .filtro-campo:first-child { grid-column: 1 / -1; }
+}
+
+/* Editor guiado: campos e interruptores empilhados sem grade (Packs, Prévias, Assinatura, Ofertas) ficavam com o rótulo colado no campo
+   de cima (a distância até o próprio campo era maior que até o vizinho). Respiro entre os blocos; o que já tem margem própria não muda. */
+.basico-conteudo :not(.grade) > .campo + .campo,
+.basico-conteudo .campo + .grade,
+.basico-conteudo .grade + .campo,
+.basico-conteudo .grade + .basico-interruptor.sem-caixa,
+.basico-conteudo :not(.grade) > .campo + .basico-interruptor.sem-caixa { margin-top: 14px; }
+.basico-conteudo .basico-interruptor.sem-caixa + .campo { margin-top: 0; }
+/* Boas-vindas: interruptor do botão CTA (+ explicação, quando o botão está desligado) antes da grade de mídia e botão */
+.basico-conteudo .basico-interruptor.sem-caixa + .texto-ajuda + .grade { margin-top: 14px; }
+.basico-conteudo #bv-cta-dica { display: block; margin-top: 6px; }
+
+/* Bot novo: o botão "Trazer dados" pulsa quando o token já foi colado (o nome e o username só vêm depois do clique) e, no celular, o campo do
+   token ocupa a linha toda com os dois botões embaixo. */
+html[data-theme] .botao.destaque-acao { background: var(--or); border-color: var(--or); color: #fff; animation: destaque-pulso 1.8s ease-in-out infinite; }
+@keyframes destaque-pulso { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 138, 0, .55); } 50% { box-shadow: 0 0 0 7px rgba(255, 138, 0, 0); } }
+@media (prefers-reduced-motion: reduce) { html[data-theme] .botao.destaque-acao { animation: none; } }
 @media (max-width: 560px) {
-    .filtro-linha-busca { flex-wrap: wrap; }
-    html[data-theme] .filtro-linha-busca input[type="text"] { flex: 1 1 100%; }
-    .filtro-linha-busca .botao { flex: 1; text-align: center; }
+    .campo-com-acao.campo-token { flex-wrap: wrap; }
+    .campo-com-acao.campo-token input { flex: 1 1 100%; }
+    .campo-com-acao.campo-token .botao { flex: 1 1 0; }
+}
+
+/* Mascote animado no login/cadastro (opção em Configurações → Identidade; o CSS do mascote está em coyote_animado.css): no desktop ele vai na
+   coluna da esquerda no lugar da logo; no celular, no cabeçalho, e o nome em texto sai porque a própria arte já traz o nome. */
+.coy-desktop { --coy-tamanho: min(300px, 36vh); margin: 0 0 14px; }
+.coy-mobile { display: none; }
+@media (max-width: 860px) {
+    .coy-mobile { display: block; --coy-tamanho: min(220px, 52vw, 30vh); margin: -6px 0 -4px; }
 }

@@ -45,7 +45,7 @@ try {
     $campanhas = $pdo->query("
         SELECT id, data_inicio, data_fim, (data_fim < NOW()) AS terminou
         FROM campanhas_ranking
-        WHERE ativa = 1 AND data_inicio <= NOW() AND finalizada_em IS NULL
+        WHERE ativa = 1 AND arquivada_em IS NULL AND data_inicio <= NOW() AND finalizada_em IS NULL
     ")->fetchAll(PDO::FETCH_ASSOC);
 
     if (!$campanhas) {
