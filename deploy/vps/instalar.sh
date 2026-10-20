@@ -476,7 +476,7 @@ etapa "5/12  Código do painel → ${SITE_DIR}"
 exe mkdir -p "$SITE_DIR"
 # NÃO vai para o servidor: testes, anotações internas, deploy, dados de demonstração, documentação, git, config e dados de runtime
 EXCLUIR=(--exclude='.git/' --exclude='.gitignore' --exclude='.gitattributes' --exclude='.claude/' --exclude='tests/' --exclude='anotacoes/'
-         --exclude='deploy/' --exclude='seeds/' --exclude='*.md' --exclude='telegram.zip' --exclude='test_write.txt' --exclude='error_log'
+         --exclude='deploy/' --exclude='resetar/' --exclude='seeds/' --exclude='*.md' --exclude='telegram.zip' --exclude='test_write.txt' --exclude='error_log'
          --exclude='/config.php' --exclude='/uploads/*' --exclude='/logs/*' --exclude='/storage/*' --exclude='/certificados/*')
 exe rsync -a "${EXCLUIR[@]}" "$ORIGEM"/ "$SITE_DIR"/
 for d in uploads logs storage certificados; do

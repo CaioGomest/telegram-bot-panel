@@ -47,7 +47,7 @@ if (( SEM_BACKUP )); then echo "   (pulado: --sem-backup)"; else exe /usr/local/
 
 etapa "2/5  Copiando o código novo"
 EXCLUIR=(--exclude='.git/' --exclude='.gitignore' --exclude='.gitattributes' --exclude='.claude/' --exclude='tests/' --exclude='anotacoes/'
-         --exclude='deploy/' --exclude='seeds/' --exclude='*.md' --exclude='telegram.zip' --exclude='test_write.txt' --exclude='error_log'
+         --exclude='deploy/' --exclude='resetar/' --exclude='seeds/' --exclude='*.md' --exclude='telegram.zip' --exclude='test_write.txt' --exclude='error_log'
          --exclude='/config.php' --exclude='/uploads/*' --exclude='/logs/*' --exclude='/storage/*' --exclude='/certificados/*' --exclude='/.well-known/')
 # --delete remove do servidor o que saiu da nova versão; o que está em --exclude (config, uploads, logs...) fica protegido.
 # ATENÇÃO: por isso, qualquer arquivo colocado À MÃO na pasta do site (fora dessas pastas) some na próxima atualização. Coloque em uploads/.
