@@ -508,3 +508,75 @@ html.layout-a .a-prem li span.ganhador { margin-top: 2px; color: var(--okt); fon
     html.layout-a .a-rank .av { width: 40px; height: 40px; }
     html.layout-a .a-rank .vl { grid-column: 3; text-align: left; display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: baseline; }
 }
+
+/* ---------- dashboard ---------- */
+html.layout-a .a-per { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 6px 0 16px; }
+html.layout-a .a-per .a-fld { flex: 0 0 190px; }
+html.layout-a .a-per .datas { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+html.layout-a .a-hero { display: grid; gap: 14px; align-content: start; }
+html.layout-a .a-hero .a-kv { font-size: clamp(44px, 5vw, 72px); }
+html.layout-a .a-delta { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; font: 800 12.5px var(--f-b); background: var(--oks); color: var(--okt); width: fit-content; }
+html.layout-a .a-delta span { color: var(--m); font-weight: 600; }
+html.layout-a .a-delta.er { background: var(--ers); color: var(--ert); }
+html.layout-a .a-delta.neutro { background: var(--p3); color: var(--m); }
+html.layout-a .a-chart-area { position: relative; width: 100%; height: clamp(220px, 26vh, 300px); }
+html.layout-a .a-chart-area canvas { max-width: 100%; }
+html.layout-a .a-gauge-c { position: relative; width: 100%; max-width: 220px; height: 112px; margin: 6px auto 0; }
+html.layout-a .a-gauge-c canvas { max-width: 100%; }
+html.layout-a .a-gauge-c b { position: absolute; left: 0; right: 0; bottom: 2px; text-align: center; font: 700 34px/1 var(--f-t); }
+html.layout-a .a-spark { position: relative; height: 70px; margin-top: 6px; }
+html.layout-a .a-spark canvas { max-width: 100%; }
+
+/* atividade: a lista (parciais/lista_atividades.php, igual no admin) com o visual novo, só aqui dentro */
+html.layout-a .a-act .lista-atividade { max-height: none; overflow: visible; gap: 0; }
+html.layout-a .a-act .item-atividade { display: flex; align-items: center; gap: 12px; padding: 12px 0; border: 0; border-top: 1px solid var(--bd); border-radius: 0; background: transparent; }
+html.layout-a .a-act .item-atividade:first-child { border-top: 0; }
+html.layout-a .a-act .icone-atividade { display: grid; place-items: center; flex: none; width: 38px; height: 38px; border-radius: 13px; background: var(--ors); color: var(--ort); }
+html.layout-a .a-act .icone-atividade svg { width: 18px; height: 18px; }
+html.layout-a .a-act .icone-atividade.pix_gerado { background: var(--was); color: var(--wat); }
+html.layout-a .a-act .icone-atividade.lead { background: var(--vis); color: var(--vit); }
+html.layout-a .a-act .icone-atividade.venda { background: var(--ors); color: var(--ort); }
+html.layout-a .a-act .atividade-conteudo { flex: 1; min-width: 0; display: grid; line-height: 1.3; }
+html.layout-a .a-act .atividade-titulo { margin: 0; font: 800 14px var(--f-b); white-space: normal; overflow: visible; }
+html.layout-a .a-act .atividade-descricao { margin: 0; color: var(--m); font-size: 12.5px; white-space: normal; overflow-wrap: anywhere; }
+html.layout-a .a-act .atividade-tempo { flex: none; text-align: right; font: 500 11px/1.35 var(--f-m); color: var(--m); }
+
+/* mini ranking */
+html.layout-a .a-mr ul { margin: 0; padding: 0; display: grid; gap: 8px; }
+html.layout-a .a-mr li { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 16px; list-style: none; border: 1px solid transparent; }
+html.layout-a .a-mr li.lider { background: var(--ors); border-color: var(--or); }
+html.layout-a .a-mr li.voce { border-color: var(--bd2); background: var(--p2); }
+html.layout-a .a-mr .pos { font: 700 18px var(--f-t); color: var(--m); width: 30px; }
+html.layout-a .a-mr .nm { flex: 1; min-width: 0; font-weight: 800; overflow-wrap: anywhere; }
+html.layout-a .a-mr .vl { font: 800 13px var(--f-m); }
+html.layout-a .a-more { display: flex; justify-content: center; margin-top: 14px; }
+html.layout-a .a-more a { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; font-weight: 800; color: inherit; text-decoration: none; }
+html.layout-a .a-more a:hover { color: var(--ort); }
+@media (max-width: 640px) { html.layout-a .a-mr li { flex-wrap: wrap; } }
+
+/* stories (o markup é o de parciais/barra_stories.php e o do assets/stories.js; só o visual muda) */
+html.layout-a .barra-stories-painel { margin: 0 0 8px; }
+html.layout-a .barra-stories { gap: 14px; padding: 4px 2px 10px; }
+html.layout-a .story-item { width: 74px; gap: 6px; }
+html.layout-a .story-anel { width: 66px; height: 66px; padding: 3px; border: 0; background: var(--bd2); }
+html.layout-a .story-anel-nao-vista { background: conic-gradient(var(--or), #ffb04d, var(--or)); }
+html.layout-a .story-anel-vista { background: var(--bd2); }
+html.layout-a .story-anel-criar { background: transparent; border: 2px dashed var(--bd2); padding: 0; }
+html.layout-a .story-item:hover .story-anel-criar { border-color: var(--or); }
+html.layout-a .story-avatar-iniciais, html.layout-a .story-avatar-foto { border: 3px solid var(--bg); }
+html.layout-a .story-avatar-iniciais { background: var(--p3); font: 800 17px var(--f-b); }
+html.layout-a .story-nome { max-width: 74px; font: 700 12px var(--f-b); color: var(--m); }
+html.layout-a .story-dropzone { min-height: 150px; border: 2px dashed var(--bd2); border-radius: 18px; justify-content: center; }
+html.layout-a .story-erro { color: var(--ert); }
+
+/* janelas antigas (.sobreposicao-modal / .modal-gateway): o mesmo visual das janelas novas, para as páginas ainda não redesenhadas */
+html.layout-a .sobreposicao-modal { background: rgba(3, 4, 6, .62); padding: 24px; }
+html.layout-a .modal-gateway { margin: 0; border-radius: 26px; border: 1px solid var(--bd2); background: var(--p); box-shadow: 0 40px 80px -30px #000; }
+html.layout-a .cabecalho-modal { padding: 22px 24px 0; border-bottom: 0; }
+html.layout-a .titulo-modal { font: 700 28px/1 var(--f-t); text-transform: uppercase; }
+html.layout-a .fechar-modal { width: 46px; height: 46px; border-radius: 15px; background: var(--p); border: 1px solid var(--bd); color: var(--t); font-size: 18px; }
+html.layout-a .corpo-modal { padding: 18px 24px 24px; }
+@media (max-width: 640px) {
+    html.layout-a .sobreposicao-modal { align-items: flex-end; padding: 0; }
+    html.layout-a .modal-gateway { max-width: 100%; border-radius: 26px 26px 0 0; max-height: 92vh; padding-bottom: env(safe-area-inset-bottom, 0px); }
+}
