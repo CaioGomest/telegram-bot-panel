@@ -18,9 +18,9 @@ async function anexar(c, seletor, arquivo) {
     await entrar(c, 'pgteste-user@example.invalid');
     area('4. Meus Fluxos');
     await c.ir(BASE + '/fluxos');
-    await c.esperar(`document.querySelectorAll('.cartao-fluxo').length>0`);
+    await c.esperar(`document.querySelectorAll('.js-fluxo-card').length>0`);
     await t('lista: 2 fluxos com nome, descrição, selo do modo e data "Atualizado: dd/mm/aaaa hh:mm"', async () => {
-      const r = JSON.parse(await c.avaliar(`JSON.stringify([...document.querySelectorAll('.cartao-fluxo')].map(function(e){return {n:e.querySelector('h3').innerText, m:e.querySelector('.badge-modo-fluxo').innerText, d:e.querySelector('.cartao-corpo').innerText.split(String.fromCharCode(10)).join(' | ')}}))`));
+      const r = JSON.parse(await c.avaliar(`JSON.stringify([...document.querySelectorAll('.js-fluxo-card')].map(function(e){return {n:e.querySelector('h3').innerText, m:e.querySelector('.a-fx-top .a-bd').innerText, d:(e.querySelector('p').innerText + String.fromCharCode(10) + e.querySelector('.when').innerText).split(String.fromCharCode(10)).join(' | ')}}))`));
       const g = r.find(x => /Guiado PG/.test(x.n)), v = r.find(x => /Visual PG/.test(x.n));
       return { ok: r.length === 2 && g && /guiado/i.test(g.m) && v && /visual/i.test(v.m) && /Atualizado: \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/.test(g.d), det: JSON.stringify(r).slice(0, 240) };
     }, 'fluxos');
@@ -30,7 +30,7 @@ async function anexar(c, seletor, arquivo) {
       return { ok: /2\/50/.test(o.novo) && /Importar/.test(o.imp) && o.ordem === 4, det: r };
     }, 'fluxos');
     await t('lápis leva ao editor certo de cada modo (Guiado → fluxo_basico, Visual → fluxo)', async () => {
-      const r = JSON.parse(await c.avaliar(`JSON.stringify([...document.querySelectorAll('.cartao-fluxo')].map(function(e){return [e.querySelector('h3').innerText, e.querySelector('a.btn-icon.editar').getAttribute('href')]}))`));
+      const r = JSON.parse(await c.avaliar(`JSON.stringify([...document.querySelectorAll('.js-fluxo-card')].map(function(e){return [e.querySelector('h3').innerText, e.querySelector('a.a-ib[title="Editar fluxo"]').getAttribute('href')]}))`));
       const g = r.find(x => /Guiado/.test(x[0])), v = r.find(x => /Visual/.test(x[0]));
       return { ok: /^fluxo_basico\?id=\d+/.test(g[1]) && /^fluxo\?id=\d+/.test(v[1]), det: JSON.stringify(r) };
     }, 'fluxos');
@@ -86,7 +86,7 @@ async function anexar(c, seletor, arquivo) {
       await c.ir(BASE + '/fluxos');
       await esp(1200);
       const pwn = await c.avaliar(`window.__pwn===1`);
-      const imgs = await c.avaliar(`document.querySelectorAll('.cartao-fluxo img').length`);
+      const imgs = await c.avaliar(`document.querySelectorAll('.js-fluxo-card img').length`);
       const nome = db(`SELECT id, nome FROM fluxos WHERE id_usuario=49 AND nome LIKE '%XSS%'`)[0];
       global.__xss = nome && nome.id;
       return { ok: !pwn && imgs === 0, det: 'nome salvo: ' + (nome && nome.nome) };
@@ -95,7 +95,7 @@ async function anexar(c, seletor, arquivo) {
     area('4c. Excluir e vínculo com bots');
     await t('excluir fluxo: "Cancelar" mantém, confirmar remove do banco e da lista', async () => {
       await c.ir(BASE + '/fluxos');
-      await c.esperar(`document.querySelectorAll('.cartao-fluxo').length>0`);
+      await c.esperar(`document.querySelectorAll('.js-fluxo-card').length>0`);
       const id = global.__xss;
       c.aceitar = false;
       await c.avaliar(`document.querySelector('.btn-excluir-fluxo[data-id="${id}"]').click(); 1`);

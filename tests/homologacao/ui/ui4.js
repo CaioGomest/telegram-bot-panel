@@ -11,16 +11,16 @@ function ok(rotulo, cond, extra) { resultados.push((cond ? 'PASS' : 'FAIL') + ' 
     await c.esperar(`location.pathname.indexOf('login')===-1`, 20000); await c.esperarCarga();
 
     await c.ir(BASE + '/fluxos');
-    await c.esperar(`jQuery('#lista-fluxos .cartao-fluxo').length>0`, 15000);
-    const n0 = await c.avaliar(`jQuery('#lista-fluxos .cartao-fluxo').length`);
+    await c.esperar(`jQuery('#lista-fluxos .js-fluxo-card').length>0`, 15000);
+    const n0 = await c.avaliar(`jQuery('#lista-fluxos .js-fluxo-card').length`);
     const rot0 = await c.avaliar(`jQuery('#btn-abrir-escolha-modo').text().trim()`);
     ok('Meus Fluxos: botão mostra o contador (N/50) e há botão Importar Fluxo à esquerda', /\+ Novo Fluxo \(\d+\/50\)/.test(rot0) && await c.avaliar(`jQuery('#btn-importar-fluxo-lista').length===1 && jQuery('#btn-importar-fluxo-lista').index() < jQuery('#btn-abrir-escolha-modo').index()`), { rot0 });
     ok('contador bate com os cartões da lista', rot0.indexOf('(' + n0 + '/50)') !== -1, { rot0, n0 });
     // importa um arquivo .json pela interface (mesmo caminho do clique do usuário)
     const arq = await c.avaliar(`(async function(){ var h={'Content-Type':'application/json','X-CSRF-Token':window.CSRF_TOKEN}; var dados={operators:{start:{top:40,left:20,properties:{type:'start',title:'Início',inputs:{},outputs:{output_1:{label:'Próximo'}}}}},links:[]}; var c1=await fetch('api.php?action=salvar_fluxo',{method:'POST',credentials:'include',headers:h,body:JSON.stringify({nome:'Base do teste de importação',modo:'avancado',dados_fluxograma:dados})}); var id=(await c1.json()).fluxo.id; var r = await fetch('api.php?action=exportar_fluxo&id='+id,{credentials:'include'}); var j=await r.json(); return JSON.stringify(j.fluxo); })()`);
     await c.avaliar(`(function(){ var dt = new DataTransfer(); dt.items.add(new File([${JSON.stringify(arq)}], 'fluxo_235.json', {type:'application/json'})); var inp = document.getElementById('arquivo-importar-fluxo-lista'); inp.files = dt.files; inp.dispatchEvent(new Event('change', {bubbles:true})); return 1; })()`);
-    await c.esperar(`jQuery('#lista-fluxos .cartao-fluxo').length===${n0 + 2}`, 15000);
-    const n1 = await c.avaliar(`jQuery('#lista-fluxos .cartao-fluxo').length`);
+    await c.esperar(`jQuery('#lista-fluxos .js-fluxo-card').length===${n0 + 2}`, 15000);
+    const n1 = await c.avaliar(`jQuery('#lista-fluxos .js-fluxo-card').length`);
     ok('importar pelo botão: novo cartão aparece e o contador sobe', n1 === n0 + 2 && (await c.avaliar(`jQuery('#btn-abrir-escolha-modo').text()`)).indexOf('(' + n1 + '/50)') !== -1, { n0, n1 });
     ok('toast "Fluxo importado com sucesso."', /importado/i.test(await c.avaliar(`jQuery('#toast').text()`) || ''), {});
     await c.captura(SH + 'ui_fluxos.png');

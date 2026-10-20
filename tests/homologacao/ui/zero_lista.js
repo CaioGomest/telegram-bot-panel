@@ -16,16 +16,16 @@ const q = (s) => 'jQuery(' + JSON.stringify(s) + ')';
         // ---------- escolha do modo
         t.ok('modal de escolha fechado ao abrir a página', !(await t.js(`jQuery('#modal-escolha-modo').hasClass('aberto')`)), {});
         await t.clicar(q('#btn-abrir-escolha-modo'));
-        t.ok('"+ Novo Fluxo" abre "Como deseja criar?" com as 2 opções (Editor Visual e Guiado)', (await t.js(`jQuery('#modal-escolha-modo').hasClass('aberto')`)) && (await t.js(`jQuery('#modal-escolha-modo .cartao-escolha-modo').length`)) === 2, {});
+        t.ok('"+ Novo Fluxo" abre "Como deseja criar?" com as 2 opções (Editor Visual e Guiado)', (await t.js(`jQuery('#modal-escolha-modo').hasClass('aberto')`)) && (await t.js(`jQuery('#modal-escolha-modo .a-opt').length`)) === 2, {});
         await t.clicar(q('#btn-fechar-escolha-modo'));
         t.ok('o ✕ fecha o modal', !(await t.js(`jQuery('#modal-escolha-modo').hasClass('aberto')`)), {});
         await t.clicar(q('#btn-abrir-escolha-modo'));
-        await t.clicar(q('#modal-escolha-modo .cartao-escolha-modo[href="fluxo_basico"]'));
+        await t.clicar(q('#modal-escolha-modo .a-opt[href="fluxo_basico"]'));
         t.ok('escolher "Guiado" abre o editor guiado de um fluxo novo', await c.esperar(`location.pathname.indexOf('fluxo_basico')>=0 && !location.search && jQuery('#titulo-fluxo').text()==='Novo fluxo'`, 15000), { url: await t.js('location.href') });
         await c.ir(t.BASE + '/fluxos');
         await c.esperar(`jQuery('#btn-abrir-escolha-modo').length>0 && !/Carregando fluxos/.test(jQuery('#lista-fluxos').text())`, 20000); await t.esp(600);
         await t.clicar(q('#btn-abrir-escolha-modo'));
-        await t.clicar(q('#modal-escolha-modo .cartao-escolha-modo[href="fluxo"]'));
+        await t.clicar(q('#modal-escolha-modo .a-opt[href="fluxo"]'));
         t.ok('escolher "Editor Visual" abre o canvas com só o bloco Início', await c.esperar(`location.pathname.indexOf('/fluxo')>=0 && location.pathname.indexOf('fluxo_basico')<0 && jQuery('#area-trabalho-fluxograma .flowchart-operator').length===1`, 20000), { url: await t.js('location.href') });
 
         // ---------- a lista mostra os fluxos criados e leva ao editor certo

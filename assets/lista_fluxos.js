@@ -98,12 +98,12 @@
 
     function carregarFluxos() {
         const $list = $('#lista-fluxos');
-        $list.html('<div class="estado-vazio">Carregando...</div>');
+        $list.html('<div class="a-empty s-todos">Carregando...</div>');
 
         $.getJSON(url_api + '?action=listar_fluxos')
             .done(function (response) {
                 if (!response.sucesso) {
-                    $list.html(`<div class="estado-vazio erro">${escaparHtml(response.mensagem || 'Erro ao carregar fluxos.')}</div>`);
+                    $list.html(`<div class="a-empty er s-todos">${escaparHtml(response.mensagem || 'Erro ao carregar fluxos.')}</div>`);
                     return;
                 }
 
@@ -113,7 +113,7 @@
                 $list.empty();
 
                 if (!fluxos.length) {
-                    $list.html('<div class="estado-vazio">Nenhum fluxo encontrado. Crie um novo!</div>');
+                    $list.html('<div class="a-empty s-todos">Nenhum fluxo encontrado. Crie um novo!</div>');
                     return;
                 }
 
@@ -121,27 +121,29 @@
                     const eh_basico = flow.modo === 'basico';
                     const pagina_editar = eh_basico ? 'fluxo_basico' : 'fluxo';
                     const rotulo_modo = eh_basico ? 'Guiado' : 'Editor Visual';
+                    const nome = flow.nome || 'Sem nome';
                     $list.append(`
-                        <div class="cartao-bot-item cartao-fluxo">
-                            <div class="miniatura-fluxo">${eh_basico ? icone_modo.basico : icone_modo.visual}</div>
-                            <div class="cartao-cabecalho">
-                                <h3>${escaparHtml(flow.nome || 'Sem nome')}</h3>
-                                <span class="badge-modo-fluxo${eh_basico ? ' basico' : ' visual'}">${eh_basico ? icone_modo.basico : icone_modo.visual}${rotulo_modo}</span>
+                        <article class="a-card a-fx js-fluxo-card" data-fluxo-id="${escaparHtml(flow.id)}">
+                            <div class="a-fx-top">
+                                <span class="a-fx-ic">${eh_basico ? icone_modo.basico : icone_modo.visual}</span>
+                                <span class="a-bd ${eh_basico ? 'or' : 'vi'}">${rotulo_modo}</span>
                             </div>
-                            <div class="cartao-corpo">
-                                <p>${escaparHtml(flow.descricao || 'Sem descrição')}</p>
-                                <p class="texto-suave mono">Atualizado: ${escaparHtml(formatarDataFluxo(flow.atualizado_em))}</p>
+                            <h3>${escaparHtml(nome)}</h3>
+                            <p>${escaparHtml(flow.descricao || 'Sem descrição')}</p>
+                            <span class="when">Atualizado: ${escaparHtml(formatarDataFluxo(flow.atualizado_em))}</span>
+                            <div class="a-fx-foot">
+                                <span></span>
+                                <div class="a-acts">
+                                    <a href="${pagina_editar}?id=${encodeURIComponent(flow.id)}" class="a-ib" title="Editar fluxo" aria-label="Editar o fluxo ${escaparHtml(nome)}">${icons.edit}</a>
+                                    <button type="button" class="a-ib btn-excluir-fluxo" data-id="${escaparHtml(flow.id)}" title="Excluir" aria-label="Excluir o fluxo ${escaparHtml(nome)}">${icons.trash}</button>
+                                </div>
                             </div>
-                            <div class="cartao-acoes">
-                                <a href="${pagina_editar}?id=${encodeURIComponent(flow.id)}" class="btn-icon editar" title="Editar fluxo" aria-label="Editar fluxo">${icons.edit}</a>
-                                <button type="button" class="btn-icon excluir btn-excluir-fluxo" data-id="${escaparHtml(flow.id)}" title="Excluir">${icons.trash}</button>
-                            </div>
-                        </div>
+                        </article>
                     `);
                 });
             })
             .fail(function () {
-                $list.html('<div class="estado-vazio erro">Não foi possível carregar os fluxos.</div>');
+                $list.html('<div class="a-empty er s-todos">Não foi possível carregar os fluxos.</div>');
             });
     }
 
@@ -184,13 +186,23 @@
             $(this).val('');
         });
 
-        $('#btn-abrir-escolha-modo').on('click', function () {
-            $('#modal-escolha-modo').addClass('aberto');
+        // Modal "Como deseja criar?": abre pelo botão, fecha pelo ✕, clicando fora ou com Esc (o foco volta ao botão que abriu).
+        const $modal_modo = $('#modal-escolha-modo');
+        function abrirEscolhaModo() {
+            $modal_modo.addClass('aberto');
+            $('#btn-fechar-escolha-modo').trigger('focus');
+        }
+        function fecharEscolhaModo() {
+            $modal_modo.removeClass('aberto');
+            $('#btn-abrir-escolha-modo').trigger('focus');
+        }
+        $('#btn-abrir-escolha-modo').on('click', abrirEscolhaModo);
+        $('#btn-fechar-escolha-modo').on('click', fecharEscolhaModo);
+        $modal_modo.on('click', function (e) {
+            if (e.target === this) fecharEscolhaModo();
         });
-        $('#btn-fechar-escolha-modo, #modal-escolha-modo').on('click', function (e) {
-            if (e.target === this) {
-                $('#modal-escolha-modo').removeClass('aberto');
-            }
+        $(document).on('keydown', function (e) {
+            if (e.key === 'Escape' && $modal_modo.hasClass('aberto')) fecharEscolhaModo();
         });
     });
 
