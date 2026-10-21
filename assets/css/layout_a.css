@@ -123,6 +123,8 @@ html.layout-a .a-ph { display: flex; align-items: flex-end; justify-content: spa
 html.layout-a .a-h1 { margin: 0; font: 700 clamp(36px, 5vw, 54px)/.95 var(--f-t); text-transform: uppercase; letter-spacing: .01em; }
 html.layout-a .a-sub { margin: 8px 0 0; color: var(--m); max-width: 64ch; }
 html.layout-a .a-acts { display: flex; gap: 10px; flex-wrap: wrap; margin-left: auto; justify-content: flex-end; }
+/* celular estreito: as ações do cabeçalho (ex.: Importar Fluxo + Novo Fluxo) ficam uma embaixo da outra, as duas à direita, sem esticar a linha toda */
+@media (max-width: 440px) { html.layout-a .a-ph .a-acts { flex-direction: column; align-items: flex-end; } }
 html.layout-a .a-card { background: var(--p); border: 1px solid var(--bd); border-radius: 22px; padding: 22px; box-shadow: var(--sh); min-width: 0; }
 html.layout-a .a-card.flat { box-shadow: none; }
 html.layout-a .a-ch { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }

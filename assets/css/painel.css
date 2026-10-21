@@ -1142,7 +1142,7 @@ html[data-theme] .barra-filtros select {
 .status-bot.desligado { background: var(--dasoft); color: var(--da); }
 .ponto-status { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .status-bot.ligado .ponto-status { animation: pulseDot 1.8s infinite; }
-.lista-ferramentas { display: flex; flex-direction: column; gap: 8px; }
+.lista-ferramentas { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 
 .barra-preview-bot {
     display: flex;
@@ -1196,7 +1196,7 @@ html[data-theme] .barra-filtros select {
 .linha-foto-perfil-bot { display: flex; align-items: center; gap: 14px; }
 .linha-foto-perfil-bot .avatar-preview-bot,
 .linha-foto-perfil-bot .avatar-preview-bot-placeholder { width: 56px; height: 56px; border-radius: 16px; font-size: 22px; }
-.lista-ferramentas .botao { justify-content: flex-start; text-align: left; }
+.lista-ferramentas .botao { justify-content: center; text-align: center; }
 
 /* ===== Minha conta / alertas ===== */
 .aviso {
