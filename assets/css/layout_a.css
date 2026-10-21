@@ -625,6 +625,9 @@ html.layout-a .icone-gateway-padrao { background: linear-gradient(135deg, #4b556
 @media (max-width: 640px) { html.layout-a #resumo-vendas > .s3:last-child { grid-column: span 2; } }
 /* cartão de gateway: engrenagem e chave de ligar na mesma linha de centro (a chave ficava mais para cima) */
 html.layout-a .acoes-cartao-gateway { align-items: center; }
+/* cabeçalho de bloco com título + botão (Links de rastreamento, Webhooks...): quebra de linha em vez de espremer o botão, que fica à direita numa linha só */
+html.layout-a .painel-cabecalho { flex-wrap: wrap; row-gap: 12px; }
+html.layout-a .painel-cabecalho > .botao { flex: none; margin-left: auto; white-space: nowrap; }
 html.layout-a .secao-desativada .campos-plataforma { opacity: 1; }
 html.layout-a .secao-desativada .campos-plataforma input, html.layout-a .secao-desativada .campos-plataforma select, html.layout-a .secao-desativada .campos-plataforma .botao { opacity: .6; }
 
