@@ -2297,6 +2297,7 @@ a.comunidade-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ors
 .editor-fluxo-topo-dir { margin-left: auto; justify-content: flex-end; }
 /* Fluxo Guiado: os botões de adicionar (plano, mídia, pack) ficam à direita, como os de criar e salvar */
 #btn-adicionar-plano, #pv-adicionar, #pk-adicionar { display: flex; width: fit-content; margin-left: auto; }
+.pk-midia { display: flex; width: fit-content; margin-left: auto; }
 .editor-fluxo-voltar {
     display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border: 1px solid var(--bd);
     border-radius: 12px; background: var(--p); font: 700 13px 'Manrope', sans-serif; color: var(--t);
