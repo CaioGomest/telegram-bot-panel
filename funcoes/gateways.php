@@ -306,8 +306,11 @@ function validarPrecosFluxoGuiado(array $dados, float $minimo): ?string {
             }
         }
     }
+    $derivados = [];
     foreach (['upsell' => 'Upsell', 'downsell' => 'Downsell'] as $tipo => $rotulo) {
         $oferta = $dados['ofertas'][$tipo] ?? [];
+        $pior = null;
+        $desc_pior = 0.0;
         // Downsell novo: vários planos (planos_oferecidos); Upsell e Downsell antigo: um (id_plano_destino).
         $ids_destino = ($tipo === 'downsell' && is_array($oferta['planos_oferecidos'] ?? null)) ? $oferta['planos_oferecidos'] : [$oferta['id_plano_destino'] ?? ''];
         foreach ($ids_destino as $id_destino) {
@@ -317,13 +320,21 @@ function validarPrecosFluxoGuiado(array $dados, float $minimo): ?string {
                 $final = round((float)($destino['valor'] ?? 0) * (1 - $desconto / 100), 2);
                 if ($final > 0 && $final < $minimo) {
                     $problemas[] = 'o ' . $rotulo . ' (plano "' . trim((string)($destino['nome'] ?? '')) . '" com ' . rtrim(rtrim(number_format($desconto, 2, ',', ''), '0'), ',') . '% sai por ' . $reais($final) . ')';
+                    // Só o desconto é o culpado (o plano sozinho passa): é o único caso em que os valores digitados parecem certos e a frase curta confunde.
+                    if ($desconto > 0 && (float)($destino['valor'] ?? 0) >= $minimo && ($pior === null || $final < $pior)) {
+                        $pior = $final;
+                        $desc_pior = $desconto;
+                    }
                 }
             }
+        }
+        if ($pior !== null) {
+            $derivados[] = 'O ' . $rotulo . ', com ' . rtrim(rtrim(number_format($desc_pior, 2, ',', ''), '0'), ',') . '% de desconto, sai por ' . $reais($pior) . '.';
         }
     }
     if (!$problemas) {
         return null;
     }
-    // Só o valor: o dono do fluxo não precisa saber da comissão da plataforma nem da lista do que está abaixo.
-    return 'Para a Omega, o valor mínimo é ' . $reais($minimo) . '.';
+    // Só o valor (sem a comissão da plataforma nem a lista do que está abaixo); a frase extra só aparece quando o culpado é o desconto de uma oferta.
+    return 'Para a Omega, o valor mínimo é ' . $reais($minimo) . '.' . ($derivados ? ' ' . implode(' ', $derivados) : '');
 }

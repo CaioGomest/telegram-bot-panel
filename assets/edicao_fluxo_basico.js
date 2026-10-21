@@ -48,6 +48,7 @@
         if (!(preco_minimo > 0)) return '';
         const reais = function (v) { return 'R$ ' + (Number(v) || 0).toFixed(2).replace('.', ','); };
         const problemas = [];
+        const derivados = [];
         d.planos.forEach(function (p) { if (p.valor > 0 && p.valor < preco_minimo) problemas.push('o plano "' + (p.nome || 'sem nome') + '" (' + reais(p.valor) + ')'); });
         if (d.packs.ativo) d.packs.itens.forEach(function (k) { if (k.ativo !== false && k.preco > 0 && k.preco < preco_minimo) problemas.push('o pack "' + (k.nome || 'sem nome') + '" (' + reais(k.preco) + ')'); });
         ['upsell', 'downsell'].forEach(function (tipo) {
@@ -57,12 +58,22 @@
                 const destino = d.planos.filter(function (p) { return String(p.id) === String(id); })[0];
                 if (o.ativo && destino) {
                     const final = Math.round(destino.valor * (1 - (o.desconto_percentual || 0) / 100) * 100) / 100;
-                    if (final > 0 && final < preco_minimo) problemas.push('o ' + (tipo === 'upsell' ? 'Upsell' : 'Downsell') + ' (' + reais(final) + ' após o desconto)');
+                    if (final > 0 && final < preco_minimo) {
+                        problemas.push('o ' + (tipo === 'upsell' ? 'Upsell' : 'Downsell') + ' (' + reais(final) + ' após o desconto)');
+                        // Só o desconto é o culpado (o plano sozinho passa): aí a frase curta confunde, então diz qual oferta e quanto ela sai.
+                        if ((o.desconto_percentual || 0) > 0 && destino.valor >= preco_minimo) {
+                            const rotulo = tipo === 'upsell' ? 'Upsell' : 'Downsell';
+                            const atual = derivados.filter(function (x) { return x.rotulo === rotulo; })[0];
+                            if (!atual) derivados.push({ rotulo: rotulo, desconto: o.desconto_percentual, final: final });
+                            else if (final < atual.final) { atual.final = final; }
+                        }
+                    }
                 }
             });
         });
-        // Só o valor: sem comissão da plataforma e sem a lista do que está abaixo.
-        return problemas.length ? 'Para a Omega, o valor mínimo é ' + reais(preco_minimo) + '.' : '';
+        // Só o valor (sem comissão da plataforma nem a lista do que está abaixo); a frase extra só aparece quando o culpado é o desconto de uma oferta.
+        const extra = derivados.map(function (x) { return ' O ' + x.rotulo + ', com ' + String(x.desconto).replace('.', ',') + '% de desconto, sai por ' + reais(x.final) + '.'; }).join('');
+        return problemas.length ? 'Para a Omega, o valor mínimo é ' + reais(preco_minimo) + '.' + extra : '';
     }
 
     function carregarGruposUsuario() {

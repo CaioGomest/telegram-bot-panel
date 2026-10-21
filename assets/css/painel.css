@@ -2291,6 +2291,8 @@ a.comunidade-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ors
     padding: 10px 20px; border-bottom: 1px solid var(--bd); background: var(--bg);
 }
 .editor-fluxo-topo-esq, .editor-fluxo-topo-dir { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-width: 0; }
+/* Salvar e as ações do topo ficam sempre à direita, também quando quebram de linha no celular */
+.editor-fluxo-topo-dir { margin-left: auto; justify-content: flex-end; }
 .editor-fluxo-voltar {
     display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border: 1px solid var(--bd);
     border-radius: 12px; background: var(--p); font: 700 13px 'Manrope', sans-serif; color: var(--t);

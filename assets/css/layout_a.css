@@ -621,6 +621,10 @@ html.layout-a .status-gateway.pendente { color: var(--wat); }
 html.layout-a .icone-gateway-omegapayments { background: linear-gradient(135deg, #7c3aed, #4c1d95); }
 html.layout-a .icone-gateway-padrao { background: linear-gradient(135deg, #4b5563, #1f2937); }
 /* traqueamento: campos da plataforma desligada ficavam a 50% de opacidade (rótulos quase invisíveis) */
+/* resumo de Vendas no celular: o 1º cartão já ocupa a linha toda; o último também, senão sobrava um buraco ao lado dele */
+@media (max-width: 640px) { html.layout-a #resumo-vendas > .s3:last-child { grid-column: span 2; } }
+/* cartão de gateway: engrenagem e chave de ligar na mesma linha de centro (a chave ficava mais para cima) */
+html.layout-a .acoes-cartao-gateway { align-items: center; }
 html.layout-a .secao-desativada .campos-plataforma { opacity: 1; }
 html.layout-a .secao-desativada .campos-plataforma input, html.layout-a .secao-desativada .campos-plataforma select, html.layout-a .secao-desativada .campos-plataforma .botao { opacity: .6; }
 
