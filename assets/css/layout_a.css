@@ -628,6 +628,33 @@ html.layout-a .acoes-cartao-gateway { align-items: center; }
 /* cabeçalho de bloco com título + botão (Links de rastreamento, Webhooks...): quebra de linha em vez de espremer o botão, que fica à direita numa linha só */
 html.layout-a .painel-cabecalho { flex-wrap: wrap; row-gap: 12px; }
 html.layout-a .painel-cabecalho > .botao { flex: none; margin-left: auto; white-space: nowrap; }
+/* filtros do Remarketing quando a tela não comporta a linha única (até 1180px): 2 selects lado a lado, os 5 status numa barra segmentada sem rolagem e "por página" à direita.
+   Os estilos em linha do PHP (flex solto) ficam para a casca antiga, por isso o !important só onde eles mandam; o [data-theme] vence o width:auto/min-width:150px do painel.css. */
+@media (max-width: 1180px) {
+    html.layout-a .rm-filtros { display: grid !important; grid-template-columns: minmax(0, 1fr) auto; gap: 10px !important; align-items: start !important; justify-content: stretch !important; }
+    html.layout-a .rm-filtros-esq { display: grid !important; grid-template-columns: repeat(2, minmax(0, 280px)); gap: 10px !important; align-items: stretch !important; }
+    html.layout-a .rm-filtros-esq > form { min-width: 0; }
+    html.layout-a[data-theme] .rm-filtros select { width: 100%; min-width: 0; min-height: 44px; }
+    html.layout-a .rm-filtros .seletor-periodo { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; overflow: visible; max-width: 620px; }
+    html.layout-a .rm-filtros .periodo-item { display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 44px; padding: 0 6px; text-align: center; }
+    html.layout-a .rm-filtros #form-filtro-limite { justify-self: end; width: 190px; }
+}
+/* celular: tudo em uma coluna; selects em duas colunas iguais; 5 status não cabem lado a lado, ficam 3 em cima e 2 embaixo, sem sobrar buraco */
+@media (max-width: 640px) {
+    html.layout-a .rm-filtros { grid-template-columns: minmax(0, 1fr); }
+    html.layout-a .rm-filtros-esq { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    html.layout-a .rm-filtros .seletor-periodo { grid-template-columns: repeat(6, minmax(0, 1fr)); max-width: none; }
+    html.layout-a .rm-filtros .periodo-item { grid-column: span 2; }
+    html.layout-a .rm-filtros .periodo-item:nth-child(n+4) { grid-column: span 3; }
+    html.layout-a .rm-filtros #form-filtro-limite { justify-self: end; width: calc(50% - 5px); }
+}
+/* celular estreito: o texto do select ("Todas as audiências") não cabia e saía cortado; fonte e margem menores, e em 380px ou menos os dois selects ocupam uma linha cada */
+@media (max-width: 430px) {
+    html.layout-a[data-theme] .rm-filtros select { font-size: 11.5px; padding: 0 8px 0 10px; }
+}
+@media (max-width: 380px) {
+    html.layout-a .rm-filtros-esq { grid-template-columns: minmax(0, 1fr); }
+}
 html.layout-a .secao-desativada .campos-plataforma { opacity: 1; }
 html.layout-a .secao-desativada .campos-plataforma input, html.layout-a .secao-desativada .campos-plataforma select, html.layout-a .secao-desativada .campos-plataforma .botao { opacity: .6; }
 

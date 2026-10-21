@@ -187,8 +187,8 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
                     return 'remarketing?' . http_build_query($params);
                 }
             ?>
-            <div class="barra-filtros" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;">
-                <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+            <div class="barra-filtros rm-filtros" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;">
+                <div class="rm-filtros-esq" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
                     <form method="GET" id="form-filtro-bot">
                         <input type="hidden" name="audiencia" value="<?php echo htmlspecialchars($f_aud); ?>">
                         <input type="hidden" name="status" value="<?php echo htmlspecialchars($f_status); ?>">
