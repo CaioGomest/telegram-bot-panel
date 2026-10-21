@@ -42,7 +42,7 @@ html.layout-a[data-theme="light"] {
 }
 
 /* ---------- base ---------- */
-html.layout-a body { background: var(--bg); color: var(--t); font: 500 14px/1.5 var(--f-b); -webkit-font-smoothing: antialiased; }
+html.layout-a[data-theme] body { background: var(--bg); color: var(--t); font: 500 14px/1.5 var(--f-b); -webkit-font-smoothing: antialiased; }
 html.layout-a .layout-painel { display: block; min-height: 100vh; background: var(--bg); overflow-x: clip; }
 html.layout-a :focus-visible { outline: 2px solid var(--or); outline-offset: 2px; }
 html.layout-a .ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
@@ -332,10 +332,14 @@ html.layout-a .a-bot-nums { display: grid; grid-template-columns: 1fr 1fr; borde
 html.layout-a .a-bot-nums div { display: grid; gap: 2px; padding: 12px 14px; }
 html.layout-a .a-bot-nums div + div { border-left: 1px solid var(--bd); }
 html.layout-a .a-bot-nums b { font: 700 32px/1 var(--f-t); }
-html.layout-a .a-bot-flow { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 10px 14px; border-radius: 14px; background: var(--p2); font-weight: 700; font-size: 13px; }
-html.layout-a .a-bot-flow svg { width: 18px; height: 18px; flex: none; }
-html.layout-a .a-bot-flow span { min-width: 0; overflow-wrap: anywhere; }
+html.layout-a .a-bot-flow { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 10px 14px; border-radius: 14px; background: var(--p2); font-weight: 700; font-size: 13.5px; }
+html.layout-a .a-bot-flow svg { width: 20px; height: 20px; flex: none; color: var(--ort); }
+html.layout-a .a-bot-flow.vazio svg { color: inherit; }
+html.layout-a .a-bot-flow > div { display: grid; gap: 2px; min-width: 0; line-height: 1.25; }
+html.layout-a .a-bot-flow .lab { font: 600 10.5px var(--f-m); letter-spacing: .12em; text-transform: uppercase; color: var(--m); }
+html.layout-a .a-bot-flow strong { min-width: 0; overflow-wrap: anywhere; font-weight: 800; }
 html.layout-a .a-bot-flow.vazio { background: var(--was); color: var(--wat); }
+html.layout-a .a-bot-flow.vazio .lab { color: inherit; }
 html.layout-a .a-bot-acts { display: flex; gap: 10px; justify-content: flex-end; margin-top: auto; }
 html.layout-a .a-ib svg { width: 20px; height: 20px; flex: none; }
 html.layout-a .a-new { display: grid; place-items: center; align-content: center; gap: 12px; min-height: 300px; padding: 22px; border: 2px dashed var(--bd2); border-radius: 22px; background: transparent; color: var(--m); text-align: center; font-weight: 800; text-decoration: none; }
@@ -619,3 +623,23 @@ html.layout-a .icone-gateway-padrao { background: linear-gradient(135deg, #4b556
 /* traqueamento: campos da plataforma desligada ficavam a 50% de opacidade (rótulos quase invisíveis) */
 html.layout-a .secao-desativada .campos-plataforma { opacity: 1; }
 html.layout-a .secao-desativada .campos-plataforma input, html.layout-a .secao-desativada .campos-plataforma select, html.layout-a .secao-desativada .campos-plataforma .botao { opacity: .6; }
+
+/* respiro (20/10/2026) */
+html.layout-a .a-card .a-lab + .a-rank { margin-top: 8px; }
+html.layout-a .a-passe .cima + .baixo { margin-top: 8px; }
+
+/* Sino aberto: o cabeçalho sobe acima do fundo desfocado (para o sino ficar clicável), então o resto dele (saudação, faturamento, outros botões) é desfocado aqui, igual à página (20/10/2026) */
+html.layout-a.sino-aberto .a-top > *:not(.a-acts-top),
+html.layout-a.sino-aberto .a-mtop > *:not(.a-acts-top),
+html.layout-a.sino-aberto .a-acts-top > *:not(.sino-notificacoes-wrap) { filter: blur(6px); opacity: .7; pointer-events: none; transition: filter .15s, opacity .15s; }
+
+/* ===== Alinhamento ao Modelo A (validação 20/10/2026) =====
+   Campos .a-in: o painel.css tem `html[data-theme] input[type=...]` (mais específico que `html.layout-a .a-in`) e deixava os campos de texto com 12,5 px, raio 10 e borda fraca. Aqui voltam ao do modelo. */
+html.layout-a[data-theme] :is(input, select, textarea).a-in { width: 100%; min-height: 48px; padding: 0 14px; border-radius: 14px; border: 1px solid var(--bd2); background-color: var(--p2); color: var(--t); font: 600 14px var(--f-b); }
+html.layout-a[data-theme] select.a-in { padding-right: 36px; }
+html.layout-a[data-theme] textarea.a-in { padding: 12px 14px; min-height: 96px; line-height: 1.5; }
+html.layout-a[data-theme] :is(input, select, textarea).a-in:focus { border-color: var(--or); }
+html.layout-a[data-theme] .a-search .a-in { padding-left: 44px; }
+html.layout-a .a-prem .tg { color: var(--m); }
+html.layout-a .a-prem .tg.um { color: var(--ort); }
+html.layout-a .a-prem p.a-mut { margin-bottom: 0; }

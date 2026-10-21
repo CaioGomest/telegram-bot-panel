@@ -35,7 +35,7 @@
     const icones_config = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>';
     const icone_robo ='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8M6 8h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2zM2 14h2M20 14h2M15 13v2M9 13v2"></path></svg>';
     const icone_servidor = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"></rect><rect x="3" y="13" width="18" height="7" rx="2"></rect></svg>';
-    const icone_terminal = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l5 4-5 4M13 17h6"></path></svg>';
+    const icone_fluxo = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h6v6H3zM15 15h6v6h-6zM6 9v3a3 3 0 0 0 3 3h6"></path></svg>';
     const icone_mais = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"></path></svg>';
 
     let limite_bots = 50;
@@ -98,7 +98,7 @@
                                 <div><span class="a-lab">Leads 8d</span><b>${leads_7d}</b></div>
                                 <div><span class="a-lab">Vendas 8d</span><b>${vendas_7d}</b></div>
                             </div>
-                            <div class="a-bot-flow${tem_fluxo ? '' : ' vazio'}">${icone_terminal}<span>${escaparHtml(tem_fluxo ? nome_fluxo : 'Sem fluxo conectado')}</span></div>
+                            <div class="a-bot-flow${tem_fluxo ? '' : ' vazio'}" title="Fluxo de conversa conectado a este bot">${icone_fluxo}<div><span class="lab">Fluxo</span><strong>${escaparHtml(tem_fluxo ? nome_fluxo : 'Nenhum fluxo conectado')}</strong></div></div>
                             <div class="a-bot-acts">
                                 <a href="bot?id=${encodeURIComponent(bot.id)}" class="a-ib" title="Configurar bot" aria-label="Configurar o bot ${escaparHtml(nome)}">${icones_config}</a>
                                 <button type="button" class="a-ib btn-excluir-bot" data-id="${escaparHtml(bot.id)}" title="Excluir" aria-label="Excluir o bot ${escaparHtml(nome)}">${icons.trash}</button>
