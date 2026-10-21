@@ -55,6 +55,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'identid
         definirConfigSistema('nome_sistema', mb_substr($nome, 0, 60));
         definirConfigSistema('cor_primaria', strtolower($cor_primaria));
         definirConfigSistema('login_marca_animada', isset($_POST['login_marca_animada']) ? '1' : '0');
+        // Stories: só muda se o campo vier no envio (o bloco do formulário está comentado enquanto o recurso está desligado).
+        if (array_key_exists('stories_campo', $_POST)) {
+            definirConfigSistema('stories_ativos', isset($_POST['stories_ativos']) ? '1' : '0');
+        }
         if ($dominios_validos !== null) {
             definirConfigSistema('dominios_redirecionamento', implode("\n", $dominios_validos));
         }
@@ -325,6 +329,18 @@ if ($mensagem_dominios !== '') {
                                 </label>
                                 <small>No lugar da logo, a tela de entrada mostra o Coyote com efeitos de luz. Deixe desligado se esta instalação não for do Coyote.</small>
                             </div>
+
+                            <?php // STORIES DESATIVADOS (20/10/2026, decisão do dono). Para o recurso voltar: apague as duas linhas que cercam o bloco abaixo (a de abertura, que começa com <?php e barra-asterisco, e a de fechamento), marque a opção e clique em Salvar identidade. Desligado, a barra some do dashboard e a API de stories recusa. ?>
+                            <?php /*
+                            <div class="campo">
+                                <input type="hidden" name="stories_campo" value="1">
+                                <label class="opcao-ativar-gateway">
+                                    <input type="checkbox" name="stories_ativos" value="1" <?php echo storiesAtivos() ? 'checked' : ''; ?>>
+                                    <span>Stories no dashboard dos usuários</span>
+                                </label>
+                                <small>Mostra a barra de stories no topo do dashboard e deixa os usuários publicarem fotos e vídeos (somem em 24 h). Desligado, nada disso aparece.</small>
+                            </div>
+                            */ ?>
 
                             <div class="linha-acoes">
                                 <button type="submit" class="botao botao-primario">Salvar identidade</button>

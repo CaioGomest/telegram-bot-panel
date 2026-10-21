@@ -75,6 +75,16 @@ function marcaAnimadaLogin(): bool
     return configSistema('login_marca_animada') === '1';
 }
 
+/**
+ * Stories (barra no topo do dashboard). Ficam desligados por padrão: só aparecem para os usuários se o admin ativar (`stories_ativos` = 1).
+ * O bloco que liga/desliga está comentado em admin/configuracoes.php (aba Identidade); para o recurso voltar, descomente lá, marque e salve.
+ * Desligado, o dashboard não monta a barra nem carrega o JS e a API (listar/criar/ver/excluir story) recusa.
+ */
+function storiesAtivos(): bool
+{
+    return configSistema('stories_ativos') === '1';
+}
+
 /** HTML do palco animado (a página põe o CSS e o JS). $classe é só para o login dimensionar cada uso (coluna do desktop, cabeçalho do celular). */
 function htmlMarcaAnimada(string $nome, string $classe = ''): string
 {

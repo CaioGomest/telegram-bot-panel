@@ -575,7 +575,7 @@ $taxa_aprovacao_percentual = $pix_gerados > 0 ? ($pix_pagos / $pix_gerados) * 10
             </div>
         </header>
 
-        <?php include __DIR__ . '/parciais/barra_stories.php'; ?>
+        <?php if (storiesAtivos()) { include __DIR__ . '/parciais/barra_stories.php'; } ?>
 
         <form method="GET" class="a-per" id="form-periodo">
             <input type="hidden" name="periodo" value="<?php echo htmlspecialchars($periodo); ?>">
@@ -797,7 +797,7 @@ $taxa_aprovacao_percentual = $pix_gerados > 0 ? ($pix_pagos / $pix_gerados) * 10
 
 <script src="assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/tema.js'); ?>"></script>
 <script src="assets/js/paginacao.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/paginacao.js'); ?>"></script>
-<script src="assets/stories.js?v=<?php echo @filemtime(__DIR__ . '/assets/stories.js'); ?>"></script>
+<?php if (storiesAtivos()): ?><script src="assets/stories.js?v=<?php echo @filemtime(__DIR__ . '/assets/stories.js'); ?>"></script><?php endif; ?>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const filter_form = document.getElementById('form-periodo');

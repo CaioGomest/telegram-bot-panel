@@ -1407,11 +1407,17 @@ try {
             break;
 
         case 'listar_stories':
+            if (!storiesAtivos()) {
+                responder(true, ['grupos' => []]);
+            }
             require_once __DIR__ . '/funcoes/stories.php';
             responder(true, ['grupos' => listarBarraStories($usuario_id)]);
             break;
 
         case 'criar_story':
+            if (!storiesAtivos()) {
+                responder(false, ['mensagem' => 'Os stories estão desativados.'], 403);
+            }
             require_once __DIR__ . '/funcoes/stories.php';
             $validacao = validarUploadStory($_FILES['midia'] ?? []);
             if (!$validacao['sucesso']) {
@@ -1432,6 +1438,9 @@ try {
             break;
 
         case 'marcar_story_vista':
+            if (!storiesAtivos()) {
+                responder(true);
+            }
             require_once __DIR__ . '/funcoes/stories.php';
             $story_id = (int) ($entrada['story_id'] ?? 0);
             if ($story_id <= 0) {
@@ -1442,6 +1451,9 @@ try {
             break;
 
         case 'excluir_story':
+            if (!storiesAtivos()) {
+                responder(false, ['mensagem' => 'Os stories estão desativados.'], 403);
+            }
             require_once __DIR__ . '/funcoes/stories.php';
             $story_id = (int) ($entrada['id'] ?? 0);
             if ($story_id <= 0) {

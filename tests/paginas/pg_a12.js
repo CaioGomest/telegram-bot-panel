@@ -63,7 +63,22 @@ const { area, t, nota, salvar, esp } = require('./pg_t.js');
       return { ok: /\d+\s*\/\s*\d+/.test(tx) && quebradas === 0, det: `imagens quebradas=${quebradas}` };
     }, 'comunidade');
 
-    area('15. Stories (barra do dashboard)');
+    area('15. Stories (barra do dashboard) — desligados por padrão; só aparecem se o admin ativar (chave stories_ativos)');
+    // a chave é a mesma que o admin liga em admin/configuracoes (bloco comentado); aqui gravo direto no banco do servidor de teste
+    const ligarStories = (v) => remoto("php -r 'require \"funcoes/usuario.php\"; definirConfigSistema(\"stories_ativos\", \"" + v + "\");'");
+    ligarStories(0);
+    await c.ir(BASE + '/');
+    await t('desligados (padrão): o dashboard não mostra a barra nem o botão Criar nem carrega o JS', async () => {
+      const r = JSON.parse(await c.avaliar("JSON.stringify({barra: !!document.getElementById('barra-stories'), criar: !!document.getElementById('story-btn-criar'), js: [...document.scripts].some(function(x){return /stories[.]js/.test(x.src)})})"));
+      return { ok: !r.barra && !r.criar && !r.js, det: JSON.stringify(r) };
+    }, 'stories');
+    await t('desligados: a API devolve lista vazia e recusa criar e excluir (403)', async () => {
+      const l = await api('listar_stories', null, 'GET');
+      const cr = await api('criar_story', {});
+      const ex = await api('excluir_story', { id: 1 });
+      return { ok: l.http === 200 && l.j.sucesso && Array.isArray(l.j.grupos) && l.j.grupos.length === 0 && cr.http === 403 && ex.http === 403, det: l.http + '/' + cr.http + '/' + ex.http };
+    }, 'stories');
+    ligarStories(1);
     await c.ir(BASE + '/');
     await t('barra mostra o botão "Criar" e o story de outro usuário', async () => {
       const r = JSON.parse(await c.avaliar(`JSON.stringify({criar:/Criar/.test(document.querySelector('.barra-stories').innerText), itens:document.querySelectorAll('.barra-stories .story-item, .barra-stories [data-story], .barra-stories button, .barra-stories a').length})`));
@@ -113,6 +128,7 @@ const { area, t, nota, salvar, esp } = require('./pg_t.js');
       const dep = db(`SELECT COUNT(*) n FROM stories WHERE id=${global.__story}`)[0].n;
       return { ok: a.http === 404 && aindaExiste === 1 && b.j.sucesso && dep === 0, det: `alheio→${a.http}; próprio→${b.http}` };
     }, 'segurança');
+    ligarStories(0);
     salvar();
-  } finally { await c.fechar(); }
+  } finally { try { remoto("php -r 'require \"funcoes/usuario.php\"; definirConfigSistema(\"stories_ativos\", \"0\");'"); } catch (e) { /* já avisado acima */ } await c.fechar(); }
 })();
