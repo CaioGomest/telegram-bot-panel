@@ -2023,6 +2023,8 @@ html[data-theme="light"] .hero-ranking-moldura { opacity: .5; }
        separar o botão de tema (linha do título) do resto (linha de baixo). */
     .acoes-cabecalho { display: contents; }
     .acoes-cabecalho > *:not(.alternador-tema):not(.sino-notificacoes-wrap) { order: 3; }
+    /* o botão de criar do cabeçalho (+ Adicionar Usuário, + Nova campanha...) fica à direita, como os de salvar */
+    .acoes-cabecalho > .botao-primario { margin-left: auto; }
     .alternador-tema,
     .sino-notificacoes-wrap {
         order: 2;
@@ -2293,6 +2295,8 @@ a.comunidade-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ors
 .editor-fluxo-topo-esq, .editor-fluxo-topo-dir { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-width: 0; }
 /* Salvar e as ações do topo ficam sempre à direita, também quando quebram de linha no celular */
 .editor-fluxo-topo-dir { margin-left: auto; justify-content: flex-end; }
+/* Fluxo Guiado: os botões de adicionar (plano, mídia, pack) ficam à direita, como os de criar e salvar */
+#btn-adicionar-plano, #pv-adicionar, #pk-adicionar { display: flex; width: fit-content; margin-left: auto; }
 .editor-fluxo-voltar {
     display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border: 1px solid var(--bd);
     border-radius: 12px; background: var(--p); font: 700 13px 'Manrope', sans-serif; color: var(--t);

@@ -56,6 +56,8 @@ html[data-theme] .texto-hint-flow-meta { color: var(--m); }
 html[data-theme] .chevron-flow-meta { color: var(--m); }
 .chevron-flow-meta.aberto { transform: rotate(180deg); }
 .acoes-flow-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-left: auto; justify-content: flex-end; }
+/* Editor Visual: "+ Adicionar botão" e "+ Adicionar caminho" dos blocos ficam à direita, como os de criar e salvar */
+.btn-adicionar-botao, .btn-adicionar-caminho { display: flex; width: fit-content; margin-left: auto; }
 .acoes-flow-meta .botao svg { flex: none; display: block; }
 .secao-detalhes-fluxo:not([hidden]) {
     display: grid;
