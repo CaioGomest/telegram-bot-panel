@@ -322,6 +322,12 @@ Repositório: `telegram-bot-panel` (branch `new`). Situação de publicação de
 - **Onde está:** **na VPS desde 27/10/2026 (~17:10 do servidor)**: 3 arquivos, fusão de 3 vias (só as linhas do item 35 entraram; o resto do ar ficou como estava); backup em `/var/backups/painel/deploy-antes/upsell-cartao-do-plano-202610271710/`; `php -l` na VPS ok; `install -o root -g www-data -m 640` + `cmp` iguais; hashes do ar e do site iguais ao esperado (CSS `2d4dee00…`, JS `d4cb1480…`); `/login` 200, `/fluxo_basico` 302. Homologação e GitHub não (o commit `c794af2` é anterior aos itens 33 a 35). Celular (390 px): campos dentro da tela, sem rolagem lateral. Não conferido: a tela logada na VPS e o celular de verdade.
 - **Como voltar atrás:** copiar os 3 arquivos do backup acima para `/var/www/painel/` (`install -o root -g www-data -m 640`); volta o formulário solto do item 33.
 
+### 36. Cores: tirar o azul escuro e deixar preto (sem ficar tudo preto, mantendo os degraus), primeiro na barra lateral e no Dashboard — ⏳ feito só no PC (27/10), sem teste visual e sem publicar
+- **Pedido (palavras do dono, com print):** "vamos fazer a alteração de cores, agora tá um azul escuro, vamos deixar preto mesmo, mas se atente a não fazer tudo preto, até porque você pode ver que nem tudo é azul escuro, tem graus, tem que manter isso, faça primeiro na sidebar e na dash".
+- **O que foi feito:** os tokens do tema escuro tinham tom azulado (`--bg #08090c`, `--p #12151b`, `--p2 #181c24`, `--p3 #212733`). No fim de `assets/css/layout_a.css` há agora um bloco que, só na barra lateral (`.a-rail`) e no Dashboard (`body.pg-dash`, classe nova em `index.php` e `admin/dashboard.php`), troca por tons neutros com os mesmos degraus: `--bg #050505`, `--p #0e0e0f`, `--p2 #151516`, `--p3 #1f1f21`, texto secundário `#9a9aa0`. Outras páginas seguem como antes até o dono aprovar.
+- **Falta:** o dono ver na tela (não renderizei o Dashboard logado), ajustar o brilho dos degraus e depois estender às outras páginas (tokens também em `painel.css`).
+- **Como voltar atrás:** apagar o bloco do fim de `layout_a.css` e a classe `pg-dash` dos dois `<body>`.
+
 ---
 
 ## Próximos pedidos

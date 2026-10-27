@@ -7,14 +7,14 @@
 /* ===== Tokens ===== */
 html[data-theme="dark"] {
     color-scheme: dark;
-    --bg: #0a0b0e;
-    --p: #14161c;
-    --p2: #1b1f27;
-    --p3: #22262f;
+    --bg: #050505;
+    --p: #0e0e0f;
+    --p2: #151516;
+    --p3: #1f1f21;
     --bd: rgba(255, 255, 255, .09);
     --bd2: rgba(255, 255, 255, .16);
     --t: #f3f2f0;
-    --m: #8b9099;
+    --m: #9a9aa0;
     --or: #ff6a1a;
     --or2: #ff9147;
     --orsoft: rgba(255, 106, 26, .14);
@@ -581,7 +581,7 @@ html[data-theme] select:focus {
    com a cor clara do tema em cima de fundo claro — as opções somem e só resta a faixa
    azul do item marcado. Cor explícita na option, sem variável, porque o popup nativo
    não resolve var(). */
-html[data-theme="dark"] select option { background-color: #1b1f27; color: #f3f2f0; }
+html[data-theme="dark"] select option { background-color: #151516; color: #f3f2f0; }
 html[data-theme="light"] select option { background-color: #ffffff; color: #15171c; }
 html[data-theme] textarea { resize: vertical; min-height: 100px; }
 html[data-theme] small { display: block; margin-top: 5px; font-size: 11px; color: var(--m); }

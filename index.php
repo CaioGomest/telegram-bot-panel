@@ -563,7 +563,7 @@ $taxa_aprovacao_percentual = $pix_gerados > 0 ? ($pix_pagos / $pix_gerados) * 10
     <link rel="stylesheet" href="assets/css/painel.css?v=<?php echo @filemtime(__DIR__.'/assets/css/painel.css'); ?>">
     <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
 </head>
-<body>
+<body class="pg-dash">
 <div class="layout-painel">
     <?php include 'barra_lateral.php'; ?>
 

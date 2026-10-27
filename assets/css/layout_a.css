@@ -19,9 +19,9 @@ html.layout-a {
 }
 html.layout-a[data-theme="dark"] {
     --on-er: #2a0808;
-    --bg: #08090c; --p: #12151b; --p2: #181c24; --p3: #212733;
+    --bg: #050505; --p: #0e0e0f; --p2: #151516; --p3: #1f1f21;
     --bd: rgba(255, 255, 255, .08); --bd2: rgba(255, 255, 255, .15);
-    --t: #f3f4f6; --m: #8f97a5;
+    --t: #f3f4f6; --m: #9a9aa0;
     --ort: color-mix(in srgb, var(--or) 72%, #fff);
     --okt: #4be08e; --wat: #f7c85d; --ert: #ff8585;
     --ors: var(--orsoft);
@@ -790,4 +790,13 @@ html.layout-a .a-sair-ic:hover { border-color: var(--ert); }
 }
 @media (max-width: 900px) {
     html.layout-a .a-sheet-pe .a-sheet-usr { padding: 8px 8px 8px 12px; }
+}
+
+/* Tema escuro sem o tom azulado (item 36, 27/10/2026, pedido do dono): preto de verdade na barra lateral e no Dashboard, mantendo os degraus entre fundo, cartão e
+   campo (cada um um pouco mais claro que o anterior). As outras páginas seguem com os tokens de cima até o dono aprovar. */
+html.layout-a[data-theme="dark"] .a-rail,
+html.layout-a[data-theme="dark"] body.pg-dash {
+    --bg: #050505; --p: #0e0e0f; --p2: #151516; --p3: #1f1f21;
+    --bd: rgba(255, 255, 255, .08); --bd2: rgba(255, 255, 255, .15);
+    --m: #9a9aa0;
 }

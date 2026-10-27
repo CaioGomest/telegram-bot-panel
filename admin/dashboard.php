@@ -303,7 +303,7 @@ if ($periodo === 'personalizado') {
     <link rel="stylesheet" href="../assets/css/painel.css?v=<?php echo @filemtime(__DIR__.'/../assets/css/painel.css'); ?>">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body>
+<body class="pg-dash">
 <div class="layout-painel">
     <?php include __DIR__ . '/../barra_lateral.php'; ?>
 
