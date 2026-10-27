@@ -172,7 +172,7 @@ function diferencas(esp, lido, caminho = '', out = []) {
         t.ok('ligar o Upsell mostra os campos da oferta', await t.js(`jQuery('.painel[data-oferta="upsell"] .of-detalhes').is(':visible')`), {});
         await salvarEErro(/Escolha o plano oferecido no Upsell/, 'Upsell ligado sem plano: recusado');
         const optPlano = async (tipo, nomePlano) => t.escolher(oferta(tipo, '.of-plano'), await t.js(`jQuery('.painel[data-oferta="${tipo}"] .of-plano option').filter(function(){ return jQuery(this).text().indexOf(${JSON.stringify(nomePlano)}) === 0; }).val()`));
-        t.ok('a lista do Upsell traz os 3 planos criados (nome — preço)', (await t.js(`jQuery('.painel[data-oferta="upsell"] .of-plano option').length`)) === 5, { n: await t.js(`jQuery('.painel[data-oferta="upsell"] .of-plano option').length`) });
+        t.ok('a lista do Upsell traz "Escolha um plano", a opção de criar um plano só dele e os planos criados (nome — preço)', (await t.js(`jQuery('.painel[data-oferta="upsell"] .of-plano option').length`)) === 6, { n: await t.js(`jQuery('.painel[data-oferta="upsell"] .of-plano option').length`) });
         for (const tipo of ['upsell', 'downsell']) {
             const o = E[tipo];
             if (tipo === 'downsell') { await secao('downsell'); await t.marcar(oferta(tipo, '.of-ativo'), true); }

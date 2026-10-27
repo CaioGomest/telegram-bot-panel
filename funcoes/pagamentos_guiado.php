@@ -502,3 +502,30 @@ function pagamentoEnviarAprovacao(PDO $pdo, string $token, array $venda, ?string
         return false;
     }
 }
+
+/**
+ * Entrega por mensagem (tipo "Mensagem" do campo Entrega do Guiado, 27/10/2026): manda o texto que o dono escreveu, numa mensagem própria, logo depois do aviso de
+ * pagamento aprovado. O texto segue as regras dos textos da aba Pagamentos: só as tags permitidas, variáveis {nome}, {plano}, {valor} e {saudacao}, até 3000 caracteres.
+ * Vale para qualquer modelo de aprovação (antigo ou novo). Devolve true se mandou; nunca lança (uma falha aqui não pode atrapalhar a confirmação do pagamento).
+ */
+function pagamentoEnviarMensagemEntrega(PDO $pdo, string $token, array $venda): bool
+{
+    try {
+        $texto = trim((string) ($venda['mensagem_entrega'] ?? ''));
+        if ($texto === '') {
+            return false;
+        }
+        $st = $pdo->prepare('SELECT nome FROM leads WHERE id_telegram = ? AND bot_id = ? LIMIT 1');
+        $st->execute([$venda['id_telegram'], $venda['bot_id']]);
+        $plano = trim((string) ($venda['nome_produto'] ?? ''));
+        $html = pagamentoHtmlSeguro($texto, pagamentoVariaveis((string) ($st->fetchColumn() ?: ''), $plano !== '' ? $plano : 'Plano', (float) ($venda['valor'] ?? 0)));
+        if (trim($html) === '') {
+            return false;
+        }
+        $resposta = pagamentoEnviarTexto($token, $venda['id_telegram'], $html);
+        return (bool) ($resposta['ok'] ?? false);
+    } catch (\Throwable $e) {
+        error_log('[mensagem de entrega] ' . $e->getMessage());
+        return false;
+    }
+}

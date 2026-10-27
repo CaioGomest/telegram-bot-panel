@@ -42,6 +42,8 @@ $pdo->exec('CREATE TABLE bots (id INTEGER PRIMARY KEY, id_fluxo_conectado INTEGE
 // o Remarketing (funcoes/remarketing_ofertas.php) pergunta se a venda pertence a uma campanha com order bump próprio: precisa destas duas tabelas (vazias aqui)
 $pdo->exec('CREATE TABLE remarketing_campanhas (id INTEGER PRIMARY KEY, ofertas TEXT)');
 $pdo->exec('CREATE TABLE remarketing_vendas (id INTEGER PRIMARY KEY, venda_id INTEGER, campanha_id INTEGER)');
+// a mensagem de entrega troca {nome} pelo primeiro nome do lead
+$pdo->exec('CREATE TABLE leads (id_telegram TEXT, bot_id INTEGER, nome TEXT)');
 
 function fluxo(PDO $pdo, array $ofertas, array $extra = []): int
 {
@@ -156,6 +158,87 @@ confere('aceitar um upsell cujo plano de destino mudou: não gera Pix e avisa "n
 limpar();
 gerarPixOfertaPosBasico('TOKEN', '777', $dados, 'xx', '0');
 confere('tipo de oferta desconhecido: nada acontece', count($GLOBALS['pix_gerados']) === 0 && count(textos()) === 0);
+
+// ---------- Entrega por mensagem (item 34, 27/10/2026): o texto do plano/oferta vai numa mensagem própria, logo depois do aviso de pagamento aprovado ----------
+$f9 = fluxo($pdo, ['upsell' => $upsell, 'order_bump' => $bump]);
+$pdo->prepare('INSERT INTO leads (id_telegram, bot_id, nome) VALUES (?, ?, ?)')->execute(['777', $f9, 'Maria Souza']);
+limpar();
+ofertasPosPagamentoBasico($pdo, 'TOKEN', venda($f9, ['mensagem_entrega' => "Olá {nome}! Seu plano <b>{plano}</b> está liberado.
+<script>x</script>"]));
+$t = textos();
+confere('venda com mensagem de entrega: o cliente recebe a mensagem ANTES das ofertas (3 mensagens: entrega, upsell e order bump)', count($t) === 3 && str_contains($t[0], 'Olá Maria!') && str_contains($t[1], 'upgrade') && str_contains($t[2], 'extra'), json_encode($t, JSON_UNESCAPED_UNICODE));
+confere('a mensagem troca {nome} e {plano}, mantém <b> e escapa a tag perigosa', str_contains($t[0], '<b>Mensal</b>') && !str_contains($t[0], '<script>') && str_contains($t[0], '&lt;script&gt;'), $t[0] ?? '');
+$e0 = array_values($GLOBALS['enviados'])[0] ?? [];
+confere('a mensagem de entrega vai em HTML, para o chat do cliente', ($e0['parse_mode'] ?? '') === 'HTML' && (string) ($e0['chat_id'] ?? '') === '777', json_encode($e0, JSON_UNESCAPED_UNICODE));
+limpar();
+ofertasPosPagamentoBasico($pdo, 'TOKEN', venda($f9, ['nome_produto' => 'Upgrade: Vitalício', 'mensagem_entrega' => 'Seu upgrade chegou!']));
+confere('venda de Upgrade (Upsell) com mensagem: recebe a mensagem e NENHUMA oferta nova', textos() === ['Seu upgrade chegou!'], json_encode(textos(), JSON_UNESCAPED_UNICODE));
+limpar();
+ofertasPosPagamentoBasico($pdo, 'TOKEN', venda($f9, ['tipo_cobranca' => 'assinatura', 'mensagem_entrega' => 'Bem-vindo à assinatura!']));
+confere('1º pagamento de assinatura com mensagem: recebe a mensagem (e nenhuma oferta, como sempre)', textos() === ['Bem-vindo à assinatura!'], json_encode(textos(), JSON_UNESCAPED_UNICODE));
+limpar();
+ofertasPosPagamentoBasico($pdo, 'TOKEN', venda($f9, ['mensagem_entrega' => '   ']));
+confere('mensagem só com espaços: nada além das ofertas de sempre', count(textos()) === 2);
+limpar();
+ofertasPosPagamentoBasico($pdo, 'TOKEN', venda($f9, ['mensagem_entrega' => null]));
+confere('venda sem mensagem de entrega (coluna NULL): as ofertas de sempre', count(textos()) === 2);
+limpar();
+$ok_msg = pagamentoEnviarMensagemEntrega($pdo, 'TOKEN', venda($f9, ['mensagem_entrega' => str_repeat('a', 5000)]));
+confere('mensagem maior que o limite: é cortada em 3000 caracteres (nunca passa do limite do Telegram)', $ok_msg === true && mb_strlen(textos()[0] ?? '') <= 3000, (string) mb_strlen(textos()[0] ?? ''));
+limpar();
+confere('lead sem nome conhecido: {nome} vira "Cliente"', pagamentoEnviarMensagemEntrega($pdo, 'TOKEN', venda($f9, ['id_telegram' => '999', 'mensagem_entrega' => 'Oi {nome}']) ) === true && textos() === ['Oi Cliente'], json_encode(textos(), JSON_UNESCAPED_UNICODE));
+
+// ---------- Upsell com plano próprio (plano só do Upsell, que não está na lista de planos; item 33, 27/10/2026) ----------
+$proprio = ['ativo' => true, 'id_plano_destino' => 'up_exclusivo', 'desconto_percentual' => 50, 'mensagem' => '', 'texto_aceitar' => 'Quero!', 'texto_recusar' => 'Não',
+    'plano_proprio' => ['nome' => 'Pacote VIP', 'valor' => 49.9, 'dias_acesso' => 12, 'unidade_acesso' => 'horas'], 'entrega_tipo' => 'grupo', 'id_grupo' => '-100333'];
+$f6 = fluxo($pdo, ['upsell' => $proprio]);
+$dados6 = json_decode((string) $pdo->query("SELECT dados_fluxograma FROM fluxos WHERE id = $f6")->fetchColumn(), true);
+confere('o plano próprio não está em "planos" (não aparece em "Ver Planos")', localizarPlanoBasico($dados6['planos'], 'up_exclusivo') === null && count($dados6['planos']) === 3);
+limpar();
+ofertasPosPagamentoBasico($pdo, 'TOKEN', venda($f6));
+$t = textos();
+confere('plano próprio: o cliente que pagou o Mensal recebe a oferta de upgrade para "Pacote VIP" por R$ 49,90 (o desconto que sobrou no JSON é ignorado)', count($t) === 1 && str_contains($t[0], 'Pacote VIP') && str_contains($t[0], '49,90'), json_encode($t, JSON_UNESCAPED_UNICODE));
+confere('plano próprio: os botões carregam o id do plano próprio', botoes(0) === ['basico::pos::up::up_exclusivo::1', 'basico::pos::up::up_exclusivo::0'], json_encode(botoes(0)));
+limpar();
+ofertasPosPagamentoBasico($pdo, 'TOKEN', venda($f6, ['nome_produto' => 'Pacote VIP']));
+confere('plano próprio: quem JÁ pagou o "Pacote VIP" não recebe o upsell de novo', count(textos()) === 0);
+limpar();
+gerarPixOfertaPosBasico('TOKEN', '777', $dados6, 'up', 'up_exclusivo');
+$p = $GLOBALS['pix_gerados'][0] ?? [];
+confere('aceitar: Pix de R$ 49,90 "Upgrade: Pacote VIP", com o grupo do próprio Upsell e o prazo digitado (12 horas), pagamento único',
+    ($p['valor'] ?? 0) == 49.9 && ($p['nome'] ?? '') === 'Upgrade: Pacote VIP' && ($p['id_grupo'] ?? '') === '-100333' && ($p['link_entrega'] ?? 'x') === ''
+    && ($p['dias_acesso'] ?? 0) === 12 && ($p['unidade_acesso'] ?? '') === 'horas' && ($p['tipo_cobranca'] ?? '') === 'unica' && ($p['id_produto'] ?? '') === 'plano_up_exclusivo', json_encode($p, JSON_UNESCAPED_UNICODE));
+limpar();
+gerarPixOfertaPosBasico('TOKEN', '777', $dados6, 'up', 'p2');
+confere('aceitar com o id de OUTRO plano: não gera Pix e avisa "não está mais disponível"', count($GLOBALS['pix_gerados']) === 0 && str_contains(textos()[0] ?? '', 'não está mais disponível'));
+
+$dados7 = $dados6;
+$dados7['ofertas']['upsell'] = ['entrega_tipo' => 'link', 'id_grupo' => '', 'link_entrega' => 'https://exemplo.com/vip'] + $proprio;
+limpar();
+gerarPixOfertaPosBasico('TOKEN', '777', $dados7, 'up', 'up_exclusivo');
+$p = $GLOBALS['pix_gerados'][0] ?? [];
+confere('entrega por link do Upsell: o Pix leva o link e nenhum grupo', ($p['link_entrega'] ?? '') === 'https://exemplo.com/vip' && ($p['id_grupo'] ?? 'x') === '', json_encode($p, JSON_UNESCAPED_UNICODE));
+$dados8 = $dados6;
+$dados8['ofertas']['upsell']['entrega_tipo'] = 'plano';   // "igual ao plano oferecido" não existe aqui: não há plano de onde copiar
+limpar();
+gerarPixOfertaPosBasico('TOKEN', '777', $dados8, 'up', 'up_exclusivo');
+$p = $GLOBALS['pix_gerados'][0] ?? [];
+confere('entrega "igual ao plano" num plano próprio: sem grupo nem link (a venda sai sem acesso, como "Nenhum")', ($p['id_grupo'] ?? 'x') === '' && ($p['link_entrega'] ?? 'x') === '', json_encode($p, JSON_UNESCAPED_UNICODE));
+
+foreach (['sem nome' => ['nome' => '  ', 'valor' => 49.9], 'valor zero' => ['nome' => 'X', 'valor' => 0], 'sem o plano_proprio' => null] as $quando => $incompleto) {
+    $of = ['plano_proprio' => $incompleto] + $proprio;
+    if ($incompleto === null) {
+        unset($of['plano_proprio']);
+    }
+    limpar();
+    ofertasPosPagamentoBasico($pdo, 'TOKEN', venda(fluxo($pdo, ['upsell' => $of])));
+    confere("plano próprio incompleto ($quando): o upsell não é oferecido", count(textos()) === 0);
+}
+$f8 = fluxo($pdo, ['upsell' => ['ativo' => false] + $proprio]);
+limpar();
+ofertasPosPagamentoBasico($pdo, 'TOKEN', venda($f8));
+confere('Upsell com plano próprio desligado: nada é enviado', count(textos()) === 0);
+confere('o desconto de um Upsell com plano próprio é sempre 0 e o de um plano da lista segue valendo', descontoDaOfertaBasico($proprio) === 0.0 && descontoDaOfertaBasico($upsell) === 10.0);
 
 echo PHP_EOL . "RESUMO: $ok ok, $falhas falhas" . PHP_EOL;
 exit($falhas > 0 ? 1 : 0);

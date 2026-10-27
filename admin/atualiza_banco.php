@@ -176,6 +176,7 @@ try {
         "ADD COLUMN id_plano INT DEFAULT NULL",      // Novo nome (ex-plan_id)
         "ADD COLUMN nome_produto VARCHAR(150) DEFAULT NULL", // Nome do plano na venda: vai no evento de compra (Facebook/UTMify)
         "ADD COLUMN link_entrega VARCHAR(500) DEFAULT NULL", // Fluxo Guiado: link enviado ao cliente quando o pagamento é confirmado (entrega por link)
+        "ADD COLUMN mensagem_entrega TEXT DEFAULT NULL", // Fluxo Guiado: texto enviado ao cliente quando o pagamento é confirmado (entrega por mensagem)
         "ADD COLUMN ultimo_txid_renovacao VARCHAR(255) DEFAULT NULL" // Idempotência do webhook de PIX Automático (cobsr)
     ];
 

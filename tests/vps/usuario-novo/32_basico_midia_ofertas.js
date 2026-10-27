@@ -90,7 +90,7 @@ const chk = (n, c, x = '') => { c ? ok++ : falha++; console.log((c ? 'OK     ' :
       await secao(secao_nome);
       const P = `.painel[data-oferta="${tipo}"]`;
       await js(`(function(){var p=document.querySelector('${P} .of-ativo');p.checked=true;p.dispatchEvent(new Event('change',{bubbles:true}));return 1})()`); await esp(300);
-      if (tipo === 'upsell') await js(`(function(){var s=document.querySelector('${P} .of-plano');s.value=s.options[1].value;s.dispatchEvent(new Event('change',{bubbles:true}));return 1})()`);
+      if (tipo === 'upsell') await js(`(function(){var s=document.querySelector('${P} .of-plano');s.value=s.options[2].value;s.dispatchEvent(new Event('change',{bubbles:true}));return 1})()`);   // [0] "Escolha um plano", [1] "Criar um plano só para o Upsell", [2] o 1º plano
       else if (tipo === 'downsell') await js(`(function(){var c=document.querySelector('${P} .of-planos-lista input[type=checkbox]');c.checked=true;c.dispatchEvent(new Event('change',{bubbles:true}));return 1})()`);
       else await js(`(function(){var v=document.querySelector('${P} .of-valor-extra');v.value='5';v.dispatchEvent(new Event('input',{bubbles:true}));return 1})()`);
       await js(`(function(){var m=document.querySelector('${P} .of-mensagem');m.value='Oferta ${tipo} de teste';m.dispatchEvent(new Event('input',{bubbles:true}));return 1})()`);

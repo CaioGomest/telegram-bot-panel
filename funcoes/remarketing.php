@@ -322,6 +322,7 @@ function remarketingNormalizarOfertas($o, float $minimo_pix): array
         $entrega_tipo = remarketingTxt($p['entrega_tipo'] ?? 'nenhuma');
         $id_grupo = '';
         $link = '';
+        $mensagem_entrega = '';
         if ($entrega_tipo === 'grupo') {
             $id_grupo = trim(remarketingTxt($p['id_grupo'] ?? ''));
             if ($id_grupo === '' || !preg_match('/^-?\d{1,20}$/', $id_grupo)) {
@@ -332,6 +333,15 @@ function remarketingNormalizarOfertas($o, float $minimo_pix): array
             if ($link === '') {
                 return ['ofertas' => [], 'erro' => 'O link de entrega do plano "' . $nome . '" precisa começar com http:// ou https://.'];
             }
+        } elseif ($entrega_tipo === 'mensagem') {
+            // Texto que o cliente recebe, numa mensagem própria, logo depois do aviso de pagamento aprovado (mesmo tipo de entrega do Fluxo Guiado).
+            $mensagem_entrega = trim(remarketingTxt($p['mensagem_entrega'] ?? ''));
+            if ($mensagem_entrega === '') {
+                return ['ofertas' => [], 'erro' => 'Escreva a mensagem de entrega do plano "' . $nome . '".'];
+            }
+            if (mb_strlen($mensagem_entrega) > ENTREGA_MENSAGEM_MAX) {
+                return ['ofertas' => [], 'erro' => 'A mensagem de entrega do plano "' . $nome . '" passa de ' . ENTREGA_MENSAGEM_MAX . ' caracteres.'];
+            }
         } else {
             $entrega_tipo = 'nenhuma';
         }
@@ -339,7 +349,7 @@ function remarketingNormalizarOfertas($o, float $minimo_pix): array
         $ids[] = $id;
         $planos[] = [
             'id' => $id, 'nome' => $nome, 'valor' => $valor, 'acesso' => $acesso, 'dias' => $dias,
-            'entrega_tipo' => $entrega_tipo, 'id_grupo' => $id_grupo, 'link_entrega' => $link,
+            'entrega_tipo' => $entrega_tipo, 'id_grupo' => $id_grupo, 'link_entrega' => $link, 'mensagem_entrega' => $mensagem_entrega,
         ];
     }
 

@@ -251,7 +251,7 @@ function gerarPixRenovacaoBasico(string $token, $id_chat, array $dados_basico, s
             continue;
         }
         $pagamentos = $dados_basico['pagamentos'] ?? [];
-        $entrega = entregaDoItemBasico($i['plano']);
+        $entrega = entregaCompletaDoItemBasico($i['plano']);
         processarEEnviarBloco($token, $id_chat, ['properties' => [
             'type' => 'pix',
             'nome' => trim((string) ($i['plano']['nome'] ?? 'Renovação')),
@@ -262,6 +262,7 @@ function gerarPixRenovacaoBasico(string $token, $id_chat, array $dados_basico, s
             'unidade_acesso' => $i['plano']['unidade_acesso'] ?? 'dias',
             'id_grupo' => $entrega['id_grupo'],
             'link_entrega' => $entrega['link_entrega'],
+            'mensagem_entrega' => $entrega['mensagem_entrega'],
             // Aba Pagamentos do Guiado: os campos de sempre e, no modelo novo, a configuração completa (funcoes/pagamentos_guiado.php).
         ] + propriedadesPagamentoBasico($pagamentos)], '');
         return;

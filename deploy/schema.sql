@@ -129,6 +129,7 @@ CREATE TABLE IF NOT EXISTS `vendas` (
   `id_fluxo` int(11) DEFAULT NULL,
   `nome_produto` varchar(150) DEFAULT NULL,
   `link_entrega` varchar(500) DEFAULT NULL,
+  `mensagem_entrega` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `idx_transacao_id` (`transacao_id`),
   KEY `idx_id_assinatura` (`id_assinatura`),

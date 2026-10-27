@@ -599,7 +599,7 @@ function gerarPixBasico(string $token, $id_chat, array $dados_basico, string $id
         if ($destino) {
             $plano = $destino;
             $tipo_oferta = $tipo;
-            $desconto = max(0.0, min(100.0, (float) ($dados_basico['ofertas'][$tipo]['desconto_percentual'] ?? 0)));
+            $desconto = descontoDaOfertaBasico($dados_basico['ofertas'][$tipo] ?? []);
         }
     }
     if (!$plano) {
@@ -620,7 +620,7 @@ function gerarPixBasico(string $token, $id_chat, array $dados_basico, string $id
         $nome .= ' + ' . (trim((string) ($bump['nome'] ?? '')) ?: 'Extra');
     }
     // Upsell/Downsell aceitos podem ter entrega própria; sem ela (ou "igual ao plano") vale a entrega do plano.
-    $entrega = entregaDoItemBasico($tipo_oferta !== '' ? ($dados_basico['ofertas'][$tipo_oferta] ?? []) : $plano, $tipo_oferta !== '' ? $plano : null);
+    $entrega = entregaCompletaDoItemBasico($tipo_oferta !== '' ? ($dados_basico['ofertas'][$tipo_oferta] ?? []) : $plano, $tipo_oferta !== '' ? $plano : null);
     $propriedades_sinteticas = [
         'type' => 'pix',
         'nome' => $nome,
@@ -633,6 +633,7 @@ function gerarPixBasico(string $token, $id_chat, array $dados_basico, string $id
         'unidade_acesso' => $plano['unidade_acesso'] ?? 'dias',
         'id_grupo' => $entrega['id_grupo'],
         'link_entrega' => $entrega['link_entrega'],
+        'mensagem_entrega' => $entrega['mensagem_entrega'],
         // Aba Pagamentos do Guiado: os campos de sempre e, no modelo novo, a configuração completa (funcoes/pagamentos_guiado.php).
     ] + propriedadesPagamentoBasico($pagamentos);
     $GLOBALS['ultima_venda_pix_id'] = 0;

@@ -163,7 +163,34 @@ bloquearAdmin();
                         <div class="of-detalhes" hidden>
                         <div class="grade grade-2 grade-compacta">
                             <div class="campo"><label>Plano oferecido</label><select class="of-plano"></select></div>
-                            <div class="campo"><label>Desconto (%)</label><input type="number" min="0" max="100" step="1" class="of-desconto" value="0"></div>
+                            <div class="campo of-desconto-campo"><label>Desconto (%)</label><input type="number" min="0" max="100" step="1" class="of-desconto" value="0"></div>
+                        </div>
+                        <!-- Plano só do Upsell (item 33): cartão igual ao da aba Planos (cabeçalho com o resumo e a seta de recolher; Nome, Valor, Tempo de acesso e Entrega dentro).
+                             O campo Entrega (.of-entrega, logo abaixo) é levado para dentro do cartão pelo JS enquanto o plano próprio está escolhido. -->
+                        <div class="of-plano-proprio painel-plano" hidden>
+                            <div class="plano-topo">
+                                <span class="plano-resumo"><strong class="plano-resumo-nome sem-nome">Plano sem nome</strong><small class="plano-resumo-info">R$ 0,00 · 30 dias</small></span>
+                                <button type="button" class="btn-icon plano-alternar" aria-expanded="true" title="Recolher plano" aria-label="Recolher plano"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
+                            </div>
+                            <div class="plano-corpo">
+                                <div class="grade grade-2 grade-compacta">
+                                    <div class="campo"><label>Nome do plano</label><input type="text" class="of-proprio-nome" maxlength="80" placeholder="Ex.: Pacote completo"></div>
+                                    <div class="campo"><label>Valor (R$)</label><input type="number" step="0.01" min="0" class="of-proprio-valor" value="0"></div>
+                                </div>
+                                <div class="grade grade-2 grade-compacta of-proprio-linha" style="margin-top:8px;">
+                                    <div class="campo"><label>Tempo de acesso</label>
+                                        <div style="display:flex; gap:6px;">
+                                            <input type="number" min="1" class="of-proprio-dias" value="30" style="max-width:80px;">
+                                            <select class="of-proprio-unidade">
+                                                <option value="dias">Dias</option>
+                                                <option value="horas">Horas</option>
+                                                <option value="minutos">Minutos</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <small class="texto-ajuda of-proprio-ajuda">Este plano existe só no Upsell: não aparece em "Ver Planos" nem na lista de planos. Só é oferecido a quem acabou de pagar, e o valor digitado é o preço da oferta.</small>
+                            </div>
                         </div>
                         <div class="of-entrega"></div>
                         <div class="campo"><label>Mensagem da oferta</label><textarea class="of-mensagem" rows="3" placeholder="Que tal levar o plano completo com desconto?"></textarea></div>

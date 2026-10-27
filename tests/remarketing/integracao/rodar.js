@@ -14,11 +14,11 @@ const { iniciar } = require('./telegram_falso.js');
 
 const PROJ = path.resolve(__dirname, '../../..').replace(/\\/g, '/');
 const RAIZ = 'C:/tmp/rm_int';
-const APP = RAIZ + '/app';
+const APP = process.env.RM_APP_DIR || (RAIZ + '/app');   // RM_APP_DIR: outro caminho para a cópia do painel (o antivírus do Windows às vezes trava a criação de um arquivo num caminho já usado)
 const SIM = RAIZ + '/sim';
 const MB = 'C:/wamp64/bin/mariadb/mariadb11.3.2/bin';
 const PORTA_DB = 3392;
-const PORTA_TG = 8099;
+const PORTA_TG = Number(process.env.RM_PORTA_TG) || 8099;   // RM_PORTA_TG: outra porta para o Telegram falso, se a 8099 estiver ocupada por outro programa
 const BANCO = 'rm_teste';
 const parar = process.argv.includes('--parar');
 
@@ -60,7 +60,7 @@ function troca(arquivo, de, para, obrigatorio = true) {
     if (!(await portaAberta(PORTA_DB))) throw new Error('MariaDB não subiu');
     sql(`DROP DATABASE IF EXISTS ${BANCO}; CREATE DATABASE ${BANCO} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`);
     // schema ANTIGO (o do último commit): a migração do "Atualizar Banco" é parte do teste
-    const antigo = spawnSync('git', ['-C', PROJ, 'show', 'HEAD:deploy/schema.sql'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    const antigo = spawnSync('git', ['-C', PROJ, 'show', (process.env.RM_SCHEMA_ANTIGO_REF || 'HEAD') + ':deploy/schema.sql'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
     if (antigo.status !== 0) throw new Error('git show do schema antigo falhou: ' + antigo.stderr);
     sql(antigo.stdout, BANCO);
     fs.writeFileSync(RAIZ + '/schema_novo.sql', fs.readFileSync(PROJ + '/deploy/schema.sql', 'utf8'));

@@ -116,6 +116,29 @@ confere('Downsell ligado com link ruim: erro citando o Downsell', str_contains((
 $d = $base(['ofertas' => ['upsell' => ['ativo' => false, 'entrega_tipo' => 'link', 'link_entrega' => 'x']]]);
 confere('Upsell desligado com link ruim: não trava o salvar', validarEntregasFluxoGuiado($d) === null);
 
+// ---------- Upsell com plano próprio (item 33) ----------
+$proprio = ['nome' => 'Pacote VIP', 'valor' => 49.9, 'dias_acesso' => 12, 'unidade_acesso' => 'horas'];
+$upp = ['ativo' => true, 'id_plano_destino' => ID_PLANO_UPSELL_PROPRIO_BASICO, 'plano_proprio' => $proprio, 'entrega_tipo' => 'grupo', 'id_grupo' => '-100333'];
+$d = $base(['ofertas' => ['upsell' => $upp]]);
+confere('Upsell com plano próprio completo: sem erro', validarPlanoProprioUpsellBasico($d) === null);
+confere('Upsell com plano que já existe (sem plano_proprio): sem erro', validarPlanoProprioUpsellBasico($base(['ofertas' => ['upsell' => ['ativo' => true, 'id_plano_destino' => 'p1']]])) === null);
+$d = $base(['ofertas' => ['upsell' => ['plano_proprio' => ['nome' => '  '] + $proprio] + $upp]]);
+confere('plano próprio sem nome: erro pedindo o nome', str_contains((string) validarPlanoProprioUpsellBasico($d), 'Dê um nome ao plano do Upsell'), (string) validarPlanoProprioUpsellBasico($d));
+$d = $base(['ofertas' => ['upsell' => ['plano_proprio' => ['valor' => 0] + $proprio] + $upp]]);
+confere('plano próprio com valor zero: erro citando o plano', str_contains((string) validarPlanoProprioUpsellBasico($d), 'O plano do Upsell "Pacote VIP" precisa ter valor maior que zero'), (string) validarPlanoProprioUpsellBasico($d));
+$d = $base(['ofertas' => ['upsell' => ['plano_proprio' => ['dias_acesso' => 0] + $proprio] + $upp]]);
+confere('plano próprio com tempo de acesso zero: erro', str_contains((string) validarPlanoProprioUpsellBasico($d), 'tempo de acesso'), (string) validarPlanoProprioUpsellBasico($d));
+$d = $base(['ofertas' => ['upsell' => ['ativo' => true, 'id_plano_destino' => ID_PLANO_UPSELL_PROPRIO_BASICO]]]);
+confere('escolheu o plano próprio mas o plano_proprio nem veio no JSON: erro pedindo o nome', validarPlanoProprioUpsellBasico($d) !== null);
+$d = $base(['ofertas' => ['upsell' => ['ativo' => false, 'plano_proprio' => ['nome' => ''] + $proprio] + $upp]]);
+confere('Upsell desligado com plano próprio incompleto: não trava o salvar', validarPlanoProprioUpsellBasico($d) === null);
+$p = planoProprioDoUpsellBasico($upp);
+confere('o plano próprio vira um plano no formato dos de "planos" (id fixo, único, 12 horas, entrega do Upsell)', $p !== null && $p['id'] === 'up_exclusivo' && $p['nome'] === 'Pacote VIP' && $p['valor'] === 49.9 && $p['dias_acesso'] === 12 && $p['unidade_acesso'] === 'horas' && $p['cobranca'] === 'unica' && $p['entrega_tipo'] === 'grupo' && $p['id_grupo'] === '-100333', json_encode($p));
+$p = planoProprioDoUpsellBasico(['plano_proprio' => ['unidade_acesso' => 'anos', 'dias_acesso' => -5, 'nome' => str_repeat('é', 120)] + $proprio] + $upp);
+confere('unidade desconhecida vira dias, tempo menor que 1 vira 1 e o nome é cortado em 80 caracteres', $p !== null && $p['unidade_acesso'] === 'dias' && $p['dias_acesso'] === 1 && mb_strlen($p['nome']) === 80, json_encode($p));
+confere('plano próprio sem entrega_tipo (ou "plano"): entrega nenhuma', planoProprioDoUpsellBasico(['entrega_tipo' => 'plano'] + $upp)['entrega_tipo'] === 'nenhuma' && planoProprioDoUpsellBasico(array_diff_key($upp, ['entrega_tipo' => 1]))['entrega_tipo'] === 'nenhuma');
+confere('id_plano_destino de um plano comum não vira plano próprio', planoProprioDoUpsellBasico(['id_plano_destino' => 'p1'] + $upp) === null);
+
 // ---------- o que vai para o Pix ----------
 $dados = [
     'ativo' => true,
@@ -158,6 +181,66 @@ $GLOBALS['pix_gerados'] = [];
 gerarPixPackBasico('TOKEN', '777', $dados, ['id' => 'k2', 'nome' => 'Pack B', 'preco' => 10.0, 'id_grupo' => '-100555']);
 $p = $GLOBALS['pix_gerados'][0] ?? [];
 confere('Pack antigo (só id_grupo): continua entregando no grupo', ($p['id_grupo'] ?? '') === '-100555' && ($p['link_entrega'] ?? 'x') === '', json_encode($p));
+
+// ---------- entrega por mensagem de texto (item 34, 27/10/2026) ----------
+$m = fn(array $extra = []): array => $extra + ['entrega_tipo' => 'mensagem', 'mensagem_entrega' => "  Seu acesso: https://exemplo.com/x  "];
+$e = entregaCompletaDoItemBasico($m());
+confere('tipo mensagem: só o texto (sem as pontas), sem grupo e sem link', $e === ['id_grupo' => '', 'link_entrega' => '', 'mensagem_entrega' => 'Seu acesso: https://exemplo.com/x'], json_encode($e));
+confere('tipo mensagem: grupo e link que sobraram no item não valem', entregaCompletaDoItemBasico($m(['id_grupo' => '-100', 'link_entrega' => 'https://x.com']))['id_grupo'] === '' && entregaCompletaDoItemBasico($m(['id_grupo' => '-100', 'link_entrega' => 'https://x.com']))['link_entrega'] === '');
+confere('entregaDoItemBasico (grupo e link) devolve vazio para o tipo mensagem, no mesmo formato de sempre', entregaDoItemBasico($m()) === nada());
+confere('os outros tipos não levam mensagem, mesmo com texto guardado', entregaCompletaDoItemBasico(['entrega_tipo' => 'link', 'link_entrega' => 'https://a.com/x', 'mensagem_entrega' => 'sobra'])['mensagem_entrega'] === '' && entregaCompletaDoItemBasico(['entrega_tipo' => 'grupo', 'id_grupo' => '-100', 'mensagem_entrega' => 'sobra'])['mensagem_entrega'] === '' && entregaCompletaDoItemBasico(['entrega_tipo' => 'nenhuma', 'mensagem_entrega' => 'sobra'])['mensagem_entrega'] === '' && entregaCompletaDoItemBasico(['id_grupo' => '-100', 'mensagem_entrega' => 'sobra'])['mensagem_entrega'] === '');
+confere('texto da mensagem cortado em 3000 caracteres', mb_strlen(entregaCompletaDoItemBasico($m(['mensagem_entrega' => str_repeat('é', 3500)]))['mensagem_entrega']) === ENTREGA_MENSAGEM_MAX);
+confere('oferta "igual ao plano" herda a mensagem do plano oferecido', entregaCompletaDoItemBasico(['entrega_tipo' => 'plano'], $m())['mensagem_entrega'] === 'Seu acesso: https://exemplo.com/x');
+confere('oferta com mensagem própria ignora a entrega do plano', entregaCompletaDoItemBasico($m(['mensagem_entrega' => 'do upsell']), $plano_link) === ['id_grupo' => '', 'link_entrega' => '', 'mensagem_entrega' => 'do upsell']);
+
+$d = $base(['planos' => [['id' => 'p1', 'nome' => 'Mensal'] + $m()]]);
+confere('plano com mensagem escrita: sem erro', validarEntregasFluxoGuiado($d) === null);
+$d = $base(['planos' => [['id' => 'p1', 'nome' => 'Mensal'] + $m(['mensagem_entrega' => '   '])]]);
+confere('plano com entrega por mensagem e texto vazio: erro pedindo a mensagem, citando o plano', str_contains((string) validarEntregasFluxoGuiado($d), 'Escreva a mensagem da entrega do plano "Mensal"'), (string) validarEntregasFluxoGuiado($d));
+$d = $base(['planos' => [['id' => 'p1', 'nome' => 'Mensal'] + $m(['mensagem_entrega' => str_repeat('a', 3001)])]]);
+confere('mensagem com mais de 3000 caracteres: erro', str_contains((string) validarEntregasFluxoGuiado($d), 'passa de 3000 caracteres'), (string) validarEntregasFluxoGuiado($d));
+$d = $base(['planos' => [['id' => 'p1', 'nome' => 'Mensal'] + $m(['mensagem_entrega' => str_repeat('a', 3000)])]]);
+confere('mensagem com exatamente 3000 caracteres: passa', validarEntregasFluxoGuiado($d) === null);
+$d = $base(['packs' => ['ativo' => true, 'itens' => [['nome' => 'Pack A'] + $m(['mensagem_entrega' => ''])]]]);
+confere('pack ligado com mensagem vazia: erro citando o pack', str_contains((string) validarEntregasFluxoGuiado($d), 'do pack "Pack A"'));
+$d = $base(['ofertas' => ['upsell' => ['ativo' => true] + $m(['mensagem_entrega' => ''])]]);
+confere('Upsell ligado com mensagem vazia: erro citando o Upsell', str_contains((string) validarEntregasFluxoGuiado($d), 'do Upsell'));
+$d = $base(['ofertas' => ['downsell' => ['ativo' => true] + $m(['mensagem_entrega' => ''])]]);
+confere('Downsell ligado com mensagem vazia: erro citando o Downsell', str_contains((string) validarEntregasFluxoGuiado($d), 'do Downsell'));
+$d = $base(['ofertas' => ['upsell' => ['ativo' => false] + $m(['mensagem_entrega' => ''])]]);
+confere('Upsell desligado com mensagem vazia: não trava o salvar', validarEntregasFluxoGuiado($d) === null);
+
+$p = pixUpsell($dados, $m(['mensagem_entrega' => 'Bem-vindo ao Upsell']));
+confere('Upsell com mensagem própria: o Pix leva o texto, sem grupo e sem link', ($p['mensagem_entrega'] ?? '') === 'Bem-vindo ao Upsell' && ($p['id_grupo'] ?? 'x') === '' && ($p['link_entrega'] ?? 'x') === '', json_encode($p, JSON_UNESCAPED_UNICODE));
+$p = pixUpsell($dados, ['entrega_tipo' => 'plano']);
+confere('Upsell "igual ao plano" cujo plano entrega por link: o Pix leva o link e nenhuma mensagem', ($p['link_entrega'] ?? '') === 'https://area.exemplo.com/vip' && ($p['mensagem_entrega'] ?? 'x') === '', json_encode($p));
+$dados_msg = $dados;
+$dados_msg['planos'][1] = ['id' => 'p2', 'nome' => 'Vitalício', 'valor' => 97.0, 'dias_acesso' => 36500, 'unidade_acesso' => 'dias'] + $m(['mensagem_entrega' => 'Do plano Vitalício']);
+$GLOBALS['pix_gerados'] = [];
+gerarPixOfertaPosBasico('TOKEN', '777', $dados_msg, 'up', 'p2');
+$p = $GLOBALS['pix_gerados'][0] ?? [];
+confere('Upsell sem entrega própria cujo plano entrega por mensagem: o Pix leva a mensagem do plano', ($p['mensagem_entrega'] ?? '') === 'Do plano Vitalício' && ($p['link_entrega'] ?? 'x') === '', json_encode($p, JSON_UNESCAPED_UNICODE));
+$GLOBALS['pix_gerados'] = [];
+gerarPixOfertaPosBasico('TOKEN', '777', $dados, 'bp', '0');
+confere('Order Bump continua sem entrega (nem mensagem)', ($GLOBALS['pix_gerados'][0]['mensagem_entrega'] ?? 'x') === '');
+$GLOBALS['pix_gerados'] = [];
+gerarPixPackBasico('TOKEN', '777', $dados, ['id' => 'k3', 'nome' => 'Pack C', 'preco' => 19.9] + $m(['mensagem_entrega' => 'Obrigado pelo Pack C']));
+$p = $GLOBALS['pix_gerados'][0] ?? [];
+confere('Pack com mensagem: o Pix leva o texto, sem grupo e sem link', ($p['mensagem_entrega'] ?? '') === 'Obrigado pelo Pack C' && ($p['id_grupo'] ?? 'x') === '' && ($p['link_entrega'] ?? 'x') === '', json_encode($p, JSON_UNESCAPED_UNICODE));
+$GLOBALS['pix_gerados'] = [];
+gerarPixPackBasico('TOKEN', '777', $dados, ['id' => 'k4', 'nome' => 'Pack D', 'preco' => 10.0, 'id_grupo' => '-100555']);
+confere('Pack com grupo: o Pix leva mensagem vazia', ($GLOBALS['pix_gerados'][0]['mensagem_entrega'] ?? 'x') === '');
+
+// plano próprio do Upsell (item 33) com mensagem de entrega
+$upp_msg = ['ativo' => true, 'id_plano_destino' => ID_PLANO_UPSELL_PROPRIO_BASICO, 'plano_proprio' => $proprio] + $m(['mensagem_entrega' => 'Pacote VIP liberado!']);
+$pp = planoProprioDoUpsellBasico($upp_msg);
+confere('plano próprio do Upsell com entrega por mensagem: o plano montado leva o tipo e o texto', $pp !== null && $pp['entrega_tipo'] === 'mensagem' && $pp['mensagem_entrega'] === 'Pacote VIP liberado!', json_encode($pp, JSON_UNESCAPED_UNICODE));
+$dados_pp = $dados;
+$dados_pp['ofertas']['upsell'] = $upp_msg;
+$GLOBALS['pix_gerados'] = [];
+gerarPixOfertaPosBasico('TOKEN', '777', $dados_pp, 'up', 'up_exclusivo');
+$p = $GLOBALS['pix_gerados'][0] ?? [];
+confere('aceitar o plano próprio com mensagem: o Pix leva o texto do Upsell', ($p['mensagem_entrega'] ?? '') === 'Pacote VIP liberado!' && ($p['id_grupo'] ?? 'x') === '' && ($p['link_entrega'] ?? 'x') === '', json_encode($p, JSON_UNESCAPED_UNICODE));
 
 echo PHP_EOL . "RESUMO: $ok ok, $falhas falhas" . PHP_EOL;
 exit($falhas > 0 ? 1 : 0);

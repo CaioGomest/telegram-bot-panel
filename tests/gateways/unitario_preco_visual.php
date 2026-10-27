@@ -82,5 +82,15 @@ confere('Guiado: o mesmo Upsell sem desconto passa (R$ 1,50 não é abaixo do m�
 $plano_baixo = ['planos' => [['id' => 'p', 'nome' => 'x', 'valor' => 1.0]], 'ofertas' => ['upsell' => ['ativo' => true, 'id_plano_destino' => 'p', 'desconto_percentual' => 10]], 'packs' => []];
 confere('Guiado: quando o próprio plano já está abaixo, fica só a frase curta (o desconto não é o culpado)', validarPrecosFluxoGuiado($plano_baixo, 1.5) === $msg_150, var_export(validarPrecosFluxoGuiado($plano_baixo, 1.5), true));
 
+// Upsell com plano próprio (item 33): o valor digitado é o preço, sem desconto, e também não pode ficar abaixo do mínimo
+$proprio_baixo = ['planos' => [['id' => 'p', 'nome' => 'Mensal', 'valor' => 20.0]], 'packs' => [], 'ofertas' => ['upsell' => ['ativo' => true, 'id_plano_destino' => 'up_exclusivo', 'desconto_percentual' => 50, 'plano_proprio' => ['nome' => 'Pacote', 'valor' => 1.0, 'dias_acesso' => 30, 'unidade_acesso' => 'dias']]]];
+confere('Guiado: Upsell com plano próprio de R$ 1,00 recusa só com o mínimo (o desconto que sobrou no JSON não conta)', validarPrecosFluxoGuiado($proprio_baixo, 1.5) === $msg_150, var_export(validarPrecosFluxoGuiado($proprio_baixo, 1.5), true));
+$proprio_ok = $proprio_baixo;
+$proprio_ok['ofertas']['upsell']['plano_proprio']['valor'] = 1.5;
+confere('Guiado: Upsell com plano próprio de R$ 1,50 passa mesmo com 50% de desconto no JSON (o preço é o digitado)', validarPrecosFluxoGuiado($proprio_ok, 1.5) === null, var_export(validarPrecosFluxoGuiado($proprio_ok, 1.5), true));
+$proprio_ok['ofertas']['upsell']['plano_proprio']['valor'] = 1.0;
+$proprio_ok['ofertas']['upsell']['ativo'] = false;
+confere('Guiado: Upsell com plano próprio abaixo do mínimo, mas desligado, não é conferido', validarPrecosFluxoGuiado($proprio_ok, 1.5) === null);
+
 echo PHP_EOL . "$ok ok, $falhas falha(s)" . PHP_EOL;
 exit($falhas > 0 ? 1 : 0);

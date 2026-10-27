@@ -78,6 +78,7 @@ function gerarPixRemarketing(string $token, $id_chat, array $bot, array $campanh
         'unidade_acesso' => 'dias',
         'id_grupo' => $plano['entrega_tipo'] === 'grupo' ? (string) $plano['id_grupo'] : '',
         'link_entrega' => $plano['entrega_tipo'] === 'link' ? (string) $plano['link_entrega'] : '',
+        'mensagem_entrega' => $plano['entrega_tipo'] === 'mensagem' ? (string) ($plano['mensagem_entrega'] ?? '') : '',
     ] + propriedadesPagamentoBasico(remarketingPagamentosDoBot($pdo, (int) $bot['id']))], '');
     $id_venda = (int) ($GLOBALS['ultima_venda_pix_id'] ?? 0);
     if ($id_venda > 0) {

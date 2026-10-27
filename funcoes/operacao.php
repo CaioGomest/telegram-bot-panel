@@ -66,8 +66,9 @@ function aposPagamentoConfirmado(array $venda): void
                 ->execute([(int) $venda['bot_id'], (string) $venda['id_telegram']]);
         }
 
-        // 2) venda do Fluxo Guiado (sem bloco de fluxo) paga sem grupo e sem link de entrega: o cliente recebe "pagamento confirmado" e nenhum acesso.
-        $sem_grupo = trim((string) ($venda['id_grupo_telegram'] ?? '')) === '' && trim((string) ($venda['link_entrega'] ?? '')) === '';
+        // 2) venda do Fluxo Guiado (sem bloco de fluxo) paga sem grupo, sem link e sem mensagem de entrega: o cliente recebe "pagamento confirmado" e nenhum acesso.
+        $sem_grupo = trim((string) ($venda['id_grupo_telegram'] ?? '')) === '' && trim((string) ($venda['link_entrega'] ?? '')) === ''
+            && trim((string) ($venda['mensagem_entrega'] ?? '')) === '';
         $sem_bloco = empty($venda['id_operador_fluxo']);
         if ($sem_grupo && $sem_bloco) {
             $stmt_dono = $pdo->prepare("SELECT id_usuario FROM bots WHERE id = ?");
@@ -88,8 +89,8 @@ function aposPagamentoConfirmado(array $venda): void
                     'sistema',
                     'Venda sem grupo',
                     'A venda #' . (int) $venda['id'] . ' (' . $produto . ', R$ ' . number_format((float) ($venda['valor'] ?? 0), 2, ',', '.')
-                        . ') foi paga, mas o plano não tem grupo nem link de entrega: o cliente só recebeu a mensagem de pagamento aprovado, sem acesso. '
-                        . 'Se não era isso que você queria, escolha um grupo ou um link na entrega do plano, no editor do fluxo. Este aviso aparece no máximo 1 vez por dia.'
+                        . ') foi paga, mas o plano não tem grupo, link nem mensagem de entrega: o cliente só recebeu a mensagem de pagamento aprovado, sem acesso. '
+                        . 'Se não era isso que você queria, escolha um grupo, um link ou uma mensagem na entrega do plano, no editor do fluxo. Este aviso aparece no máximo 1 vez por dia.'
                 );
             }
         }

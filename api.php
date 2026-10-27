@@ -489,7 +489,7 @@ try {
             if ($erro_preco !== null) {
                 responder(false, ['mensagem' => $erro_preco], 422);
             }
-            $erro_entrega = $modo === 'basico' ? validarEntregasFluxoGuiado($dados) : null;
+            $erro_entrega = $modo === 'basico' ? (validarPlanoProprioUpsellBasico($dados) ?? validarEntregasFluxoGuiado($dados)) : null;
             if ($erro_entrega !== null) {
                 responder(false, ['mensagem' => $erro_entrega], 422);
             }
@@ -545,7 +545,7 @@ try {
                 if ($erro_preco !== null) {
                     responder(false, ['mensagem' => $erro_preco], 422);
                 }
-                $erro_entrega = isset($dados_grafico['planos']) ? validarEntregasFluxoGuiado($dados_grafico) : null;
+                $erro_entrega = isset($dados_grafico['planos']) ? (validarPlanoProprioUpsellBasico($dados_grafico) ?? validarEntregasFluxoGuiado($dados_grafico)) : null;
                 if ($erro_entrega !== null) {
                     responder(false, ['mensagem' => $erro_entrega], 422);
                 }

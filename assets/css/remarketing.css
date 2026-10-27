@@ -236,6 +236,8 @@ html.layout-a .rmw-planos { display: grid; gap: 12px; }
 html.layout-a .rmw-plano { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--bd2); border-radius: 16px; background: var(--p2); }
 html.layout-a .rmw-plano-grade { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto; gap: 12px; align-items: end; }
 html.layout-a .rmw-plano-entrega { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+html.layout-a .rmw-plano-mensagem { grid-column: 1 / -1; }
+html.layout-a .rmw-plano-mensagem textarea { width: 100%; min-height: 96px; resize: vertical; }
 html.layout-a .rmw-ib.perigo { color: var(--ert); }
 html.layout-a .rmw-plano-vazio { display: grid; justify-items: center; gap: 4px; padding: 30px 16px; border: 1.5px dashed var(--bd2); border-radius: 16px; color: var(--m); text-align: center; }
 html.layout-a .rmw-plano-vazio b { color: var(--t); }

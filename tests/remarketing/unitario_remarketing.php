@@ -126,6 +126,13 @@ confere('entrega por link bom', (remarketingNormalizarOfertas(['planos' => [['en
 foreach (['javascript:alert(1)', 'ftp://x.com/a', 'exemplo.com', 'https://a b.com', ''] as $ruim) {
     confere("entrega por link recusada ($ruim)", remarketingNormalizarOfertas(['planos' => [['entrega_tipo' => 'link', 'link_entrega' => $ruim] + $plano]], 1.5)['erro'] !== null);
 }
+$msg_ok = remarketingNormalizarOfertas(['planos' => [['entrega_tipo' => 'mensagem', 'mensagem_entrega' => "  Seu acesso: https://exemplo.com/x  ", 'id_grupo' => '-100', 'link_entrega' => 'https://x.com'] + $plano]], 1.5);
+confere('entrega por mensagem boa: guarda o texto sem as pontas e zera grupo e link', $msg_ok['erro'] === null && ($msg_ok['ofertas']['planos'][0]['entrega_tipo'] ?? '') === 'mensagem' && ($msg_ok['ofertas']['planos'][0]['mensagem_entrega'] ?? '') === 'Seu acesso: https://exemplo.com/x' && ($msg_ok['ofertas']['planos'][0]['id_grupo'] ?? 'x') === '' && ($msg_ok['ofertas']['planos'][0]['link_entrega'] ?? 'x') === '', json_encode($msg_ok, JSON_UNESCAPED_UNICODE));
+foreach (['vazia' => '', 'só espaços' => '   ', 'maior que 3000 caracteres' => str_repeat('a', 3001)] as $quando => $ruim) {
+    confere("entrega por mensagem $quando: recusada", remarketingNormalizarOfertas(['planos' => [['entrega_tipo' => 'mensagem', 'mensagem_entrega' => $ruim] + $plano]], 1.5)['erro'] !== null);
+}
+confere('entrega por mensagem com exatamente 3000 caracteres passa', remarketingNormalizarOfertas(['planos' => [['entrega_tipo' => 'mensagem', 'mensagem_entrega' => str_repeat('a', 3000)] + $plano]], 1.5)['erro'] === null);
+confere('o texto da mensagem não fica guardado quando a entrega é outra', (remarketingNormalizarOfertas(['planos' => [['entrega_tipo' => 'nenhuma', 'mensagem_entrega' => 'sobra'] + $plano]], 1.5)['ofertas']['planos'][0]['mensagem_entrega'] ?? 'x') === '');
 confere('entrega "nenhuma" zera grupo e link', (remarketingNormalizarOfertas(['planos' => [['entrega_tipo' => 'nenhuma', 'id_grupo' => '-100', 'link_entrega' => 'https://x.com'] + $plano]], 1.5)['ofertas']['planos'][0] ?? []) ['id_grupo'] === '');
 confere('entrega desconhecida vira "nenhuma"', (remarketingNormalizarOfertas(['planos' => [['entrega_tipo' => 'pombo'] + $plano]], 1.5)['ofertas']['planos'][0]['entrega_tipo'] ?? '') === 'nenhuma');
 confere('nome do plano sem HTML e até 40 caracteres', (remarketingNormalizarOfertas(['planos' => [['nome' => '<b>' . str_repeat('x', 60) . '</b>'] + $plano]], 1.5)['ofertas']['planos'][0]['nome'] ?? '') === str_repeat('x', 40));

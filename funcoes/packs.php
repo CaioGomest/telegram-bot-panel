@@ -80,7 +80,7 @@ function enviarPreviaPackBasico(string $token, $id_chat, array $pack): void
 function gerarPixPackBasico(string $token, $id_chat, array $dados_basico, array $pack): void
 {
     $pagamentos = $dados_basico['pagamentos'] ?? [];
-    $entrega = entregaDoItemBasico($pack);
+    $entrega = entregaCompletaDoItemBasico($pack);
     processarEEnviarBloco($token, $id_chat, ['properties' => [
         'type' => 'pix',
         'nome' => trim((string) $pack['nome']),
@@ -91,6 +91,7 @@ function gerarPixPackBasico(string $token, $id_chat, array $dados_basico, array 
         'unidade_acesso' => 'dias',
         'id_grupo' => $entrega['id_grupo'],
         'link_entrega' => $entrega['link_entrega'],
+        'mensagem_entrega' => $entrega['mensagem_entrega'],
         // Aba Pagamentos do Guiado: os campos de sempre e, no modelo novo, a configuração completa (funcoes/pagamentos_guiado.php).
     ] + propriedadesPagamentoBasico($pagamentos)], '');
 }

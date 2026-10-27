@@ -5,15 +5,17 @@ declare(strict_types=1);
  * Entrega do que foi vendido no modo Guiado (planos, packs, Upsell e Downsell): grupo do Telegram, link ou só a venda.
  *
  * Cada item guarda o próprio jeito de entregar em dados_fluxograma:
- *   entrega_tipo  'nenhuma' | 'grupo' | 'link'   (na oferta também 'plano' = a mesma entrega do plano oferecido)
+ *   entrega_tipo  'nenhuma' | 'grupo' | 'link' | 'mensagem'   (na oferta também 'plano' = a mesma entrega do plano oferecido)
  *   id_grupo      grupo/canal do Telegram (tipo 'grupo')
  *   link_entrega  endereço http(s) enviado ao cliente depois de pagar (tipo 'link')
+ *   mensagem_entrega  texto enviado ao cliente numa mensagem própria, logo depois do aviso de pagamento aprovado (tipo 'mensagem', até ENTREGA_MENSAGEM_MAX)
  * Item salvo antes dessa opção não tem entrega_tipo: plano e pack entregam pelo id_grupo (ou nada) e a oferta usa a entrega do plano.
  *
  * Só funções puras (sem banco nem Telegram): quem monta o Pix e quem confirma o pagamento chama daqui.
  */
 
 const ENTREGA_LINK_MAX = 500;
+const ENTREGA_MENSAGEM_MAX = 3000;   // o mesmo limite dos textos da aba Pagamentos (PAGAMENTO_TEXTO_MAXIMO)
 
 /** Link de entrega aceito (só http/https, sem espaço, até 500 caracteres) ou '' se não serve. */
 function linkEntregaValido($valor): string
@@ -28,25 +30,41 @@ function linkEntregaValido($valor): string
     return $link;
 }
 
+/** Mensagem de entrega (tipo 'mensagem', 27/10/2026): o texto que o cliente recebe depois de pagar, limpo e cortado em ENTREGA_MENSAGEM_MAX caracteres. */
+function mensagemEntregaValida($valor): string
+{
+    return mb_substr(trim((string) $valor), 0, ENTREGA_MENSAGEM_MAX);
+}
+
 /**
- * Como um plano, pack ou oferta entrega: ['id_grupo' => ..., 'link_entrega' => ...], um dos dois (ou nenhum) preenchido.
+ * Como um plano, pack ou oferta entrega, com os três jeitos: ['id_grupo' => ..., 'link_entrega' => ..., 'mensagem_entrega' => ...], só um deles preenchido (ou nenhum).
  * $plano_base só vale para oferta (Upsell/Downsell): é o plano oferecido, que dá a entrega quando a oferta não tem a própria.
  */
-function entregaDoItemBasico(array $item, ?array $plano_base = null): array
+function entregaCompletaDoItemBasico(array $item, ?array $plano_base = null): array
 {
-    $nada = ['id_grupo' => '', 'link_entrega' => ''];
+    $nada = ['id_grupo' => '', 'link_entrega' => '', 'mensagem_entrega' => ''];
     $tipo = (string) ($item['entrega_tipo'] ?? '');
     if ($tipo === 'plano' || ($tipo === '' && $plano_base !== null)) {
-        return $plano_base !== null ? entregaDoItemBasico($plano_base) : $nada;
+        return $plano_base !== null ? entregaCompletaDoItemBasico($plano_base) : $nada;
     }
     if ($tipo === 'nenhuma') {
         return $nada;
     }
     if ($tipo === 'link') {
-        return ['id_grupo' => '', 'link_entrega' => linkEntregaValido($item['link_entrega'] ?? '')];
+        return array_merge($nada, ['link_entrega' => linkEntregaValido($item['link_entrega'] ?? '')]);
+    }
+    if ($tipo === 'mensagem') {
+        return array_merge($nada, ['mensagem_entrega' => mensagemEntregaValida($item['mensagem_entrega'] ?? '')]);
     }
     // 'grupo' ou item antigo (sem entrega_tipo): vale o id_grupo.
-    return ['id_grupo' => trim((string) ($item['id_grupo'] ?? '')), 'link_entrega' => ''];
+    return array_merge($nada, ['id_grupo' => trim((string) ($item['id_grupo'] ?? ''))]);
+}
+
+/** Só o grupo e o link (o que o Pix gravava antes da mensagem de entrega): ['id_grupo' => ..., 'link_entrega' => ...]. Quem também entrega texto usa entregaCompletaDoItemBasico. */
+function entregaDoItemBasico(array $item, ?array $plano_base = null): array
+{
+    $entrega = entregaCompletaDoItemBasico($item, $plano_base);
+    return ['id_grupo' => $entrega['id_grupo'], 'link_entrega' => $entrega['link_entrega']];
 }
 
 /**
@@ -101,6 +119,82 @@ function validarEntregasFluxoGuiado(array $dados): ?string
         if (($item['entrega_tipo'] ?? '') === 'grupo' && trim((string) ($item['id_grupo'] ?? '')) === '') {
             return 'Escolha o grupo da entrega ' . $titulo . ' (ou mude a entrega para outra opção).';
         }
+        if (($item['entrega_tipo'] ?? '') === 'mensagem') {
+            $texto = trim((string) ($item['mensagem_entrega'] ?? ''));
+            if ($texto === '') {
+                return 'Escreva a mensagem da entrega ' . $titulo . ' (ou mude a entrega para outra opção).';
+            }
+            if (mb_strlen($texto) > ENTREGA_MENSAGEM_MAX) {
+                return 'A mensagem da entrega ' . $titulo . ' passa de ' . ENTREGA_MENSAGEM_MAX . ' caracteres.';
+            }
+        }
+    }
+    return null;
+}
+
+/**
+ * Plano que existe só dentro do Upsell (27/10/2026, pedido do dono: "criar um plano só pro upsell"): ofertas.upsell.plano_proprio = {nome, valor, dias_acesso,
+ * unidade_acesso}, com id_plano_destino = ID_PLANO_UPSELL_PROPRIO_BASICO. Não está em `planos`, então não aparece em "Ver Planos". A entrega é a do próprio Upsell.
+ * Devolve o plano no mesmo formato dos de `planos` (id, nome, valor, dias_acesso, unidade_acesso, cobranca, entrega_*), ou null se o Upsell não usa plano próprio
+ * ou ele está incompleto (sem nome ou sem valor).
+ */
+const ID_PLANO_UPSELL_PROPRIO_BASICO = 'up_exclusivo';
+function planoProprioDoUpsellBasico(array $oferta): ?array
+{
+    $proprio = $oferta['plano_proprio'] ?? null;
+    if ((string) ($oferta['id_plano_destino'] ?? '') !== ID_PLANO_UPSELL_PROPRIO_BASICO || !is_array($proprio)) {
+        return null;
+    }
+    $nome = mb_substr(trim((string) ($proprio['nome'] ?? '')), 0, 80);   // o mesmo limite do campo na tela
+    $valor = round((float) ($proprio['valor'] ?? 0), 2);
+    if ($nome === '' || $valor <= 0) {
+        return null;
+    }
+    $unidade = (string) ($proprio['unidade_acesso'] ?? 'dias');
+    $tipo_entrega = (string) ($oferta['entrega_tipo'] ?? '');
+    return [
+        'id' => ID_PLANO_UPSELL_PROPRIO_BASICO,
+        'nome' => $nome,
+        'valor' => $valor,
+        'dias_acesso' => max(1, (int) ($proprio['dias_acesso'] ?? 30)),
+        'unidade_acesso' => in_array($unidade, ['dias', 'horas', 'minutos'], true) ? $unidade : 'dias',
+        'cobranca' => 'unica',
+        // "Igual à do plano oferecido" não existe aqui (o plano é o próprio Upsell): sem grupo nem link escolhido, não entrega nada.
+        'entrega_tipo' => in_array($tipo_entrega, ['grupo', 'link', 'mensagem'], true) ? $tipo_entrega : 'nenhuma',
+        'id_grupo' => (string) ($oferta['id_grupo'] ?? ''),
+        'link_entrega' => (string) ($oferta['link_entrega'] ?? ''),
+        'mensagem_entrega' => (string) ($oferta['mensagem_entrega'] ?? ''),
+    ];
+}
+
+/** Desconto (%) de uma oferta, de 0 a 100. Upsell com plano próprio não tem desconto: o valor digitado já é o preço. */
+function descontoDaOfertaBasico(array $oferta): float
+{
+    if ((string) ($oferta['id_plano_destino'] ?? '') === ID_PLANO_UPSELL_PROPRIO_BASICO && is_array($oferta['plano_proprio'] ?? null)) {
+        return 0.0;
+    }
+    return max(0.0, min(100.0, (float) ($oferta['desconto_percentual'] ?? 0)));
+}
+
+/**
+ * Confere, antes de salvar, o plano próprio de um Upsell ligado: nome e valor maiores que zero e um tempo de acesso válido.
+ * Retorna a mensagem de erro (pronta para mostrar) ou null se está tudo certo (ou se o Upsell usa um plano que já existe).
+ */
+function validarPlanoProprioUpsellBasico(array $dados): ?string
+{
+    $oferta = $dados['ofertas']['upsell'] ?? null;
+    if (!is_array($oferta) || empty($oferta['ativo']) || (string) ($oferta['id_plano_destino'] ?? '') !== ID_PLANO_UPSELL_PROPRIO_BASICO) {
+        return null;
+    }
+    $proprio = is_array($oferta['plano_proprio'] ?? null) ? $oferta['plano_proprio'] : [];
+    if (trim((string) ($proprio['nome'] ?? '')) === '') {
+        return 'Dê um nome ao plano do Upsell (ou escolha um plano que já existe).';
+    }
+    if (!((float) ($proprio['valor'] ?? 0) > 0)) {
+        return 'O plano do Upsell "' . trim((string) $proprio['nome']) . '" precisa ter valor maior que zero.';
+    }
+    if ((int) ($proprio['dias_acesso'] ?? 0) < 1) {
+        return 'O plano do Upsell "' . trim((string) $proprio['nome']) . '" precisa ter um tempo de acesso de pelo menos 1.';
     }
     return null;
 }

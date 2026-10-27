@@ -67,7 +67,7 @@ const GRUPOS = [
         // ============ plano novo, com grupos já registrados ============
         await abrir(null, GRUPOS);
         await novoPlano();
-        chk('o campo Entrega tem os 3 tipos: Nenhum, Acesso a grupo e Link (os grupos NÃO ficam misturados aqui)', JSON.stringify(await tipos()) === JSON.stringify(['Nenhum (apenas venda)', '👥 Acesso a grupo', '🔗 Link (enviado ao cliente)']), await tipos());
+        chk('o campo Entrega tem os 4 tipos: Nenhum, Acesso a grupo, Link e Mensagem (os grupos NÃO ficam misturados aqui)', JSON.stringify(await tipos()) === JSON.stringify(['Nenhum (apenas venda)', '👥 Acesso a grupo', '🔗 Link (enviado ao cliente)', '💬 Mensagem (texto enviado ao cliente)']), await tipos());
         chk('começa em "Nenhum" (com o aviso de que sem entrega ninguém recebe acesso) e o select de grupos ainda não aparece', (await js(`${q(P + ' .entrega-select')}.val()`)) === '' && (await visivel(P + ' .dica-sem-grupo')) && !(await visivel(P + ' .entrega-grupo-area')));
 
         await escolher(P + ' .entrega-select', '__grupo__');
@@ -123,7 +123,7 @@ const GRUPOS = [
         const U = '.painel[data-oferta="upsell"]';
         await clicar(U + ' .of-ativo');
         const tiposU = await textos(U + ' .entrega-select option')();
-        chk('Upsell: "Igual à do plano oferecido" primeiro, depois Nenhum, Acesso a grupo e Link; abre em "Igual à do plano"', JSON.stringify(tiposU) === JSON.stringify(['Igual à do plano oferecido', 'Nenhum (apenas venda)', '👥 Acesso a grupo', '🔗 Link (enviado ao cliente)']) && (await js(`${q(U + ' .entrega-select')}.val()`)) === '__plano__' && !(await visivel(U + ' .entrega-grupo-area')), tiposU);
+        chk('Upsell: "Igual à do plano oferecido" primeiro, depois Nenhum, Acesso a grupo, Link e Mensagem; abre em "Igual à do plano"', JSON.stringify(tiposU) === JSON.stringify(['Igual à do plano oferecido', 'Nenhum (apenas venda)', '👥 Acesso a grupo', '🔗 Link (enviado ao cliente)', '💬 Mensagem (texto enviado ao cliente)']) && (await js(`${q(U + ' .entrega-select')}.val()`)) === '__plano__' && !(await visivel(U + ' .entrega-grupo-area')), tiposU);
         await escolher(U + ' .entrega-select', '__grupo__');
         chk('Upsell: "Acesso a grupo" mostra o select com os mesmos grupos do bot', (await visivel(U + ' .entrega-grupo-area')) && JSON.stringify(await textos(U + ' .entrega-grupo-select option')()) === JSON.stringify(['Selecione um grupo…', 'VIP A', 'VIP B']));
         await secao('downsell');

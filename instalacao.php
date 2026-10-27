@@ -182,6 +182,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ja_instalado) {
             id_fluxo INT DEFAULT NULL,
             nome_produto VARCHAR(150) DEFAULT NULL,
             link_entrega VARCHAR(500) DEFAULT NULL,
+            mensagem_entrega TEXT DEFAULT NULL,
             FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE SET NULL,
             UNIQUE INDEX idx_transacao_id (transacao_id),
             INDEX idx_id_assinatura (id_assinatura),

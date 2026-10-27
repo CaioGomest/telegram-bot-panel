@@ -614,6 +614,13 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
                 if ($link_entrega_acesso !== '' && !$grava_link_entrega) {
                     file_put_contents(dirname(__DIR__) . '/logs/vendas_debug.log', "[" . date('Y-m-d H:i:s') . "] LINK DE ENTREGA NAO GRAVADO: a tabela vendas ainda nao tem a coluna link_entrega (rode Admin > Atualizar Banco). TXID: $txid\n", FILE_APPEND);
                 }
+                // Entrega por mensagem (Fluxo Guiado): o texto também fica na venda e vai ao cliente, numa mensagem própria, quando o pagamento é confirmado.
+                $mensagem_entrega_acesso = mensagemEntregaValida($propriedades['mensagem_entrega'] ?? '');
+                $grava_mensagem_entrega = $mensagem_entrega_acesso !== '' && colunaExiste('vendas', 'mensagem_entrega');
+                if ($mensagem_entrega_acesso !== '' && !$grava_mensagem_entrega) {
+                    file_put_contents(dirname(__DIR__) . '/logs/vendas_debug.log', "[" . date('Y-m-d H:i:s') . "] MENSAGEM DE ENTREGA NAO GRAVADA: a tabela vendas ainda nao tem a coluna mensagem_entrega (rode Admin > Atualizar Banco). TXID: $txid
+", FILE_APPEND);
+                }
                 // Força a conversão do idOperador para garantir que não seja vazio/nulo se estiver dentro do fluxo
                 if (empty($id_operador)) $id_operador = null;
                 // Força os tipos de dados para evitar erro silencioso de banco
@@ -669,6 +676,9 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
                      $GLOBALS['ultima_venda_pix_id'] = $id_venda_criada;   // quem chamou (ex.: downsell com temporizador do Guiado) lê daqui qual venda acabou de nascer
                      require_once __DIR__ . '/traqueamento.php';
                      registrarNomeProdutoVenda($pdo, $id_venda_criada, (string) $nome_produto);
+                     if ($grava_mensagem_entrega) {
+                         $pdo->prepare('UPDATE vendas SET mensagem_entrega = ? WHERE id = ?')->execute([$mensagem_entrega_acesso, $id_venda_criada]);
+                     }
                      if ($id_usuario_dono_insert) {
                          require_once __DIR__ . '/log.php';
                          $valor_formatado = number_format($valor_insert, 2, ',', '.');

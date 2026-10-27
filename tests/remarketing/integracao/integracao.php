@@ -592,6 +592,7 @@ $ed_a = ['nome' => 'D-A sem bump', 'id_fluxo' => $f1, 'segmento' => 'todos', 'pe
         ['id' => 'pa', 'nome' => 'Plano Mensal', 'valor' => 29.9, 'acesso' => 'mensal', 'entrega_tipo' => 'grupo', 'id_grupo' => '-1001'],
         ['id' => 'pb', 'nome' => 'Plano Vitalício', 'valor' => 99, 'acesso' => 'vitalicio', 'entrega_tipo' => 'link', 'link_entrega' => 'https://exemplo.com/vip'],
         ['id' => 'pc', 'nome' => 'Plano 45 dias', 'valor' => 10, 'acesso' => 'dias', 'dias' => 45, 'entrega_tipo' => 'nenhuma'],
+        ['id' => 'pd', 'nome' => 'Plano Mensagem', 'valor' => 12, 'acesso' => 'mensal', 'entrega_tipo' => 'mensagem', 'mensagem_entrega' => 'Seu acesso: https://exemplo.com/acesso-msg'],
     ]]];
 $da = (int) remarketingSalvar($pdo, $u1, $ed_a)['id'];
 $ed_b = ['nome' => 'D-B com bump', 'id_fluxo' => $f1, 'segmento' => 'todos', 'periodo_tipo' => 'total', 'variantes' => [['mensagem' => 'Mensagem da campanha D-B']],
@@ -623,6 +624,15 @@ confere('plano vitalício com entrega por link: 36500 dias, link na venda, sem g
 $clique('OKTOKEN2:bbbb', '2001', "rmk::$da::pc::0");
 $v = $ultima_venda();
 confere('plano de 45 dias sem entrega: 64800 minutos, sem grupo nem link; o bot 2 do mesmo fluxo também vale', (float) $v['valor'] === 10.0 && (int) $v['dias_acesso'] === 45 && (int) $v['tempo_acesso_minutos'] === 45 * 1440 && $v['id_grupo_telegram'] === null && $v['link_entrega'] === null && (int) $v['bot_id'] === $b2, $v);
+
+$clique('OKTOKEN1:aaaa', '1005', "rmk::$da::pd::0");
+$v = $ultima_venda();
+confere('plano com entrega por mensagem: o texto fica na venda, sem grupo e sem link', (float) $v['valor'] === 12.0 && ($v['mensagem_entrega'] ?? null) === 'Seu acesso: https://exemplo.com/acesso-msg' && $v['id_grupo_telegram'] === null && $v['link_entrega'] === null, $v);
+confere('o plano com mensagem volta inteiro na campanha salva (para reabrir o assistente)', (function () use ($pdo, $da) {
+    $ofertas = json_decode((string) $pdo->query("SELECT ofertas FROM remarketing_campanhas WHERE id = $da")->fetchColumn(), true);
+    $pd = array_values(array_filter($ofertas['planos'] ?? [], fn($p) => ($p['id'] ?? '') === 'pd'))[0] ?? [];
+    return ($pd['entrega_tipo'] ?? '') === 'mensagem' && ($pd['mensagem_entrega'] ?? '') === 'Seu acesso: https://exemplo.com/acesso-msg';
+})());
 
 // order bump da campanha: oferece ANTES do Pix
 $v_antes = $qtd_vendas();

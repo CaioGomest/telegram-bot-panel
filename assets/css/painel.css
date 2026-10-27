@@ -2325,6 +2325,11 @@ a.comunidade-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ors
 .painel-plano.recolhido .plano-alternar svg { transform: none; }
 .painel-plano.recolhido .plano-topo { margin-bottom: 0; }
 .painel-plano.recolhido .plano-corpo { display: none; }
+/* Plano só do Upsell (item 35): cartão com a mesma moldura dos cartões da aba Planos (lá a moldura vem escrita no HTML que o JS desenha) */
+.of-plano-proprio { border: 1px solid var(--bd); border-radius: 10px; padding: 12px; margin: 12px 0; }
+.of-plano-proprio[hidden] { display: none; }
+.of-plano-proprio .of-proprio-ajuda { display: block; margin-top: 10px; }
+.of-plano-proprio .of-proprio-linha > .of-entrega { margin-top: 0; }   /* a Entrega fica na mesma linha do tempo de acesso, como nos planos da aba Planos */
 .editor-fluxo-voltar {
     display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border: 1px solid var(--bd);
     border-radius: 12px; background: var(--p); font: 700 13px 'Manrope', sans-serif; color: var(--t);
@@ -3228,6 +3233,9 @@ html .editor-fluxo-corpo .painel > .pg-barra + .pg-texto { margin-top: 0; }
 /* "Acesso a grupo" (31, 26/10/2026, pedido do dono): escolhendo esse tipo de entrega aparece o select "Grupo para acesso" com os grupos do bot, como no n8n */
 .entrega-grupo-area { margin-top: 10px; }
 .entrega-grupo-area[hidden] { display: none; }
+.entrega-mensagem-area { margin-top: 10px; }
+.entrega-mensagem-area[hidden] { display: none; }
+.entrega-mensagem-area textarea { width: 100%; min-height: 96px; resize: vertical; }
 .entrega-grupo-seletor { display: flex; gap: 8px; }
 .entrega-grupo-seletor select { flex: 1; min-width: 0; }
 .entrega-grupo-seletor .editor-fluxo-icone-btn { flex: none; }

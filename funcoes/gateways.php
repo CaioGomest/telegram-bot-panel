@@ -315,8 +315,14 @@ function validarPrecosFluxoGuiado(array $dados, float $minimo): ?string {
         $ids_destino = ($tipo === 'downsell' && is_array($oferta['planos_oferecidos'] ?? null)) ? $oferta['planos_oferecidos'] : [$oferta['id_plano_destino'] ?? ''];
         foreach ($ids_destino as $id_destino) {
             $destino = $planos_por_id[(string)$id_destino] ?? null;
+            $desconto_oferta = (float)($oferta['desconto_percentual'] ?? 0);
+            // Upsell com plano próprio (ofertas.upsell.plano_proprio, id 'up_exclusivo'): o preço é o digitado, sem desconto.
+            if ($tipo === 'upsell' && (string)$id_destino === 'up_exclusivo' && is_array($oferta['plano_proprio'] ?? null)) {
+                $destino = ['nome' => $oferta['plano_proprio']['nome'] ?? '', 'valor' => $oferta['plano_proprio']['valor'] ?? 0];
+                $desconto_oferta = 0.0;
+            }
             if (!empty($oferta['ativo']) && $destino) {
-                $desconto = max(0.0, min(100.0, (float)($oferta['desconto_percentual'] ?? 0)));
+                $desconto = max(0.0, min(100.0, $desconto_oferta));
                 $final = round((float)($destino['valor'] ?? 0) * (1 - $desconto / 100), 2);
                 if ($final > 0 && $final < $minimo) {
                     $problemas[] = 'o ' . $rotulo . ' (plano "' . trim((string)($destino['nome'] ?? '')) . '" com ' . rtrim(rtrim(number_format($desconto, 2, ',', ''), '0'), ',') . '% sai por ' . $reais($final) . ')';

@@ -83,7 +83,7 @@ const pack = (i, s) => `jQuery('#pk-lista .pk-item').eq(${i}).find(${JSON.string
         const oU = await opcoes(selU);
         t.ok('Upsell: o campo Entrega existe, com "Igual à do plano oferecido" primeiro, depois Nenhum, Acesso a grupo e Link por último', oU.length === 4 && oU[0][0] === '__plano__' && /Igual/.test(oU[0][1]) && oU[1][0] === '' && oU[2][0] === '__grupo__' && oU[3][0] === '__link__', oU);
         t.ok('Upsell novo: já vem em "Igual à do plano oferecido" (nada muda para quem não mexer) com a dica explicando', (await valor(selU)) === '__plano__' && (await visivel(oferta('upsell', '.dica-entrega-plano'))) && !(await visivel(oferta('upsell', '.dica-sem-grupo'))) && !(await visivel(oferta('upsell', '.entrega-link'))), {});
-        await t.escolher(oferta('upsell', '.of-plano'), await t.js(`${oferta('upsell', '.of-plano option')}.eq(2).val()`));   // o 2º plano (Anual)
+        await t.escolher(oferta('upsell', '.of-plano'), await t.js(`${oferta('upsell', '.of-plano option')}.eq(3).val()`));   // o 2º plano (Anual): as 2 primeiras opções são "Escolha um plano" e "Criar um plano só para o Upsell"
         await t.captura('entrega_2_upsell_igual_ao_plano.png');
         await t.escolher(selU, '__link__');
         t.ok('Upsell com Link: campo do endereço aparece e a dica "igual ao plano" some', (await visivel(oferta('upsell', '.entrega-link'))) && !(await visivel(oferta('upsell', '.dica-entrega-plano'))), {});

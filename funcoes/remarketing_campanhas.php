@@ -50,14 +50,15 @@ function remarketingContexto(PDO $pdo, int $id_usuario): array
             if (!is_array($p) || trim((string) ($p['nome'] ?? '')) === '' || (float) ($p['valor'] ?? 0) <= 0) {
                 continue;
             }
-            $entrega = entregaDoItemBasico($p);
+            $entrega = entregaCompletaDoItemBasico($p);
             $planos[] = remarketingAcessoDoPlanoDoFluxo($p) + [
                 'id' => (string) ($p['id'] ?? ''),
                 'nome' => (string) $p['nome'],
                 'valor' => (float) $p['valor'],
-                'entrega_tipo' => $entrega['id_grupo'] !== '' ? 'grupo' : ($entrega['link_entrega'] !== '' ? 'link' : 'nenhuma'),
+                'entrega_tipo' => $entrega['id_grupo'] !== '' ? 'grupo' : ($entrega['link_entrega'] !== '' ? 'link' : ($entrega['mensagem_entrega'] !== '' ? 'mensagem' : 'nenhuma')),
                 'id_grupo' => $entrega['id_grupo'],
                 'link_entrega' => $entrega['link_entrega'],
+                'mensagem_entrega' => $entrega['mensagem_entrega'],
             ];
         }
         $fluxos[(int) $f['id']] = ['id' => (int) $f['id'], 'nome' => (string) $f['nome'], 'modo' => (string) $f['modo'], 'bots' => [], 'grupos' => [], 'planos' => $planos];

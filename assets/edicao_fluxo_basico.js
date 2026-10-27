@@ -60,7 +60,8 @@
             const o = d.ofertas[tipo];
             const ids = tipo === 'downsell' ? (o.planos_oferecidos || []) : [o.id_plano_destino];
             ids.forEach(function (id) {
-                const destino = d.planos.filter(function (p) { return String(p.id) === String(id); })[0];
+                let destino = d.planos.filter(function (p) { return String(p.id) === String(id); })[0];
+                if (tipo === 'upsell' && id === ID_UPSELL_PROPRIO && o.plano_proprio) destino = { valor: o.plano_proprio.valor };   // plano só do Upsell: preço digitado, sem desconto
                 if (o.ativo && destino) {
                     const final = Math.round(destino.valor * (1 - (o.desconto_percentual || 0) / 100) * 100) / 100;
                     if (final > 0 && final < preco_minimo) {
@@ -109,11 +110,13 @@
     }
 
     // ===== Entrega (plano, pack, Upsell e Downsell) =====
-    // Como no n8n: um select do TIPO de entrega (nenhuma, acesso a grupo, link ou, só na oferta, "igual à do plano oferecido") e, escolhendo "Acesso a grupo",
-    // um segundo select com os grupos do bot. No JSON cada item guarda entrega_tipo ('nenhuma' | 'grupo' | 'link' | 'plano'), id_grupo e link_entrega
-    // (ver funcoes/entrega.php). Item antigo, sem entrega_tipo, só tem o id_grupo.
+    // Como no n8n: um select do TIPO de entrega (nenhuma, acesso a grupo, link, mensagem ou, só na oferta, "igual à do plano oferecido") e, escolhendo "Acesso a grupo",
+    // um segundo select com os grupos do bot. No JSON cada item guarda entrega_tipo ('nenhuma' | 'grupo' | 'link' | 'mensagem' | 'plano'), id_grupo, link_entrega
+    // e mensagem_entrega (ver funcoes/entrega.php). Item antigo, sem entrega_tipo, só tem o id_grupo.
     const ENTREGA_GRUPO = '__grupo__';
     const ENTREGA_LINK = '__link__';
+    const ENTREGA_MENSAGEM = '__mensagem__';
+    const ENTREGA_MENSAGEM_MAX = 3000;   // o mesmo limite do servidor (funcoes/entrega.php)
     const ENTREGA_PLANO = '__plano__';
     const ICONE_ATUALIZAR = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15 6.7L3 16M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M3 21v-5h5"/></svg>';
 
@@ -121,6 +124,7 @@
         const tipo = item.entrega_tipo || '';
         if (eh_oferta && (tipo === 'plano' || tipo === '')) return ENTREGA_PLANO;   // oferta sem entrega própria usa a do plano oferecido
         if (tipo === 'link') return ENTREGA_LINK;
+        if (tipo === 'mensagem') return ENTREGA_MENSAGEM;
         if (tipo === 'nenhuma') return '';
         return (tipo === 'grupo' || item.id_grupo) ? ENTREGA_GRUPO : '';   // item antigo, sem entrega_tipo, só tem o id_grupo
     }
@@ -129,17 +133,20 @@
         return (eh_oferta ? '<option value="' + ENTREGA_PLANO + '"' + (valor === ENTREGA_PLANO ? ' selected' : '') + '>Igual à do plano oferecido</option>' : '') +
             '<option value=""' + (valor === '' ? ' selected' : '') + '>Nenhum (apenas venda)</option>' +
             '<option value="' + ENTREGA_GRUPO + '"' + (valor === ENTREGA_GRUPO ? ' selected' : '') + '>👥 Acesso a grupo</option>' +
-            '<option value="' + ENTREGA_LINK + '"' + (valor === ENTREGA_LINK ? ' selected' : '') + '>🔗 Link (enviado ao cliente)</option>';
+            '<option value="' + ENTREGA_LINK + '"' + (valor === ENTREGA_LINK ? ' selected' : '') + '>🔗 Link (enviado ao cliente)</option>' +
+            '<option value="' + ENTREGA_MENSAGEM + '"' + (valor === ENTREGA_MENSAGEM ? ' selected' : '') + '>💬 Mensagem (texto enviado ao cliente)</option>';
     }
 
     // Item sem entrega é permitido (venda só com mensagem de confirmação), mas quase sempre é esquecimento: o cliente paga e
     // não recebe nenhum acesso. Aviso fixo embaixo do campo, que some quando um grupo ou um link é escolhido.
-    // o = { rotulo, quem ("deste plano"), classe (classe própria do seletor, usada pelos testes), oferta (true no Upsell/Downsell) }
+    // o = { rotulo, quem ("deste plano"), classe (classe própria do seletor, usada pelos testes), oferta (true no Upsell/Downsell),
+    //       sem_igual (true no Upsell com plano próprio: não existe "plano oferecido" para copiar a entrega) }
     function htmlCampoEntrega(item, o) {
-        const valor = valorEntregaDoItem(item, !!o.oferta);
+        const igual_ao_plano = !!o.oferta && !o.sem_igual;   // a opção "Igual à do plano oferecido"
+        const valor = valorEntregaDoItem(item, igual_ao_plano);
         return '<div class="campo campo-entrega">' +
             '<label>' + o.rotulo + '</label>' +
-            '<select class="entrega-select' + (o.classe ? ' ' + o.classe : '') + '">' + optsEntrega(valor, !!o.oferta) + '</select>' +
+            '<select class="entrega-select' + (o.classe ? ' ' + o.classe : '') + '">' + optsEntrega(valor, igual_ao_plano) + '</select>' +
             '<div class="entrega-grupo-area"' + (valor === ENTREGA_GRUPO ? '' : ' hidden') + '>' +
             '<label>Grupo para acesso</label>' +
             '<div class="entrega-grupo-seletor"><select class="entrega-grupo-select" aria-label="Grupo para acesso">' + optsGrupos(valor === ENTREGA_GRUPO ? String(item.id_grupo || '') : '') + '</select>' +
@@ -148,7 +155,12 @@
             '</div>' +
             '<input type="text" inputmode="url" autocomplete="off" class="entrega-link" maxlength="500" placeholder="https://..." value="' + escaparHtml(item.link_entrega || '') + '"' + (valor === ENTREGA_LINK ? '' : ' hidden') + '>' +
             '<small class="texto-ajuda dica-entrega-link"' + (valor === ENTREGA_LINK ? '' : ' hidden') + '>O cliente recebe este link na mensagem de pagamento aprovado, só depois de pagar.</small>' +
-            (o.oferta ? '<small class="texto-ajuda dica-entrega-plano"' + (valor === ENTREGA_PLANO ? '' : ' hidden') + '>Quem aceitar recebe o mesmo acesso do plano oferecido.</small>' : '') +
+            '<div class="entrega-mensagem-area"' + (valor === ENTREGA_MENSAGEM ? '' : ' hidden') + '>' +
+            '<label>Mensagem de entrega</label>' +
+            '<textarea class="entrega-mensagem" rows="4" maxlength="' + ENTREGA_MENSAGEM_MAX + '" placeholder="Ex.: Seu acesso: https://... Qualquer dúvida, responda aqui.">' + escaparHtml(item.mensagem_entrega || '') + '</textarea>' +
+            '<small class="texto-ajuda">O cliente recebe este texto numa mensagem própria, logo depois do aviso de pagamento aprovado. Aceita as mesmas formatações e variáveis da mensagem de aprovação (como {nome}, {plano} e {valor}).</small>' +
+            '</div>' +
+            (igual_ao_plano ? '<small class="texto-ajuda dica-entrega-plano"' + (valor === ENTREGA_PLANO ? '' : ' hidden') + '>Quem aceitar recebe o mesmo acesso do plano oferecido.</small>' : '') +
             '<small class="dica-sem-grupo"' + (valor === '' ? '' : ' hidden') + '>⚠ Sem entrega: quem pagar ' + o.quem +
             ' só recebe a mensagem de pagamento aprovado, sem nenhum acesso automático. Escolha um grupo ou um link, ou entregue o conteúdo nessa mensagem.</small>' +
             '</div>';
@@ -158,17 +170,19 @@
         const v = $campo.find('.entrega-select').val() || '';
         $campo.find('.entrega-grupo-area').prop('hidden', v !== ENTREGA_GRUPO);
         $campo.find('.entrega-link, .dica-entrega-link').prop('hidden', v !== ENTREGA_LINK);
+        $campo.find('.entrega-mensagem-area').prop('hidden', v !== ENTREGA_MENSAGEM);
         $campo.find('.dica-entrega-plano').prop('hidden', v !== ENTREGA_PLANO);
         $campo.find('.dica-sem-grupo').prop('hidden', v !== '');
     }
 
-    // Lê o campo de entrega e devolve os 3 campos que vão no JSON do plano/pack/oferta.
+    // Lê o campo de entrega e devolve os 4 campos que vão no JSON do plano/pack/oferta.
     function coletarEntrega($campo) {
         const v = $campo.find('.entrega-select').val() || '';
-        if (v === ENTREGA_PLANO) return { entrega_tipo: 'plano', id_grupo: '', link_entrega: '' };
-        if (v === ENTREGA_LINK) return { entrega_tipo: 'link', id_grupo: '', link_entrega: $campo.find('.entrega-link').val().trim() };
-        if (v === ENTREGA_GRUPO) return { entrega_tipo: 'grupo', id_grupo: $campo.find('.entrega-grupo-select').val() || '', link_entrega: '' };
-        return { entrega_tipo: 'nenhuma', id_grupo: '', link_entrega: '' };
+        if (v === ENTREGA_PLANO) return { entrega_tipo: 'plano', id_grupo: '', link_entrega: '', mensagem_entrega: '' };
+        if (v === ENTREGA_LINK) return { entrega_tipo: 'link', id_grupo: '', link_entrega: $campo.find('.entrega-link').val().trim(), mensagem_entrega: '' };
+        if (v === ENTREGA_GRUPO) return { entrega_tipo: 'grupo', id_grupo: $campo.find('.entrega-grupo-select').val() || '', link_entrega: '', mensagem_entrega: '' };
+        if (v === ENTREGA_MENSAGEM) return { entrega_tipo: 'mensagem', id_grupo: '', link_entrega: '', mensagem_entrega: $campo.find('.entrega-mensagem').val().trim() };
+        return { entrega_tipo: 'nenhuma', id_grupo: '', link_entrega: '', mensagem_entrega: '' };
     }
 
     // Mesma regra do servidor (funcoes/entrega.php): só http/https, sem espaço, até 500 caracteres.
@@ -182,6 +196,7 @@
         atualizarCampoEntrega($campo);
         if ($(this).val() === ENTREGA_LINK) $campo.find('.entrega-link').trigger('focus');
         if ($(this).val() === ENTREGA_GRUPO) $campo.find('.entrega-grupo-select').trigger('focus');
+        if ($(this).val() === ENTREGA_MENSAGEM) $campo.find('.entrega-mensagem').trigger('focus');
     });
 
     // Refaz a lista de grupos de TODOS os campos de entrega (depois de atualizar a lista), mantendo o que cada um tinha escolhido.
@@ -781,10 +796,11 @@
     }
 
     function atualizarSelectsOfertas() {
-        // Upsell: um plano só (lista suspensa).
+        // Upsell: um plano só (lista suspensa): um dos planos da seção Planos ou um plano criado só para o Upsell (ID_UPSELL_PROPRIO).
         const $sel = $painelOferta('upsell').find('.of-plano');
         const atual = $sel.data('valor') != null ? String($sel.data('valor')) : String($sel.val() || '');
-        let html = '<option value="">Escolha um plano</option>';
+        let html = '<option value="">Escolha um plano</option>' +
+            '<option value="' + ID_UPSELL_PROPRIO + '"' + (atual === ID_UPSELL_PROPRIO ? ' selected' : '') + '>＋ Criar um plano só para o Upsell</option>';
         planos.forEach(function (p) {
             html += '<option value="' + escaparHtml(p.id) + '"' + (String(p.id) === atual ? ' selected' : '') + '>' +
                 escaparHtml((p.nome || 'Plano sem nome') + ' — R$ ' + (Number(p.valor) || 0).toFixed(2).replace('.', ',')) + '</option>';
@@ -800,6 +816,62 @@
         });
         $lista.html(caixas || '<div class="of-planos-vazio">Crie pelo menos 1 plano na seção Planos para oferecê-lo aqui.</div>').removeData('valor');
     }
+
+    // Upsell com plano próprio (27/10/2026, pedido do dono): em vez de escolher um plano da seção Planos, o dono digita nome, valor e tempo de acesso ali mesmo.
+    // O plano não entra na lista de planos do bot (só é oferecido a quem acabou de pagar), então não tem desconto: o valor digitado já é o preço. A entrega é a do
+    // próprio Upsell e "Igual à do plano oferecido" não existe nesse caso. O id é o mesmo do servidor (ID_PLANO_UPSELL_PROPRIO_BASICO em funcoes/entrega.php).
+    const ID_UPSELL_PROPRIO = 'up_exclusivo';
+
+    // O plano próprio é um cartão igual aos da aba Planos (item 35): cabeçalho com o resumo ("R$ 0,00 · 30 dias", que acompanha o que se digita) e a seta de recolher.
+    function atualizarResumoPlanoProprio() {
+        const $c = $painelOferta('upsell').find('.of-plano-proprio');
+        const nome = $c.find('.of-proprio-nome').val().trim();
+        const valor = parseFloat($c.find('.of-proprio-valor').val()) || 0;
+        const qtd = parseInt($c.find('.of-proprio-dias').val(), 10) || 30;
+        const un = UNIDADE_PLANO[$c.find('.of-proprio-unidade').val()] || UNIDADE_PLANO.dias;
+        $c.find('.plano-resumo-nome').text(nome || 'Plano sem nome').toggleClass('sem-nome', !nome);
+        $c.find('.plano-resumo-info').text('R$ ' + valor.toFixed(2).replace('.', ',') + ' · ' + qtd + ' ' + un[qtd === 1 ? 0 : 1]);
+    }
+
+    $(document).on('input change', '.of-plano-proprio', atualizarResumoPlanoProprio);
+    $(document).on('click', '.of-plano-proprio .plano-topo', function () {
+        const $c = $(this).closest('.of-plano-proprio');
+        const recolhido = !$c.hasClass('recolhido');
+        $c.toggleClass('recolhido', recolhido);
+        $c.find('.plano-alternar').attr({ 'aria-expanded': String(!recolhido), title: recolhido ? 'Expandir plano' : 'Recolher plano', 'aria-label': recolhido ? 'Expandir plano' : 'Recolher plano' });
+    });
+
+    // Com o plano próprio escolhido, o campo Entrega fica DENTRO do cartão, ao lado do tempo de acesso (como num plano da aba Planos); senão volta para o lugar de sempre, logo abaixo.
+    function levarEntregaDoUpsell(proprio) {
+        const $p = $painelOferta('upsell');
+        const $entrega = $p.find('.of-entrega');
+        if (proprio) $entrega.appendTo($p.find('.of-proprio-linha'));
+        else $entrega.insertAfter($p.find('.of-plano-proprio'));
+    }
+
+    // Mostra/esconde o cartão do plano próprio. Ao trocar de um modo para o outro, refaz o campo de entrega mantendo grupo/link escolhidos:
+    // "Igual à do plano oferecido" vira "Nenhum" (o plano é o próprio Upsell) e, na volta, "Nenhum" vira "Igual ao plano oferecido" de novo.
+    function atualizarPlanoProprioUpsell(refazer_entrega) {
+        const $p = $painelOferta('upsell');
+        const proprio = $p.find('.of-plano').val() === ID_UPSELL_PROPRIO;
+        const era_proprio = $p.data('proprio') === true;
+        $p.data('proprio', proprio);
+        $p.find('.of-plano-proprio').prop('hidden', !proprio);
+        $p.find('.of-desconto-campo').prop('hidden', proprio);
+        levarEntregaDoUpsell(proprio);
+        atualizarResumoPlanoProprio();
+        if (refazer_entrega && proprio !== era_proprio) {
+            const entrega = coletarEntrega($p.find('.campo-entrega'));
+            if (proprio && entrega.entrega_tipo === 'plano') entrega.entrega_tipo = 'nenhuma';
+            if (!proprio && entrega.entrega_tipo === 'nenhuma') entrega.entrega_tipo = 'plano';
+            desenharEntregaOferta('upsell', entrega, proprio);
+        }
+    }
+
+    $(document).on('change', '.painel[data-oferta="upsell"] .of-plano', function () {
+        atualizarPlanoProprioUpsell(true);
+        if ($(this).val() === ID_UPSELL_PROPRIO) $painelOferta('upsell').find('.of-proprio-nome').trigger('focus');
+    });
 
     // Os campos da oferta só aparecem com o interruptor "Ativar" ligado.
     function mostrarDetalhesOferta($painel) {
@@ -930,7 +1002,17 @@
             oferta.intervalo_minutos = numeroNoIntervalo($p.find('.of-intervalo').val(), 1, 1440, 30);
         } else {
             oferta.id_plano_destino = $p.find('.of-plano').val() || '';
-            oferta.desconto_percentual = Math.min(100, Math.max(0, parseFloat($p.find('.of-desconto').val()) || 0));
+            if (oferta.id_plano_destino === ID_UPSELL_PROPRIO) {
+                oferta.plano_proprio = {
+                    nome: $p.find('.of-proprio-nome').val().trim(),
+                    valor: parseFloat($p.find('.of-proprio-valor').val()) || 0,
+                    dias_acesso: parseInt($p.find('.of-proprio-dias').val(), 10) || 30,
+                    unidade_acesso: $p.find('.of-proprio-unidade').val() || 'dias'
+                };
+                oferta.desconto_percentual = 0;   // o preço é o digitado
+            } else {
+                oferta.desconto_percentual = Math.min(100, Math.max(0, parseFloat($p.find('.of-desconto').val()) || 0));
+            }
         }
         // Upsell e Downsell escolhem como entregar (por padrão, igual ao plano oferecido). O Order Bump segue sem entrega própria.
         if ($p.find('.of-entrega').length) Object.assign(oferta, coletarEntrega($p.find('.campo-entrega')));
@@ -938,14 +1020,14 @@
     }
 
     // Campo "Entrega" do Upsell e do Downsell (as opções dependem dos grupos carregados, então é desenhado aqui e não no PHP).
-    function desenharEntregaOferta(tipo, oferta) {
-        $painelOferta(tipo).find('.of-entrega').html(htmlCampoEntrega(oferta || {}, { rotulo: 'Entrega', quem: 'desta oferta', classe: 'of-entrega-select', oferta: true }));
+    function desenharEntregaOferta(tipo, oferta, plano_proprio) {
+        $painelOferta(tipo).find('.of-entrega').html(htmlCampoEntrega(oferta || {}, { rotulo: 'Entrega', quem: 'desta oferta', classe: 'of-entrega-select', oferta: true, sem_igual: !!plano_proprio }));
     }
 
     function preencherOferta(tipo, oferta) {
         oferta = oferta || {};
         const $p = $painelOferta(tipo);
-        desenharEntregaOferta(tipo, oferta);
+        desenharEntregaOferta(tipo, oferta, tipo === 'upsell' && oferta.id_plano_destino === ID_UPSELL_PROPRIO);
         $p.find('.of-ativo').prop('checked', !!oferta.ativo);
         mostrarDetalhesOferta($p);
         $p.find('.of-mensagem').val(oferta.mensagem || '');
@@ -988,10 +1070,22 @@
         } else {
             $p.find('.of-plano').data('valor', oferta.id_plano_destino || '');
             $p.find('.of-desconto').val(oferta.desconto_percentual != null ? oferta.desconto_percentual : 0);
+            const proprio = oferta.plano_proprio || {};
+            $p.find('.of-proprio-nome').val(proprio.nome || '');
+            $p.find('.of-proprio-valor').val(proprio.valor != null ? proprio.valor : 0);
+            $p.find('.of-proprio-dias').val(proprio.dias_acesso || 30);
+            $p.find('.of-proprio-unidade').val(['dias', 'horas', 'minutos'].indexOf(proprio.unidade_acesso) !== -1 ? proprio.unidade_acesso : 'dias');
+            // As opções do seletor só são desenhadas em atualizarSelectsOfertas (depois): o formulário do plano próprio é mostrado pelo que está salvo.
+            const eh_proprio = oferta.id_plano_destino === ID_UPSELL_PROPRIO;
+            $p.data('proprio', eh_proprio);
+            $p.find('.of-plano-proprio').prop('hidden', !eh_proprio).removeClass('recolhido');
+            $p.find('.of-desconto-campo').prop('hidden', eh_proprio);
+            levarEntregaDoUpsell(eh_proprio);
+            atualizarResumoPlanoProprio();
         }
     }
 
-    // Entrega por link precisa de um endereço válido (mesma regra do servidor). Pack desligado e oferta desligada não entram: não vendem nada.
+    // Entrega por link precisa de um endereço válido, por grupo de um grupo escolhido e por mensagem de um texto (mesma regra do servidor). Pack desligado e oferta desligada não entram: não vendem nada.
     function validarEntregaPorLink(d) {
         const itens = d.planos.map(function (p) { return ['do plano', p]; });
         if (d.packs.ativo) d.packs.itens.forEach(function (k) { if (k.ativo !== false) itens.push(['do pack', k]); });
@@ -1003,6 +1097,9 @@
             }
             if (item.entrega_tipo === 'grupo' && !item.id_grupo) {
                 return 'Escolha o grupo da entrega ' + itens[i][0] + (item.nome ? ' "' + item.nome + '"' : '') + ' (ou mude a entrega para outra opção).';
+            }
+            if (item.entrega_tipo === 'mensagem' && !item.mensagem_entrega) {
+                return 'Escreva a mensagem da entrega ' + itens[i][0] + (item.nome ? ' "' + item.nome + '"' : '') + ' (ou mude a entrega para outra opção).';
             }
         }
         return '';
@@ -1022,6 +1119,11 @@
         const erro_minimo = validarPrecoMinimo(d);
         if (erro_minimo) return erro_minimo;
         if (d.ofertas.upsell.ativo && !d.ofertas.upsell.id_plano_destino) return 'Escolha o plano oferecido no Upsell ou desative-o.';
+        if (d.ofertas.upsell.ativo && d.ofertas.upsell.id_plano_destino === ID_UPSELL_PROPRIO) {
+            const proprio = d.ofertas.upsell.plano_proprio;
+            if (!proprio.nome) return 'Dê um nome ao plano do Upsell (ou escolha um plano que já existe).';
+            if (!(proprio.valor > 0)) return 'O plano do Upsell "' + proprio.nome + '" precisa ter valor maior que zero.';
+        }
         if (d.ofertas.downsell.ativo && !d.ofertas.downsell.planos_oferecidos.length) return 'Marque pelo menos 1 plano oferecido no Downsell ou desative-o.';
         const erro_entrega = validarEntregaPorLink(d);
         if (erro_entrega) return erro_entrega;

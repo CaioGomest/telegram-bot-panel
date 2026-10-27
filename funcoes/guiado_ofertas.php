@@ -207,6 +207,9 @@ function planoDaOfertaBasico(array $dados_basico, string $tipo): ?array {
     if (empty($oferta['ativo'])) {
         return null;
     }
+    if ($tipo === 'upsell' && (string) ($oferta['id_plano_destino'] ?? '') === ID_PLANO_UPSELL_PROPRIO_BASICO) {
+        return planoProprioDoUpsellBasico($oferta);
+    }
     return localizarPlanoBasico($dados_basico['planos'] ?? [], (string) ($oferta['id_plano_destino'] ?? ''));
 }
 
@@ -521,6 +524,11 @@ const PREFIXO_VENDA_EXTRA_BASICO = 'Extra: ';
  */
 function ofertasPosPagamentoBasico(PDO $pdo, string $token, array $venda): void
 {
+    // Entrega por mensagem: o texto da entrega do plano/oferta vai logo depois do aviso de pagamento aprovado. Vale para toda venda que o tenha (inclusive o Upgrade
+    // do Upsell e o 1º pagamento de assinatura), por isso vem ANTES das travas abaixo, que só dizem respeito a ofertas.
+    if (function_exists('pagamentoEnviarMensagemEntrega')) {
+        pagamentoEnviarMensagemEntrega($pdo, $token, $venda);
+    }
     try {
         if (!empty($venda['id_operador_fluxo']) || !empty($venda['venda_pai_id']) || (string) ($venda['tipo_cobranca'] ?? '') === 'assinatura') {
             return;
@@ -555,7 +563,7 @@ function ofertasPosPagamentoBasico(PDO $pdo, string $token, array $venda): void
         // Upsell: só se o plano de destino existe e não é o que o cliente acabou de pagar.
         $destino = planoDaOfertaBasico($dados, 'upsell');
         if ($destino && !planoRecorrenteBasico($destino) && mb_strtolower($nome_pago, 'UTF-8') !== mb_strtolower(trim((string) ($destino['nome'] ?? '')), 'UTF-8')) {
-            $desconto = max(0.0, min(100.0, (float) ($ofertas['upsell']['desconto_percentual'] ?? 0)));
+            $desconto = descontoDaOfertaBasico($ofertas['upsell']);
             $valor = round((float) ($destino['valor'] ?? 0) * (1 - $desconto / 100), 2);
             if ($valor > 0) {
                 enviarOfertaBasico($token, $id_chat, $ofertas['upsell'], 'basico::pos::up::' . (string) ($destino['id'] ?? ''),
@@ -590,13 +598,13 @@ function gerarPixOfertaPosBasico(string $token, $id_chat, array $dados_basico, s
             requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Essa oferta não está mais disponível.']);
             return;
         }
-        $desconto = max(0.0, min(100.0, (float) ($ofertas['upsell']['desconto_percentual'] ?? 0)));
+        $desconto = descontoDaOfertaBasico($ofertas['upsell']);
         $valor = round((float) ($plano['valor'] ?? 0) * (1 - $desconto / 100), 2);
         $nome = PREFIXO_VENDA_UPGRADE_BASICO . (string) ($plano['nome'] ?? 'Plano');
         $id_produto = 'plano_' . (string) ($plano['id'] ?? '');
         $dias = (int) ($plano['dias_acesso'] ?? 30);
         $unidade = $plano['unidade_acesso'] ?? 'dias';
-        $entrega = entregaDoItemBasico($ofertas['upsell'] ?? [], $plano);   // entrega própria do Upsell; sem ela, a do plano de destino
+        $entrega = entregaCompletaDoItemBasico($ofertas['upsell'] ?? [], $plano);   // entrega própria do Upsell; sem ela, a do plano de destino
     } elseif ($tipo === 'bp') {
         $bump = $ofertas['order_bump'] ?? [];
         $valor = round(max(0.0, (float) ($bump['valor_extra'] ?? 0)), 2);
@@ -608,7 +616,7 @@ function gerarPixOfertaPosBasico(string $token, $id_chat, array $dados_basico, s
         $id_produto = 'extra_bump';
         $dias = 30;
         $unidade = 'dias';
-        $entrega = ['id_grupo' => '', 'link_entrega' => ''];
+        $entrega = ['id_grupo' => '', 'link_entrega' => '', 'mensagem_entrega' => ''];
     } else {
         return;
     }
@@ -628,6 +636,7 @@ function gerarPixOfertaPosBasico(string $token, $id_chat, array $dados_basico, s
         'unidade_acesso' => $unidade,
         'id_grupo' => $entrega['id_grupo'],
         'link_entrega' => $entrega['link_entrega'],
+        'mensagem_entrega' => $entrega['mensagem_entrega'],
         // Aba Pagamentos do Guiado: os campos de sempre e, no modelo novo, a configuração completa (funcoes/pagamentos_guiado.php).
     ] + propriedadesPagamentoBasico($pagamentos)], '');
 }
