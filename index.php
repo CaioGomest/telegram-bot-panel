@@ -310,7 +310,7 @@ try {
     $texto_grafico = "";
 
     if ($periodo == 'hoje') {
-        $texto_grafico = "HOJE (POR HORA)";
+        $texto_grafico = "Hoje (por hora)";
         if ($usa_cache_metricas) {
             $stmt = $pdo->prepare("SELECT hora, valor_pago FROM metricas_horarias_usuario WHERE data = CURDATE() $where_usuario_metricas");
             $stmt->execute();
@@ -327,7 +327,7 @@ try {
             $grafico_dados[] = (float) ($por_hora[$i] ?? 0);
         }
     } elseif ($periodo == 'ontem') {
-        $texto_grafico = "ONTEM (POR HORA)";
+        $texto_grafico = "Ontem (por hora)";
         if ($usa_cache_metricas) {
             $stmt = $pdo->prepare("SELECT hora, valor_pago FROM metricas_horarias_usuario WHERE data = CURDATE() - INTERVAL 1 DAY $where_usuario_metricas");
             $stmt->execute();
@@ -342,7 +342,7 @@ try {
             $grafico_dados[] = (float) ($por_hora[$i] ?? 0);
         }
     } elseif ($periodo == '30dias') {
-        $texto_grafico = "ÚLTIMOS 30 DIAS";
+        $texto_grafico = "Últimos 30 dias";
         if ($usa_cache_metricas) {
             $stmt = $pdo->prepare("SELECT data, SUM(valor_pago) AS total FROM metricas_horarias_usuario WHERE data >= CURDATE() - INTERVAL 29 DAY $where_usuario_metricas GROUP BY data");
             $stmt->execute();
@@ -358,7 +358,7 @@ try {
             $grafico_dados[] = (float) ($por_dia[$data] ?? 0);
         }
     } elseif ($periodo == 'total') {
-        $texto_grafico = "VENDAS NOS ÚLTIMOS 12 MESES";
+        $texto_grafico = "Vendas nos últimos 12 meses";
 
         $meses_data = [];
         for ($i = 11; $i >= 0; $i--) {
@@ -404,7 +404,7 @@ try {
             $grafico_dados[] = $total;
         }
     } else {
-        $texto_grafico = "ÚLTIMOS 8 DIAS";
+        $texto_grafico = "Últimos 8 dias";
         if ($usa_cache_metricas) {
             $stmt = $pdo->prepare("SELECT data, SUM(valor_pago) AS total FROM metricas_horarias_usuario WHERE data >= CURDATE() - INTERVAL 7 DAY $where_usuario_metricas GROUP BY data");
             $stmt->execute();
@@ -427,7 +427,7 @@ try {
     }
 
     if ($periodo === 'personalizado') {
-        $texto_grafico = "PERÍODO PERSONALIZADO";
+        $texto_grafico = "Período personalizado";
         $grafico_dados = [];
         $grafico_labels = [];
         if ($datas_validas) {
@@ -602,10 +602,6 @@ $taxa_aprovacao_percentual = $pix_gerados > 0 ? ($pix_pagos / $pix_gerados) * 10
                     </select>
                 </label>
             <?php endif; ?>
-            <div class="datas">
-                <label class="a-fld" style="flex: 0 0 160px" for="data_inicio"><span>De</span><input class="a-in" type="date" id="data_inicio" name="data_inicio" aria-label="Data inicial" value="<?php echo htmlspecialchars($data_inicio); ?>"></label>
-                <label class="a-fld" style="flex: 0 0 160px" for="data_fim"><span>Até</span><input class="a-in" type="date" id="data_fim" name="data_fim" aria-label="Data final" value="<?php echo htmlspecialchars($data_fim); ?>"></label>
-            </div>
         </form>
 
         <?php
@@ -690,6 +686,7 @@ $taxa_aprovacao_percentual = $pix_gerados > 0 ? ($pix_pagos / $pix_gerados) * 10
                     $nome_item = nomeExibicaoRanking($item['apelido_publico'], (int) $item['id_usuario']);
                     echo '<li class="' . ($eh_lider ? 'lider' : (($eh_voce) ? 'voce' : '')) . '">'
                         . '<span class="pos">#' . (int) $item['posicao'] . '</span>'
+                        . htmlAvatarRanking($item, $nome_item)
                         . '<span class="nm">' . htmlspecialchars($nome_item) . ($eh_voce ? '<span class="a-tag">você</span>' : '') . '</span>'
                         . '<span class="vl">' . htmlspecialchars(formatarReaisResumido((float) $item['faturamento'])) . '</span></li>';
                 };

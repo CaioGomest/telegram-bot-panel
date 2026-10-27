@@ -8,7 +8,8 @@ declare(strict_types=1);
  * Rodar: php tests/guiado/unitario_oferta_midia.php   (sai com código 1 se algo falhar)
  */
 
-$fonte = (string) file_get_contents(__DIR__ . '/../../webhook.php');
+$fonte = (string) file_get_contents(__DIR__ . '/../../webhook.php') . "
+" . (string) file_get_contents(__DIR__ . '/../../funcoes/guiado_ofertas.php');   // as funções de oferta/mídia moram em funcoes/guiado_ofertas.php
 
 /** Pega o código de uma função (do "function" até a "}" que fecha) pelo nome, usando o tokenizador (strings e comentários não atrapalham). */
 function extrairFuncao(string $fonte, string $nome): string
@@ -56,6 +57,12 @@ function requisicaoTelegram(string $token, string $metodo, array $parametros = [
     if ($GLOBALS['falhar_midia'] && in_array($metodo, ['sendPhoto', 'sendVideo'], true)) {
         return ['ok' => false, 'description' => 'Bad Request: wrong file'];
     }
+    if ($metodo === 'sendMediaGroup' && !empty($GLOBALS['recusar_album'])) {
+        return ['ok' => false, 'description' => 'Bad Request: wrong file'];
+    }
+    if ($metodo === 'sendMediaGroup' && !empty($GLOBALS['sem_resposta_album'])) {
+        return ['ok' => false, 'description' => 'resposta inválida'];   // é o que requisicaoTelegram devolve quando o Telegram não responde (tempo esgotado)
+    }
     return ['ok' => true];
 }
 /** Como a de verdade: só aceita "uploads/<nome>" e devolve o caminho absoluto; qualquer outra coisa (ou arquivo que sumiu) vira null. */
@@ -76,6 +83,7 @@ function obterFileIdCacheMidia(string $token, string $id_cache, string $metodo, 
 function processarEEnviarBloco(string $token, $id_chat, array $bloco, string $x): void
 {
     $GLOBALS['chamadas'][] = ['metodo' => 'PIX', 'p' => $bloco['properties'], 'arquivos' => []];
+    $GLOBALS['ultima_venda_pix_id'] = 901;   // o de verdade grava a venda e deixa o id aqui (funcoes/fluxo_blocos.php)
 }
 function packsDisponiveis(array $d): bool
 {
@@ -86,9 +94,42 @@ function previasMidiasEnviaveis(array $p): bool
     return false;
 }
 const PERIODICIDADES_BASICO = ['semanal' => '/semana', 'mensal' => '/mês', 'trimestral' => '/trimestre', 'semestral' => '/semestre', 'anual' => '/ano'];
+// Downsell com temporizador: as funções que falam com o banco são testadas em unitario_downsell_temporizador.php; aqui só não podem derrubar o webhook.
+$GLOBALS['pdo'] = null;
+$GLOBALS['bot'] = ['id' => 1];
+$GLOBALS['downsell_cancelados'] = [];
+$GLOBALS['downsell_agendados'] = [];
+function cancelarDownsellsDoLeadBasico($pdo, int $bot_id, string $id_telegram): void
+{
+    $GLOBALS['downsell_cancelados'][] = [$bot_id, $id_telegram];
+}
+function agendarDownsellBasico($pdo, int $bot_id, string $id_telegram, int $id_venda, string $id_plano, array $dados_basico): void
+{
+    $GLOBALS['downsell_agendados'][] = [$bot_id, $id_telegram, $id_venda, $id_plano];
+}
+function garantirConexaoBanco(): void
+{
+}
+// Sequência de Order Bumps: as funções que falam com o banco são testadas em unitario_order_bumps_sequencia.php; aqui só registram a chamada.
+$GLOBALS['bump_cancelados'] = [];
+$GLOBALS['bump_agendados'] = [];
+function cancelarOrderBumpsDoLeadBasico($pdo, int $bot_id, string $id_telegram): void
+{
+    $GLOBALS['bump_cancelados'][] = [$bot_id, $id_telegram];
+}
+function agendarOrderBumpsBasico($pdo, int $bot_id, string $id_telegram, int $id_venda, string $id_plano, array $dados_basico): void
+{
+    $GLOBALS['bump_agendados'][] = [$bot_id, $id_telegram, $id_venda, $id_plano];
+}
+const MIDIAS_MAXIMO_BASICO = 10;
+const ORDER_BUMP_MAXIMO = 5;
+require_once dirname(__DIR__, 2) . '/funcoes/entrega.php';   // entregaDoItemBasico(), usada por gerarPixBasico
+require_once dirname(__DIR__, 2) . '/funcoes/pagamentos_guiado.php';   // propriedadesPagamentoBasico(), usada por gerarPixBasico
 
 foreach (['estiloBotaoBasicoValor', 'enviarMensagemComMidiaBasico', 'enviarBoasVindasBasico', 'enviarOfertaBasico', 'avancarOfertasBasico', 'planoDaOfertaBasico', 'localizarPlanoBasico', 'planoRecorrenteBasico', 'periodicidadePlanoBasico',
-    'boasVindasMostraCtaBasico', 'enviarListaPlanosBasico', 'urlSuporteBasico', 'downsellNovoFormatoBasico', 'planosDoDownsellBasico', 'planoDoDownsellPorVariante', 'enviarDownsellBasico', 'gerarPixBasico', 'executarFluxoBasico'] as $f) {
+    'boasVindasMostraCtaBasico', 'enviarListaPlanosBasico', 'urlSuporteBasico', 'downsellNovoFormatoBasico', 'planosDoDownsellBasico', 'planosDoDownsellSemOEscolhidoBasico', 'downsellDepoisDoPixBasico',
+    'planoDoDownsellPorVariante', 'enviarDownsellBasico', 'gerarPixBasico', 'executarFluxoBasico',
+    'midiasDoItemBasico', 'midiasBoasVindasBasico', 'enviarMidiaSoltaBasico', 'enviarAlbumBasico', 'enviarMensagemComMidiasBasico', 'itensOrderBumpBasico', 'orderBumpDepoisDoPixBasico'] as $f) {
     eval(extrairFuncao($fonte, $f));
 }
 
@@ -207,21 +248,22 @@ $dados = [
 zerar();
 avancarOfertasBasico('T', 123, $dados, 'up', 'p1');
 $c = $GLOBALS['chamadas'][0] ?? [];
-chk('escolheu o plano: o Upsell sai como foto (up.jpg) com legenda UP, só com o botão aceitar, via cache', ($c['metodo'] ?? '') === 'sendPhoto' && ($c['p']['caption'] ?? '') === 'UP' && count(botoes($c)) === 1 && ($c['p']['photo'] ?? '') === 'FILEID_photo' && ($GLOBALS['cache_chamadas'][0][2] ?? '') === '/var/www/painel/uploads/up.jpg');
-zerar();
-avancarOfertasBasico('T', 123, $dados, 'dn', 'p1');
-$c = $GLOBALS['chamadas'][0] ?? [];
-chk('Downsell sai como vídeo (dn.mp4) com legenda DN e os 2 botões', ($c['metodo'] ?? '') === 'sendVideo' && ($c['p']['caption'] ?? '') === 'DN' && count(botoes($c)) === 2 && ($GLOBALS['cache_chamadas'][0][2] ?? '') === '/var/www/painel/uploads/dn.mp4');
+chk('escolheu o plano: o Upsell NÃO sai antes do Pix (agora é oferecido depois do pagamento); o que aparece é o Downsell, como vídeo (dn.mp4) com legenda DN', ($c['metodo'] ?? '') === 'sendVideo' && ($c['p']['caption'] ?? '') === 'DN' && count(botoes($c)) === 2 && ($GLOBALS['cache_chamadas'][0][2] ?? '') === '/var/www/painel/uploads/dn.mp4', json_encode($c));
 zerar();
 avancarOfertasBasico('T', 123, $dados, 'bp', 'p1', 'o');
-$c = $GLOBALS['chamadas'][0] ?? [];
-chk('Order Bump sai como foto (bp.jpg) com legenda BP e os 2 botões', ($c['metodo'] ?? '') === 'sendPhoto' && ($c['p']['caption'] ?? '') === 'BP' && count(botoes($c)) === 2 && ($GLOBALS['cache_chamadas'][0][2] ?? '') === '/var/www/painel/uploads/bp.jpg');
+chk('o Order Bump também NÃO sai antes do Pix (depois do pagamento): vai direto para o Pix', metodos() === 'PIX', metodos());
 zerar();
-avancarOfertasBasico('T', 123, $dados, 'bp', 'p1', 'o');
+enviarOfertaBasico('T', 123, $dados['ofertas']['upsell'], 'basico::pos::up::p2', 'texto padrão', '-100999', true);
+$c = $GLOBALS['chamadas'][0] ?? [];
+chk('a oferta de upsell (agora pós-pagamento) continua saindo como foto (up.jpg) com legenda UP, só com o botão aceitar, via cache', ($c['metodo'] ?? '') === 'sendPhoto' && ($c['p']['caption'] ?? '') === 'UP' && count(botoes($c)) === 1 && ($GLOBALS['cache_chamadas'][0][2] ?? '') === '/var/www/painel/uploads/up.jpg', json_encode($c));
+zerar();
+enviarOfertaBasico('T', 123, $dados['ofertas']['order_bump'], 'basico::pos::bp::0', 'texto padrão', '-100999');
+$c = $GLOBALS['chamadas'][0] ?? [];
+chk('a oferta de order bump (pós-pagamento) continua saindo como foto (bp.jpg) com legenda BP e os 2 botões', ($c['metodo'] ?? '') === 'sendPhoto' && ($c['p']['caption'] ?? '') === 'BP' && count(botoes($c)) === 2, json_encode($c));
 $dados_sem = $dados;
 unset($dados_sem['ofertas']['order_bump']['midia_path'], $dados_sem['ofertas']['order_bump']['midia_tipo']);
 zerar();
-avancarOfertasBasico('T', 123, $dados_sem, 'bp', 'p1', 'o');
+enviarOfertaBasico('T', 123, $dados_sem['ofertas']['order_bump'], 'basico::pos::bp::0', 'texto padrão', '-100999');
 chk('oferta sem mídia segue como mensagem de texto', metodos() === 'sendMessage');
 zerar();
 avancarOfertasBasico('T', 123, ['planos' => $dados['planos'], 'ofertas' => []], 'up', 'p1');
@@ -260,19 +302,40 @@ $so_o_original['ofertas']['downsell']['planos_oferecidos'] = ['p1'];
 zerar();
 avancarOfertasBasico('T', 123, $so_o_original, 'dn', 'p1');
 $c = $GLOBALS['chamadas'][0] ?? [];
-chk('só o plano que o cliente já escolheu estava marcado: o downsell é pulado e vai direto ao Order Bump', metodos() === 'sendPhoto' && ($c['p']['caption'] ?? '') === 'BP');
+chk('só o plano que o cliente já escolheu estava marcado: o downsell é pulado e vai direto ao Pix (o Order Bump agora é depois do pagamento)', metodos() === 'PIX', metodos());
 $inativo = $dados_novo;
 $inativo['ofertas']['downsell']['ativo'] = false;
 zerar();
 avancarOfertasBasico('T', 123, $inativo, 'dn', 'p2');
-chk('downsell desligado: pula direto para o Order Bump', ($GLOBALS['chamadas'][0]['p']['caption'] ?? '') === 'BP');
+chk('downsell desligado: vai direto ao Pix (sem Order Bump antes)', metodos() === 'PIX', metodos());
+
+echo "\n--- DOWNSELL COM TEMPORIZADOR (quando = depois_pix): o Pix sai primeiro e a oferta fica agendada\n";
+$depois_pix = $dados_novo;
+$depois_pix['ofertas']['downsell']['quando'] = 'depois_pix';
+zerar();
+$GLOBALS['downsell_agendados'] = [];
+avancarOfertasBasico('T', 123, $depois_pix, 'dn', 'p2');
+chk('cliente escolheu o plano: vai direto ao Pix, a oferta NÃO entra no lugar dele', metodos() === 'PIX', metodos());
+chk('o Pix do plano escolhido agenda o downsell (bot 1, chat 123, venda 901, plano p2)', $GLOBALS['downsell_agendados'] === [[1, '123', 901, 'p2']], json_encode($GLOBALS['downsell_agendados']));
+zerar();
+$GLOBALS['downsell_agendados'] = [];
+avancarOfertasBasico('T', 123, $dados_novo, 'dn', 'p2');
+chk('sem "quando" (downsell salvo antes do temporizador): continua saindo no lugar do Pix, nada agendado', metodos() === 'sendPhoto' && $GLOBALS['downsell_agendados'] === [], metodos());
+zerar();
+$GLOBALS['downsell_agendados'] = [];
+executarFluxoBasico('T', 123, $depois_pix, 'basico::of::bp::p2::d1::0');
+chk('Pix de quem aceitou a oferta (variante d1) NÃO agenda outro downsell (sem laço)', metodos() === 'PIX' && $GLOBALS['downsell_agendados'] === [], json_encode($GLOBALS['downsell_agendados']));
+$GLOBALS['downsell_cancelados'] = [];
+zerar();
+executarFluxoBasico('T', 123, $depois_pix, 'basico::of::dn::p2::p1');
+chk('tocar num plano da oferta encerra as repetições do temporizador desse lead e segue ao Pix', $GLOBALS['downsell_cancelados'] === [[1, '123']] && metodos() === 'PIX', json_encode($GLOBALS['downsell_cancelados']) . ' ' . metodos());
 
 echo "\n--- DOWNSELL NOVO: o clique no plano leva ao Order Bump e ao Pix com o preço certo\n";
 zerar();
 executarFluxoBasico('T', 123, $dados_novo, 'basico::of::dn::p2::p1');
 $c = $GLOBALS['chamadas'][0] ?? [];
 $b = tecladoDe($c)[0] ?? [];
-chk('tocou no plano "Semanal" (p1): aparece o Order Bump levando junto a variante d1', ($c['p']['caption'] ?? '') === 'BP' && ($b[0]['callback_data'] ?? '') === 'basico::of::bp::p2::d1::1' && ($b[1]['callback_data'] ?? '') === 'basico::of::bp::p2::d1::0', json_encode($b));
+chk('tocou no plano "Semanal" (p1) do downsell: segue direto ao Pix (sem Order Bump antes)', metodos() === 'PIX', metodos());
 zerar();
 executarFluxoBasico('T', 123, $dados_novo, 'basico::of::bp::p2::d1::0');
 $pix = $GLOBALS['chamadas'][0]['p'] ?? [];
@@ -296,11 +359,11 @@ echo "\n--- Fluxos ANTIGOS (Downsell com 1 plano + Aceitar/Recusar) continuam co
 zerar();
 executarFluxoBasico('T', 123, $dados, 'basico::of::dn::p1::1');
 $b = tecladoDe($GLOBALS['chamadas'][0] ?? [])[0] ?? [];
-chk('botão "aceitar" antigo (::1): segue para o Order Bump com a variante "d"', ($b[0]['callback_data'] ?? '') === 'basico::of::bp::p1::d::1', json_encode($b));
+chk('botão "aceitar" antigo (::1): segue direto ao Pix', metodos() === 'PIX', metodos());
 zerar();
 executarFluxoBasico('T', 123, $dados, 'basico::of::dn::p1::0');
 $b = tecladoDe($GLOBALS['chamadas'][0] ?? [])[0] ?? [];
-chk('botão "recusar" antigo (::0): segue para o Order Bump com a variante "o"', ($b[0]['callback_data'] ?? '') === 'basico::of::bp::p1::o::1', json_encode($b));
+chk('botão "recusar" antigo (::0): segue direto ao Pix', metodos() === 'PIX', metodos());
 zerar();
 executarFluxoBasico('T', 123, $dados, 'basico::of::bp::p1::d::0');
 chk('Pix do downsell antigo (variante "d"): plano Semanal R$ 8,00', abs(($GLOBALS['chamadas'][0]['p']['valor'] ?? 0) - 8.0) < 0.001 && ($GLOBALS['chamadas'][0]['p']['nome'] ?? '') === 'Semanal');
@@ -308,6 +371,46 @@ zerar();
 avancarOfertasBasico('T', 123, $dados, 'dn', 'p1');
 chk('downsell antigo continua saindo com Aceitar e Recusar', count(tecladoDe($GLOBALS['chamadas'][0] ?? [])[0] ?? []) === 2);
 
+
+echo "\n--- ENTREGA no Pix: plano, Downsell e Upsell aceitos (grupo, link ou nada)\n";
+$dados_ent = [
+    'planos' => [
+        ['id' => 'p1', 'nome' => 'Mensal', 'valor' => 20, 'id_grupo' => '-100111'],
+        ['id' => 'p2', 'nome' => 'VIP', 'valor' => 100, 'entrega_tipo' => 'link', 'link_entrega' => 'https://area.exemplo.com/vip'],
+        ['id' => 'p3', 'nome' => 'Semanal', 'valor' => 8, 'entrega_tipo' => 'nenhuma', 'id_grupo' => '-100333'],
+    ],
+    'ofertas' => [
+        'upsell' => ['ativo' => true, 'id_plano_destino' => 'p2', 'desconto_percentual' => 0],
+        'downsell' => ['ativo' => true, 'planos_oferecidos' => ['p1', 'p2'], 'id_plano_destino' => 'p1', 'desconto_percentual' => 10],
+    ],
+];
+function entregaDoPix(array $dados, string $id_plano, string $variante): array
+{
+    zerar();
+    gerarPixBasico('T', 123, $dados, $id_plano, $variante, false);
+    $p = $GLOBALS['chamadas'][0]['p'] ?? [];
+    return [$p['id_grupo'] ?? '?', $p['link_entrega'] ?? '?'];
+}
+chk('plano antigo (só id_grupo): Pix entrega no grupo', entregaDoPix($dados_ent, 'p1', 'o') === ['-100111', '']);
+chk('plano com link: Pix leva o link e nenhum grupo', entregaDoPix($dados_ent, 'p2', 'o') === ['', 'https://area.exemplo.com/vip']);
+chk('plano "nenhuma": o grupo que sobrou guardado NÃO vale', entregaDoPix($dados_ent, 'p3', 'o') === ['', '']);
+chk('Downsell sem entrega própria: cada plano oferecido entrega do jeito dele (d0 = grupo, d1 = link)', entregaDoPix($dados_ent, 'p3', 'd0') === ['-100111', ''] && entregaDoPix($dados_ent, 'p3', 'd1') === ['', 'https://area.exemplo.com/vip']);
+$d = $dados_ent;
+$d['ofertas']['downsell'] += ['entrega_tipo' => 'link', 'link_entrega' => 'https://promo.exemplo.com/down'];
+chk('Downsell com link próprio: vale para qualquer plano oferecido, sem o grupo do plano', entregaDoPix($d, 'p3', 'd0') === ['', 'https://promo.exemplo.com/down'] && entregaDoPix($d, 'p3', 'd1') === ['', 'https://promo.exemplo.com/down']);
+$d = $dados_ent;
+$d['ofertas']['downsell'] += ['entrega_tipo' => 'nenhuma'];
+chk('Downsell "nenhuma": só a venda, mesmo com plano que entrega', entregaDoPix($d, 'p3', 'd1') === ['', '']);
+$d = $dados_ent;
+$d['ofertas']['downsell'] += ['entrega_tipo' => 'grupo', 'id_grupo' => '-100888'];
+chk('Downsell com grupo próprio', entregaDoPix($d, 'p3', 'd1') === ['-100888', '']);
+$d = $dados_ent;
+$d['ofertas']['downsell'] += ['entrega_tipo' => 'plano'];
+chk('Downsell "igual ao plano": a entrega do plano oferecido', entregaDoPix($d, 'p3', 'd1') === ['', 'https://area.exemplo.com/vip']);
+$d = $dados_ent;
+$d['ofertas']['upsell'] += ['entrega_tipo' => 'grupo', 'id_grupo' => '-100777'];
+chk('Upsell aceito pelo botão antigo (variante "u") com grupo próprio', entregaDoPix($d, 'p1', 'u') === ['-100777', '']);
+chk('Upsell sem entrega própria: a do plano de destino (link)', entregaDoPix($dados_ent, 'p1', 'u') === ['', 'https://area.exemplo.com/vip']);
 
 echo "\n--- BOAS-VINDAS: botão CTA opcional (sem o botão, a lista de planos vem logo depois)\n";
 zerar();
@@ -351,6 +454,157 @@ $dados_cta['ativo'] = false;
 zerar();
 executarFluxoBasico('T', 123, $dados_cta, '/start');
 chk('fluxo desligado: só o aviso de indisponível (nem boas-vindas nem lista)', metodos() === 'sendMessage' && strpos($GLOBALS['chamadas'][0]['p']['text'] ?? '', 'indisponível') !== false);
+
+echo "\n--- BOAS-VINDAS com várias mídias: álbum (sendMediaGroup) e depois o texto com o botão\n";
+$bv_varias = ['mensagem' => 'Oi!', 'texto_cta' => 'Ver Planos', 'cor_cta' => 'primary', 'midias' => [
+    ['tipo' => 'image', 'path' => 'uploads/a.jpg'], ['tipo' => 'video', 'path' => 'uploads/b.mp4'], ['tipo' => 'image', 'path' => 'uploads/c.jpg'],
+]];
+zerar();
+enviarBoasVindasBasico('T', 123, $bv_varias);
+$album = $GLOBALS['chamadas'][0] ?? [];
+$itens_album = json_decode((string) ($album['p']['media'] ?? '[]'), true);
+chk('3 mídias: 1 sendMediaGroup e depois 1 sendMessage (o álbum não aceita botão)', metodos() === 'sendMediaGroup,sendMessage', metodos());
+chk('o álbum leva foto, vídeo e foto, na ordem, anexando cada arquivo de uploads/', array_column($itens_album, 'type') === ['photo', 'video', 'photo'] && array_column($itens_album, 'media') === ['attach://midia0', 'attach://midia1', 'attach://midia2']
+    && ($album['arquivos']['midia1'] ?? '') === '/var/www/painel/uploads/b.mp4' && count($album['arquivos']) === 3, json_encode($album));
+chk('o vídeo do álbum é marcado para streaming', ($itens_album[1]['supports_streaming'] ?? false) === true && !isset($itens_album[0]['supports_streaming']));
+chk('o texto vai depois, em mensagem normal, com o botão azul para a lista de planos', ($GLOBALS['chamadas'][1]['p']['text'] ?? '') === 'Oi!' && (botoes($GLOBALS['chamadas'][1])[0]['callback_data'] ?? '') === 'basico::ver_planos' && (botoes($GLOBALS['chamadas'][1])[0]['style'] ?? '') === 'primary');
+zerar();
+enviarBoasVindasBasico('T', 123, $bv_varias, '-100999');
+$itens_album = json_decode((string) ($GLOBALS['chamadas'][0]['p']['media'] ?? '[]'), true);
+chk('com canal de cache: o álbum usa os file_id e não anexa arquivo nenhum', array_column($itens_album, 'media') === ['FILEID_photo', 'FILEID_video', 'FILEID_photo'] && $GLOBALS['chamadas'][0]['arquivos'] === [], json_encode($GLOBALS['chamadas'][0] ?? []));
+zerar();
+enviarBoasVindasBasico('T', 123, ['mensagem' => 'Oi!', 'mostrar_cta' => false] + $bv_varias);
+chk('CTA desligado com álbum: o texto segue sem botão', metodos() === 'sendMediaGroup,sendMessage' && !isset($GLOBALS['chamadas'][1]['p']['reply_markup']));
+zerar();
+enviarBoasVindasBasico('T', 123, ['mensagem' => 'Oi!', 'midias' => [['tipo' => 'image', 'path' => 'uploads/a.jpg']]]);
+chk('lista com 1 mídia só: como sempre, foto com legenda e botão (sem álbum)', metodos() === 'sendPhoto' && ($GLOBALS['chamadas'][0]['p']['caption'] ?? '') === 'Oi!' && count(botoes($GLOBALS['chamadas'][0])) === 1);
+zerar();
+enviarBoasVindasBasico('T', 123, ['mensagem' => 'Oi!', 'midias' => [], 'midia_tipo' => 'image', 'midia_path' => 'uploads/a.jpg']);
+chk('fluxo salvo antes (só midia_tipo/midia_path) continua mandando a foto com legenda', metodos() === 'sendPhoto');
+zerar();
+enviarBoasVindasBasico('T', 123, ['mensagem' => 'Oi!', 'midias' => [['tipo' => 'image', 'path' => 'uploads/sumiu.jpg'], ['tipo' => 'video', 'path' => 'uploads/b.mp4'], ['tipo' => 'image', 'path' => 'config.php']]]);
+chk('mídia apagada e caminho fora de uploads/ são puladas: sobrando 1, vai solta (sem álbum) e depois o texto', metodos() === 'sendVideo,sendMessage', metodos());
+$tantas = [];
+for ($i = 0; $i < 14; $i++) {
+    $tantas[] = ['tipo' => 'image', 'path' => 'uploads/f' . $i . '.jpg'];
+}
+zerar();
+enviarBoasVindasBasico('T', 123, ['mensagem' => 'Oi!', 'midias' => $tantas]);
+chk('mais de 10 mídias: o álbum leva só as 10 primeiras (limite do Telegram)', count(json_decode((string) ($GLOBALS['chamadas'][0]['p']['media'] ?? '[]'), true)) === 10);
+chk('midiasBoasVindasBasico ignora tipo inválido ("audio", "none") e item sem caminho', midiasBoasVindasBasico(['midias' => [['tipo' => 'audio', 'path' => 'uploads/x.mp3'], ['tipo' => 'none', 'path' => 'uploads/x.jpg'], ['tipo' => 'image', 'path' => ''], 'lixo', ['tipo' => 'image', 'path' => 'uploads/ok.jpg']]]) === [['tipo' => 'image', 'path' => 'uploads/ok.jpg']]);
+// Telegram recusa o álbum (ex.: um vídeo grande demais): cada item vai solto, para o lead não ficar sem nada
+$GLOBALS['recusar_album'] = true;
+zerar();
+enviarBoasVindasBasico('T', 123, $bv_varias);
+chk('Telegram recusa o álbum: os 3 itens vão soltos e depois o texto com o botão', metodos() === 'sendMediaGroup,sendPhoto,sendVideo,sendPhoto,sendMessage', metodos());
+$GLOBALS['recusar_album'] = false;
+$GLOBALS['sem_resposta_album'] = true;
+zerar();
+enviarBoasVindasBasico('T', 123, $bv_varias);
+chk('álbum sem resposta (tempo esgotado): não reenvia nada solto (evita mandar tudo em dobro), o texto segue', metodos() === 'sendMediaGroup,sendMessage', metodos());
+$GLOBALS['sem_resposta_album'] = false;
+
+echo "\n--- UPSELL e DOWNSELL com várias mídias: álbum e depois o texto com os botões\n";
+$midias_3 = [['tipo' => 'image', 'path' => 'uploads/a.jpg'], ['tipo' => 'video', 'path' => 'uploads/b.mp4'], ['tipo' => 'image', 'path' => 'uploads/c.jpg']];
+zerar();
+enviarOfertaBasico('T', 123, $oferta_base + ['midias' => $midias_3], 'basico::pos::up::p2', 'padrão', '', true);
+$album = json_decode((string) ($GLOBALS['chamadas'][0]['p']['media'] ?? '[]'), true);
+chk('Upsell com 3 mídias: 1 álbum (foto, vídeo, foto) e depois 1 mensagem de texto', metodos() === 'sendMediaGroup,sendMessage' && array_column($album, 'type') === ['photo', 'video', 'photo'], metodos());
+chk('Upsell: o texto da oferta e os 2 botões (aceitar/recusar, com cores e callbacks) vão na mensagem DEPOIS do álbum', ($GLOBALS['chamadas'][1]['p']['text'] ?? '') === 'Leve o Anual!' && count(botoes($GLOBALS['chamadas'][1])) === 2 && botoes($GLOBALS['chamadas'][1])[0]['callback_data'] === 'basico::pos::up::p2::1' && botoes($GLOBALS['chamadas'][1])[0]['style'] === 'success' && botoes($GLOBALS['chamadas'][1])[1]['style'] === 'danger');
+zerar();
+enviarOfertaBasico('T', 123, $oferta_base + ['midias' => $midias_3, 'esconder_recusar' => true], 'basico::pos::up::p2', 'padrão', '', true);
+chk('Upsell com álbum e "esconder recusar": só o botão aceitar na mensagem de texto', metodos() === 'sendMediaGroup,sendMessage' && count(botoes($GLOBALS['chamadas'][1])) === 1);
+zerar();
+enviarOfertaBasico('T', 123, $oferta_base + ['midias' => $midias_3], 'basico::pos::up::p2', 'padrão', '-100999', true);
+chk('Upsell com álbum e canal de cache: o álbum usa os file_id (nenhum arquivo anexado)', array_column(json_decode((string) ($GLOBALS['chamadas'][0]['p']['media'] ?? '[]'), true), 'media') === ['FILEID_photo', 'FILEID_video', 'FILEID_photo'] && $GLOBALS['chamadas'][0]['arquivos'] === []);
+zerar();
+enviarOfertaBasico('T', 123, $oferta_base + ['midias' => [['tipo' => 'image', 'path' => 'uploads/a.jpg']]], 'basico::pos::up::p2', 'padrão');
+chk('Upsell com lista de 1 mídia: como sempre (foto com legenda e botões, sem álbum)', metodos() === 'sendPhoto' && ($GLOBALS['chamadas'][0]['p']['caption'] ?? '') === 'Leve o Anual!' && count(botoes($GLOBALS['chamadas'][0])) === 2);
+zerar();
+enviarOfertaBasico('T', 123, $oferta_base + ['midia_tipo' => 'image', 'midia_path' => 'uploads/a.jpg'], 'basico::pos::up::p2', 'padrão');
+chk('Upsell salvo antes (só midia_tipo/midia_path): continua foto com legenda e botões', metodos() === 'sendPhoto');
+zerar();
+$GLOBALS['recusar_album'] = true;
+enviarOfertaBasico('T', 123, $oferta_base + ['midias' => $midias_3], 'basico::pos::up::p2', 'padrão');
+chk('Telegram recusa o álbum do Upsell: os 3 itens vão soltos e a oferta com os botões chega do mesmo jeito', metodos() === 'sendMediaGroup,sendPhoto,sendVideo,sendPhoto,sendMessage' && count(botoes($GLOBALS['chamadas'][4])) === 2, metodos());
+$GLOBALS['recusar_album'] = false;
+$dados_dn = $dados;
+$dados_dn['ofertas']['downsell'] = ['ativo' => true, 'planos_oferecidos' => ['p1', 'p3'], 'desconto_percentual' => 20, 'mensagem' => 'DN3', 'midias' => [['tipo' => 'video', 'path' => 'uploads/d1.mp4'], ['tipo' => 'image', 'path' => 'uploads/d2.jpg']]];
+zerar();
+avancarOfertasBasico('T', 123, $dados_dn, 'dn', 'p2');
+$b = tecladoDe($GLOBALS['chamadas'][1] ?? []);
+chk('Downsell com 2 mídias: álbum e depois a mensagem com 1 botão por plano marcado (com o desconto) e o texto DN3', metodos() === 'sendMediaGroup,sendMessage' && ($GLOBALS['chamadas'][1]['p']['text'] ?? '') === 'DN3' && count($b) === 2 && ($b[0][0]['text'] ?? '') === 'Mensal — R$ 16,00 (-20%)' && ($b[1][0]['callback_data'] ?? '') === 'basico::of::dn::p2::p1', metodos() . ' ' . json_encode($b, JSON_UNESCAPED_UNICODE));
+$dados_dn['ofertas']['downsell']['midias'] = [['tipo' => 'video', 'path' => 'uploads/d1.mp4']];
+zerar();
+avancarOfertasBasico('T', 123, $dados_dn, 'dn', 'p2');
+chk('Downsell com 1 mídia: como sempre (vídeo com legenda e os botões dos planos)', metodos() === 'sendVideo' && ($GLOBALS['chamadas'][0]['p']['caption'] ?? '') === 'DN3' && count(tecladoDe($GLOBALS['chamadas'][0])) === 2);
+chk('midiasDoItemBasico vale para qualquer item: lista tem prioridade sobre o par antigo e o limite é 10', midiasDoItemBasico(['midias' => [['tipo' => 'video', 'path' => 'uploads/x.mp4']], 'midia_tipo' => 'image', 'midia_path' => 'uploads/velha.jpg']) === [['tipo' => 'video', 'path' => 'uploads/x.mp4']]
+    && count(midiasDoItemBasico(['midias' => array_fill(0, 15, ['tipo' => 'image', 'path' => 'uploads/f.jpg'])])) === 10 && midiasDoItemBasico([]) === []);
+zerar();
+enviarOfertaBasico('T', 123, $oferta_base + ['midias' => $midias_3], 'basico::pos::bp::0', 'padrão');
+chk('o mesmo vale para o Order Bump (usa a mesma função de oferta) se algum dia ele ganhar a lista', metodos() === 'sendMediaGroup,sendMessage');
+
+echo "\n--- ORDER BUMP em sequência (Pix não pago): clique no botão e o Pix com plano + extra\n";
+$dados_seq = $dados;
+$dados_seq['ofertas']['order_bump'] = ['ativo' => true, 'quando' => 'depois_pix', 'valor_extra' => 9.9, 'nome' => 'Bônus 1', 'itens' => [
+    ['nome' => 'Bônus 1', 'valor_extra' => 9.9, 'espera_minutos' => 5],
+    ['nome' => 'Bônus 2', 'valor_extra' => 14.5, 'espera_minutos' => 15],
+    ['nome' => 'Sem valor', 'valor_extra' => 0, 'espera_minutos' => 10],
+]];
+chk('itensOrderBumpBasico: só os itens com valor extra > 0, na ordem', array_column(itensOrderBumpBasico($dados_seq), 'nome') === ['Bônus 1', 'Bônus 2']);
+chk('orderBumpDepoisDoPixBasico: ligado + quando=depois_pix + algum item válido', orderBumpDepoisDoPixBasico($dados_seq) && !orderBumpDepoisDoPixBasico($dados) && !orderBumpDepoisDoPixBasico(array_replace_recursive($dados_seq, ['ofertas' => ['order_bump' => ['ativo' => false]]])));
+zerar();
+$GLOBALS['bump_cancelados'] = [];
+$GLOBALS['bump_agendados'] = [];
+$GLOBALS['downsell_agendados'] = [];
+executarFluxoBasico('T', 123, $dados_seq, 'basico::bs::p1::1::1');
+$pix = $GLOBALS['chamadas'][0]['p'] ?? [];
+chk('aceitou o 2º bump: um Pix só, com o valor do plano Mensal (20,00) + o extra do bump 2 (14,50) = R$ 34,50, produto "Mensal + Bônus 2"', metodos() === 'PIX' && abs(($pix['valor'] ?? 0) - 34.50) < 0.001 && ($pix['nome'] ?? '') === 'Mensal + Bônus 2', json_encode($pix));
+chk('aceitar encerra a sequência do lead e o Pix novo NÃO agenda downsell nem order bump (sem laço)', $GLOBALS['bump_cancelados'] === [[1, '123']] && $GLOBALS['bump_agendados'] === [] && $GLOBALS['downsell_agendados'] === [], json_encode([$GLOBALS['bump_cancelados'], $GLOBALS['bump_agendados'], $GLOBALS['downsell_agendados']]));
+chk('a entrega do Pix é a do plano (o bump não troca grupo/link)', array_key_exists('id_grupo', $pix) && ($pix['unidade_acesso'] ?? '') === 'dias');
+zerar();
+$GLOBALS['bump_cancelados'] = [];
+executarFluxoBasico('T', 123, $dados_seq, 'basico::bs::p1::0::0');
+chk('recusou: só "Tudo bem!", nenhum Pix e a sequência segue (nada cancelado)', metodos() === 'sendMessage' && ($GLOBALS['chamadas'][0]['p']['text'] ?? '') === 'Tudo bem! 🙌' && $GLOBALS['bump_cancelados'] === []);
+foreach (['basico::bs::p1::7::1' => 'posição que não existe', 'basico::bs::pX::0::1' => 'plano que não existe', 'basico::bs::p1::2::1' => 'item sem valor extra (a posição 2 deixou de existir)'] as $callback => $quem) {
+    zerar();
+    executarFluxoBasico('T', 123, $dados_seq, $callback);
+    chk("botão de $quem: avisa que a oferta não está mais disponível e não gera Pix", metodos() === 'sendMessage' && strpos($GLOBALS['chamadas'][0]['p']['text'] ?? '', 'não está mais disponível') !== false, metodos());
+}
+zerar();
+executarFluxoBasico('T', 123, array_replace_recursive($dados_seq, ['ofertas' => ['order_bump' => ['quando' => 'depois_pagamento']]]), 'basico::bs::p1::0::1');
+chk('dono voltou o order bump para "depois do pagamento" depois do envio: o botão antigo avisa e não gera Pix', metodos() === 'sendMessage');
+$dados_rec = $dados_seq;
+$dados_rec['planos'][0]['cobranca'] = 'recorrente';
+zerar();
+executarFluxoBasico('T', 123, $dados_rec, 'basico::bs::p1::0::1');
+chk('plano virou assinatura recorrente: o extra não é cobrado (avisa e não gera Pix)', metodos() === 'sendMessage');
+zerar();
+$GLOBALS['bump_agendados'] = [];
+executarFluxoBasico('T', 123, $dados_seq, 'basico::of::bp::p1::o::0');
+chk('o Pix normal do plano escolhido agenda a sequência (bot 1, chat 123, venda 901, plano p1)', metodos() === 'PIX' && $GLOBALS['bump_agendados'] === [[1, '123', 901, 'p1']], metodos() . ' ' . json_encode($GLOBALS['bump_agendados']));
+zerar();
+$GLOBALS['bump_agendados'] = [];
+executarFluxoBasico('T', 123, $dados_seq, 'basico::of::bp::p1::d::0');
+chk('Pix de quem aceitou o downsell antigo (variante d) não agenda a sequência', metodos() === 'PIX' && $GLOBALS['bump_agendados'] === [], metodos() . ' ' . json_encode($GLOBALS['bump_agendados']));
+
+echo "\n--- ABA PAGAMENTOS: o Pix do Guiado leva as opções escolhidas (modelo novo) ou o de sempre (fluxo antigo)\n";
+$dados_pg = $dados;
+$dados_pg['pagamentos'] = ['versao' => 2, 'msg_instrucoes' => 'Pague {nome}', 'qr_exibicao' => 'junto', 'btn_copiar' => ['ativo' => false], 'msg_confirmado' => 'Valeu!'];
+zerar();
+executarFluxoBasico('T', 123, $dados_pg, 'basico::of::bp::p1::o::0');
+$pix = $GLOBALS['chamadas'][0]['p'] ?? [];
+chk('Pix do Guiado com a aba Pagamentos no modelo novo: leva pix_v2 e a configuração normalizada (QR junto, copiar desligado)', !empty($pix['pix_v2']) && ($pix['pg']['qr_exibicao'] ?? '') === 'junto' && ($pix['pg']['btn_copiar']['ativo'] ?? true) === false && ($pix['pg']['msg_instrucoes'] ?? '') === 'Pague {nome}' && $pix['mostrar_copiar'] === false && $pix['msg_confirmado'] === 'Valeu!', json_encode($pix));
+$dados_antigo = $dados;
+$dados_antigo['pagamentos'] = ['msg_instrucoes' => 'Texto antigo', 'mostrar_copiar' => false, 'mostrar_qrcode' => false, 'qrcode_definido' => true];
+zerar();
+executarFluxoBasico('T', 123, $dados_antigo, 'basico::of::bp::p1::o::0');
+$pix = $GLOBALS['chamadas'][0]['p'] ?? [];
+chk('fluxo SEM versao (salvo antes): o Pix não leva pix_v2 nem pg, só os campos de sempre', !isset($pix['pix_v2']) && !isset($pix['pg']) && $pix['msg_instrucoes'] === 'Texto antigo' && $pix['mostrar_copiar'] === false && $pix['mostrar_qrcode'] === false, json_encode($pix));
+zerar();
+executarFluxoBasico('T', 123, $dados, 'basico::of::bp::p1::o::0');
+$pix = $GLOBALS['chamadas'][0]['p'] ?? [];
+chk('fluxo sem nada em pagamentos: padrões de sempre (copiar e confirmar ligados, QR ligado)', !isset($pix['pix_v2']) && $pix['mostrar_copiar'] === true && $pix['mostrar_confirmar'] === true && $pix['mostrar_qrcode'] === true, json_encode($pix));
 
 echo PHP_EOL . "RESUMO: $ok ok, $falhas falhas" . PHP_EOL;
 exit($falhas > 0 ? 1 : 0);

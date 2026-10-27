@@ -91,6 +91,7 @@ function executarFluxoContinuacao(string $token, string $id_chat, int $bot_id, s
 require_once __DIR__ . '/../funcoes/gateways.php';
 require_once __DIR__ . '/../funcoes/fluxo_blocos.php';
 require_once __DIR__ . '/../funcoes/execucao_fluxo.php';
+require_once __DIR__ . '/../funcoes/guiado_ofertas.php';
 
 // LIMIT mantém cada rodada rápida e previsível mesmo com muitas vendas pendentes
 // de uma vez — o que sobrar fica pra próxima execução (roda de novo em instantes).
@@ -168,7 +169,7 @@ foreach ($vendas_pendentes as $venda) {
 
             // Mesmo registro que o webhook da gateway faz (antes, pagamento achado só pelo cron não
             // aparecia em Atividade/notificações e não enviava o evento de compra pro Facebook/TikTok).
-            registrarAtividade((int) $venda['id_dono'], 'venda', 'Venda Aprovada', 'PIX R$ ' . number_format((float) $venda['valor'], 2, ',', '.') . ' pago (confirmado pelo cron, identificador=' . $venda['transacao_id'] . ').');
+            registrarAtividade((int) $venda['id_dono'], 'venda', 'Venda Aprovada', 'PIX de R$ ' . number_format((float) $venda['valor'], 2, ',', '.') . ' foi pago.');
             require_once __DIR__ . '/../funcoes/traqueamento.php';
             enviarEventosTraqueamento((int) $venda['id_dono'], 'compra', [
                 'valor'        => (float) $venda['valor'],
@@ -195,9 +196,12 @@ foreach ($vendas_pendentes as $venda) {
                 ? escaparMarkdownTelegram($texto_confirmado)
                 : "✅ *Pagamento Confirmado!*\n\nObrigado pela sua compra.";
 
+            $link_aprovado = null;   // link do grupo desta venda (zerado a cada venda do laço) para a mensagem da aba Pagamentos, modelo novo
+            $tempo_aprovado = 0;
             if (!empty($venda['id_grupo_telegram'])) {
                 $id_grupo = $venda['id_grupo_telegram'];
                 $tempo_minutos = (int)($venda['tempo_acesso_minutos'] ?? ($venda['dias_acesso'] * 1440));
+                $tempo_aprovado = $tempo_minutos;
                 // Revoga link anterior do usuário para evitar compartilhamento/reuso.
                 $stmt_link_anterior = $pdo->prepare("SELECT invite_link FROM membros_grupos WHERE id_telegram = ? AND id_grupo_telegram = ? AND bot_id = ? LIMIT 1");
                 $stmt_link_anterior->execute([$venda['id_telegram'], $id_grupo, $venda['bot_id']]);
@@ -215,6 +219,7 @@ foreach ($vendas_pendentes as $venda) {
                     'name' => 'Venda #' . $venda['id']
                 ]);
                 $link = (($invite['ok'] ?? false) && isset($invite['result']['invite_link'])) ? $invite['result']['invite_link'] : null;
+                $link_aprovado = $link;
 
                 $data_expiracao = date('Y-m-d H:i:s', strtotime("+$tempo_minutos minutes"));
 
@@ -264,10 +269,17 @@ foreach ($vendas_pendentes as $venda) {
                     $erro_link = $invite['description'] ?? 'Erro desconhecido';
                     logCron("Falha ao gerar link para venda #{$venda['id']}: $erro_link (acesso/expiração gravados mesmo assim)");
                 }
+            }
 
+            // Fora do "if" do grupo: venda sem grupo (entrega por link ou só a mensagem) também precisa receber o aviso de pagamento confirmado,
+            // como já acontece no webhook da gateway e no botão "Já fiz o pagamento".
+            // Guiado no modelo novo da aba Pagamentos: mensagem, mídias e botão de acesso escolhidos pelo dono (funcoes/pagamentos_guiado.php); senão, o texto de sempre.
+            if (!pagamentoEnviarAprovacao($pdo, (string) $venda['token'], $venda, $link_aprovado, !empty($venda['id_grupo_telegram']) && $link_aprovado === null, $tempo_aprovado)) {
+                $msg .= textoEntregaLink($venda, 'markdown');
                 requisicaoTelegramLocal($venda['token'], 'sendMessage', ['chat_id' => $venda['id_telegram'], 'text' => $msg, 'parse_mode' => 'Markdown']);
             }
 
+            ofertasPosPagamentoBasico($pdo, (string) $venda['token'], $venda);   // Guiado: Upsell/Order Bump DEPOIS de pagar
             if (!empty($venda['id_operador_fluxo'])) {
                 executarFluxoContinuacao($venda['token'], $venda['id_telegram'], $venda['bot_id'], $venda['id_operador_fluxo'], (int)$venda['id_dono'], 'output_pago');
             }

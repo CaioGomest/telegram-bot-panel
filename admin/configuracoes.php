@@ -16,6 +16,10 @@ $mensagem_email = '';
 $tipo_mensagem_email = '';
 $mensagem_dominios = '';
 $tipo_mensagem_dominios = '';
+$mensagem_push = '';
+$tipo_mensagem_push = '';
+$mensagem_manutencao = '';
+$tipo_mensagem_manutencao = '';
 
 /** Lê a lista de domínios do redirecionamento (um por linha, ou separados por vírgula/espaço). Lança RuntimeException no primeiro inválido. */
 function lerDominiosRedirecionamento(string $bruto): array
@@ -70,12 +74,108 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'identid
             definirConfigSistema('favicon', salvarArquivoMarca($_FILES['favicon'], 'marca_favicon'));
         }
 
+        if (isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK || isset($_FILES['favicon']) && $_FILES['favicon']['error'] === UPLOAD_ERR_OK) {
+            // Os ícones dos avisos e do app saem da logo: com os avisos ligados, regera na hora (a versão nova vai no ?v= e troca o ícone sem mexer no service worker).
+            try {
+                require_once __DIR__ . '/../funcoes/push.php';
+                if (pushLerConfig($pdo, 'push_ativo') === '1') {
+                    require_once __DIR__ . '/../funcoes/push_icones.php';
+                    pushIconesGerar();
+                }
+            } catch (Throwable $e) {
+                error_log('[push_icones] ' . $e->getMessage());
+            }
+        }
+
         registrarAtividade((int) $_SESSION['usuario_id'], 'sistema', 'Identidade visual', 'Nome/logo/favicon do painel atualizados.');
         header('Location: configuracoes?salvo=1');
         exit;
     } catch (RuntimeException $e) {
         $mensagem = $e->getMessage();
         $tipo_mensagem = 'erro';
+    }
+}
+
+// Avisos push (aba Notificações): interruptor geral + contato VAPID, gerar as chaves e regenerar (invalida todos os aparelhos).
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['acao'] ?? '', ['push_salvar', 'push_gerar', 'push_regenerar'], true)) {
+    verificarCsrf();
+    require_once __DIR__ . '/../funcoes/push.php';
+    $acao_push = $_POST['acao'];
+    try {
+        if ($acao_push === 'push_salvar') {
+            $contato = trim((string) ($_POST['push_contato'] ?? ''));
+            if ($contato !== '' && !preg_match('#^https://[A-Za-z0-9.-]+(/\S*)?$#', $contato) && !preg_match('/^mailto:[^\s@]+@[^\s@]+\.[^\s@]+$/', $contato)) {
+                throw new RuntimeException('Contato inválido: use https://seusite.com.br ou mailto:voce@seusite.com.br (a Apple recusa os avisos com um contato inválido).');
+            }
+            $ligar = isset($_POST['push_ativo']);
+            if ($ligar && !pushGarantirChaves($pdo)) {
+                throw new RuntimeException('Não foi possível gerar as chaves dos avisos (OpenSSL).');
+            }
+            definirConfigSistema('push_contato', $contato);
+            definirConfigSistema('push_ativo', $ligar ? '1' : '0');
+            if ($ligar) {
+                try {
+                    require_once __DIR__ . '/../funcoes/push_icones.php';
+                    pushIconesGerar();
+                } catch (Throwable $e) {
+                    error_log('[push_icones] ' . $e->getMessage());
+                }
+            }
+            registrarAtividade((int) $_SESSION['usuario_id'], 'sistema', 'Avisos push', $ligar ? 'Avisos push LIGADOS para os vendedores.' : 'Avisos push DESLIGADOS.');
+            header('Location: configuracoes?salvo_push=1#notificacoes');
+            exit;
+        }
+        if ($acao_push === 'push_gerar') {
+            if (!pushGarantirChaves($pdo)) {
+                throw new RuntimeException('Não foi possível gerar as chaves dos avisos (OpenSSL).');
+            }
+            registrarAtividade((int) $_SESSION['usuario_id'], 'sistema', 'Avisos push', 'Chaves dos avisos push geradas.');
+            header('Location: configuracoes?salvo_push=2#notificacoes');
+            exit;
+        }
+        if (trim((string) ($_POST['confirmacao'] ?? '')) !== 'REGENERAR') {
+            throw new RuntimeException('Para regenerar as chaves digite REGENERAR no campo de confirmação.');
+        }
+        if (!pushGarantirChaves($pdo, true)) {
+            throw new RuntimeException('Não foi possível gerar as chaves novas (OpenSSL).');
+        }
+        registrarAtividade((int) $_SESSION['usuario_id'], 'sistema', 'Avisos push', 'Chaves dos avisos push REGENERADAS: todos os aparelhos precisam ativar os avisos de novo.');
+        header('Location: configuracoes?salvo_push=3#notificacoes');
+        exit;
+    } catch (RuntimeException $e) {
+        $mensagem_push = $e->getMessage();
+        $tipo_mensagem_push = 'erro';
+    }
+}
+
+// Modo manutenção (aba Manutenção): ligar/atualizar e desligar. O estado mora num arquivo (funcoes/manutencao.php), não no banco.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['acao'] ?? '', ['manutencao_ligar', 'manutencao_desligar'], true)) {
+    verificarCsrf();
+    require_once __DIR__ . '/../funcoes/manutencao.php';
+    try {
+        if ($_POST['acao'] === 'manutencao_ligar') {
+            $texto_manutencao = trim((string) ($_POST['manutencao_mensagem'] ?? ''));
+            if (mb_strlen($texto_manutencao) > MANUTENCAO_MENSAGEM_MAX) {
+                throw new RuntimeException('A mensagem pode ter no máximo ' . MANUTENCAO_MENSAGEM_MAX . ' caracteres.');
+            }
+            $volta_bruto = trim((string) ($_POST['manutencao_volta_minutos'] ?? ''));
+            if ($volta_bruto !== '' && (!ctype_digit($volta_bruto) || (int) $volta_bruto > MANUTENCAO_VOLTA_MAX_MINUTOS)) {
+                throw new RuntimeException('A previsão de volta é em minutos, de 1 a ' . MANUTENCAO_VOLTA_MAX_MINUTOS . ' (7 dias). Deixe em branco para não informar.');
+            }
+            $modo_manutencao = ($_POST['manutencao_modo'] ?? '') === 'total' ? 'total' : 'painel';
+            $estado_manutencao = manutencaoLigar($texto_manutencao, $modo_manutencao, $volta_bruto === '' ? 0 : (int) $volta_bruto, (string) ($_SESSION['usuario_email'] ?? 'admin'));
+            manutencaoLiberarNavegador($estado_manutencao);   // quem ligou continua enxergando o sistema
+            registrarAtividade((int) $_SESSION['usuario_id'], 'sistema', 'Manutenção', 'Modo manutenção LIGADO (' . ($modo_manutencao === 'total' ? 'tudo' : 'só o painel') . ').');
+            header('Location: configuracoes?salvo_manutencao=1#manutencao');
+            exit;
+        }
+        manutencaoDesligar((string) ($_SESSION['usuario_email'] ?? 'admin'));
+        registrarAtividade((int) $_SESSION['usuario_id'], 'sistema', 'Manutenção', 'Modo manutenção DESLIGADO.');
+        header('Location: configuracoes?salvo_manutencao=2#manutencao');
+        exit;
+    } catch (RuntimeException $e) {
+        $mensagem_manutencao = $e->getMessage();
+        $tipo_mensagem_manutencao = 'erro';
     }
 }
 
@@ -193,14 +293,26 @@ if (isset($_GET['salvo_google'])) {
     $mensagem_google = 'Credenciais do Google atualizadas.';
     $tipo_mensagem_google = 'sucesso';
 }
+if (isset($_GET['salvo_push'])) {
+    $mensagem_push = ['1' => 'Configuração dos avisos salva.', '2' => 'Chaves geradas.', '3' => 'Chaves novas geradas. Todos os aparelhos precisam ativar os avisos de novo.'][$_GET['salvo_push']] ?? 'Salvo.';
+    $tipo_mensagem_push = 'sucesso';
+}
 if (isset($_GET['salvo_dominios'])) {
     $mensagem_dominios = 'Domínios do redirecionamento atualizados.';
     $tipo_mensagem_dominios = 'sucesso';
 }
+if (isset($_GET['salvo_manutencao'])) {
+    $mensagem_manutencao = $_GET['salvo_manutencao'] === '2' ? 'Manutenção desligada. O sistema voltou ao normal para todo mundo.' : 'Manutenção ligada. Só quem tem a liberação (este navegador e o link abaixo) enxerga o sistema normal.';
+    $tipo_mensagem_manutencao = 'sucesso';
+}
 
 // Aba que abre sozinha: a do formulário que acabou de responder (sucesso ou erro). Um #hash na URL manda mais que isto (feito no JavaScript).
 $aba_inicial = 'identidade';
-if ($mensagem_dominios !== '') {
+if ($mensagem_manutencao !== '') {
+    $aba_inicial = 'manutencao';
+} elseif ($mensagem_push !== '') {
+    $aba_inicial = 'notificacoes';
+} elseif ($mensagem_dominios !== '') {
     $aba_inicial = 'dominios';
 } elseif ($mensagem_google !== '') {
     $aba_inicial = 'google';
@@ -216,6 +328,7 @@ if ($mensagem_dominios !== '') {
     <title>Configurações - <?php echo htmlspecialchars(nomeSistema()); ?></title>
     <?php include __DIR__ . '/../tema_inline.php'; ?>
     <link rel="stylesheet" href="../assets/css/painel.css?v=<?php echo @filemtime(__DIR__.'/../assets/css/painel.css'); ?>">
+    <link rel="stylesheet" href="../assets/css/push.css?v=<?php echo @filemtime(__DIR__.'/../assets/css/push.css'); ?>">
 </head>
 <body>
 <div class="layout-painel">
@@ -249,13 +362,31 @@ if ($mensagem_dominios !== '') {
         }
         $fila = resumoFilaEmails();
         $envios24 = resumoEnviosEmail24h();
+        require_once __DIR__ . '/../funcoes/push.php';
+        $push_ligado = pushLerConfig($pdo, 'push_ativo') === '1';
+        $push_tem_chaves = pushVapidPublica($pdo) !== '';
+        $push_resumo = pushResumoAdmin($pdo);
+        $push_impressao = pushImpressaoDigital($pdo);
+        $push_contato_salvo = pushLerConfig($pdo, 'push_contato');
+        $push_contato_efetivo = pushContato($pdo);
+        $push_cripto_ok = function_exists('chaveCriptografiaDisponivel') ? chaveCriptografiaDisponivel() : true;
+        require_once __DIR__ . '/../funcoes/push_icones.php';
+        $push_icone_fonte = pushIconesFonte();
+        $push_icones_ok = pushIconesCompletos();
+        $push_icone_v = pushIconesConfig('push_icone_v');
+        require_once __DIR__ . '/../funcoes/manutencao.php';
+        $manut = manutencaoLer(true);
+        $manut_link = ($manut['ativo'] && $manut['segredo'] !== '') ? rtrim(urlBasePainel(), '/') . '/?liberar=' . $manut['segredo'] : '';
+        $manut_agora = time();
         ?>
 
         <div class="abas-status config-abas" role="tablist" aria-label="Seções das configurações">
             <a href="#identidade" class="aba-status" role="tab" data-aba="identidade">Identidade visual</a>
             <a href="#dominios" class="aba-status" role="tab" data-aba="dominios">Domínios<?php if ($dominios_lista): ?> <span class="aba-contagem"><?php echo count($dominios_lista); ?></span><?php endif; ?></a>
             <a href="#google" class="aba-status" role="tab" data-aba="google">Login com Google <span class="ponto-estado<?php echo $google_ativo ? ' ok' : ''; ?>" title="<?php echo $google_ativo ? 'Ativo' : 'Não configurado'; ?>"></span></a>
+            <a href="#notificacoes" class="aba-status" role="tab" data-aba="notificacoes">Notificações <span class="ponto-estado<?php echo ($push_ligado && $push_tem_chaves) ? ' ok' : ''; ?>" title="<?php echo ($push_ligado && $push_tem_chaves) ? 'Avisos ligados' : 'Avisos desligados'; ?>"></span></a>
             <a href="#email" class="aba-status" role="tab" data-aba="email">E-mail <span class="ponto-estado<?php echo $smtp_ativo ? ' ok' : ''; ?>" title="<?php echo $smtp_ativo ? 'SMTP ativo' : 'SMTP não configurado'; ?>"></span></a>
+            <a href="#manutencao" class="aba-status" role="tab" data-aba="manutencao">Manutenção<?php if ($manut['ativo']): ?> <span class="aba-contagem">ligada</span><?php endif; ?></a>
         </div>
 
         <div id="config-abas" data-inicial="<?php echo htmlspecialchars($aba_inicial); ?>">
@@ -478,6 +609,136 @@ if ($mensagem_dominios !== '') {
                 </div>
             </section>
 
+            <!-- ============================== NOTIFICAÇÕES (AVISOS PUSH) ============================== -->
+            <section class="aba-painel" id="aba-notificacoes" data-aba="notificacoes">
+                <div class="grade-config">
+                    <div class="painel">
+                        <div class="painel-cabecalho">
+                            <h2>Avisos no celular e no navegador</h2>
+                            <span class="badge <?php echo ($push_ligado && $push_tem_chaves) ? 'badge-sucesso' : 'badge-neutro'; ?>"><?php echo ($push_ligado && $push_tem_chaves) ? 'Ligado' : 'Desligado'; ?></span>
+                        </div>
+                        <p class="texto-suave">Cada vendedor recebe um aviso no celular ou no computador quando um <strong>Pix é gerado</strong> e quando um <strong>Pix é pago</strong>, mesmo com o painel fechado. O ícone do aviso é a logo do sistema.</p>
+                        <?php if ($mensagem_push): ?>
+                            <div class="aviso aviso-<?php echo $tipo_mensagem_push; ?>"><?php echo htmlspecialchars($mensagem_push); ?></div>
+                        <?php endif; ?>
+                        <?php if (!$push_cripto_ok): ?>
+                            <div class="aviso aviso-erro">A chave de criptografia do sistema (<span class="mono">CHAVE_CRIPTOGRAFIA_GATEWAYS</span> no <span class="mono">config.php</span>) não está configurada: a chave privada dos avisos ficaria sem cifra no banco.</div>
+                        <?php endif; ?>
+
+                        <form method="POST" id="form-push" class="bloco-form">
+                            <?php echo campoCsrf(); ?>
+                            <input type="hidden" name="acao" value="push_salvar">
+                            <div class="campo">
+                                <label class="opcao-ativar-gateway">
+                                    <input type="checkbox" name="push_ativo" value="1" <?php echo $push_ligado ? 'checked' : ''; ?>>
+                                    <span>Ligar os avisos para os vendedores</span>
+                                </label>
+                                <small>Interruptor geral. Desligado, nada é enviado e o sistema nem carrega o código dos avisos. Ao ligar pela primeira vez, as chaves são geradas sozinhas.</small>
+                            </div>
+                            <div class="campo">
+                                <label for="push_contato">Contato do serviço (VAPID)</label>
+                                <input type="text" id="push_contato" name="push_contato" maxlength="200" value="<?php echo htmlspecialchars($push_contato_salvo); ?>" placeholder="<?php echo htmlspecialchars($push_contato_efetivo); ?>">
+                                <small>Em branco usa <span class="mono"><?php echo htmlspecialchars($push_contato_efetivo); ?></span>. Precisa ser <span class="mono">https://seusite</span> ou <span class="mono">mailto:voce@seusite</span>: a Apple recusa os avisos se o contato for inválido.</small>
+                            </div>
+                            <div class="linha-acoes">
+                                <button type="submit" class="botao botao-primario">Salvar</button>
+                            </div>
+                        </form>
+
+                        <div class="push-chaves">
+                            <div class="painel-cabecalho"><h2>Ícone dos avisos</h2></div>
+                            <?php if ($push_icones_ok && $push_icone_fonte): ?>
+                                <div class="push-icones">
+                                    <img src="<?php echo $caminho_base; ?>uploads/pwa/icone-192.png?v=<?php echo htmlspecialchars($push_icone_v); ?>" width="64" height="64" alt="Ícone do aviso">
+                                    <img src="<?php echo $caminho_base; ?>uploads/pwa/badge-96.png?v=<?php echo htmlspecialchars($push_icone_v); ?>" width="40" height="40" alt="Ícone pequeno" class="push-icone-badge">
+                                    <p class="texto-suave">Gerado a partir da <strong><?php echo ['logo' => 'logo do sistema', 'favicon' => 'favicon (a logo não pôde ser usada)', 'mascote' => 'mascote do Coyote (nem a logo nem o favicon puderam ser usados)'][$push_icone_fonte['origem']] ?? 'imagem do sistema'; ?></strong> (<?php echo (int) $push_icone_fonte['largura']; ?>×<?php echo (int) $push_icone_fonte['altura']; ?> px). Ao trocar a logo em Identidade visual, o ícone é refeito sozinho.</p>
+                                </div>
+                                <?php if (min((int) $push_icone_fonte['largura'], (int) $push_icone_fonte['altura']) < 512): ?>
+                                    <div class="aviso aviso-erro">A imagem é pequena: envie ao menos 512×512 px (PNG com fundo transparente fica melhor) para o ícone não ficar borrado.</div>
+                                <?php endif; ?>
+                            <?php elseif ($push_icone_fonte): ?>
+                                <p class="texto-suave">Os ícones são gerados ao ligar os avisos.</p>
+                            <?php else: ?>
+                                <div class="aviso aviso-erro">Nenhuma imagem utilizável (PNG, JPG ou WebP) para gerar os ícones. Envie uma logo em Identidade visual.</div>
+                            <?php endif; ?>
+                        </div>
+
+                        <div class="push-chaves">
+                            <div class="painel-cabecalho"><h2>Chaves</h2></div>
+                            <?php if ($push_tem_chaves): ?>
+                                <p class="texto-suave">Impressão digital da chave pública: <span class="mono" id="push-impressao"><?php echo htmlspecialchars($push_impressao); ?></span></p>
+                                <details class="push-regenerar">
+                                    <summary>Regenerar as chaves</summary>
+                                    <p class="texto-suave"><strong>Cuidado:</strong> com chaves novas, <strong>todos os aparelhos deixam de receber</strong> até ativarem os avisos de novo. Use só se a chave vazou.</p>
+                                    <form method="POST" class="bloco-form">
+                                        <?php echo campoCsrf(); ?>
+                                        <input type="hidden" name="acao" value="push_regenerar">
+                                        <div class="campo">
+                                            <label for="push_confirmacao">Digite REGENERAR para confirmar</label>
+                                            <input type="text" id="push_confirmacao" name="confirmacao" autocomplete="off" placeholder="REGENERAR">
+                                        </div>
+                                        <div class="linha-acoes"><button type="submit" class="botao">Regenerar chaves</button></div>
+                                    </form>
+                                </details>
+                            <?php else: ?>
+                                <p class="texto-suave">Ainda não há chaves. Elas são geradas ao ligar os avisos, ou agora:</p>
+                                <form method="POST" class="bloco-form">
+                                    <?php echo campoCsrf(); ?>
+                                    <input type="hidden" name="acao" value="push_gerar">
+                                    <div class="linha-acoes"><button type="submit" class="botao">Gerar chaves</button></div>
+                                </form>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+
+                    <div class="coluna-lateral">
+                        <div class="painel">
+                            <div class="painel-cabecalho"><h2>Saúde do envio</h2><a href="configuracoes#notificacoes" class="texto-suave" style="font-size:12px">Atualizar</a></div>
+                            <?php
+                            $bat = $push_resumo['batimento_segundos'];
+                            if ($bat === null) {
+                                $bat_classe = 'badge-neutro';
+                                $bat_texto = 'Sem trabalhador (os avisos saem pelo envio direto do site)';
+                            } elseif ($bat < 10) {
+                                $bat_classe = 'badge-sucesso';
+                                $bat_texto = 'Trabalhador ativo';
+                            } elseif ($bat < 180) {
+                                $bat_classe = 'badge-neutro';
+                                $bat_texto = 'Trabalhador sem sinal há ' . $bat . ' s';
+                            } else {
+                                $bat_classe = 'badge-erro';
+                                $bat_texto = 'Trabalhador parado há ' . floor($bat / 60) . ' min';
+                            }
+                            $h24 = $push_resumo['hora24'];
+                            $lat_media = ((int) ($h24['lat_n'] ?? 0)) > 0 ? round(((int) $h24['lat_soma']) / ((int) $h24['lat_n'])) : null;
+                            $ap = $push_resumo['aparelhos'];
+                            ?>
+                            <p><span class="badge <?php echo $bat_classe; ?>"><?php echo htmlspecialchars($bat_texto); ?></span></p>
+                            <dl class="push-saude">
+                                <div><dt>Na fila</dt><dd><?php echo (int) $push_resumo['pendentes']; ?></dd></div>
+                                <div><dt>Enviando agora</dt><dd><?php echo (int) $push_resumo['enviando']; ?></dd></div>
+                                <div><dt>Enviados (24 h)</dt><dd><?php echo (int) ($h24['enviados'] ?? 0); ?></dd></div>
+                                <div><dt>Falhas temporárias (24 h)</dt><dd><?php echo (int) ($h24['falhas'] ?? 0); ?></dd></div>
+                                <div><dt>Erros de assinatura (24 h)</dt><dd><?php echo (int) ($h24['erros_fatais'] ?? 0); ?></dd></div>
+                                <div><dt>Aparelhos removidos (24 h)</dt><dd><?php echo (int) ($h24['removidas'] ?? 0); ?></dd></div>
+                                <div><dt>Resumidos em rajada (24 h)</dt><dd><?php echo (int) ($h24['agrupados'] ?? 0); ?></dd></div>
+                                <div><dt>Latência média / máxima</dt><dd><?php echo $lat_media === null ? '—' : ($lat_media . ' ms / ' . (int) $h24['lat_max'] . ' ms'); ?></dd></div>
+                                <div><dt>Aparelhos ativos</dt><dd>iPhone <?php echo (int) $ap['ios']; ?> · Android <?php echo (int) $ap['android']; ?> · Computador <?php echo (int) $ap['desktop']; ?></dd></div>
+                            </dl>
+                            <small class="texto-suave">Se o trabalhador parar ou houver muitos erros, os admins recebem um alerta no sino (no máximo 1 por hora).</small>
+                        </div>
+                        <div class="painel">
+                            <div class="painel-cabecalho"><h2>Como funciona</h2></div>
+                            <ol class="passos">
+                                <li><span>O vendedor ativa os avisos em <strong>Minha Conta</strong>, em cada aparelho (no iPhone, depois de adicionar o site à Tela de Início).</span></li>
+                                <li><span>O aviso nasce na fila no instante do Pix e sai na hora: pelo <strong>trabalhador</strong> (serviço <span class="mono">painel-push</span>, o caminho mais rápido) ou, sem ele, pelo próprio site logo depois de responder.</span></li>
+                                <li><span>Se não der para enviar na hora, volta para a fila e tenta de novo; em rajadas, os Pix gerados viram um resumo.</span></li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <!-- ============================== E-MAIL ============================== -->
             <section class="aba-painel" id="aba-email" data-aba="email">
                 <div class="grade-config">
@@ -600,6 +861,91 @@ if ($mensagem_dominios !== '') {
                             <p class="texto-suave" style="margin:12px 0 0;line-height:1.6;font-size:13px;">
                                 No Brevo, autorize o IP <?php echo $ip_painel !== '' ? '<span class="mono">' . htmlspecialchars($ip_painel) . '</span> ' : 'deste servidor '; ?>em <em>Segurança → IPs autorizados</em>; sem isso o login é recusado.
                             </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================== MANUTENÇÃO ============================== -->
+            <section class="aba-painel" id="aba-manutencao" data-aba="manutencao">
+                <div class="grade-config">
+                    <div class="painel">
+                        <div class="painel-cabecalho">
+                            <h2>Modo manutenção</h2>
+                            <span class="badge <?php echo $manut['ativo'] ? 'badge-perigo' : 'badge-neutro'; ?>"><?php echo $manut['ativo'] ? 'Ligada' : 'Desligada'; ?></span>
+                        </div>
+                        <?php if ($mensagem_manutencao): ?>
+                            <div class="aviso aviso-<?php echo $tipo_mensagem_manutencao; ?>"><?php echo htmlspecialchars($mensagem_manutencao); ?></div>
+                        <?php endif; ?>
+
+                        <?php if ($manut['ativo']): ?>
+                            <div class="aviso aviso-erro" style="line-height:1.6;">
+                                <strong>A manutenção está LIGADA</strong> desde <?php echo htmlspecialchars(manutencaoQuando($manut['desde'], $manut_agora)); ?><?php echo $manut['por'] !== '' ? ' (' . htmlspecialchars($manut['por']) . ')' : ''; ?>.
+                                Modo: <strong><?php echo $manut['modo'] === 'total' ? 'tudo' : 'só o painel'; ?></strong>.
+                                <?php if ($manut['volta_em'] > $manut_agora): ?>Previsão de volta: <strong><?php echo htmlspecialchars(manutencaoQuando($manut['volta_em'], $manut_agora)); ?></strong>.<?php elseif ($manut['volta_em'] > 0): ?>A previsão de volta já passou.<?php endif; ?>
+                                Quem não tem a liberação vê a página "Em manutenção". Esta tela e este navegador seguem normais.
+                            </div>
+                            <?php if ($manut_link !== ''): ?>
+                                <div class="campo">
+                                    <label>Link de liberação (abre o sistema normal em outro navegador ou para outra pessoa)</label>
+                                    <div class="caixa-copiar">
+                                        <span id="manutencao-link" class="mono"><?php echo htmlspecialchars($manut_link); ?></span>
+                                        <button type="button" class="botao" id="btn-copiar-manutencao-link">Copiar</button>
+                                    </div>
+                                    <small class="texto-suave dica-copiar">Vale 12 horas no navegador de quem abrir e deixa de valer quando a manutenção for desligada. Não compartilhe com quem não deve ver o sistema nesse período.</small>
+                                </div>
+                            <?php endif; ?>
+                            <form method="POST" id="form-manutencao-desligar" class="bloco-form" data-confirmar="Desligar a manutenção? O sistema volta ao normal para todo mundo agora.">
+                                <?php echo campoCsrf(); ?>
+                                <input type="hidden" name="acao" value="manutencao_desligar">
+                                <div class="linha-acoes">
+                                    <button type="submit" class="botao botao-primario">Desligar manutenção</button>
+                                </div>
+                            </form>
+                            <div class="painel-cabecalho" style="margin-top:22px;"><h2>Mudar mensagem, modo ou previsão</h2></div>
+                        <?php else: ?>
+                            <p class="texto-suave" style="margin:0 0 14px;line-height:1.6;font-size:13px;">Tira o sistema do ar com uma página "Em manutenção" (em vez de erro) enquanto você faz uma atualização. Quem liga continua enxergando tudo normalmente.</p>
+                        <?php endif; ?>
+
+                        <form method="POST" id="form-manutencao" class="bloco-form" data-confirmar="<?php echo $manut['ativo'] ? 'Atualizar a mensagem, o modo e a previsão da manutenção?' : 'Ligar a manutenção agora? Quem não tem a liberação passa a ver a página de manutenção. No modo &quot;tudo&quot;, os bots, os pagamentos e os links também param até você desligar.'; ?>">
+                            <?php echo campoCsrf(); ?>
+                            <input type="hidden" name="acao" value="manutencao_ligar">
+                            <div class="campo">
+                                <label for="manutencao_modo">O que sai do ar</label>
+                                <select id="manutencao_modo" name="manutencao_modo">
+                                    <option value="painel"<?php echo $manut['modo'] === 'total' ? '' : ' selected'; ?>>Só o painel (os bots, os pagamentos e os links seguem funcionando)</option>
+                                    <option value="total"<?php echo $manut['modo'] === 'total' ? ' selected' : ''; ?>>Tudo (painel, bots, pagamentos, links e crons)</option>
+                                </select>
+                            </div>
+                            <div class="campo">
+                                <label for="manutencao_mensagem">Mensagem na página (opcional)</label>
+                                <textarea id="manutencao_mensagem" name="manutencao_mensagem" rows="3" maxlength="<?php echo MANUTENCAO_MENSAGEM_MAX; ?>" placeholder="Estamos fazendo uma atualização rápida para deixar tudo ainda melhor. Já voltamos!"><?php echo htmlspecialchars($manut['mensagem']); ?></textarea>
+                            </div>
+                            <div class="campo">
+                                <label for="manutencao_volta_minutos">Previsão de volta, em minutos (opcional)</label>
+                                <input type="number" id="manutencao_volta_minutos" name="manutencao_volta_minutos" min="1" max="<?php echo MANUTENCAO_VOLTA_MAX_MINUTOS; ?>" step="1" placeholder="Ex.: 30">
+                                <small class="texto-suave">A página mostra o horário previsto. É só informativo: a manutenção <strong>não desliga sozinha</strong>.</small>
+                            </div>
+                            <div class="linha-acoes">
+                                <button type="submit" class="botao <?php echo $manut['ativo'] ? '' : 'botao-primario'; ?>"><?php echo $manut['ativo'] ? 'Atualizar manutenção' : 'Ligar manutenção'; ?></button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="coluna-lateral">
+                        <div class="painel">
+                            <div class="painel-cabecalho"><h2>Qual modo usar</h2></div>
+                            <p class="texto-suave" style="margin:0;line-height:1.6;font-size:13px;">
+                                <strong>Só o painel</strong>: para uma atualização visual ou ajuste rápido. Os bots continuam vendendo, os pagamentos continuam sendo confirmados, os links de redirecionamento funcionam e os crons rodam. Só o painel e a API mostram a página de manutenção.
+                            </p>
+                            <p class="texto-suave" style="margin:12px 0 0;line-height:1.6;font-size:13px;">
+                                <strong>Tudo</strong>: para mexer no banco (migração, "Atualizar Banco", restauração). O bot do Telegram e a gateway recebem "tente de novo" e reenviam depois, os links mostram a página e <strong>todos os crons pausam</strong> até você desligar. Não deixe ligado por muito tempo: vendas ficam sem Pix novo e os Pix pendentes só são conferidos quando voltar.
+                            </p>
+                        </div>
+                        <div class="painel">
+                            <div class="painel-cabecalho"><h2>Pelo servidor (SSH)</h2></div>
+                            <p class="texto-suave" style="margin:0 0 8px;line-height:1.6;font-size:13px;">Na pasta do painel (ex.: <span class="mono">cd /var/www/painel</span>). Funciona mesmo com o banco fora do ar, porque o estado fica num arquivo:</p>
+                            <p class="mono" style="margin:0;font-size:12.5px;line-height:1.8;overflow-wrap:anywhere;">php manutencao.php ligar --modo=total --volta-em=30 --msg="Atualizando o banco"<br>php manutencao.php status<br>php manutencao.php desligar</p>
                         </div>
                     </div>
                 </div>
@@ -735,7 +1081,7 @@ if ($mensagem_dominios !== '') {
         modal.classList.remove('aberto');
     }
 
-    ['form-identidade', 'form-dominios', 'form-google', 'form-email'].forEach(function (id) {
+    ['form-identidade', 'form-dominios', 'form-google', 'form-email', 'form-manutencao', 'form-manutencao-desligar'].forEach(function (id) {
         var form = document.getElementById(id);
         if (!form) return;
         form.addEventListener('submit', function (e) {
@@ -784,6 +1130,34 @@ if ($mensagem_dominios !== '') {
             copiarFallback(texto, avisar);
         }
     });
+})();
+
+// Manutenção: copiar o link de liberação.
+(function () {
+    var btn = document.getElementById('btn-copiar-manutencao-link');
+    if (!btn) return;
+    var texto = document.getElementById('manutencao-link').textContent.trim();
+    function avisar() {
+        var original = btn.textContent;
+        btn.textContent = 'Copiado!';
+        setTimeout(function () { btn.textContent = original; }, 1500);
+    }
+    btn.addEventListener('click', function () {
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(texto).then(avisar).catch(function () { copiarManutencaoFallback(texto, avisar); });
+        } else {
+            copiarManutencaoFallback(texto, avisar);
+        }
+    });
+    function copiarManutencaoFallback(valor, callback) {
+        var tmp = document.createElement('textarea');
+        tmp.value = valor;
+        document.body.appendChild(tmp);
+        tmp.select();
+        document.execCommand('copy');
+        document.body.removeChild(tmp);
+        callback();
+    }
 })();
 
 // Depois de enviar o teste de e-mail (ou salvar o e-mail) a página recarrega no topo: leva a vista até o resultado.

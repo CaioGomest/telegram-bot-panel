@@ -54,7 +54,7 @@ O layout novo (redesign do painel, handoff de design fora do repositório) foi a
 - `campanhas_ranking` / `campanhas_ranking_premios` — cadastro de campanha (nome, período, tipo `oficial`/`mensal`) e prêmios (até 5 posições), gerenciados em `admin/ranking.php`. **Campanha nunca é apagada pela tela: é arquivada** (`arquivada_em`; some da lista, das telas do usuário e do cron, mas o registro, o placar final e os ganhadores ficam e dá para desarquivar). Quem lê campanha para o usuário ou para o cron precisa filtrar `arquivada_em IS NULL`.
 - `ranking_cache` (`campanha_id`, `id_usuario`, `faturamento`, `posicao`) — tabela pré-calculada. `ranking.php` só lê daqui, nunca faz `SUM(valor)` na hora.
 - `cron/cron_ranking.php` (precisa estar no crontab a cada 1 min) recalcula `ranking_cache` de toda campanha ativa via `RANK() OVER (...)` direto no MySQL (confirmado 8.3, tem window function). Se esquecer de colocar no crontab, o ranking fica com o cache antigo — não quebra, só para de atualizar.
-- `usuarios.apelido_publico` — nome que aparece pros outros usuários no ranking (nunca nome real/e-mail). Editável em Minha Conta. Sem apelido, cai em "Usuário #ID".
+- `usuarios.apelido_publico` — nome que aparece pros outros usuários no ranking (nunca nome real/e-mail). Editável em Minha Conta. Sem apelido, cai em "Usuário #ID". A **foto de perfil** (`usuarios.foto_perfil`) também aparece (pódio com aro de medalha, lista, mini-ranking do Início); quem monta o avatar é `htmlAvatarRanking()` e as consultas trazem a coluna por `colunaFotoRanking()` — consulta nova do ranking que mostre usuário deve fazer o mesmo.
 - `funcoes/ranking.php` tem as funções de leitura (`buscarCampanhaAtiva`, `buscarRankingCampanha`, etc.) — reaproveitar essas em vez de escrever query nova se for mexer na tela.
 
 ## Pasta `/admin`
@@ -125,7 +125,7 @@ Reportar os achados antes de aplicar qualquer mudança — varredura é análise
 
 ## Pasta /deploy (instalação na VPS)
 
-`deploy/PLANO-VPS.md` é o plano completo; `deploy/vps/` tem os scripts (`instalar.sh`, `verificar.sh`, `atualizar.sh`, `backup.sh`, `restaurar.sh`, `atualizar-banco.php`), `deploy/schema.sql` o schema completo do banco e `deploy/fluxos-teste/` os fluxos de teste para importar. Scripts de shell sempre com fim de linha LF (`.gitattributes`). Mudou o schema? Altere `instalacao.php` **e** `admin/atualiza_banco.php` e regenere o `schema.sql` com `tests/paginas/servidor/zz_schema.php` (modos `gerar` e `arquivo`). A pasta `deploy/` não vai para o servidor (o `instalar.sh` não a copia).
+`deploy/PLANO-VPS.md` é o plano completo; `deploy/vps/` tem os scripts (`instalar.sh`, `verificar.sh`, `atualizar.sh`, `backup.sh`, `restaurar.sh`, `atualizar-banco.php`), `deploy/schema.sql` o schema completo do banco e `deploy/fluxos-teste/` os fluxos de teste para importar. Scripts de shell sempre com fim de linha LF (`.gitattributes`). Mudou o schema? Altere `instalacao.php` **e** `admin/atualiza_banco.php` e regenere o `schema.sql` com `tests/paginas/servidor/zz_schema.php` (modos `gerar` e `arquivo`). A pasta `deploy/` não vai para o servidor (o `instalar.sh` não a copia). **Avisos push (Web Push, 20/10/2026):** plano e decisões em `deploy/PLANO-PUSH-NOTIFICACOES.md`; trabalhador `cron/push_worker.php` (serviço `deploy/vps/painel-push.service`, só instalar com autorização do dono); testes em `tests/push/` (README) e `tests/vps/usuario-novo/36_push_tela.js`.
 
 **Controle do mantenedor da VPS (13/10/2026):** `deploy/vps/ssh-acessos.php` (vira `painel-ssh-acessos` + serviço systemd) registra os **logins SSH/Linux** da VPS com IP e localização (nada a ver com o login do painel web); `controle.php` (rota `/controle`) + `funcoes/controle.php` + `deploy/controle/gerar-chaves.php` e `enviar.php` formam a **suspensão remota** por comando assinado (RSA; o servidor só guarda a chave pública em `CONTROLE_ID`/`CONTROLE_CHAVE_PUBLICA` no `config.php`). A guarda é chamada cedo em `conexao.php` (só HTTP) e `funcoes/cron_guarda.php` para os crons no modo "total". Teste sem servidor: `php tests/controle/unitario.php`. Detalhes e limites em `deploy/PLANO-VPS.md` seções 8.1 e 8.2. **Teste de carga pesado na VPS** (13/10): `tests/estresse/vps/` (README com método, cuidados e como zerar; resultados brutos só no local); números em `anotacoes/TESTES.md` e gargalos em `OBSERVACOES.md` 6g.
 
@@ -141,12 +141,23 @@ Pasta pra guardar lembretes, notas e coisas pra fazer depois (não é código, n
 
 `anotacoes/` tem poucos arquivos de propósito (quanto menos nota, melhor):
 
+- `tarefas_revisao_final.md` — **registro numerado de TUDO que o Caio pedir para alterar ou corrigir, de todas as sessões e todos os chats do Claude** (ver a regra logo abaixo). Nunca apagar itens.
 - `PENDENCIAS.md` — único lugar de "o que falta" (urgente/antes de lançar, falta testar, falta no código, decisões, ideias). Ao resolver algo, apagar a linha.
 - `TESTES.md` — resumo de todas as rodadas de teste (data, o que foi testado, resultado, o que foi corrigido) e os números de capacidade. Rodada nova = uma linha na tabela, não arquivo novo.
 - `OBSERVACOES.md` — como cada parte funciona hoje, decisões de produto/tela, armadilhas técnicas e incidentes.
 - `credenciais-*.md` e chaves (gitignored, nunca no GitHub).
 
-Não criar uma nota por rodada, plano, relatório ou varredura: atualizar esses três arquivos (unificados em 08/10/2026; o que havia antes está no histórico do git).
+Não criar uma nota por rodada, plano, relatório ou varredura: atualizar esses arquivos (unificados em 08/10/2026; o que havia antes está no histórico do git).
+
+### Regra para todo chat do Claude: anotar cada pedido em `anotacoes/tarefas_revisao_final.md` (desde 25/10/2026)
+
+**Sempre que o Caio pedir algo para alterar ou corrigir** (código, tela, dados, texto, teste, publicação, ou até uma pergunta que ele fez e você só respondeu), registre em `anotacoes/tarefas_revisao_final.md`:
+
+1. **Antes de começar:** leia os últimos itens do arquivo e crie o **próximo item numerado** (a numeração é contínua entre sessões e chats) com título, data, status ⏳ e o pedido nas palavras dele.
+2. **Ao terminar e a cada mudança:** atualize o mesmo item com a causa/decisão, o que foi feito (arquivos), os testes e o resultado, **onde está publicado** (só no PC / VPS / homologação / GitHub), **como voltar atrás** (backup) e o que falta. Status: ⏳ em andamento · ✅ feito · 🔎 só análise ou pergunta respondida · ⏸ esperando decisão ou autorização do Caio.
+3. Não apague itens nem reescreva a história; detalhe longo vai para `OBSERVACOES.md`/`TESTES.md`/`PENDENCIAS.md`, e no item fica o resumo com o ponteiro.
+4. **Nunca** coloque senha, token ou credencial nele (repositório público).
+5. Antes de fazer qualquer coisa nova, leia o arquivo: pode já estar feito, pedido por outro chat ou à espera de autorização do Caio.
 
 ## O que evitar
 

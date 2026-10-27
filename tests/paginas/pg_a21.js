@@ -1,3 +1,4 @@
+// ATENÇÃO (26/10/2026): a parte de REMARKETING deste teste mira a tela ANTIGA (janela "Nova campanha", filtros por bot/audiência, ações cancelar_campanha/contar_destinatarios), que foi trocada pela tela em etapas (tarefas_revisao_final.md, item 14). Esta parte não vale mais; a cobertura nova está em tests/remarketing/ (unitario_remarketing.php, ui/teste.js e integracao/rodar.js).
 // ÁREA 4e (09/10/2026): seleção de arquivo só aceita os formatos do campo (remarketing, mídia da campanha).
 // Uso: PGPW=... OUT=./pg ARQ=<pasta com "1 (2).jfif", "ok.jpg" e "doc.pdf"> node pg_a21.js   (conta de estresse cliente5)
 const { lancar, entrar, BASE } = require('./pg_lib.js');

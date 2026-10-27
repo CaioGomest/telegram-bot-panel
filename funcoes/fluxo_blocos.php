@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/qrcode.php';
 require_once __DIR__ . '/previas.php';
+require_once __DIR__ . '/entrega.php';
+require_once __DIR__ . '/split_validacao.php';   // comissaoDoSplit(): comissão gravada na venda
+require_once __DIR__ . '/pagamentos_guiado.php'; // aba Pagamentos do Guiado (modelo novo)
 
 if (!defined('DIRETORIO_UPLOADS')) {
     define('DIRETORIO_UPLOADS', dirname(__DIR__) . '/uploads');
@@ -605,6 +608,12 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
                 if (empty($id_grupo_acesso) || $id_grupo_acesso === '0' || $id_grupo_acesso === '') {
                      $id_grupo_acesso = null;
                 }
+                // Entrega por link (Fluxo Guiado): o endereço fica na própria venda, igual ao grupo, e vai ao cliente quando o pagamento é confirmado.
+                $link_entrega_acesso = linkEntregaValido($propriedades['link_entrega'] ?? '');
+                $grava_link_entrega = $link_entrega_acesso !== '' && colunaExiste('vendas', 'link_entrega');
+                if ($link_entrega_acesso !== '' && !$grava_link_entrega) {
+                    file_put_contents(dirname(__DIR__) . '/logs/vendas_debug.log', "[" . date('Y-m-d H:i:s') . "] LINK DE ENTREGA NAO GRAVADO: a tabela vendas ainda nao tem a coluna link_entrega (rode Admin > Atualizar Banco). TXID: $txid\n", FILE_APPEND);
+                }
                 // Força a conversão do idOperador para garantir que não seja vazio/nulo se estiver dentro do fluxo
                 if (empty($id_operador)) $id_operador = null;
                 // Força os tipos de dados para evitar erro silencioso de banco
@@ -625,7 +634,8 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
                 $id_bot_insert = $id_bot_real ? (int)$id_bot_real : null;
                 file_put_contents(dirname(__DIR__) . '/logs/vendas_debug.log', "[" . date('Y-m-d H:i:s') . "] TENTANDO INSERIR VENDA - TXID: $txid | OPERADOR: $id_operador | BOT_ID: $id_bot_insert\n", FILE_APPEND);
                 $data_criacao = date('Y-m-d H:i:s');
-                $sql_venda = "INSERT INTO vendas (id_telegram, bot_id, valor, status, transacao_id, id_grupo_telegram, dias_acesso, tempo_acesso_minutos, id_operador_fluxo, id_gateway, tempo_expiracao_minutos, criado_em, tipo_cobranca, id_assinatura, id_fluxo) VALUES (?, ?, ?, 'gerado', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                $sql_venda = "INSERT INTO vendas (id_telegram, bot_id, valor, status, transacao_id, id_grupo_telegram, dias_acesso, tempo_acesso_minutos, id_operador_fluxo, id_gateway, tempo_expiracao_minutos, criado_em, tipo_cobranca, id_assinatura, id_fluxo, comissao_admin"
+                    . ($grava_link_entrega ? ', link_entrega' : '') . ") VALUES (?, ?, ?, 'gerado', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?" . ($grava_link_entrega ? ', ?' : '') . ")";
                 $stmt_venda = $pdo->prepare($sql_venda);
                 $params_venda = [
                     $id_chat,
@@ -641,8 +651,14 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
                     $data_criacao,
                     $eh_recorrente_oficial ? 'assinatura' : 'unica',
                     $id_assinatura,
-                    $id_fluxo_insert
+                    $id_fluxo_insert,
+                    // Comissão da plataforma = o que o split mandado NESTA cobrança leva (a Omega divide no pagamento e não devolve esse número depois).
+                    // Só conta como receita quando a venda vira 'pago': todos os somatórios filtram status = 'pago'.
+                    comissaoDoSplit($split_data, $valor_insert)
                 ];
+                if ($grava_link_entrega) {
+                    $params_venda[] = $link_entrega_acesso;
+                }
                 $executou = $stmt_venda->execute($params_venda);
                 if (!$executou) {
                      file_put_contents(dirname(__DIR__) . '/logs/vendas_debug.log', "[" . date('Y-m-d H:i:s') . "] ERRO PDO: " . print_r($stmt_venda->errorInfo(), true) . "\n", FILE_APPEND);
@@ -650,12 +666,24 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
                      $venda_gravada = true;
                      file_put_contents(dirname(__DIR__) . '/logs/vendas_debug.log', "[" . date('Y-m-d H:i:s') . "] VENDA INSERIDA COM SUCESSO!\n", FILE_APPEND);
                      $id_venda_criada = (int) $pdo->lastInsertId();
+                     $GLOBALS['ultima_venda_pix_id'] = $id_venda_criada;   // quem chamou (ex.: downsell com temporizador do Guiado) lê daqui qual venda acabou de nascer
                      require_once __DIR__ . '/traqueamento.php';
                      registrarNomeProdutoVenda($pdo, $id_venda_criada, (string) $nome_produto);
                      if ($id_usuario_dono_insert) {
                          require_once __DIR__ . '/log.php';
                          $valor_formatado = number_format($valor_insert, 2, ',', '.');
                          registrarAtividade($id_usuario_dono_insert, 'pix_gerado', 'Pix Gerado', "Novo PIX de R$ {$valor_formatado} foi gerado.");
+
+                         // Aviso push de Pix gerado (só com o interruptor geral ligado; nunca lança).
+                         try {
+                             require_once __DIR__ . '/configuracoes.php';
+                             if (configSistema('push_ativo') === '1') {
+                                 require_once __DIR__ . '/push.php';
+                                 enfileirarPush((int) $id_usuario_dono_insert, PUSH_TIPO_PIX_GERADO, $id_venda_criada);
+                             }
+                         } catch (\Throwable $e_push) {
+                             error_log('[push] Pix gerado: ' . $e_push->getMessage());
+                         }
 
                          require_once __DIR__ . '/traqueamento.php';
                          // Tenta buscar dados do lead se houver (futuro: email/telefone)
@@ -687,7 +715,8 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
                         $pdo = $GLOBALS['pdo'];
                         $pdo->prepare($sql_venda)->execute($params_venda);
                         $venda_gravada = true;
-                        registrarNomeProdutoVenda($pdo, (int) $pdo->lastInsertId(), (string) $nome_produto);
+                        $GLOBALS['ultima_venda_pix_id'] = (int) $pdo->lastInsertId();
+                        registrarNomeProdutoVenda($pdo, (int) $GLOBALS['ultima_venda_pix_id'], (string) $nome_produto);
                         file_put_contents(dirname(__DIR__) . '/logs/vendas_debug.log', "[" . date('Y-m-d H:i:s') . "] VENDA INSERIDA NA 2a TENTATIVA (txid $txid)\n", FILE_APPEND);
                     } catch (Throwable $e2) {
                         file_put_contents(dirname(__DIR__) . '/logs/vendas_debug.log', "[" . date('Y-m-d H:i:s') . "] 2a TENTATIVA FALHOU: " . $e2->getMessage() . "\n", FILE_APPEND);
@@ -703,6 +732,14 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
                 } catch (Throwable $e3) {
                 }
                 requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => "Não foi possível gerar seu Pix agora. Tente novamente em instantes."]);
+                return;
+            }
+            if (!empty($propriedades['pix_v2']) && is_array($propriedades['pg'] ?? null)) {
+                // Aba Pagamentos do Guiado no modelo novo (funcoes/pagamentos_guiado.php): layout, mídias, texto com variáveis, QR e botões escolhidos pelo dono.
+                pagamentoEnviarPix($token, $id_chat, $propriedades['pg'], [
+                    'nome' => (string) $nome_usuario, 'plano' => (string) $nome_produto, 'valor' => (float) $valor,
+                    'codigo' => (string) $pix_copia_cola, 'txid' => (string) $txid,
+                ]);
                 return;
             }
             requisicaoTelegram($token, 'sendMessage', [

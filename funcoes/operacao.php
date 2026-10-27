@@ -42,6 +42,23 @@ function colunaExiste(string $tabela, string $coluna): bool
 function aposPagamentoConfirmado(array $venda): void
 {
     global $pdo;
+    // Aviso push de Pix pago (só com o interruptor geral ligado; o código de push nem é carregado desligado). Bloco próprio: uma falha aqui
+    // nunca impede o resto da confirmação, e o resto nunca impede o aviso.
+    try {
+        require_once __DIR__ . '/configuracoes.php';
+        if (configSistema('push_ativo') === '1') {
+            require_once __DIR__ . '/push.php';
+            $id_dono_push = (int) ($venda['id_dono'] ?? 0);
+            if ($id_dono_push <= 0) {
+                $stmt_dono_push = $pdo->prepare("SELECT id_usuario FROM bots WHERE id = ?");
+                $stmt_dono_push->execute([(int) ($venda['bot_id'] ?? 0)]);
+                $id_dono_push = (int) $stmt_dono_push->fetchColumn();
+            }
+            enfileirarPush($id_dono_push, PUSH_TIPO_PIX_PAGO, (int) ($venda['id'] ?? 0));
+        }
+    } catch (\Throwable $e) {
+        error_log('[operacao] aviso push (Pix pago): ' . $e->getMessage());
+    }
     try {
         // 1) lead vira "pagante" (filtros Pagou/Não pagou de Leads e público do remarketing leem esta coluna, com índice).
         if (colunaExiste('leads', 'pagou')) {
@@ -49,8 +66,8 @@ function aposPagamentoConfirmado(array $venda): void
                 ->execute([(int) $venda['bot_id'], (string) $venda['id_telegram']]);
         }
 
-        // 2) venda do Fluxo Guiado (sem bloco de fluxo) paga sem grupo: o cliente recebe "pagamento confirmado" e nenhum acesso.
-        $sem_grupo = trim((string) ($venda['id_grupo_telegram'] ?? '')) === '';
+        // 2) venda do Fluxo Guiado (sem bloco de fluxo) paga sem grupo e sem link de entrega: o cliente recebe "pagamento confirmado" e nenhum acesso.
+        $sem_grupo = trim((string) ($venda['id_grupo_telegram'] ?? '')) === '' && trim((string) ($venda['link_entrega'] ?? '')) === '';
         $sem_bloco = empty($venda['id_operador_fluxo']);
         if ($sem_grupo && $sem_bloco) {
             $stmt_dono = $pdo->prepare("SELECT id_usuario FROM bots WHERE id = ?");
@@ -71,8 +88,8 @@ function aposPagamentoConfirmado(array $venda): void
                     'sistema',
                     'Venda sem grupo',
                     'A venda #' . (int) $venda['id'] . ' (' . $produto . ', R$ ' . number_format((float) ($venda['valor'] ?? 0), 2, ',', '.')
-                        . ') foi paga, mas o plano não tem grupo vinculado: o cliente só recebeu a mensagem de pagamento aprovado, sem acesso. '
-                        . 'Se não era isso que você queria, vincule um grupo ao plano no editor do fluxo. Este aviso aparece no máximo 1 vez por dia.'
+                        . ') foi paga, mas o plano não tem grupo nem link de entrega: o cliente só recebeu a mensagem de pagamento aprovado, sem acesso. '
+                        . 'Se não era isso que você queria, escolha um grupo ou um link na entrega do plano, no editor do fluxo. Este aviso aparece no máximo 1 vez por dia.'
                 );
             }
         }

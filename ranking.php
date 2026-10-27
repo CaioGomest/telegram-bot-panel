@@ -200,7 +200,7 @@ $subtitulo_pagina = $aba === 'mensal'
                             ?>
                                 <div class="a-pod p<?php echo $pos; ?>">
                                     <?php if ($pos === 1): ?><span style="color: var(--ort)"><?php echo iconeRanking('coroa', 26); ?></span><?php endif; ?>
-                                    <span class="av"><?php echo htmlspecialchars(iniciaisRanking($nome_exib)); ?></span>
+                                    <?php echo htmlAvatarRanking($p, $nome_exib); ?>
                                     <b><?php echo htmlspecialchars($nome_exib); ?><?php if ($eh_voce): ?> <span class="a-tag">você</span><?php endif; ?></b>
                                     <span class="vl"><?php echo htmlspecialchars(formatarReaisResumido((float) $p['faturamento'])); ?></span>
                                     <div class="base">
@@ -222,7 +222,7 @@ $subtitulo_pagina = $aba === 'mensal'
                         ?>
                             <li<?php echo $eh_voce ? ' class="voce"' : ''; ?>>
                                 <span class="pos"><?php echo str_pad((string) $r['posicao'], 2, '0', STR_PAD_LEFT); ?></span>
-                                <span class="av"><?php echo htmlspecialchars(iniciaisRanking($nome_exib)); ?></span>
+                                <?php echo htmlAvatarRanking($r, $nome_exib); ?>
                                 <div class="nm">
                                     <b><?php echo htmlspecialchars($nome_exib); ?><?php if ($eh_voce): ?> <span class="a-tag">você</span><?php endif; ?></b>
                                     <span<?php echo $no_top5 ? ' class="ok"' : ''; ?>><?php echo $estado === 'encerrada' ? ($no_top5 ? 'Premiado' : 'Fim da disputa') : ($no_top5 ? 'Zona de premiação' : 'Em disputa'); ?></span>
@@ -246,7 +246,7 @@ $subtitulo_pagina = $aba === 'mensal'
                         <div class="a-rank"><ul>
                             <li class="voce">
                                 <span class="pos"><?php echo str_pad((string) $ranking['sua_posicao']['posicao'], 2, '0', STR_PAD_LEFT); ?></span>
-                                <span class="av"><?php echo htmlspecialchars(iniciaisRanking($meu_nome)); ?></span>
+                                <?php echo htmlAvatarRanking($ranking['sua_posicao'], $meu_nome); ?>
                                 <div class="nm"><b><?php echo htmlspecialchars($meu_nome); ?></b><span>Sua conta</span></div>
                                 <div class="vl">
                                     <b>R$ <?php echo number_format((float) $ranking['sua_posicao']['faturamento'], 2, ',', '.'); ?></b>
@@ -354,7 +354,7 @@ $subtitulo_pagina = $aba === 'mensal'
                 <section class="a-card a-prem" aria-label="Como funciona">
                     <div class="a-lab" style="display: flex; align-items: center; gap: 8px"><?php echo iconeRanking('calendario-mes', 16); ?>Como funciona</div>
                     <div class="a-ch" style="margin: 6px 0 10px"><h2>Ranking do mês</h2></div>
-                    <p class="a-mut" style="margin: 0; line-height: 1.6; font-size: 13px;">Conta o faturamento das vendas <strong>aprovadas</strong> de <?php echo htmlspecialchars(nomeMesRanking($agora)); ?>. O placar zera sozinho no dia 1 e atualiza de poucos em poucos minutos. Só o seu apelido aparece para os outros — nunca seu nome ou e-mail.</p>
+                    <p class="a-mut" style="margin: 0; line-height: 1.6; font-size: 13px;">Conta o faturamento das vendas <strong>aprovadas</strong> de <?php echo htmlspecialchars(nomeMesRanking($agora)); ?>. O placar zera sozinho no dia 1 e atualiza de poucos em poucos minutos. Só o seu apelido e a sua foto de perfil aparecem para os outros — nunca seu nome ou e-mail.</p>
                 </section>
                 <?php endif; ?>
             </div>

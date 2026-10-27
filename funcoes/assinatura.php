@@ -16,6 +16,8 @@ declare(strict_types=1);
  * repetem nem pulam um aviso.
  */
 
+require_once __DIR__ . '/entrega.php';
+
 const ASSINATURA_JANELA_DIAS = 15;
 const ASSINATURA_MAX_POR_EXECUCAO = 500;
 
@@ -249,6 +251,7 @@ function gerarPixRenovacaoBasico(string $token, $id_chat, array $dados_basico, s
             continue;
         }
         $pagamentos = $dados_basico['pagamentos'] ?? [];
+        $entrega = entregaDoItemBasico($i['plano']);
         processarEEnviarBloco($token, $id_chat, ['properties' => [
             'type' => 'pix',
             'nome' => trim((string) ($i['plano']['nome'] ?? 'Renovação')),
@@ -257,13 +260,10 @@ function gerarPixRenovacaoBasico(string $token, $id_chat, array $dados_basico, s
             'expiracao_minutos' => 15,
             'dias_acesso' => (int) ($i['plano']['dias_acesso'] ?? 30),
             'unidade_acesso' => $i['plano']['unidade_acesso'] ?? 'dias',
-            'id_grupo' => $i['plano']['id_grupo'] ?? '',
-            'mostrar_copiar' => $pagamentos['mostrar_copiar'] ?? true,
-            'mostrar_qrcode' => !empty($pagamentos['qrcode_definido']) ? !empty($pagamentos['mostrar_qrcode']) : true,
-            'mostrar_confirmar' => $pagamentos['mostrar_confirmar'] ?? true,
-            'msg_instrucoes' => $pagamentos['msg_instrucoes'] ?? '',
-            'msg_confirmado' => $pagamentos['msg_confirmado'] ?? '',
-        ]], '');
+            'id_grupo' => $entrega['id_grupo'],
+            'link_entrega' => $entrega['link_entrega'],
+            // Aba Pagamentos do Guiado: os campos de sempre e, no modelo novo, a configuração completa (funcoes/pagamentos_guiado.php).
+        ] + propriedadesPagamentoBasico($pagamentos)], '');
         return;
     }
     requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Esse plano não está mais disponível para renovação.']);

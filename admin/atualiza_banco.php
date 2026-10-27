@@ -156,6 +156,7 @@ try {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ";
     $pdo->exec($sql_vendas);
+    $tinha_tempo_acesso = colunaExiste('vendas', 'tempo_acesso_minutos');   // antes do ALTER abaixo: a conversão dias -> minutos só vale quando a coluna acaba de nascer
 
     $colunas_vendas = [
         "ADD COLUMN bot_id INT AFTER id_telegram",
@@ -174,10 +175,8 @@ try {
         "ADD COLUMN id_assinatura VARCHAR(100) DEFAULT NULL", // Novo nome (ex-subscription_id)
         "ADD COLUMN id_plano INT DEFAULT NULL",      // Novo nome (ex-plan_id)
         "ADD COLUMN nome_produto VARCHAR(150) DEFAULT NULL", // Nome do plano na venda: vai no evento de compra (Facebook/UTMify)
-        "ADD COLUMN ultimo_txid_renovacao VARCHAR(255) DEFAULT NULL", // Idempotência do webhook de PIX Automático (cobsr)
-        "ADD COLUMN split_status ENUM('sem_split', 'sem_credenciais', 'pago', 'falhou') DEFAULT NULL AFTER comissao_admin",
-        "ADD COLUMN split_valor DECIMAL(10,2) DEFAULT NULL AFTER split_status",
-        "ADD COLUMN split_em DATETIME DEFAULT NULL AFTER split_valor"
+        "ADD COLUMN link_entrega VARCHAR(500) DEFAULT NULL", // Fluxo Guiado: link enviado ao cliente quando o pagamento é confirmado (entrega por link)
+        "ADD COLUMN ultimo_txid_renovacao VARCHAR(255) DEFAULT NULL" // Idempotência do webhook de PIX Automático (cobsr)
     ];
 
     foreach ($colunas_vendas as $alter) {
@@ -194,19 +193,26 @@ try {
     try { $pdo->exec("ALTER TABLE vendas ADD UNIQUE INDEX idx_transacao_id (transacao_id)"); } catch (PDOException $e) {}
     try { $pdo->exec("ALTER TABLE vendas ADD INDEX idx_id_assinatura (id_assinatura)"); } catch (PDOException $e) {}
 
-    // Migração de dados antigos (dias -> minutos)
-    try {
-        $pdo->exec("UPDATE vendas SET tempo_acesso_minutos = dias_acesso * 1440 WHERE tempo_acesso_minutos IS NULL AND dias_acesso IS NOT NULL");
-    } catch (PDOException $e) {}
+    // Migração de dados antigos (dias -> minutos): SÓ quando a coluna acaba de ser criada. Antes rodava a cada "Atualizar Banco" e, em banco grande
+    // (a VPS tem 1,4 milhão de vendas do teste de carga sem esse campo), reescrevia a tabela inteira numa transação só (26/10/2026). Venda sem minutos
+    // continua valendo: o webhook e os crons usam dias_acesso * 1440 quando o campo está vazio.
+    if (!$tinha_tempo_acesso) {
+        try {
+            $pdo->exec("UPDATE vendas SET tempo_acesso_minutos = dias_acesso * 1440 WHERE tempo_acesso_minutos IS NULL AND dias_acesso IS NOT NULL");
+        } catch (PDOException $e) {}
+    }
 
     // 'expirado' não existia no ENUM original de status; gravações antigas desse valor foram
-    // silenciosamente salvas como '' pelo MySQL. Amplia o ENUM e corrige as linhas afetadas.
-    try {
-        $pdo->exec("ALTER TABLE vendas MODIFY COLUMN status ENUM('gerado', 'pago', 'cancelado', 'expirado') DEFAULT 'gerado'");
-    } catch (PDOException $e) {}
-    try {
-        $pdo->exec("UPDATE vendas SET status = 'expirado' WHERE status = ''");
-    } catch (PDOException $e) {}
+    // silenciosamente salvas como '' pelo MySQL. Amplia o ENUM e corrige as linhas afetadas. Só mexe na tabela se o ENUM ainda não é este (tabela grande).
+    $tipo_status_vendas = strtolower(str_replace(' ', '', (string) $pdo->query("SELECT column_type FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'vendas' AND column_name = 'status'")->fetchColumn()));
+    if ($tipo_status_vendas !== "enum('gerado','pago','cancelado','expirado')") {
+        try {
+            $pdo->exec("ALTER TABLE vendas MODIFY COLUMN status ENUM('gerado', 'pago', 'cancelado', 'expirado') DEFAULT 'gerado'");
+        } catch (PDOException $e) {}
+        try {
+            $pdo->exec("UPDATE vendas SET status = 'expirado' WHERE status = ''");
+        } catch (PDOException $e) {}
+    }
 
     echo "Tabela 'vendas' OK.<br>";
 
@@ -406,55 +412,42 @@ try {
 
     echo "Tabela 'usuarios_gateways' OK.<br>";
 
-    $sql_usuarios_splits = "
-        CREATE TABLE IF NOT EXISTS usuarios_splits (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            id_usuario INT NOT NULL,
-            gateway_nome VARCHAR(50) NOT NULL,
-            tipo_split ENUM('percentual', 'fixo') DEFAULT 'percentual',
-            taxa_split DECIMAL(10,2) DEFAULT 0.00,
-            chave_pix_split VARCHAR(255) NOT NULL,
-            descricao VARCHAR(100) DEFAULT NULL,
-            ordem INT DEFAULT 0,
-            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    ";
-    $pdo->exec($sql_usuarios_splits);
-
-    // Splits salvos com gateway_nome de gateways já removidos (ex-pushinpay) nunca foram
-    // usados de fato pelo motor de split — remove esse lixo. Escopado pela lista de
-    // gateways suportados de verdade (não mais só 'infopago' — desde que a OmegaPayments
-    // entrou, isso apagaria os splits dela a cada execução se ficasse hardcoded).
+    // Modelo antigo do split (cash-out do InfoPago: o sistema transferia a comissão depois do Pix cair e anotava o resultado) saiu junto com o InfoPago.
+    // Hoje a OmegaPayments divide o dinheiro no pagamento (split nativo na cobrança) e a comissão fica em vendas.comissao_admin, gravada na criação da
+    // cobrança. Remove o que ficou sem uso: as tabelas vendas_splits e usuarios_splits (filha primeiro) e as colunas vendas.split_status/split_valor/split_em.
+    // Cada passo só roda se ainda existir; a remoção das colunas tenta ALGORITHM=INSTANT (não reescreve a tabela de vendas, que pode ter milhões de linhas)
+    // e, se o banco não aceitar, avisa em vez de travar o sistema reescrevendo tudo: nesse caso rode o ALTER do aviso fora do horário de pico.
+    foreach (['vendas_splits', 'usuarios_splits'] as $tabela_morta) {
+        try {
+            $existe = $pdo->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = '$tabela_morta'")->fetchColumn();
+            if ($existe) {
+                $pdo->exec("DROP TABLE $tabela_morta");
+                echo "Tabela '$tabela_morta' removida (era do split do InfoPago).<br>";
+            }
+        } catch (PDOException $e) {
+            echo "Não consegui remover a tabela '$tabela_morta': " . htmlspecialchars($e->getMessage()) . "<br>";
+        }
+    }
     try {
-        $gateways_suportados_split = gatewaysSuportados();
-        $placeholders = implode(',', array_fill(0, count($gateways_suportados_split), '?'));
-        $pdo->prepare("DELETE FROM usuarios_splits WHERE gateway_nome NOT IN ($placeholders)")->execute($gateways_suportados_split);
-    } catch (PDOException $e) {}
-
-    echo "Tabela 'usuarios_splits' OK.<br>";
-
-    $sql_vendas_splits = "
-        CREATE TABLE IF NOT EXISTS vendas_splits (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            venda_id INT NOT NULL,
-            usuario_split_id INT DEFAULT NULL,
-            chave_pix VARCHAR(255) NOT NULL,
-            descricao VARCHAR(100) DEFAULT NULL,
-            valor DECIMAL(10,2) NOT NULL,
-            status ENUM('pago', 'falhou') NOT NULL,
-            erro TEXT DEFAULT NULL,
-            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (venda_id) REFERENCES vendas(id) ON DELETE CASCADE,
-            FOREIGN KEY (usuario_split_id) REFERENCES usuarios_splits(id) ON DELETE SET NULL
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    ";
-    $pdo->exec($sql_vendas_splits);
-    echo "Tabela 'vendas_splits' OK.<br>";
-
-    try {
-        $pdo->exec("ALTER TABLE vendas MODIFY COLUMN split_status ENUM('sem_split', 'sem_credenciais', 'pago', 'falhou', 'parcial') DEFAULT NULL");
-    } catch (PDOException $e) {}
+        $colunas_mortas = [];
+        foreach (['split_status', 'split_valor', 'split_em'] as $coluna_morta) {
+            $existe = $pdo->query("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'vendas' AND column_name = '$coluna_morta'")->fetchColumn();
+            if ($existe) {
+                $colunas_mortas[] = $coluna_morta;
+            }
+        }
+        if ($colunas_mortas) {
+            $alter_colunas = 'ALTER TABLE vendas ' . implode(', ', array_map(static function ($c) { return "DROP COLUMN $c"; }, $colunas_mortas));
+            try {
+                $pdo->exec($alter_colunas . ', ALGORITHM=INSTANT');
+                echo "Colunas removidas de 'vendas' (eram do split do InfoPago): " . implode(', ', $colunas_mortas) . ".<br>";
+            } catch (PDOException $e) {
+                echo "As colunas " . implode(', ', $colunas_mortas) . " de 'vendas' já não são usadas, mas este banco não as remove na hora (a tabela é grande). Rode fora do horário de pico: <code>" . htmlspecialchars($alter_colunas) . ";</code><br>";
+            }
+        }
+    } catch (PDOException $e) {
+        echo "Não consegui conferir as colunas antigas do split: " . htmlspecialchars($e->getMessage()) . "<br>";
+    }
 
     $sql_remarketing_campanhas = "
         CREATE TABLE IF NOT EXISTS remarketing_campanhas (
@@ -498,6 +491,29 @@ try {
         $pdo->exec("ALTER TABLE remarketing_campanhas ADD COLUMN nome VARCHAR(100) DEFAULT NULL AFTER bot_id");
         echo "Coluna 'nome' adicionada em 'remarketing_campanhas'.<br>";
     } catch (PDOException $e) {}
+    // Campanha em etapas (25/10/2026): fluxo, bots, período, variantes A/B, ofertas e rascunho. Cada ALTER roda sozinho e repetir é inofensivo.
+    // Os valores novos de audiencia e status entram no FIM da lista (o banco aceita sem reconstruir a tabela). bot_id passa a aceitar NULL: a campanha de um fluxo não tem um bot só.
+    foreach ([
+        "ADD COLUMN id_fluxo INT NULL AFTER id_usuario",
+        "ADD COLUMN bots_ids VARCHAR(120) NULL AFTER id_fluxo",
+        "ADD COLUMN periodo_tipo VARCHAR(10) NOT NULL DEFAULT 'total' AFTER audiencia",
+        "ADD COLUMN periodo_inicio DATETIME NULL AFTER periodo_tipo",
+        "ADD COLUMN periodo_fim DATETIME NULL AFTER periodo_inicio",
+        "ADD COLUMN midia_file_ids TEXT NULL AFTER midia_file_id",
+        "ADD COLUMN variantes MEDIUMTEXT NULL AFTER midia_file_ids",
+        "ADD COLUMN ofertas MEDIUMTEXT NULL AFTER variantes",
+        "ADD INDEX idx_rm_usuario (id_usuario, criado_em)",
+        "MODIFY bot_id INT NULL",
+        "MODIFY audiencia ENUM('nao_comprou','comprou','todos','pix_gerado','expirados','membros_ativos') NOT NULL",
+        "MODIFY status ENUM('pendente','processando','concluida','falha','rascunho') DEFAULT 'pendente'",
+        // Reenvio e recorrência (26/10/2026): o agendamento (diário, horários, a cada X horas, dias da semana), quantas vezes já saiu e o que as execuções anteriores enviaram (os contadores da campanha são os da execução atual).
+        "ADD COLUMN recorrencia TEXT NULL AFTER processado_em",
+        "ADD COLUMN execucoes INT NOT NULL DEFAULT 0 AFTER recorrencia",
+        "ADD COLUMN acum_entregues INT NOT NULL DEFAULT 0 AFTER execucoes",
+        "ADD COLUMN acum_falhas INT NOT NULL DEFAULT 0 AFTER acum_entregues",
+    ] as $alteracao_rm) {
+        try { $pdo->exec("ALTER TABLE remarketing_campanhas $alteracao_rm"); } catch (PDOException $e) {}
+    }
     echo "Tabela 'remarketing_campanhas' OK.<br>";
 
     $sql_remarketing_envios = "
@@ -513,7 +529,21 @@ try {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ";
     $pdo->exec($sql_remarketing_envios);
+    try { $pdo->exec("ALTER TABLE remarketing_envios ADD COLUMN variante TINYINT NOT NULL DEFAULT 0 AFTER resposta"); } catch (PDOException $e) {}
     echo "Tabela 'remarketing_envios' OK.<br>";
+
+    // Qual venda veio de qual campanha de remarketing (receita do cartão da campanha).
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS remarketing_vendas (
+            venda_id INT NOT NULL PRIMARY KEY,
+            campanha_id INT NOT NULL,
+            variante TINYINT NOT NULL DEFAULT 0,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (campanha_id) REFERENCES remarketing_campanhas(id) ON DELETE CASCADE,
+            INDEX idx_rmv_campanha (campanha_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ");
+    echo "Tabela 'remarketing_vendas' OK.<br>";
 
     try { $pdo->exec("ALTER TABLE leads ADD INDEX idx_leads_bot (bot_id, id_telegram)"); } catch (PDOException $e) {}
     try { $pdo->exec("ALTER TABLE vendas ADD INDEX idx_vendas_lookup (id_telegram, bot_id, status)"); } catch (PDOException $e) {}
@@ -739,25 +769,30 @@ try {
             PRIMARY KEY (data, hora)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ";
+    $metricas_admin_existia = (bool) $pdo->query("SHOW TABLES LIKE 'metricas_horarias_admin'")->fetchColumn();
     $pdo->exec($sql_metricas_horarias);
     echo "Tabela 'metricas_horarias_admin' OK.<br>";
 
     // Preenchimento único do histórico existente — daqui em diante o cron cuida só das
     // últimas 48h a cada execução (vendas pagas nunca mudam de valor depois de confirmadas,
     // não existe fluxo de estorno neste projeto — ver anotacoes/OBSERVACOES.md).
-    execComRetryDeColisao($pdo, "
-        INSERT INTO metricas_horarias_admin (data, hora, faturamento, comissao, quantidade, atualizado_em)
-        SELECT DATE(v.criado_em), HOUR(v.criado_em), SUM(v.valor), SUM(v.comissao_admin), COUNT(*), NOW()
-        FROM vendas v
-        WHERE v.status = 'pago'
-        GROUP BY DATE(v.criado_em), HOUR(v.criado_em)
-        ON DUPLICATE KEY UPDATE
-            faturamento = VALUES(faturamento),
-            comissao = VALUES(comissao),
-            quantidade = VALUES(quantidade),
-            atualizado_em = VALUES(atualizado_em)
-    ");
-    echo "Histórico de 'metricas_horarias_admin' preenchido a partir de 'vendas'.<br>";
+    // "Único" de verdade (26/10/2026): só quando a tabela acaba de ser criada. Antes refazia o histórico inteiro a cada "Atualizar Banco" (lia todas as
+    // vendas; na VPS, 1,5 milhão). Para recalcular um banco que já tem a tabela: php cron/cron_metricas_admin.php --completo.
+    if (!$metricas_admin_existia) {
+        execComRetryDeColisao($pdo, "
+            INSERT INTO metricas_horarias_admin (data, hora, faturamento, comissao, quantidade, atualizado_em)
+            SELECT DATE(v.criado_em), HOUR(v.criado_em), SUM(v.valor), SUM(v.comissao_admin), COUNT(*), NOW()
+            FROM vendas v
+            WHERE v.status = 'pago'
+            GROUP BY DATE(v.criado_em), HOUR(v.criado_em)
+            ON DUPLICATE KEY UPDATE
+                faturamento = VALUES(faturamento),
+                comissao = VALUES(comissao),
+                quantidade = VALUES(quantidade),
+                atualizado_em = VALUES(atualizado_em)
+        ");
+        echo "Histórico de 'metricas_horarias_admin' preenchido a partir de 'vendas'.<br>";
+    }
 
     // Suporta ORDER BY criado_em DESC em listagens paginadas (admin/transacoes.php,
     // leads.php) sem filesort mesmo com milhões de linhas -- ver
@@ -830,40 +865,45 @@ try {
             PRIMARY KEY (id_usuario, data, hora)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ";
+    $metricas_usuario_existia = (bool) $pdo->query("SHOW TABLES LIKE 'metricas_horarias_usuario'")->fetchColumn();
     $pdo->exec($sql_metricas_usuario);
     echo "Tabela 'metricas_horarias_usuario' OK.<br>";
 
-    // Preenchimento único do histórico (vendas pagas + geradas por hora/usuário).
-    execComRetryDeColisao($pdo, "
-        INSERT INTO metricas_horarias_usuario (id_usuario, data, hora, valor_pago, qtd_paga, qtd_gerada, atualizado_em)
-        SELECT b.id_usuario, DATE(v.criado_em), HOUR(v.criado_em),
-               SUM(CASE WHEN v.status = 'pago' THEN v.valor ELSE 0 END),
-               SUM(CASE WHEN v.status = 'pago' THEN 1 ELSE 0 END),
-               COUNT(*),
-               NOW()
-        FROM vendas v
-        JOIN bots b ON v.bot_id = b.id
-        GROUP BY b.id_usuario, DATE(v.criado_em), HOUR(v.criado_em)
-        ON DUPLICATE KEY UPDATE
-            valor_pago = VALUES(valor_pago),
-            qtd_paga = VALUES(qtd_paga),
-            qtd_gerada = VALUES(qtd_gerada),
-            atualizado_em = VALUES(atualizado_em)
-    ");
-    // Contagem de leads por hora/usuário -- soma em cima do que já foi inserido acima
-    // (linhas de hora sem nenhuma venda ainda não existem, então usa INSERT...SELECT
-    // com ON DUPLICATE pra somar só o campo de leads sem mexer nos outros).
-    execComRetryDeColisao($pdo, "
-        INSERT INTO metricas_horarias_usuario (id_usuario, data, hora, qtd_leads, atualizado_em)
-        SELECT b.id_usuario, DATE(l.criado_em), HOUR(l.criado_em), COUNT(*), NOW()
-        FROM leads_starts l
-        JOIN bots b ON l.bot_id = b.id
-        GROUP BY b.id_usuario, DATE(l.criado_em), HOUR(l.criado_em)
-        ON DUPLICATE KEY UPDATE
-            qtd_leads = VALUES(qtd_leads),
-            atualizado_em = VALUES(atualizado_em)
-    ");
-    echo "Histórico de 'metricas_horarias_usuario' preenchido a partir de 'vendas'/'leads'.<br>";
+    // Preenchimento único do histórico (vendas pagas + geradas por hora/usuário). Só quando a tabela acaba de ser criada (26/10/2026): antes refazia tudo a
+    // cada "Atualizar Banco" (lia todas as vendas e todos os starts; na VPS, 1,5 milhão e 7 milhões de linhas). Banco com a tabela já existente:
+    // php cron/cron_metricas_admin.php --completo.
+    if (!$metricas_usuario_existia) {
+        execComRetryDeColisao($pdo, "
+            INSERT INTO metricas_horarias_usuario (id_usuario, data, hora, valor_pago, qtd_paga, qtd_gerada, atualizado_em)
+            SELECT b.id_usuario, DATE(v.criado_em), HOUR(v.criado_em),
+                   SUM(CASE WHEN v.status = 'pago' THEN v.valor ELSE 0 END),
+                   SUM(CASE WHEN v.status = 'pago' THEN 1 ELSE 0 END),
+                   COUNT(*),
+                   NOW()
+            FROM vendas v
+            JOIN bots b ON v.bot_id = b.id
+            GROUP BY b.id_usuario, DATE(v.criado_em), HOUR(v.criado_em)
+            ON DUPLICATE KEY UPDATE
+                valor_pago = VALUES(valor_pago),
+                qtd_paga = VALUES(qtd_paga),
+                qtd_gerada = VALUES(qtd_gerada),
+                atualizado_em = VALUES(atualizado_em)
+        ");
+        // Contagem de leads por hora/usuário -- soma em cima do que já foi inserido acima
+        // (linhas de hora sem nenhuma venda ainda não existem, então usa INSERT...SELECT
+        // com ON DUPLICATE pra somar só o campo de leads sem mexer nos outros).
+        execComRetryDeColisao($pdo, "
+            INSERT INTO metricas_horarias_usuario (id_usuario, data, hora, qtd_leads, atualizado_em)
+            SELECT b.id_usuario, DATE(l.criado_em), HOUR(l.criado_em), COUNT(*), NOW()
+            FROM leads_starts l
+            JOIN bots b ON l.bot_id = b.id
+            GROUP BY b.id_usuario, DATE(l.criado_em), HOUR(l.criado_em)
+            ON DUPLICATE KEY UPDATE
+                qtd_leads = VALUES(qtd_leads),
+                atualizado_em = VALUES(atualizado_em)
+        ");
+        echo "Histórico de 'metricas_horarias_usuario' preenchido a partir de 'vendas'/'leads'.<br>";
+    }
 
     // Navbar de stories (tipo Instagram/WhatsApp Status) -- feature isolada, não referenciada
     // por nenhuma tabela de venda/pagamento. Expiração de 24h é resolvida por filtro de
@@ -984,6 +1024,42 @@ try {
         FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
     echo "Tabela 'previas_vistas' OK.<br>";
+    // Downsell com temporizador (Fluxo Guiado): uma linha por Pix gerado que ainda pode receber a oferta se o lead não pagar.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS downsell_agenda (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        bot_id INT NOT NULL,
+        id_telegram VARCHAR(50) NOT NULL,
+        venda_id INT NOT NULL,
+        id_plano VARCHAR(64) NOT NULL,
+        enviados TINYINT UNSIGNED NOT NULL DEFAULT 0,
+        proximo_em DATETIME NOT NULL,
+        status ENUM('pendente', 'processando', 'concluido', 'cancelado') NOT NULL DEFAULT 'pendente',
+        criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+        atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY unico_downsell_venda (venda_id),
+        INDEX idx_downsell_pendentes (status, proximo_em),
+        INDEX idx_downsell_lead (bot_id, id_telegram, status),
+        FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+    echo "Tabela 'downsell_agenda' OK.<br>";
+    // Sequência de Order Bumps (Fluxo Guiado): uma linha por Pix gerado; `enviados` é a posição do próximo bump a mandar se o lead não pagar.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS order_bump_agenda (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        bot_id INT NOT NULL,
+        id_telegram VARCHAR(50) NOT NULL,
+        venda_id INT NOT NULL,
+        id_plano VARCHAR(64) NOT NULL,
+        enviados TINYINT UNSIGNED NOT NULL DEFAULT 0,
+        proximo_em DATETIME NOT NULL,
+        status ENUM('pendente', 'processando', 'concluido', 'cancelado') NOT NULL DEFAULT 'pendente',
+        criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+        atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY unico_order_bump_venda (venda_id),
+        INDEX idx_order_bump_pendentes (status, proximo_em),
+        INDEX idx_order_bump_lead (bot_id, id_telegram, status),
+        FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+    echo "Tabela 'order_bump_agenda' OK.<br>";
     $pdo->exec("CREATE TABLE IF NOT EXISTS avisos_assinatura_enviados (
         id INT AUTO_INCREMENT PRIMARY KEY,
         membro_id INT NOT NULL,
@@ -1093,6 +1169,60 @@ try {
         FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
     echo "Tabela 'fluxo_ofertas_aceitas' OK.<br>";
+
+    // Avisos push (Web Push) de Pix gerado e Pix pago — plano em deploy/PLANO-PUSH-NOTIFICACOES.md. Fila e aparelhos; interruptor geral em configuracoes.push_ativo (padrão desligado).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS push_inscricoes (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        id_usuario INT NOT NULL,
+        endpoint_hash CHAR(64) NOT NULL,
+        endpoint VARCHAR(600) NOT NULL,
+        p256dh VARCHAR(100) NOT NULL,
+        auth VARCHAR(40) NOT NULL,
+        plataforma ENUM('ios','android','desktop','outro') NOT NULL DEFAULT 'outro',
+        apelido VARCHAR(80) NOT NULL DEFAULT '',
+        pref_pix_gerado TINYINT(1) NOT NULL DEFAULT 1,
+        pref_pix_pago TINYINT(1) NOT NULL DEFAULT 1,
+        ativo TINYINT(1) NOT NULL DEFAULT 1,
+        falhas_seguidas SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+        primeira_falha_em DATETIME NULL,
+        ultimo_envio_ok DATETIME NULL,
+        ultimo_visto DATETIME NULL,
+        ultimo_aviso_gerado_em DATETIME NULL,
+        criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_push_endpoint (endpoint_hash),
+        KEY idx_push_usuario (id_usuario, ativo),
+        FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS push_fila (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        id_inscricao BIGINT UNSIGNED NOT NULL,
+        tipo TINYINT UNSIGNED NOT NULL,
+        id_venda INT NOT NULL,
+        estado ENUM('pendente','enviando') NOT NULL DEFAULT 'pendente',
+        tentativas TINYINT UNSIGNED NOT NULL DEFAULT 0,
+        disponivel_em DATETIME NOT NULL,
+        expira_em DATETIME NOT NULL,
+        reservado_ate DATETIME NULL,
+        lote CHAR(16) NULL,
+        criado_em DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        UNIQUE KEY uq_push_item (id_inscricao, tipo, id_venda),
+        KEY idx_push_pronto (estado, disponivel_em, id),
+        KEY idx_push_lote (lote),
+        FOREIGN KEY (id_inscricao) REFERENCES push_inscricoes(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS push_metricas_hora (
+        hora DATETIME NOT NULL PRIMARY KEY,
+        enviados INT UNSIGNED NOT NULL DEFAULT 0,
+        falhas_temporarias INT UNSIGNED NOT NULL DEFAULT 0,
+        inscricoes_removidas INT UNSIGNED NOT NULL DEFAULT 0,
+        descartados INT UNSIGNED NOT NULL DEFAULT 0,
+        agrupados INT UNSIGNED NOT NULL DEFAULT 0,
+        erros_fatais INT UNSIGNED NOT NULL DEFAULT 0,
+        latencia_soma_ms BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        latencia_n INT UNSIGNED NOT NULL DEFAULT 0,
+        latencia_max_ms INT UNSIGNED NOT NULL DEFAULT 0
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+    echo "Tabelas de avisos push (push_inscricoes, push_fila, push_metricas_hora) OK.<br>";
     $stmt = $pdo->query("SELECT COUNT(*) FROM usuarios");
     $total = $stmt->fetchColumn();
 

@@ -1,3 +1,4 @@
+// ATENÇÃO (26/10/2026): a parte de REMARKETING deste teste mira a tela ANTIGA (janela "Nova campanha", filtros por bot/audiência, ações cancelar_campanha/contar_destinatarios), que foi trocada pela tela em etapas (tarefas_revisao_final.md, item 14). Esta parte não vale mais; a cobertura nova está em tests/remarketing/ (unitario_remarketing.php, ui/teste.js e integracao/rodar.js).
 // ÁREA 8b: Remarketing — cancelar campanha pendente, aba "Falha", botão do estado vazio (rodada de 07/10/2026, noite)
 // Uso: PGPW=... IDS='{"user":..,"bot1":..}' OUT=./pg node pg_a17.js   (precisa do seed: php zz_pg.php seed / user2)
 const { lancar, entrar, BASE, db, remoto, autoDialogo } = require('./pg_lib.js');

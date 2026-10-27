@@ -262,6 +262,7 @@ html[data-theme].barra-fixa { --largura-barra: 272px; }
 .botao-fixar-barra[aria-pressed="true"] { color: var(--or); }
 .usuario-rodape { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; }
 .usuario-avatar {
+    position: relative;
     width: 34px;
     height: 34px;
     border-radius: 10px;
@@ -273,7 +274,9 @@ html[data-theme].barra-fixa { --largura-barra: 272px; }
     font: 800 13px 'Manrope', sans-serif;
     overflow: hidden;
 }
-.usuario-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Foto: preenche o quadrado e centralizada (absoluta); o degradê laranja das iniciais some quando há foto (vazava na borda arredondada) */
+.usuario-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.usuario-avatar:has(> img) { background: var(--p3); }
 .usuario-info { min-width: 0; display: flex; flex-direction: column; }
 .usuario-nome { font-size: 12.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .usuario-email { font-size: 10.5px; color: var(--m); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1345,9 +1348,9 @@ html[data-theme="light"] .badge-modo-fluxo.visual { background: rgba(124, 58, 23
 .area-previa-basico[data-estado="anexada"]:hover { border-color: var(--ok); }
 .area-previa-basico[data-estado="enviando"] { justify-content: center; border-color: var(--or); color: var(--m); }
 .midia-basico-escolher { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; padding: 10px 12px; border: 0; border-radius: 10px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.midia-basico-icone, .midia-basico-mini { flex: none; width: 44px; height: 44px; border-radius: 10px; display: grid; place-items: center; overflow: hidden; background: var(--p3); color: var(--m); }
+.midia-basico-icone, .midia-basico-mini { position: relative; flex: none; width: 44px; height: 44px; border-radius: 10px; display: grid; place-items: center; overflow: hidden; background: var(--p3); color: var(--m); }
 .midia-basico-icone svg, .midia-basico-mini svg { width: 22px; height: 22px; }
-.midia-basico-mini img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.midia-basico-mini img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 .midia-basico-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .midia-basico-info strong { display: flex; align-items: center; gap: 6px; font: 700 13px 'Manrope', sans-serif; }
 .midia-basico-info small { font-size: 11.5px; color: var(--m); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1853,6 +1856,8 @@ html[data-theme="light"] .hero-ranking-moldura { opacity: .5; }
 .item-premio-ganhador { margin-top: 4px; font: 800 12.5px 'Manrope', sans-serif; color: var(--or); }
 .dica-sem-grupo { display: block; margin-top: 6px; font-size: 11.5px; line-height: 1.45; color: var(--wa); }
 .dica-sem-grupo[hidden] { display: none; }
+/* Entrega do Upsell/Downsell (desenhada por JS): respiro entre a linha do plano/desconto e o campo. */
+.of-entrega:not(:empty) { margin-top: 14px; }
 
 @media (max-width: 1100px) {
     .grade-ranking { grid-template-columns: 1fr; }
@@ -2296,8 +2301,30 @@ a.comunidade-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ors
 /* Salvar e as ações do topo ficam sempre à direita, também quando quebram de linha no celular */
 .editor-fluxo-topo-dir { margin-left: auto; justify-content: flex-end; }
 /* Fluxo Guiado: os botões de adicionar (plano, mídia, pack) ficam à direita, como os de criar e salvar */
-#btn-adicionar-plano, #pv-adicionar, #pk-adicionar { display: flex; width: fit-content; margin-left: auto; }
+#btn-adicionar-plano, #pv-adicionar, #pk-adicionar, #bv-midias-adicionar, #bp-adicionar, .of-midias-adicionar { display: flex; width: fit-content; margin-left: auto; }
+/* Boas-vindas: lista das mídias além da primeira. Order Bump: cartões dos bumps 2 a 5 e títulos de cada um */
+#bv-midias-extras, .of-midias-extras { margin-top: 8px; }
+#bv-midias-adicionar, .of-midias-adicionar { margin-top: 4px; }
+.bp-item-titulo { margin: 14px 0 8px; font-size: 14px; font-weight: 700; color: var(--t); }
+.bp-item { border: 1px solid var(--bd); border-radius: 10px; padding: 12px; margin-top: 12px; }
+.bp-item-cabecalho { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.bp-item-cabecalho .bp-item-titulo { margin: 0; }
+#bp-adicionar { margin-top: 12px; }
 .pk-midia { display: flex; width: fit-content; margin-left: auto; }
+/* Fluxo Guiado: cada plano tem cabeçalho (seta + nome, valor e tempo) e pode ser recolhido, ficando só essa linha */
+.plano-topo { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; cursor: pointer; }
+.plano-resumo { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 4px 10px; flex-wrap: wrap; }
+.plano-resumo-nome { font-size: 14px; font-weight: 700; color: var(--t); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plano-resumo-nome.sem-nome { font-weight: 600; color: var(--m); }
+.plano-resumo-info { font-size: 12px; color: var(--m); }
+@media (max-width: 900px) { .plano-topo { min-height: 44px; } }
+/* a seta fica à direita do cabeçalho: aberto aponta para cima (recolher), recolhido aponta para baixo (expandir) */
+.plano-alternar { flex: none; border: 0; }   /* sem a borda do quadradinho (26/10/2026, pedido do dono): só a seta; o fundo suave aparece ao passar o mouse */
+.plano-alternar:hover { background: var(--p2); color: var(--t); }
+.plano-alternar svg { transition: transform .15s ease; transform: rotate(180deg); }
+.painel-plano.recolhido .plano-alternar svg { transform: none; }
+.painel-plano.recolhido .plano-topo { margin-bottom: 0; }
+.painel-plano.recolhido .plano-corpo { display: none; }
 .editor-fluxo-voltar {
     display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border: 1px solid var(--bd);
     border-radius: 12px; background: var(--p); font: 700 13px 'Manrope', sans-serif; color: var(--t);
@@ -2692,6 +2719,39 @@ html[data-theme] .rd-sec h3 { margin: 0 0 14px; font-size: 19px; }
     .topo-acoes .sino-painel { right: 0; left: auto; }
 }
 
+/* ===== Páginas do cliente que ainda usam a casca antiga (editores de bot e de fluxo): cabeçalho igual ao do Layout A (22/10/2026) =====
+   Barra de cima com a saudação grande à esquerda e, à direita, o cartão de faturamento e os botões quadrados; título de 54 px sem o filete do
+   subtítulo; botões de ação do cabeçalho com 46 px. Mesmas medidas do .a-top / .a-ph de layout_a.css (lá os tokens vivem em html.layout-a). */
+@media (min-width: 861px) {
+    .layout-painel:has(.topo-painel) .conteudo-principal { padding: 101px 28px 40px; }
+    .topo-painel { height: 95px; padding: 0 28px; display: flex; align-items: center; gap: 14px; }
+    .topo-saudacao { order: 0; text-align: left; gap: 0; line-height: 1.1; min-width: 0; }
+    .topo-saudacao strong { font: 700 26px 'Barlow Condensed', sans-serif; letter-spacing: .02em; text-transform: uppercase; }
+    .topo-saudacao span { font: 500 11.5px 'JetBrains Mono', monospace; letter-spacing: .08em; text-transform: uppercase; }
+    .topo-saudacao em { color: color-mix(in srgb, var(--or) 72%, #fff); }
+    html[data-theme="light"] .topo-saudacao em { color: color-mix(in srgb, var(--or) 72%, #000); }
+    .topo-faturamento { order: 1; margin-left: auto; min-width: 0; padding: 8px 18px 8px 10px; border-radius: 16px; }
+    .topo-faturamento-icone { width: 36px; height: 36px; border: 0; border-radius: 11px; }
+    .topo-faturamento-corpo { min-width: 180px; gap: 5px; }
+    .topo-faturamento-linha { font: 600 11px 'JetBrains Mono', monospace; letter-spacing: 0; }
+    .topo-faturamento-barra { height: 6px; border-radius: 3px; }
+    .topo-faturamento-barra i { border-radius: 3px; background: linear-gradient(90deg, var(--or), #ffb04d); }
+    .topo-acoes { order: 2; gap: 14px; padding: 0; background: none; border: 0; border-radius: 0; }
+    .topo-botao,
+    .topo-acoes .sino-notificacoes { width: 46px; height: 46px; border: 1px solid var(--bd); border-radius: 15px; background: var(--p); }
+    .topo-botao:hover,
+    .topo-acoes .sino-notificacoes:hover { background: var(--p); border-color: var(--bd2); }
+    .topo-botao svg,
+    .topo-acoes .sino-notificacoes svg { width: 20px; height: 20px; }
+
+    .layout-painel:has(.topo-painel) .cabecalho-pagina { padding: 0; margin: 6px 0 22px; align-items: flex-end; }
+    .layout-painel:has(.topo-painel) .cabecalho-pagina h1 { margin: 0; font: 700 clamp(36px, 5vw, 54px)/.95 'Barlow Condensed', sans-serif; letter-spacing: .01em; text-transform: uppercase; }
+    .layout-painel:has(.topo-painel) .cabecalho-pagina p { margin: 8px 0 0; padding-left: 0; border-left: 0; font-size: 14px; font-weight: 500; line-height: 1.5; }
+    .layout-painel:has(.topo-painel) .acoes-cabecalho .botao { min-height: 46px; padding: 0 18px; border: 1px solid var(--bd2); border-radius: 14px; font: 700 14px 'Manrope', sans-serif; }
+    .layout-painel:has(.topo-painel) .acoes-cabecalho .botao:hover { border-color: var(--or); }
+    .layout-painel:has(.topo-painel) .acoes-cabecalho .botao-primario { border-color: var(--or); background: var(--or); color: #1b0d04; box-shadow: 0 12px 26px -14px var(--or); }
+}
+
 /* ===== Comunidade (página própria, sem sidebar nem cabeçalho) ===== */
 .pagina-comunidade { min-height: 100vh; padding: 56px 20px 64px; display: flex; justify-content: center; }
 .pagina-comunidade .comunidade-coluna { width: 100%; max-width: 480px; margin: 0; position: relative; }
@@ -2753,8 +2813,8 @@ html[data-theme] .rd-sec h3 { margin: 0 0 14px; font-size: 19px; }
 .bot-selo svg { width: 12px; height: 12px; }
 .bot-selo.ok { color: var(--ok); background: var(--oksoft); border-color: var(--ok); }
 .bot-selo.alerta { color: var(--wa); background: var(--wasoft); border-color: var(--wa); }
-.bot-avatar { width: 80px; height: 80px; border-radius: 18px; background: var(--p2); border: 1px solid var(--bd); display: grid; place-items: center; overflow: hidden; margin-bottom: 14px; }
-.bot-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.bot-avatar { position: relative; width: 80px; height: 80px; border-radius: 18px; background: var(--p2); border: 1px solid var(--bd); display: grid; place-items: center; overflow: hidden; margin-bottom: 14px; }
+.bot-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 .bot-avatar-icone { display: grid; place-items: center; color: var(--or); }
 .bot-avatar-icone svg { width: 34px; height: 34px; }
 html[data-theme] .cartao-bot .bot-nome { font: 800 17px 'Manrope', sans-serif; text-transform: none; letter-spacing: normal; max-width: 100%; padding: 0 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2999,3 +3059,175 @@ html[data-theme] .botao.destaque-acao { background: var(--or); border-color: var
 @media (max-width: 860px) {
     .coy-mobile { display: block; --coy-tamanho: min(220px, 52vw, 30vh); margin: -6px 0 -4px; }
 }
+
+/* ===== Respiro entre blocos empilhados dentro de um painel (20/10/2026: "tudo muito colado") =====
+   Campo logo abaixo de campo/parágrafo, e texto de ajuda logo abaixo de um campo com botão, ficavam encostados (0–2 px). Só vale para filhos diretos
+   do painel (blocos em fluxo normal): quem já usa grade/flex com "gap" não é afetado. */
+.painel > .campo + .campo,
+.painel > p + .campo,
+.painel > .campo + p,
+.painel > .campo + .botao,
+.painel > .campo + .linha-acoes { margin-top: 14px; }
+.painel > p + p,
+.painel > .texto-suave + p,
+.painel > p + .texto-suave { margin-top: 10px; }
+.painel .campo-com-acao + p,
+.painel .campo-com-acao + small,
+.painel .campo-com-acao + .texto-suave { margin-top: 12px; }
+
+/* Editor de fluxo: blocos empilhados dentro de cada cartão (texto, lista, campo com botão, ajuda) com respiro de 12 px */
+html .editor-fluxo-corpo .painel > * + * { margin-top: 12px; }
+html .editor-fluxo-corpo .painel > .painel-cabecalho + * { margin-top: 16px; }
+
+/* OmegaPayments: marca oficial (o Ω branco do site deles, https://app.omegapayments.com.br) sobre o roxo da marca, no lugar da letra "O" (20/10/2026) */
+.icone-gateway-omegapayments { background: url('../img/gateways/omegapay-marca.png') center / 56% no-repeat, linear-gradient(135deg, #5b21b6, #2e1065); color: transparent; }
+
+/* ===== Barra lateral das páginas na casca antiga (admin) no mesmo modelo da gaveta/Layout A (21/10/2026) =====
+   Sempre aberta (html.barra-fixa + html.sidebar-modelo, ligadas pelo tema_inline.php só em admin/): cabeçalho, grupos com título, linhas de largura total, usuário e "Sair" no rodapé. */
+.botao-sair-linha { display: none; }
+@media (min-width: 861px) {
+    html.sidebar-modelo .barra-lateral-interna { transition: none; box-shadow: none; }
+    html.sidebar-modelo .barra-lateral-topo { order: 0; gap: 12px; padding: 18px 18px 14px; border-bottom: 1px solid var(--bd); }
+    html.sidebar-modelo .logo-marca { width: 44px; height: 44px; border-radius: 14px; }
+    html.sidebar-modelo .logo-titulo { font: 800 15px 'Manrope', sans-serif; letter-spacing: .02em; text-transform: none; }
+    html.sidebar-modelo .logo-subtitulo { font: 600 11px 'JetBrains Mono', monospace; letter-spacing: .14em; }
+    /* Itens sem caixa (22/10/2026): só ícone + texto sobre o fundo da barra; o item ativo ganha o fundo laranja suave e a barrinha na borda. */
+    html.sidebar-modelo .nav-lateral { order: 1; padding: 4px 12px 14px; gap: 0; }
+    html.sidebar-modelo .nav-grupo { gap: 2px; }
+    html.sidebar-modelo .nav-lateral .nav-grupo + .nav-grupo { margin-top: 0; }
+    html.sidebar-modelo .nav-grupo-titulo { font: 600 11px 'JetBrains Mono', monospace; letter-spacing: .1em; padding: 18px 12px 6px; }
+    html.sidebar-modelo .nav-item { min-height: 44px; padding: 7px 12px; border: 0; border-radius: 12px; background: transparent; color: var(--t); font-size: 14px; font-weight: 600; }
+    html.sidebar-modelo .nav-item:hover { background: var(--p2); }
+    html.sidebar-modelo .nav-item .nav-icone { color: var(--m); }
+    html.sidebar-modelo .nav-item:hover .nav-icone { color: var(--t); }
+    html.sidebar-modelo .nav-item.ativo { background: var(--orsoft); color: var(--or); }
+    html.sidebar-modelo .nav-item.ativo .nav-icone { color: var(--or); }
+    html.sidebar-modelo .nav-item.ativo::before { top: 10px; bottom: 10px; }
+    html.sidebar-modelo .nav-icone svg { width: 20px; height: 20px; }
+    html.sidebar-modelo .nav-badge { margin-left: auto; }
+    html.sidebar-modelo .aviso-email { order: 2; }
+    html.sidebar-modelo .usuario-cartao { order: 3; margin: 0; padding: 12px 14px 14px; gap: 12px; border: 0; border-top: 1px solid var(--bd); border-radius: 0; background: transparent; }
+    html.sidebar-modelo .usuario-cartao .usuario-avatar { width: 38px; height: 38px; border-radius: 12px; }
+    html.sidebar-modelo .usuario-cartao .botao-sair { display: none; }
+    html.sidebar-modelo .botao-sair-linha { order: 4; display: flex; margin: 0 14px 14px; min-height: 44px; border: 0; background: none; padding: 0 8px; color: var(--da); }
+    html.sidebar-modelo .barra-lateral-topo, html.sidebar-modelo .usuario-cartao { flex-shrink: 0; }
+}
+
+html.sidebar-modelo .nav-item:hover { background: var(--p2); }
+html.sidebar-modelo .nav-item.ativo { background: var(--orsoft); }
+
+/* Admin/editores: o "Sair" fica no cartão do usuário, à direita do nome e do e-mail. Precisa de display:grid + place-items
+   (com display:flex o ícone ficava colado à esquerda do botão, torto); sem caixa, só o ícone, que fica vermelho ao passar o mouse. */
+@media (min-width: 861px) {
+    html.sidebar-modelo .usuario-cartao .botao-sair { display: grid; place-items: center; margin-left: auto; width: 38px; height: 38px; border: 0; border-radius: 12px; background: transparent; }
+    html.sidebar-modelo .usuario-cartao .botao-sair:hover { background: var(--dasoft); color: var(--da); }
+    html.sidebar-modelo .usuario-cartao .botao-sair svg { width: 18px; height: 18px; }
+}
+
+/* ===== Fluxo Guiado > Pagamentos (26/10/2026): abas Gerado/Aprovado, blocos de texto/botões/Pix e a prévia da conversa no Telegram ===== */
+.pg-abas { display: inline-flex; gap: 4px; padding: 4px; margin-bottom: 14px; border: 1px solid var(--bd); border-radius: 12px; background: var(--p2); max-width: 100%; }
+.pg-aba { min-height: 36px; padding: 0 16px; border: 0; border-radius: 9px; background: transparent; color: var(--m); font: 700 13px 'Manrope', sans-serif; cursor: pointer; white-space: nowrap; }
+.pg-aba:hover { color: var(--t); }
+.pg-aba.ativa { background: var(--orsoft); color: var(--or); box-shadow: inset 0 0 0 1px var(--or); }
+.pg-painel[hidden] { display: none; }
+.pg-layouts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.pg-layout { position: relative; display: grid; justify-items: center; gap: 6px; padding: 14px 12px; border: 1px solid var(--bd); border-radius: 12px; background: var(--p2); text-align: center; cursor: pointer; }
+.pg-layout:hover { border-color: var(--bd2); }
+.pg-layout input { position: absolute; opacity: 0; pointer-events: none; }
+.pg-layout:has(input:checked) { border-color: var(--or); background: var(--orsoft); }
+.pg-layout:has(input:focus-visible) { outline: 2px solid var(--or); outline-offset: 2px; }
+.pg-layout strong { font: 700 13px 'Manrope', sans-serif; color: var(--t); }
+.pg-layout small { font-size: 11.5px; line-height: 1.4; color: var(--m); }
+.pg-layout-mini { display: flex; flex-direction: column; gap: 5px; width: 120px; padding: 9px; border-radius: 9px; background: var(--p3); }
+.pg-layout-mini i { display: block; height: 5px; border-radius: 3px; background: var(--bd2); }
+.pg-layout-mini .pg-linha-media { width: 72%; }
+.pg-layout-mini .pg-linha-curta { width: 46%; }
+.pg-layout-mini .pg-linha-botao { height: 9px; margin-top: 2px; border-radius: 4px; background: #3a6ea5; }
+.pg-midias-topo { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.pg-rotulo-campo { font: 700 11px 'Manrope', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--m); }
+.pg-midias { display: flex; flex-wrap: wrap; gap: 8px; }
+.pg-slot { position: relative; display: grid; place-items: center; width: 76px; height: 76px; padding: 0; border: 1px dashed var(--bd2); border-radius: 10px; background: var(--p2); color: var(--m); overflow: hidden; }
+.pg-slot-novo { cursor: pointer; font: 600 11px 'Manrope', sans-serif; }
+.pg-slot-novo:hover { border-color: var(--or); color: var(--or); }
+.pg-slot-novo span { font-size: 22px; line-height: 1; }
+.pg-slot-novo small { display: block; font-size: 11px; }
+.pg-slot-vazio { opacity: .4; }
+.pg-slot-cheio { border-style: solid; border-color: var(--bd2); }
+.pg-slot-cheio img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.pg-slot-video { font-size: 22px; color: var(--t); }
+.pg-slot-tirar { position: absolute; top: 4px; right: 4px; display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: var(--da, #e5484d); color: #fff; font: 700 14px/1 'Manrope', sans-serif; cursor: pointer; }
+.pg-slot-enviando { border-color: var(--or); }
+.pg-barra { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px; border: 1px solid var(--bd); border-bottom: 0; border-radius: 10px 10px 0 0; background: var(--p2); }
+.pg-fmt { display: grid; place-items: center; min-width: 32px; height: 32px; padding: 0 6px; border: 0; border-radius: 7px; background: transparent; color: var(--t); font: 600 13px 'Manrope', sans-serif; cursor: pointer; }
+.pg-fmt:hover { background: var(--p3); }
+.pg-fmt b, .pg-fmt i, .pg-fmt u, .pg-fmt s { font-size: 14px; }
+/* as regras gerais de textarea (html[data-theme] textarea) têm mais peso: aqui o mesmo peso, mais adiante no arquivo */
+html[data-theme] .pg-texto { display: block; width: 100%; min-height: 150px; border-radius: 0 0 10px 10px; font: 500 13px/1.55 'JetBrains Mono', ui-monospace, Menlo, monospace; resize: vertical; }
+html .editor-fluxo-corpo .painel > .pg-barra + .pg-texto { margin-top: 0; }
+.pg-variaveis { display: flex; flex-wrap: wrap; gap: 6px; }
+.pg-variavel { padding: 4px 10px; border: 1px dashed var(--or); border-radius: 999px; background: var(--orsoft); color: var(--or); font: 600 12px 'JetBrains Mono', ui-monospace, Menlo, monospace; cursor: pointer; }
+.pg-variavel:hover { background: var(--or); color: var(--on-or, #1b0d04); }
+.pg-rodape-texto { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.pg-contador { flex: none; font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace; }
+.pg-linha { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--bd); border-radius: 12px; background: var(--p2); }
+.pg-linha .basico-interruptor { margin: 0; }
+.pg-linha input[type="text"] { width: 100%; }
+.pg-linha input[type="text"]:disabled { opacity: .5; cursor: not-allowed; }
+.pg-linha-botao input[type="text"] { text-align: center; font-weight: 700; border-color: rgba(78, 164, 246, .45); background: rgba(58, 110, 165, .16); }
+.pg-desabilitada { opacity: .5; }
+.pg-previa-cartao, .editor-fluxo-corpo[data-secao-ativa="pagamentos"] .lateral-suporte { display: none; }
+.editor-fluxo-corpo[data-secao-ativa="pagamentos"] .pg-previa-cartao { display: block; }
+.pg-previa-rotulo { font: 700 11px 'Manrope', sans-serif; letter-spacing: .1em; text-transform: uppercase; color: var(--m); }
+@media (min-width: 1101px) { .editor-fluxo-corpo[data-secao-ativa="pagamentos"] { grid-template-columns: auto minmax(0, 1fr) 380px; } }
+/* a conversa tem as cores do Telegram (escuro) nos dois temas: é um desenho do chat, não parte do painel */
+.pg-tg { overflow: hidden; border: 1px solid rgba(255, 255, 255, .1); border-radius: 14px; background: #0e1621; color: #e9eef5; font: 400 13.5px/1.4 -apple-system, 'Segoe UI', Roboto, 'Manrope', sans-serif; }
+.pg-tg-topo { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: #17212b; border-bottom: 1px solid rgba(255, 255, 255, .06); }
+.pg-tg-topo strong { display: block; font-size: 14px; color: #fff; }
+.pg-tg-topo small { display: block; font-size: 11.5px; color: #6c7883; }
+.pg-tg-avatar { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, #3b9be0, #2563b8); color: #fff; font-weight: 700; }
+.pg-tg-corpo { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; height: clamp(420px, calc(100vh - 300px), 760px); padding: 10px; overflow-y: auto; overscroll-behavior: contain; background: #0e1621; scrollbar-width: thin; }
+.pg-tg-dia, .pg-tg-divisor { align-self: center; margin: 4px 0; padding: 2px 10px; border-radius: 999px; background: rgba(255, 255, 255, .08); color: #9aa7b3; font-size: 11.5px; }
+.pg-tg-divisor { margin: 12px 0 6px; }
+.pg-tg-bolha { position: relative; max-width: 94%; padding: 7px 10px 18px; border-radius: 12px; border-top-left-radius: 4px; background: #182533; overflow-wrap: anywhere; }
+.pg-tg-texto { white-space: pre-wrap; }
+.pg-tg-texto b { font-weight: 700; }
+.pg-tg-texto code { padding: 1px 4px; border-radius: 4px; background: rgba(0, 0, 0, .3); font: 12.5px 'JetBrains Mono', ui-monospace, Menlo, monospace; color: #8cc8ff; }
+.pg-tg-texto pre { margin: 4px 0; padding: 8px 10px; border-radius: 8px; background: rgba(0, 0, 0, .3); font: 12.5px 'JetBrains Mono', ui-monospace, Menlo, monospace; color: #8cc8ff; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pg-tg-texto blockquote { margin: 4px 0; padding: 2px 0 2px 9px; border-left: 3px solid #4ea4f6; color: #cdd9e5; }
+.pg-tg-texto tg-spoiler { border-radius: 4px; background: rgba(255, 255, 255, .22); color: transparent; text-shadow: 0 0 8px rgba(255, 255, 255, .9); cursor: pointer; }
+.pg-tg-texto tg-spoiler:hover { background: transparent; color: inherit; text-shadow: none; }
+.pg-tg-hora { position: absolute; right: 9px; bottom: 3px; color: #6c7883; font-size: 10.5px; }
+.pg-tg-bolha-foto { padding: 4px 4px 18px; width: 230px; }
+.pg-tg-qr { display: block; width: 100%; height: auto; padding: 14px; border-radius: 9px; background: #fff; }
+.pg-tg-legenda { padding: 6px 6px 0; }
+.pg-tg-bolha-midia { padding: 4px 4px 18px; width: 230px; }
+.pg-tg-album { display: grid; gap: 2px; overflow: hidden; border-radius: 9px; }
+.pg-tg-album-2 { grid-template-columns: 1fr 1fr; }
+.pg-tg-album-3 { grid-template-columns: 1fr 1fr; }
+.pg-tg-album-3 .pg-tg-tile:first-child { grid-column: 1 / -1; }
+.pg-tg-tile { position: relative; display: grid; place-items: center; min-height: 92px; background: #223244; overflow: hidden; }
+.pg-tg-tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.pg-tg-tile-video span { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: rgba(0, 0, 0, .5); color: #fff; font-size: 15px; }
+.pg-tg-botoes { display: flex; flex-direction: column; gap: 3px; width: min(94%, 300px); }
+.pg-tg-botao { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 10px; border-radius: 8px; background: #2b5278; color: #e9f3ff; font-size: 12.5px; font-weight: 600; text-align: center; }
+.pg-tg-rodape { padding: 10px 14px; background: #17212b; border-top: 1px solid rgba(255, 255, 255, .06); color: #5d6a76; font-size: 12.5px; }
+@media (max-width: 900px) {
+    .pg-abas { display: flex; }
+    .pg-aba { flex: 1; padding: 0 8px; }
+    .pg-layouts { grid-template-columns: 1fr; }
+    .pg-tg-corpo { height: 440px; }
+    .pg-slot { width: 68px; height: 68px; }
+}
+
+/* Fluxo Guiado: a seta "Subir" das listas de fotos/vídeos (Boas-vindas, Upsell, Downsell e Prévias) fica sem a borda do quadradinho (26/10/2026, pedido do dono); a lixeira ao lado segue como era */
+.bv-subir, .of-subir, .pv-subir { border: 0; }
+.bv-subir:hover, .of-subir:hover, .pv-subir:hover { background: var(--p2); color: var(--t); }
+.bv-subir:disabled:hover, .of-subir:disabled:hover, .pv-subir:disabled:hover { background: transparent; color: var(--m); }
+
+/* Fluxo Guiado > campo Entrega: "+ Adicionar grupo pelo ID ou @" para o bot que já estava no grupo (26/10/2026, pedido do dono): link à direita embaixo do seletor, campo + botão ao abrir */
+/* "Acesso a grupo" (31, 26/10/2026, pedido do dono): escolhendo esse tipo de entrega aparece o select "Grupo para acesso" com os grupos do bot, como no n8n */
+.entrega-grupo-area { margin-top: 10px; }
+.entrega-grupo-area[hidden] { display: none; }
+.entrega-grupo-seletor { display: flex; gap: 8px; }
+.entrega-grupo-seletor select { flex: 1; min-width: 0; }
+.entrega-grupo-seletor .editor-fluxo-icone-btn { flex: none; }

@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Dashboard — Modelo A</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./mascote.css">
+<link rel="stylesheet" href="./modelo-a.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=JetBrains+Mono:wght@500;600&family=Manrope:wght@500;600;700;800&display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="a-app" data-tema="{{tema}}">
+<dc-import name="ShellA" tema="{{tema}}" ativa="dashboard" titulo="Dashboard"></dc-import>
+<main class="a-main"><div class="a-wrap">
+
+<header class="a-ph">
+<div><h1 class="a-h1">Dashboard</h1><p class="a-sub">Acompanhe vendas, conversão e atividade dos seus bots.</p></div>
+</header>
+
+<div class="a-stories" aria-label="Stories">
+<button class="a-story novo" type="button" aria-label="Criar story"><span class="ring"><i>+</i></span>Criar</button>
+<a class="a-story" href="#"><span class="ring"><i>M</i></span>Marina</a>
+<a class="a-story" href="#"><span class="ring"><i>C</i></span>Coyote</a>
+<a class="a-story" href="#"><span class="ring"><i>N</i></span>Novidades</a>
+<a class="a-story visto" href="#"><span class="ring"><i>D</i></span>Dicas</a>
+<a class="a-story visto" href="#"><span class="ring"><i>R</i></span>Resultados</a>
+</div>
+
+<form class="a-per" action="#">
+<div class="a-seg" role="group" aria-label="Período"><a href="#">Hoje</a><a href="#">Ontem</a><a class="on" href="#">8 dias</a><a href="#">30 dias</a><a href="#">Total</a></div>
+<label class="a-fld"><span class="a-lab" style="position: absolute; left: -9999px">Bot</span><select class="a-in" name="bot_id" aria-label="Filtrar por bot"><option>Todos os bots</option><option>Loja VIP Oficial</option><option>Sala Premium</option></select></label>
+<div class="datas"><label class="a-fld" style="flex: 0 0 160px"><span>De</span><input class="a-in" type="date" name="data_inicio" aria-label="Data inicial"></label><label class="a-fld" style="flex: 0 0 160px"><span>Até</span><input class="a-in" type="date" name="data_fim" aria-label="Data final"></label></div>
+</form>
+
+<section class="a-grid" aria-label="Indicadores">
+
+<div class="a-card a-hero s6 r2">
+<div class="a-ch" style="margin: 0"><span class="a-lab">Aprovado · 8 dias</span><span class="a-delta">+18,2% <span>vs período anterior</span></span></div>
+<div class="a-kv">R$ 12.480,00</div>
+<div style="display: grid; gap: 8px">
+<div class="a-bar"><i style="width: 62%"></i></div>
+<div class="a-kf"><strong>128</strong> aprovações · 62% aprov.</div>
+</div>
+<div class="a-ch" style="margin: 8px 0 0"><h2>Seu desempenho</h2><span class="a-mut" style="font-size: 12.5px">Últimos 8 dias</span></div>
+<svg class="a-chart" viewBox="0 0 640 230" role="img" aria-label="Receita dos últimos 8 dias: de R$ 800 a R$ 2.600 por dia, com pico no sábado">
+<defs><linearGradient id="ga" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="currentColor" stop-opacity=".35"/><stop offset="1" stop-color="currentColor" stop-opacity="0"/></linearGradient></defs>
+<g stroke="currentColor" stroke-opacity=".12"><line x1="20" y1="190" x2="620" y2="190"/><line x1="20" y1="150" x2="620" y2="150"/><line x1="20" y1="110" x2="620" y2="110"/><line x1="20" y1="70" x2="620" y2="70"/><line x1="20" y1="30" x2="620" y2="30"/></g>
+<path d="M20 144 L105.7 121 L191.4 104 L277.1 127 L362.9 69 L448.6 86 L534.3 40 L620 105 L620 190 L20 190 Z" fill="url(#ga)"/>
+<path d="M20 144 L105.7 121 L191.4 104 L277.1 127 L362.9 69 L448.6 86 L534.3 40 L620 105" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<g><text x="20" y="214" text-anchor="middle">Dom</text><text x="105.7" y="214" text-anchor="middle">Seg</text><text x="191.4" y="214" text-anchor="middle">Ter</text><text x="277.1" y="214" text-anchor="middle">Qua</text><text x="362.9" y="214" text-anchor="middle">Qui</text><text x="448.6" y="214" text-anchor="middle">Sex</text><text x="534.3" y="214" text-anchor="middle">Sáb</text><text x="620" y="214" text-anchor="middle">Dom</text></g>
+</svg>
+</div>
+
+<div class="a-card a-kpi s3">
+<div class="a-kh"><span class="a-ki"><svg class="ic" aria-hidden="true"><use href="#i-traqueamento"/></svg></span><span class="a-lab">Conversão</span></div>
+<div class="a-gauge" role="img" aria-label="Conversão de 62,4%">
+<svg viewBox="0 0 220 120"><path d="M20 110 A90 90 0 0 1 200 110" fill="none" stroke="var(--p3)" stroke-width="16" stroke-linecap="round"/><path d="M20 110 A90 90 0 0 1 144.1 26.7" fill="none" stroke="var(--or)" stroke-width="16" stroke-linecap="round"/></svg>
+<b>62,40%</b>
+</div>
+<span class="a-kf" style="text-align: center">128 pagos de 205 PIX</span>
+</div>
+
+<div class="a-card a-kpi s3">
+<div class="a-kh"><span class="a-ki"><svg class="ic" aria-hidden="true"><use href="#i-raio"/></svg></span><span class="a-lab">Total starts</span></div>
+<span class="a-kv">1.842</span>
+<span class="a-kf">Inícios de conversa (novos e de quem voltou)</span>
+<svg viewBox="0 0 200 48" width="100%" height="48" aria-hidden="true" style="color: var(--or)"><path d="M0 34 L28 26 L57 30 L85 14 L114 20 L142 8 L171 22 L200 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/></svg>
+</div>
+
+<div class="a-card a-kpi s6">
+<div class="a-kh"><span class="a-ki"><svg class="ic" aria-hidden="true"><use href="#i-vendas"/></svg></span><span class="a-lab">Ticket médio</span></div>
+<span class="a-kv">R$ 97,50</span>
+<span class="a-kf">Vendas: <strong>R$ 12.480,00</strong></span>
+<div style="display: grid; gap: 6px; margin-top: 6px">
+<div class="a-kf" style="display: flex; justify-content: space-between"><span>PIX pagos</span><strong>128</strong></div>
+<div class="a-bar"><i style="width: 62%"></i></div>
+<div class="a-kf" style="text-align: right">de 205 PIX gerados</div>
+</div>
+</div>
+
+</section>
+
+<section class="a-grid" style="margin-top: 16px">
+
+<div class="a-card a-act s5">
+<div class="a-ch"><h2>Atividade</h2></div>
+<ul>
+<li><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-vendas"/></svg></span><div class="tx"><b>Venda aprovada</b><span>Marcos Oliveira pagou R$ 97,00 · Loja VIP Oficial</span></div><time>2m<br>18/10, 14:18</time></li>
+<li><span class="ico pix"><svg class="ic" aria-hidden="true"><use href="#i-relogio"/></svg></span><div class="tx"><b>Pix gerado</b><span>Juliana Prado gerou um Pix de R$ 97,00</span></div><time>1h<br>18/10, 13:02</time></li>
+<li><span class="ico lead"><svg class="ic" aria-hidden="true"><use href="#i-pessoas"/></svg></span><div class="tx"><b>Novo lead</b><span>Camila Duarte iniciou a conversa · Sala Premium</span></div><time>2h<br>18/10, 12:40</time></li>
+<li><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-vendas"/></svg></span><div class="tx"><b>Venda aprovada</b><span>Rafael Mendes pagou R$ 297,00 · Sala Premium</span></div><time>3h<br>18/10, 11:15</time></li>
+<li><span class="ico lead"><svg class="ic" aria-hidden="true"><use href="#i-pessoas"/></svg></span><div class="tx"><b>Novo lead</b><span>Bruno Teixeira iniciou a conversa · Mentoria 21 Dias</span></div><time>5h<br>18/10, 09:48</time></li>
+</ul>
+<nav class="a-pg" style="margin-top: 10px" aria-label="Paginação da atividade"><span class="off">« Anterior</span><a class="on" href="#" aria-current="page">1</a><a href="#">2</a><a href="#">3</a><a href="#">Próximo »</a></nav>
+</div>
+
+<div class="a-card a-mr s7">
+<div class="a-ch"><h2>Campanha de Outubro</h2><div class="a-seg" role="tablist" aria-label="Tipo de ranking"><a class="on" href="#" role="tab" aria-selected="true">Concurso</a><a href="#" role="tab" aria-selected="false">Mensal</a></div></div>
+<ul>
+<li class="lider"><span class="pos">#1</span><span class="nm">ana.escala</span><span class="vl">R$ 148,2 mil</span></li>
+<li><span class="pos">#2</span><span class="nm">pedro.funil</span><span class="vl">R$ 131,7 mil</span></li>
+<li><span class="pos">#3</span><span class="nm">lu.vendas</span><span class="vl">R$ 118,4 mil</span></li>
+<li><span class="pos">#4</span><span class="nm">dudu.bots</span><span class="vl">R$ 96,0 mil</span></li>
+<li><span class="pos">#5</span><span class="nm">carla.pix</span><span class="vl">R$ 88,3 mil</span></li>
+<li class="voce"><span class="pos">#12</span><span class="nm">Marina Alves<span class="a-tag">você</span></span><span class="vl">R$ 41,7 mil</span></li>
+</ul>
+<div class="a-more"><a href="#">Ver ranking completo<svg class="ic" aria-hidden="true"><use href="#i-seta"/></svg></a></div>
+</div>
+
+</section>
+
+<section class="a-card a-tw" style="margin-top: 16px" aria-label="Vendas do período">
+<div class="a-ch"><h2>Vendas</h2><span class="a-mut" style="font-size: 12.5px">Últimos 7 dias · 128 vendas pagas</span></div>
+<table class="a-t">
+<thead><tr><th>Data</th><th>Cliente</th><th>Produto</th><th>Bot</th><th class="num">Valor</th></tr></thead>
+<tbody>
+<tr><td data-l="Data" class="mono o3">18/10/2026 14:18</td><td class="c-main"><b>Marcos Oliveira</b><span class="sub">ID: 5128840213</span></td><td data-l="Produto" class="full o5">Plano Mensal · com grupo <span class="a-bd wa">Renovação</span></td><td data-l="Bot" class="o4">Loja VIP Oficial</td><td class="num c-val">R$ 97,00</td></tr>
+<tr><td data-l="Data" class="mono o3">18/10/2026 13:59</td><td class="c-main"><b>Rafael Mendes</b><span class="sub">ID: 7120956431</span></td><td data-l="Produto" class="full o5">Vitalício VIP</td><td data-l="Bot" class="o4">Sala Premium</td><td class="num c-val">R$ 297,00</td></tr>
+<tr><td data-l="Data" class="mono o3">18/10/2026 13:25</td><td class="c-main"><b>Patrícia Lima</b><span class="sub">ID: 5942108836</span></td><td data-l="Produto" class="full o5">Plano Mensal · com grupo <span class="a-bd">Recompra</span></td><td data-l="Bot" class="o4">Sala Premium</td><td class="num c-val">R$ 97,00</td></tr>
+<tr><td data-l="Data" class="mono o3">17/10/2026 21:14</td><td class="c-main"><b>Marcos Oliveira</b><span class="sub">ID: 5128840213</span></td><td data-l="Produto" class="full o5">Guia de anúncios (order bump)</td><td data-l="Bot" class="o4">Loja VIP Oficial</td><td class="num c-val">R$ 27,00</td></tr>
+</tbody>
+</table>
+<div class="a-more"><a href="#">Ver todas as vendas<svg class="ic" aria-hidden="true"><use href="#i-seta"/></svg></a></div>
+</section>
+
+</div></main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"tema":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":1900}}'>
+class Component extends DCLogic {
+renderVals() {
+return {
+tema: this.props.tema ?? 'dark'
+};
+}
+}
+</script>
+</body>
+</html>

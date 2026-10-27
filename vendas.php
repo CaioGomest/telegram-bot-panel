@@ -19,6 +19,7 @@ if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $data_inicio)) $data_inicio = '';
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $data_fim)) $data_fim = '';
 // Atalhos de período: viram datas de verdade, então o filtro "de/até" mostra o recorte que está valendo.
 if ($periodo === 'hoje') { $data_inicio = $data_fim = date('Y-m-d'); }
+elseif ($periodo === 'ontem') { $data_inicio = $data_fim = date('Y-m-d', strtotime('-1 day')); }
 elseif ($periodo === '7') { $data_inicio = date('Y-m-d', strtotime('-6 days')); $data_fim = ''; }
 elseif ($periodo === '30') { $data_inicio = date('Y-m-d', strtotime('-29 days')); $data_fim = ''; }
 
@@ -164,7 +165,7 @@ $dinheiro = static fn(float $v): string => 'R$ ' . number_format($v, 2, ',', '.'
                     <?php endforeach; ?>
                 </div>
                 <div class="a-seg" role="group" aria-label="Período">
-                    <?php foreach (['hoje' => 'Hoje', '7' => '7 dias', '30' => '30 dias', '' => 'Tudo'] as $chave => $rotulo):
+                    <?php foreach (['hoje' => 'Hoje', 'ontem' => 'Ontem', '7' => '7 dias', '30' => '30 dias', '' => 'Tudo'] as $chave => $rotulo):
                         $ativo_periodo = $chave === '' ? ($data_inicio === '' && $data_fim === '') : ($periodo === (string) $chave);
                         $link_periodo = array_merge($params_link, ['periodo' => $chave, 'data_inicio' => '', 'data_fim' => '']);
                     ?>
@@ -187,8 +188,6 @@ $dinheiro = static fn(float $v): string => 'R$ ' . number_format($v, 2, ',', '.'
                     <?php endforeach; ?>
                 </select>
             </label>
-            <label class="a-fld gav" for="filtro-de-venda"><span>De</span><input class="a-in" type="date" name="data_inicio" id="filtro-de-venda" value="<?php echo htmlspecialchars($data_inicio); ?>"></label>
-            <label class="a-fld gav" for="filtro-ate-venda"><span>Até</span><input class="a-in" type="date" name="data_fim" id="filtro-ate-venda" value="<?php echo htmlspecialchars($data_fim); ?>"></label>
             <div class="acts gav">
                 <button type="submit" class="a-btn pri">Filtrar</button>
                 <?php if ($tem_filtro): ?><a href="vendas" class="a-btn">Limpar</a><?php endif; ?>

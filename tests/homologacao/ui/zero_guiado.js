@@ -7,6 +7,11 @@ const q = (s) => 'jQuery(' + JSON.stringify(s) + ')';
 const plano = (i, s) => `jQuery('#lista-planos .painel-plano').eq(${i}).find(${JSON.stringify(s)})`;
 const oferta = (tipo, s) => `jQuery('.painel[data-oferta="${tipo}"]').find(${JSON.stringify(s)})`;
 const pack = (i, s) => `jQuery('#pk-lista .pk-item').eq(${i}).find(${JSON.stringify(s)})`;
+// Entrega em 2 passos (item 31, 26/10/2026): o select de TIPO ("Acesso a grupo") e, em seguida, o select "Grupo para acesso"; grupo vazio = "Nenhum".
+async function escolherEntrega(t, achar, seletor_tipo, grupo) {
+    if (grupo) { await t.escolher(achar(seletor_tipo), '__grupo__'); await t.escolher(achar('.entrega-grupo-select'), grupo); }
+    else await t.escolher(achar(seletor_tipo), '');
+}
 
 const NOME = 'Zero Guiado ' + Date.now();
 // O que a pessoa digita/escolhe na tela (e que tem que voltar igual do banco).
@@ -123,7 +128,7 @@ function diferencas(esp, lido, caminho = '', out = []) {
             await t.digitar(plano(i, '.campo-plano-valor'), String(p.valor));
             await t.digitar(plano(i, '.campo-plano-dias'), String(p.dias));
             await t.escolher(plano(i, '.campo-plano-unidade'), p.unidade);
-            await t.escolher(plano(i, '.campo-plano-grupo'), p.grupo);
+            await escolherEntrega(t, (s) => plano(i, s), '.campo-plano-grupo', p.grupo);
             await t.escolher(plano(i, '.campo-plano-cor'), p.cor);
         }
         t.ok('plano sem grupo mostra o aviso "Sem grupo"; com grupo o aviso some', (await t.js(`!jQuery('#lista-planos .painel-plano').eq(2).find('.dica-sem-grupo').prop('hidden')`)) && (await t.js(`jQuery('#lista-planos .painel-plano').eq(0).find('.dica-sem-grupo').prop('hidden')`)), {});
@@ -133,7 +138,7 @@ function diferencas(esp, lido, caminho = '', out = []) {
         await t.clicar(q('#btn-adicionar-plano'));
         const p3 = E.planos[3];
         await t.digitar(plano(3, '.campo-plano-nome'), p3.nome); await t.digitar(plano(3, '.campo-plano-valor'), String(p3.valor)); await t.digitar(plano(3, '.campo-plano-dias'), String(p3.dias));
-        await t.escolher(plano(3, '.campo-plano-unidade'), p3.unidade); await t.escolher(plano(3, '.campo-plano-grupo'), p3.grupo); await t.escolher(plano(3, '.campo-plano-cor'), p3.cor);
+        await t.escolher(plano(3, '.campo-plano-unidade'), p3.unidade); await escolherEntrega(t, (s) => plano(3, s), '.campo-plano-grupo', p3.grupo); await t.escolher(plano(3, '.campo-plano-cor'), p3.cor);
         t.ok('o plano removido e refeito mantém os 3 anteriores intactos', (await t.js(`jQuery('#lista-planos .painel-plano').eq(1).find('.campo-plano-nome').val()`)) === E.planos[1].nome, {});
         await t.captura('guiado_planos.png');
 
@@ -179,6 +184,8 @@ function diferencas(esp, lido, caminho = '', out = []) {
         }
         await secao('orderbump');
         await t.marcar(oferta('order_bump', '.of-ativo'), true);
+        // Fluxo novo começa em "Depois do Pix" (sequência de bumps, 23/10/2026); esta bateria testa o jeito de sempre, UM bump oferecido depois do pagamento (zero_motor_guiado.sh).
+        await t.escolher(oferta('order_bump', '.of-quando'), 'depois_pagamento');
         await salvarEErro(/valor extra do Order Bump/, 'Order Bump ligado com valor 0: recusado');
         await t.digitar(oferta('order_bump', '.of-nome'), E.bump.nome);
         await t.digitar(oferta('order_bump', '.of-valor-extra'), String(E.bump.extra));
@@ -204,7 +211,7 @@ function diferencas(esp, lido, caminho = '', out = []) {
             await t.digitar(pack(i, '.pk-nome'), k.nome);
             await t.digitar(pack(i, '.pk-preco'), String(k.preco));
             await t.digitar(pack(i, '.pk-descricao'), k.desc);
-            await t.escolher(pack(i, '.pk-grupo'), k.grupo);
+            await escolherEntrega(t, (s) => pack(i, s), '.pk-grupo', k.grupo);
             await t.clicar(pack(i, '.pk-midia'));                         // o clique abre o seletor de arquivos; o teste entrega o arquivo ao <input>
             await t.subir(q('#pk-arquivo'), midiaPack[i]);
             await t.esperarToast(/adicionada/, 8000);

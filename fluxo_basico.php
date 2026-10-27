@@ -120,12 +120,15 @@ bloquearAdmin();
                         </div>
                         <label class="basico-interruptor sem-caixa"><input type="checkbox" id="bv-mostrar-cta" checked> <span>Mostrar botão (CTA) na mensagem</span></label>
                         <small class="texto-ajuda" id="bv-cta-dica" hidden>Sem o botão, a lista de planos é enviada logo depois da mensagem de boas-vindas.</small>
+                        <div class="campo">
+                            <label>Mídia (opcional)</label>
+                            <div class="area-previa-basico" id="bv-midia-previa" data-estado="vazio" data-tipo="none">Sem mídia</div>
+                            <input type="file" id="bv-midia-arquivo" accept="image/*,video/*" style="display:none">
+                            <div id="bv-midias-extras"></div>
+                            <button type="button" class="botao botao-claro" id="bv-midias-adicionar" style="display:none">+ Adicionar outra foto ou vídeo</button>
+                            <small class="texto-ajuda" id="bv-midias-dica">Com mais de uma foto/vídeo (até 10), elas vão juntas num álbum, na ordem da lista, e o texto com o botão chega logo depois.</small>
+                        </div>
                         <div class="grade grade-2 grade-compacta">
-                            <div class="campo">
-                                <label>Mídia (opcional)</label>
-                                <div class="area-previa-basico" id="bv-midia-previa" data-estado="vazio" data-tipo="none">Sem mídia</div>
-                                <input type="file" id="bv-midia-arquivo" accept="image/*,video/*" style="display:none">
-                            </div>
                             <div class="campo bv-cta-campo">
                                 <label for="bv-cta">Texto do botão (CTA)</label>
                                 <input type="text" id="bv-cta" placeholder="Ver Planos" value="Ver Planos">
@@ -155,17 +158,21 @@ bloquearAdmin();
                 <section class="basico-secao" data-secao="upsell">
                     <div class="painel" data-oferta="upsell">
                         <div class="painel-cabecalho"><h2>Upsell</h2></div>
-                        <p class="texto-ajuda">Depois que o cliente escolhe um plano, oferece um plano melhor antes de gerar o Pix.</p>
+                        <p class="texto-ajuda">Depois que o cliente PAGA, oferece um plano melhor. Se ele aceitar, recebe um Pix novo só desse plano (com o desconto abaixo, se houver) e o acesso do novo plano é liberado quando pagar.</p>
                         <label class="basico-interruptor sem-caixa"><input type="checkbox" class="of-ativo"> <span>Ativar upsell</span></label>
                         <div class="of-detalhes" hidden>
                         <div class="grade grade-2 grade-compacta">
                             <div class="campo"><label>Plano oferecido</label><select class="of-plano"></select></div>
                             <div class="campo"><label>Desconto (%)</label><input type="number" min="0" max="100" step="1" class="of-desconto" value="0"></div>
                         </div>
+                        <div class="of-entrega"></div>
                         <div class="campo"><label>Mensagem da oferta</label><textarea class="of-mensagem" rows="3" placeholder="Que tal levar o plano completo com desconto?"></textarea></div>
                         <div class="campo"><label>Mídia (opcional)</label>
                             <div class="area-previa-basico of-midia" data-estado="vazio" data-tipo="none">Sem mídia</div>
                             <input type="file" class="of-midia-arquivo" accept="image/*,video/*" style="display:none">
+                            <div class="of-midias-extras"></div>
+                            <button type="button" class="botao botao-claro of-midias-adicionar" style="display:none">+ Adicionar outra foto ou vídeo</button>
+                            <small class="texto-ajuda of-midias-dica" style="display:none">Com mais de uma foto/vídeo (até 10), elas vão juntas num álbum, na ordem da lista, e o texto com os botões chega logo depois.</small>
                         </div>
                         <div class="grade grade-2 grade-compacta">
                             <div class="campo"><label>Botão aceitar</label><input type="text" class="of-aceitar" placeholder="Sim, quero!"></div>
@@ -196,18 +203,36 @@ bloquearAdmin();
                 <section class="basico-secao" data-secao="downsell">
                     <div class="painel" data-oferta="downsell">
                         <div class="painel-cabecalho"><h2>Downsell</h2></div>
-                        <p class="texto-ajuda">Se o cliente recusar o upsell (ou não houver upsell), mostra os planos que você escolher, com desconto, como botões. Não tem botão de aceitar nem de recusar: ele toca no plano que quiser e segue para o pagamento.</p>
+                        <p class="texto-ajuda">Mostra os planos que você escolher, com desconto, como botões. Não tem botão de aceitar nem de recusar: o cliente toca no plano que quiser e recebe o Pix dele. Você escolhe se a oferta sai antes do Pix ou depois dele, se o cliente não pagar.</p>
                         <label class="basico-interruptor sem-caixa"><input type="checkbox" class="of-ativo"> <span>Ativar downsell</span></label>
                         <div class="of-detalhes" hidden>
+                        <div class="campo"><label>Quando enviar</label>
+                            <select class="of-quando">
+                                <option value="depois_pix">Depois do Pix, se o cliente não pagar</option>
+                                <option value="antes_pix">Antes do Pix, assim que o cliente escolhe o plano</option>
+                            </select>
+                        </div>
+                        <div class="of-temporizador">
+                            <div class="grade grade-2 grade-compacta">
+                                <div class="campo"><label>Primeiro envio após (minutos)</label><input type="number" min="1" max="1440" step="1" class="of-espera" value="10"></div>
+                                <div class="campo"><label>Quantos envios</label><input type="number" min="1" max="5" step="1" class="of-envios" value="1"></div>
+                                <div class="campo of-intervalo-campo" style="display:none"><label>Repetir a cada (minutos)</label><input type="number" min="1" max="1440" step="1" class="of-intervalo" value="30"></div>
+                            </div>
+                            <small class="texto-ajuda">O cliente recebe o Pix normal. Se não pagar nesse prazo, chega a oferta com desconto; com mais de 1 envio, ela se repete no intervalo escolhido até ele pagar ou tocar num plano. A conferência roda a cada minuto.</small>
+                        </div>
                         <div class="campo"><label>Planos oferecidos</label>
                             <div class="of-planos-lista"></div>
                             <small class="texto-ajuda">Só os planos marcados aparecem para o cliente (o plano que ele já escolheu antes não é repetido).</small>
                         </div>
                         <div class="campo"><label>Desconto (%)</label><input type="number" min="0" max="100" step="1" class="of-desconto" value="0"></div>
+                        <div class="of-entrega"></div>
                         <div class="campo"><label>Mensagem da oferta</label><textarea class="of-mensagem" rows="3" placeholder="Espera! Tenho uma condição especial pra você."></textarea></div>
                         <div class="campo"><label>Mídia (opcional)</label>
                             <div class="area-previa-basico of-midia" data-estado="vazio" data-tipo="none">Sem mídia</div>
                             <input type="file" class="of-midia-arquivo" accept="image/*,video/*" style="display:none">
+                            <div class="of-midias-extras"></div>
+                            <button type="button" class="botao botao-claro of-midias-adicionar" style="display:none">+ Adicionar outra foto ou vídeo</button>
+                            <small class="texto-ajuda of-midias-dica" style="display:none">Com mais de uma foto/vídeo (até 10), elas vão juntas num álbum, na ordem da lista, e o texto com os botões chega logo depois.</small>
                         </div>
                     </div>
                     </div>
@@ -216,9 +241,20 @@ bloquearAdmin();
                 <section class="basico-secao" data-secao="orderbump">
                     <div class="painel" data-oferta="order_bump">
                         <div class="painel-cabecalho"><h2>Order Bump</h2></div>
-                        <p class="texto-ajuda">Último passo antes do Pix: oferece um extra por um valor adicional, somado ao total.</p>
+                        <p class="texto-ajuda">Oferece um extra por um valor adicional. Você escolhe quando: depois do Pix, se o cliente não pagar (aí dá para ter até 5 order bumps, um de cada vez, cada um com o seu tempo), ou só depois que ele paga (um order bump). Aceitando um bump antes de pagar, o cliente recebe um Pix novo com o plano + o extra; aceitando depois de pagar, um Pix novo só do extra.</p>
                         <label class="basico-interruptor sem-caixa"><input type="checkbox" class="of-ativo"> <span>Ativar order bump</span></label>
                         <div class="of-detalhes" hidden>
+                        <div class="grade grade-2 grade-compacta bp-quando-grade">
+                            <div class="campo bp-quando-campo"><label>Quando enviar</label>
+                                <select class="of-quando">
+                                    <option value="depois_pix">Depois do Pix, se o cliente não pagar (sequência)</option>
+                                    <option value="depois_pagamento">Depois que o cliente paga (um só)</option>
+                                </select>
+                            </div>
+                            <div class="campo of-espera-campo"><label>Enviar quantos minutos depois do Pix</label><input type="number" min="1" max="1440" step="1" class="of-espera" value="5"></div>
+                        </div>
+                        <small class="texto-ajuda bp-sequencia-dica">Se o cliente não pagar, o 1º order bump chega depois do tempo acima; cada um dos seguintes chega depois do tempo que você marcar nele, contado do order bump anterior. A sequência para quando ele pagar ou aceitar um bump. A conferência roda a cada minuto.</small>
+                        <h3 class="bp-item-titulo">Order Bump 1</h3>
                         <div class="grade grade-2 grade-compacta">
                             <div class="campo"><label>Nome do extra</label><input type="text" class="of-nome" placeholder="Ex.: Pack bônus"></div>
                             <div class="campo"><label>Valor extra (R$)</label><input type="number" min="0" step="0.01" class="of-valor-extra" value="0"></div>
@@ -248,31 +284,140 @@ bloquearAdmin();
                                 </select>
                             </div>
                         </div>
+                        <div id="bp-extras"></div>
+                        <button type="button" class="botao botao-claro" id="bp-adicionar">+ Adicionar order bump</button>
                     </div>
                     </div>
                 </section>
 
                 <section class="basico-secao" data-secao="pagamentos">
-                    <div class="painel">
-                        <div class="painel-cabecalho"><h2>Pagamentos</h2></div>
-                        <div class="grade grade-2 grade-compacta">
-                            <div class="campo">
-                                <label for="pg-msg-instrucoes">Mensagem no Pix gerado</label>
-                                <textarea id="pg-msg-instrucoes" rows="2">Copie o código Pix abaixo e pague no app do seu banco.</textarea>
+                    <div class="pg-abas" role="tablist" aria-label="Mensagens do pagamento">
+                        <button type="button" class="pg-aba ativa" role="tab" data-pg-aba="gerado" aria-selected="true">Pagamento Gerado</button>
+                        <button type="button" class="pg-aba" role="tab" data-pg-aba="aprovado" aria-selected="false">Pagamento Aprovado</button>
+                    </div>
+                    <input type="file" id="pg-midia-arquivo" accept="image/*,video/*" style="display:none">
+
+                    <div class="pg-painel" data-pg-painel="gerado">
+                        <div class="painel">
+                            <div class="painel-cabecalho"><h2>Layout da mensagem</h2></div>
+                            <div class="pg-layouts" role="radiogroup" aria-label="Layout da mensagem do Pix">
+                                <label class="pg-layout">
+                                    <input type="radio" name="pg-layout" value="padrao" checked>
+                                    <span class="pg-layout-mini" aria-hidden="true"><i class="pg-linha-cheia"></i><i class="pg-linha-media"></i><i class="pg-linha-cheia"></i><i class="pg-linha-curta"></i><i class="pg-linha-botao"></i></span>
+                                    <strong>Padrão</strong><small>Resumo do pedido (produto e valor) e depois o seu texto</small>
+                                </label>
+                                <label class="pg-layout">
+                                    <input type="radio" name="pg-layout" value="compacto">
+                                    <span class="pg-layout-mini" aria-hidden="true"><i class="pg-linha-cheia"></i><i class="pg-linha-media"></i><i class="pg-linha-botao"></i></span>
+                                    <strong>Compacto</strong><small>Só o seu texto, sem o resumo do pedido</small>
+                                </label>
                             </div>
-                            <div class="campo">
-                                <label for="pg-msg-confirmado">Mensagem no pagamento aprovado</label>
-                                <textarea id="pg-msg-confirmado" rows="2">Pagamento confirmado! Seu acesso foi liberado.</textarea>
+                        </div>
+
+                        <div class="painel" data-pg-editor="pg-msg-instrucoes">
+                            <div class="painel-cabecalho"><h2>Texto do Pix</h2></div>
+                        <div class="pg-midias-topo"><span class="pg-rotulo-campo">Mídias</span><span class="texto-ajuda" data-pg-contagem="gerado">0/3 mídias</span></div>
+                        <div class="pg-midias" data-pg-midias="gerado"></div>
+                        <div class="pg-barra" role="toolbar" aria-label="Formatação do texto">
+                            <button type="button" class="pg-fmt" data-pg-tag="b" title="Negrito" aria-label="Negrito"><b>B</b></button>
+                            <button type="button" class="pg-fmt" data-pg-tag="i" title="Itálico" aria-label="Itálico"><i>I</i></button>
+                            <button type="button" class="pg-fmt" data-pg-tag="u" title="Sublinhado" aria-label="Sublinhado"><u>U</u></button>
+                            <button type="button" class="pg-fmt" data-pg-tag="s" title="Tachado" aria-label="Tachado"><s>S</s></button>
+                            <button type="button" class="pg-fmt" data-pg-tag="code" title="Código (toque para copiar)" aria-label="Código">&lt;/&gt;</button>
+                            <button type="button" class="pg-fmt" data-pg-tag="tg-spoiler" title="Spoiler (texto escondido)" aria-label="Spoiler"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18M10.6 6.1A9.6 9.6 0 0 1 12 6c5 0 8.5 4.2 9.6 6a14 14 0 0 1-2.6 3.2M6.2 6.9A14 14 0 0 0 2.4 12c1.1 1.8 4.6 6 9.6 6a9.5 9.5 0 0 0 4-.9M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button>
+                            <button type="button" class="pg-fmt" data-pg-tag="blockquote" title="Citação" aria-label="Citação"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M7 7h4v4c0 2.5-1.2 4-3.5 4.4l-.5-1.4c1-.3 1.6-1 1.7-2H7zm7 0h4v4c0 2.5-1.2 4-3.5 4.4l-.5-1.4c1-.3 1.6-1 1.7-2H14z"/></svg></button>
+                        </div>
+                            <textarea id="pg-msg-instrucoes" class="pg-texto" rows="8" maxlength="3000" spellcheck="true" aria-label="Texto do Pix"></textarea>
+                        <div class="pg-variaveis" aria-label="Variáveis (toque para inserir no texto)">
+                            <button type="button" class="pg-variavel" data-pg-variavel="nome" title="Primeiro nome do cliente">{nome}</button>
+                            <button type="button" class="pg-variavel" data-pg-variavel="plano" title="Nome do plano comprado">{plano}</button>
+                            <button type="button" class="pg-variavel" data-pg-variavel="valor" title="Valor do pedido (R$)">{valor}</button>
+                            <button type="button" class="pg-variavel" data-pg-variavel="saudacao" title="Bom dia, Boa tarde ou Boa noite">{saudacao}</button>
+                            <button type="button" class="pg-variavel" data-pg-variavel="codigo_pix" title="O código Pix copia e cola, no formato escolhido">{codigo_pix}</button>
+                        </div>
+                            <div class="pg-rodape-texto"><small class="texto-ajuda">Formatação em HTML do Telegram. Uma variável fica entre chaves e é trocada na hora de enviar.</small><small class="texto-ajuda pg-contador" data-pg-contador="pg-msg-instrucoes">0/3000</small></div>
+                        </div>
+
+                        <div class="painel">
+                            <div class="painel-cabecalho"><h2>Botões &amp; CTA</h2></div>
+                            <div class="pg-linha" id="pg-linha-antes-botoes">
+                                <label class="basico-interruptor sem-caixa"><input type="checkbox" id="pg-antes-botoes-ativo"> <span>Mensagem antes dos botões</span></label>
+                                <input type="text" id="pg-antes-botoes" maxlength="300" data-pg-liga="pg-antes-botoes-ativo" aria-label="Mensagem antes dos botões">
+                                <small class="texto-ajuda">Quando ligada, os botões vão numa mensagem à parte, com este texto.</small>
+                            </div>
+                            <div class="pg-linha">
+                                <label class="basico-interruptor sem-caixa"><input type="checkbox" id="pg-codigo-na-mensagem"> <span>Código Pix na mesma mensagem</span></label>
+                                <small class="texto-ajuda">Desligado, o código sai numa mensagem separada (mais fácil de copiar).</small>
+                            </div>
+                            <div class="pg-linha" id="pg-linha-antes-codigo">
+                                <label class="basico-interruptor sem-caixa"><input type="checkbox" id="pg-antes-codigo-ativo"> <span>Mensagem antes do código Pix</span></label>
+                                <input type="text" id="pg-antes-codigo" maxlength="300" data-pg-liga="pg-antes-codigo-ativo" aria-label="Mensagem antes do código Pix">
+                            </div>
+                            <!-- Mesma ordem do Telegram (e da prévia ao lado): copiar o código em cima, verificar o pagamento embaixo -->
+                            <div class="pg-linha pg-linha-botao">
+                                <label class="basico-interruptor sem-caixa"><input type="checkbox" id="pg-mostrar-copiar" checked> <span>Botão para copiar o código</span></label>
+                                <input type="text" id="pg-btn-copiar-texto" maxlength="40" data-pg-liga="pg-mostrar-copiar" aria-label="Texto do botão de copiar">
+                            </div>
+                            <div class="pg-linha pg-linha-botao">
+                                <label class="basico-interruptor sem-caixa"><input type="checkbox" id="pg-mostrar-confirmar" checked> <span>Botão para verificar o pagamento</span></label>
+                                <input type="text" id="pg-btn-verificar-texto" maxlength="40" data-pg-liga="pg-mostrar-confirmar" aria-label="Texto do botão de verificar">
                             </div>
                         </div>
-                        <div class="linha-flex">
-                            <input type="checkbox" id="pg-mostrar-copiar" checked> <label style="margin:0">Botão Copiar código</label>
+
+                        <div class="painel">
+                            <div class="painel-cabecalho"><h2>Configurações do Pix</h2></div>
+                            <label class="basico-interruptor sem-caixa"><input type="checkbox" id="pg-mostrar-qrcode" checked> <span>Enviar o QR Code (imagem)</span></label>
+                            <div class="grade grade-2 grade-compacta">
+                                <div class="campo">
+                                    <label for="pg-qr-posicao">Onde fica o QR Code</label>
+                                    <select id="pg-qr-posicao">
+                                        <option value="antes">Antes do texto (imagem separada)</option>
+                                        <option value="junto">Na mesma mensagem do texto (legenda da imagem)</option>
+                                        <option value="depois">Depois do texto (imagem separada)</option>
+                                    </select>
+                                </div>
+                                <div class="campo">
+                                    <label for="pg-codigo-formato">Formato do código Pix</label>
+                                    <select id="pg-codigo-formato">
+                                        <option value="inline">Em destaque (toque para copiar)</option>
+                                        <option value="bloco">Bloco de código (com botão copiar)</option>
+                                        <option value="simples">Texto simples</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
-                        <div class="linha-flex">
-                            <input type="checkbox" id="pg-mostrar-qrcode" checked> <label style="margin:0">Enviar também o QR Code (foto)</label>
+                    </div>
+
+                    <div class="pg-painel" data-pg-painel="aprovado" hidden>
+                        <div class="painel" data-pg-editor="pg-msg-confirmado">
+                            <div class="painel-cabecalho"><h2>Mensagem de Aprovação</h2></div>
+                        <div class="pg-midias-topo"><span class="pg-rotulo-campo">Mídias</span><span class="texto-ajuda" data-pg-contagem="aprovado">0/3 mídias</span></div>
+                        <div class="pg-midias" data-pg-midias="aprovado"></div>
+                        <div class="pg-barra" role="toolbar" aria-label="Formatação do texto">
+                            <button type="button" class="pg-fmt" data-pg-tag="b" title="Negrito" aria-label="Negrito"><b>B</b></button>
+                            <button type="button" class="pg-fmt" data-pg-tag="i" title="Itálico" aria-label="Itálico"><i>I</i></button>
+                            <button type="button" class="pg-fmt" data-pg-tag="u" title="Sublinhado" aria-label="Sublinhado"><u>U</u></button>
+                            <button type="button" class="pg-fmt" data-pg-tag="s" title="Tachado" aria-label="Tachado"><s>S</s></button>
+                            <button type="button" class="pg-fmt" data-pg-tag="code" title="Código (toque para copiar)" aria-label="Código">&lt;/&gt;</button>
+                            <button type="button" class="pg-fmt" data-pg-tag="tg-spoiler" title="Spoiler (texto escondido)" aria-label="Spoiler"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18M10.6 6.1A9.6 9.6 0 0 1 12 6c5 0 8.5 4.2 9.6 6a14 14 0 0 1-2.6 3.2M6.2 6.9A14 14 0 0 0 2.4 12c1.1 1.8 4.6 6 9.6 6a9.5 9.5 0 0 0 4-.9M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button>
+                            <button type="button" class="pg-fmt" data-pg-tag="blockquote" title="Citação" aria-label="Citação"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M7 7h4v4c0 2.5-1.2 4-3.5 4.4l-.5-1.4c1-.3 1.6-1 1.7-2H7zm7 0h4v4c0 2.5-1.2 4-3.5 4.4l-.5-1.4c1-.3 1.6-1 1.7-2H14z"/></svg></button>
                         </div>
-                        <div class="linha-flex">
-                            <input type="checkbox" id="pg-mostrar-confirmar" checked> <label style="margin:0">Botão "Já fiz o pagamento"</label>
+                            <textarea id="pg-msg-confirmado" class="pg-texto" rows="7" maxlength="3000" spellcheck="true" aria-label="Mensagem de aprovação"></textarea>
+                        <div class="pg-variaveis" aria-label="Variáveis (toque para inserir no texto)">
+                            <button type="button" class="pg-variavel" data-pg-variavel="nome" title="Primeiro nome do cliente">{nome}</button>
+                            <button type="button" class="pg-variavel" data-pg-variavel="plano" title="Nome do plano comprado">{plano}</button>
+                            <button type="button" class="pg-variavel" data-pg-variavel="valor" title="Valor do pedido (R$)">{valor}</button>
+                            <button type="button" class="pg-variavel" data-pg-variavel="saudacao" title="Bom dia, Boa tarde ou Boa noite">{saudacao}</button>
+                        </div>
+                            <div class="pg-rodape-texto"><small class="texto-ajuda">Depois deste texto o bot informa o acesso (grupo ou link) e, no grupo, até quando ele vale.</small><small class="texto-ajuda pg-contador" data-pg-contador="pg-msg-confirmado">0/3000</small></div>
+                        </div>
+                        <div class="painel">
+                            <div class="painel-cabecalho"><h2>Botão de Acesso</h2></div>
+                            <div class="pg-linha pg-linha-botao">
+                                <label class="basico-interruptor sem-caixa"><input type="checkbox" id="pg-botao-acesso-ativo" checked> <span>Mostrar o botão de acesso</span></label>
+                                <input type="text" id="pg-botao-acesso-texto" maxlength="40" data-pg-liga="pg-botao-acesso-ativo" aria-label="Texto do botão de acesso">
+                            </div>
+                            <small class="texto-ajuda">O botão abre o link do grupo (ou o link de entrega) do plano comprado. Desligado, o endereço vai escrito na mensagem.</small>
                         </div>
                     </div>
                 </section>
@@ -331,6 +476,10 @@ bloquearAdmin();
                             <div class="campo">
                                 <label for="pv-apagar">Apagar após</label>
                                 <select id="pv-apagar">
+                                    <option value="2">2 segundos</option>
+                                    <option value="3">3 segundos</option>
+                                    <option value="5">5 segundos</option>
+                                    <option value="7">7 segundos</option>
                                     <option value="10">10 segundos</option>
                                     <option value="15">15 segundos</option>
                                     <option value="30">30 segundos</option>
@@ -370,7 +519,7 @@ bloquearAdmin();
                         <li>Passado o tempo escolhido, tudo é apagado automaticamente.</li>
                         <li>No lugar, entra a sua mensagem de conversão com o botão de planos.</li>
                     </ol>
-                    <p class="texto-ajuda" style="margin-top:10px;">Dica: use de 2 a 4 mídias e um tempo curto (10–15s). A sensação de perda faz o lead correr pro plano. Até 1 minuto o bot apaga na hora; acima disso, a conferência roda a cada minuto.</p>
+                    <p class="texto-ajuda" style="margin-top:10px;">Dica: use de 2 a 4 mídias e um tempo curto (5s é o ideal; com 10s o lead dá print ou grava a tela). A sensação de perda faz o lead correr pro plano. Até 1 minuto o bot apaga na hora; acima disso, a conferência roda a cada minuto.</p>
                 </div>
             </section>
             <section class="basico-secao" data-secao="packs">
@@ -523,7 +672,16 @@ bloquearAdmin();
         </div>
 
         <aside class="editor-fluxo-lateral">
-            <div class="painel">
+            <div class="painel pg-previa-cartao" id="pg-previa" aria-label="Prévia da conversa no Telegram">
+                <div class="pg-previa-rotulo">Prévia do Telegram</div>
+                <div class="pg-tg">
+                    <div class="pg-tg-topo"><span class="pg-tg-avatar" aria-hidden="true">S</span><div><strong>Seu Bot</strong><small>bot</small></div></div>
+                    <div class="pg-tg-corpo" id="pg-previa-corpo" aria-live="polite"></div>
+                    <div class="pg-tg-rodape" aria-hidden="true">Escrever mensagem...</div>
+                </div>
+                <small class="texto-ajuda">Exemplo com dados de mentira (João, Premium VIP, R$ 29,90). O QR Code e o código são ilustrativos.</small>
+            </div>
+            <div class="painel lateral-suporte">
                 <div class="painel-cabecalho"><h2>@ Suporte <small class="texto-ajuda">(opcional)</small></h2></div>
                 <p class="texto-ajuda">Se preencher, a lista de planos ganha um botão “Falar com o suporte” que abre esse contato no Telegram.</p>
                 <div class="campo">
@@ -568,6 +726,7 @@ bloquearAdmin();
 <script>window.CSRF_TOKEN = <?php echo json_encode(csrfToken()); ?>;</script>
 <script>if (window.CSRF_TOKEN) { $.ajaxSetup({ headers: { 'X-CSRF-Token': window.CSRF_TOKEN } }); }</script>
 <script src="assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/tema.js'); ?>"></script>
+<script src="assets/pagamentos_guiado.js?v=<?php echo @filemtime(__DIR__ . '/assets/pagamentos_guiado.js'); ?>"></script>
 <script src="assets/edicao_fluxo_basico.js?v=<?php echo @filemtime(__DIR__ . '/assets/edicao_fluxo_basico.js'); ?>"></script>
 </body>
 </html>

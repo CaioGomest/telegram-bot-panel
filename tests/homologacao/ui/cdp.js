@@ -38,6 +38,19 @@ async function lancar() {
             await enviar('Page.navigate', { url });
             await api.esperarCarga();
         },
+        // Comandos do NAVEGADOR (não da página): Browser.setPermission, Browser.grantPermissions... Abre a 2ª conexão só na primeira vez.
+        async enviarNavegador(method, params = {}) {
+            if (!api._navegador) {
+                const v = await (await fetch(`http://127.0.0.1:${PORT}/json/version`)).json();
+                const wsb = new WebSocket(v.webSocketDebuggerUrl);
+                await new Promise((res, rej) => { wsb.onopen = res; wsb.onerror = rej; });
+                const pendB = new Map();
+                let idB = 0;
+                wsb.onmessage = (m) => { const d = JSON.parse(m.data); if (d.id && pendB.has(d.id)) { pendB.get(d.id)(d); pendB.delete(d.id); } };
+                api._navegador = { wsb, chamar: (mt, pr) => new Promise((res) => { const i = ++idB; pendB.set(i, res); wsb.send(JSON.stringify({ id: i, method: mt, params: pr })); }) };
+            }
+            return api._navegador.chamar(method, params);
+        },
         async esperarCarga(ms = 15000) {
             const t0 = Date.now();
             while (Date.now() - t0 < ms) {
@@ -71,6 +84,7 @@ async function lancar() {
         // Antes o perfil ficava em %TEMP%/cdp-* depois de cada execução (100–175 MB cada): em 20/10/2026 eram 197 pastas e o disco C: ficou com 0 byte livre.
         async fechar() {
             try { ws.close(); } catch (e) {}
+            try { if (api._navegador) api._navegador.wsb.close(); } catch (e) {}
             try { if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' }); else proc.kill(); } catch (e) { try { proc.kill(); } catch (e2) {} }
             await new Promise(r => setTimeout(r, 400));
             try { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 8, retryDelay: 250 }); } catch (e) { /* arquivo ainda preso: não derruba o teste */ }

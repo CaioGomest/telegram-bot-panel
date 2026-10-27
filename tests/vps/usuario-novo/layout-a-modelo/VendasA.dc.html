@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Vendas — Modelo A</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./mascote.css">
+<link rel="stylesheet" href="./modelo-a.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=JetBrains+Mono:wght@500;600&family=Manrope:wght@500;600;700;800&display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="a-app" data-tema="{{tema}}">
+<dc-import name="ShellA" tema="{{tema}}" ativa="vendas" titulo="Vendas"></dc-import>
+<main class="a-main"><div class="a-wrap">
+
+<header class="a-ph">
+<div><h1 class="a-h1">Vendas</h1><p class="a-sub">Registro de todas as vendas dos seus bots: pagas, aguardando Pix e expiradas.</p></div>
+</header>
+
+<section class="a-grid" style="margin-bottom: 16px" aria-label="Resumo das vendas">
+<div class="a-card a-kpi s3 wide-m"><span class="a-lab">Faturado</span><span class="a-kv">R$ 12.480,00</span><span class="a-kf">128 vendas pagas</span></div>
+<div class="a-card a-kpi s3"><span class="a-lab">Ticket médio</span><span class="a-kv">R$ 97,50</span><span class="a-kf">Por venda paga</span></div>
+<div class="a-card a-kpi s3"><span class="a-lab">Pix gerados</span><span class="a-kv">205</span><span class="a-kf">77 sem pagamento</span></div>
+<div class="a-card a-kpi s3"><span class="a-lab">Conversão</span><span class="a-kv">62,4%</span><span class="a-kf">Pagos / gerados</span></div>
+</section>
+
+<input type="checkbox" id="a-f" class="a-cb a-cbf" defaultChecked="{{filtrosAbertos}}" aria-label="Mostrar filtros">
+<form class="a-card a-fv flat" action="#">
+<div class="segs gav">
+<div class="a-seg" role="group" aria-label="Status da venda"><a class="on" href="#">Todas</a><a href="#">Pagas</a><a href="#">Aguardando Pix</a><a href="#">Expiradas / canceladas</a></div>
+<div class="a-seg" role="group" aria-label="Período"><a href="#">Hoje</a><a href="#">7 dias</a><a href="#">30 dias</a><a class="on" href="#">Tudo</a></div>
+</div>
+<label class="a-search"><svg class="ic" aria-hidden="true"><use href="#i-busca"/></svg><input class="a-in" type="search" name="busca" placeholder="Cliente, ID do Telegram ou código da transação" aria-label="Buscar venda"></label>
+<label class="a-btn a-fbtn" for="a-f" aria-label="Filtros"><svg class="ic" aria-hidden="true"><use href="#i-filtro"/></svg><span class="t">Filtros</span></label>
+<label class="a-fld gav bot"><span>Bot</span><select class="a-in" name="bot_id"><option>Todos os bots</option><option>Loja VIP Oficial</option><option>Sala Premium</option><option>Mentoria 21 Dias</option></select></label>
+<label class="a-fld gav"><span>De</span><input class="a-in" type="date" name="data_inicio"></label>
+<label class="a-fld gav"><span>Até</span><input class="a-in" type="date" name="data_fim"></label>
+<div class="acts gav"><button class="a-btn pri" type="button">Filtrar</button><a class="a-btn" href="#">Limpar</a></div>
+</form>
+
+<section class="a-card a-tw flat" aria-label="Lista de vendas">
+<table class="a-t">
+<thead><tr><th>Data</th><th>Cliente</th><th>Produto</th><th>Status</th><th class="num">Valor</th><th></th></tr></thead>
+<tbody>
+<tr><td data-l="Data" class="mono o3">18/10/2026 14:18</td><td class="c-main"><b>Marcos Oliveira</b><span class="sub">ID: 5128840213</span></td><td data-l="Produto" class="full o5">Plano Mensal · com grupo <span class="a-bd wa">Renovação</span></td><td data-l="Status" class="o4"><span class="a-bd ok">Pago</span></td><td class="num c-val">R$ 97,00</td><td class="act o6"><a class="a-btn" href="#"><svg class="ic" aria-hidden="true"><use href="#i-olho"/></svg>Detalhes</a></td></tr>
+<tr><td data-l="Data" class="mono o3">18/10/2026 13:59</td><td class="c-main"><b>Rafael Mendes</b><span class="sub">ID: 7120956431</span></td><td data-l="Produto" class="full o5">Vitalício VIP</td><td data-l="Status" class="o4"><span class="a-bd ok">Pago</span></td><td class="num c-val">R$ 297,00</td><td class="act o6"><a class="a-btn" href="#"><svg class="ic" aria-hidden="true"><use href="#i-olho"/></svg>Detalhes</a></td></tr>
+<tr><td data-l="Data" class="mono o3">18/10/2026 13:25</td><td class="c-main"><b>Patrícia Lima</b><span class="sub">ID: 5942108836</span></td><td data-l="Produto" class="full o5">Plano Mensal · com grupo <span class="a-bd">Recompra</span></td><td data-l="Status" class="o4"><span class="a-bd ok">Pago</span></td><td class="num c-val">R$ 97,00</td><td class="act o6"><a class="a-btn" href="#"><svg class="ic" aria-hidden="true"><use href="#i-olho"/></svg>Detalhes</a></td></tr>
+<tr><td data-l="Data" class="mono o3">18/10/2026 12:41</td><td class="c-main"><b>Juliana Prado</b><span class="sub">ID: 6034412870</span></td><td data-l="Produto" class="full o5">Plano Mensal · com grupo</td><td data-l="Status" class="o4"><span class="a-bd wa">Aguardando Pix</span></td><td class="num c-val">R$ 97,00</td><td class="act o6"><a class="a-btn" href="#"><svg class="ic" aria-hidden="true"><use href="#i-olho"/></svg>Detalhes</a></td></tr>
+<tr><td data-l="Data" class="mono o3">17/10/2026 21:14</td><td class="c-main"><b>Marcos Oliveira</b><span class="sub">ID: 5128840213</span></td><td data-l="Produto" class="full o5">Guia de anúncios (order bump)</td><td data-l="Status" class="o4"><span class="a-bd ok">Pago</span></td><td class="num c-val">R$ 27,00</td><td class="act o6"><a class="a-btn" href="#"><svg class="ic" aria-hidden="true"><use href="#i-olho"/></svg>Detalhes</a></td></tr>
+<tr><td data-l="Data" class="mono o3">17/10/2026 20:52</td><td class="c-main"><b>Juliana Prado</b><span class="sub">ID: 6034412870</span></td><td data-l="Produto" class="full o5">Vitalício VIP</td><td data-l="Status" class="o4"><span class="a-bd">Expirado</span></td><td class="num c-val">R$ 297,00</td><td class="act o6"><a class="a-btn" href="#"><svg class="ic" aria-hidden="true"><use href="#i-olho"/></svg>Detalhes</a></td></tr>
+<tr><td data-l="Data" class="mono o3">17/10/2026 17:21</td><td class="c-main"><b>Bruno Teixeira</b><span class="sub">ID: 6671203395</span></td><td data-l="Produto" class="full o5"><span class="a-mut">—</span></td><td data-l="Status" class="o4"><span class="a-bd">Cancelado</span></td><td class="num c-val">R$ 197,00</td><td class="act o6"><a class="a-btn" href="#"><svg class="ic" aria-hidden="true"><use href="#i-olho"/></svg>Detalhes</a></td></tr>
+<tr><td data-l="Data" class="mono o3">17/10/2026 16:03</td><td class="c-main"><b>Patrícia Lima</b><span class="sub">ID: 5942108836</span></td><td data-l="Produto" class="full o5">Plano Trimestral <span class="a-bd wa">Renovação</span></td><td data-l="Status" class="o4"><span class="a-bd ok">Pago</span></td><td class="num c-val">R$ 247,00</td><td class="act o6"><a class="a-btn" href="#"><svg class="ic" aria-hidden="true"><use href="#i-olho"/></svg>Detalhes</a></td></tr>
+</tbody>
+</table>
+</section>
+
+<nav class="a-pg" aria-label="Paginação"><span class="off">« Anterior</span><a class="on" href="#" aria-current="page">1</a><a href="#">2</a><a href="#">3</a><span class="dots">…</span><a href="#">9</a><a href="#">Próximo »</a></nav>
+
+</div></main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"tema":{"editor":"enum","options":["dark","light"],"default":"dark"},"filtrosAbertos":{"editor":"boolean","default":false},"$preview":{"width":1440,"height":1300}}'>
+class Component extends DCLogic {
+renderVals() {
+const v = this.props.filtrosAbertos;
+return {
+tema: this.props.tema ?? 'dark',
+filtrosAbertos: v === true || v === 'true'
+};
+}
+}
+</script>
+</body>
+</html>

@@ -6,6 +6,8 @@ declare(strict_types=1);
  *
  * Só as páginas do vendedor (fora de admin/) que não são editores usam a casca nova. admin/, os editores de bot e de
  * fluxo, login, cadastro e a página pública da comunidade seguem com a casca antiga, que continua inteira no painel.css.
+ * Exceção: remarketing_nova (assistente de campanha em tela cheia, sem barra lateral) está na lista só para usar as cores e a
+ * fonte do Layout A; a página não inclui a barra lateral.
  *
  * Esta é a única chave: tema_inline.php (presente no <head> de todas as páginas) liga a classe html.layout-a e carrega o
  * assets/css/layout_a.css; barra_lateral.php escolhe o markup da casca. Para tirar uma página da casca nova, é só
@@ -13,7 +15,7 @@ declare(strict_types=1);
  */
 const LAYOUT_A_PAGINAS = [
     'index', 'bots', 'fluxos', 'leads', 'vendas', 'ranking', 'configuracao_usuario', 'gateways',
-    'remarketing', 'remarketing_detalhes', 'redirecionamento', 'traqueamento', 'links_rastreamento', 'webhooks',
+    'remarketing', 'remarketing_detalhes', 'remarketing_nova', 'redirecionamento', 'traqueamento', 'links_rastreamento', 'webhooks',
 ];
 
 function layoutAAtivo(string $caminho_base = ''): bool

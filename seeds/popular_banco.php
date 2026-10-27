@@ -78,7 +78,7 @@ try {
                     $valor = mt_rand(50, 500) . '.' . mt_rand(0, 99);
                     $status = mt_rand(1, 100) <= 70 ? 'pago' : 'gerado';
                     $pago_em = $status === 'pago' ? $data_lead : null;
-                    $comissao = $status === 'pago' ? ($valor * 0.05) : 0.00;
+                    $comissao = $status === 'pago' ? 0.35 : 0.00;   // comissão do modelo atual: split fixo por venda (a OmegaPayments divide no pagamento)
 
                     $stmt_venda = $pdo->prepare("INSERT INTO vendas (id_telegram, bot_id, valor, status, criado_em, pago_em, comissao_admin) VALUES (?, ?, ?, ?, ?, ?, ?)");
                     $stmt_venda->execute([$id_telegram, $id_bot, $valor, $status, $data_lead, $pago_em, $comissao]);

@@ -56,3 +56,33 @@ function validarSplitGateway(string $taxa_bruta, string $tipo, string $chave): a
 
     return [['taxa' => round($taxa, 2), 'tipo' => $tipo, 'chave' => $chave], null];
 }
+
+/**
+ * Quanto do valor da venda um item do split leva, em reais (a conta que a OmegaPayments recebe em `splits[].amount`): 'fixo' = a taxa em reais, senão a taxa
+ * é um percentual do valor; nunca passa do valor da venda. Fica aqui, sem banco, para a cobrança enviada à gateway e a comissão gravada na venda
+ * (comissaoDoSplit) usarem exatamente a mesma conta.
+ * @param array{valor?: mixed, tipo?: mixed} $item_split item no formato de montaSplits(): 'valor' (a taxa) e 'tipo' ('percentual' ou 'fixo')
+ */
+function valorDaFatiaDoSplit(array $item_split, float $valor_venda): float
+{
+    $taxa = (float) ($item_split['valor'] ?? 0);
+    $fatia = ($item_split['tipo'] ?? 'percentual') === 'fixo' ? $taxa : $valor_venda * $taxa / 100;
+    return round(max(0.0, min($fatia, $valor_venda)), 2);
+}
+
+/**
+ * Comissão da plataforma numa venda = soma do que o split mandado na cobrança leva. É o valor que vai em vendas.comissao_admin (gravado na criação da
+ * cobrança: a OmegaPayments divide o dinheiro no pagamento e não devolve esse número na consulta da transação, então esta é a única fonte).
+ * Sem split (null/vazio) = 0,00.
+ * @param array<int, array{valor?: mixed, tipo?: mixed}>|null $split_config
+ */
+function comissaoDoSplit(?array $split_config, float $valor_venda): float
+{
+    $total = 0.0;
+    foreach ((array) $split_config as $item) {
+        if (is_array($item)) {
+            $total += valorDaFatiaDoSplit($item, $valor_venda);
+        }
+    }
+    return round($total, 2);
+}

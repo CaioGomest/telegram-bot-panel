@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Ranking — Modelo A</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./mascote.css">
+<link rel="stylesheet" href="./modelo-a.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=JetBrains+Mono:wght@500;600&family=Manrope:wght@500;600;700;800&display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="a-app" data-tema="{{tema}}">
+<dc-import name="ShellA" tema="{{tema}}" ativa="ranking" titulo="Ranking"></dc-import>
+<main class="a-main"><div class="a-wrap">
+
+<header class="a-ph">
+<div><h1 class="a-h1">Ranking</h1><p class="a-sub">Acompanhe sua posição na campanha de faturamento.</p></div>
+<nav class="a-seg" aria-label="Tipo de ranking"><a class="on" href="#"><svg class="ic" aria-hidden="true" style="margin-right: 6px"><use href="#i-ranking"/></svg>Concurso</a><a href="#"><svg class="ic" aria-hidden="true" style="margin-right: 6px"><use href="#i-calendario"/></svg>Mensal</a></nav>
+</header>
+
+<section class="a-rhero" style="margin-bottom: 16px" aria-label="Campanha">
+<div>
+<div class="a-acts"><span class="a-pill or"><svg class="ic" aria-hidden="true" style="width: 14px; height: 14px"><use href="#i-ranking"/></svg>Ranking oficial</span><span class="a-pill ok"><span class="a-bd ok" style="padding: 0; height: auto; background: none"><i></i></span>Em disputa</span></div>
+<div class="a-lab" style="margin-top: 18px; color: var(--ort)">Comunidade Coyote Bot</div>
+<h2>Campanha de Outubro</h2>
+<p class="a-sub" style="margin: 0">Quem mais faturar até o fim do mês leva os prêmios</p>
+<div class="meta"><span class="a-pill"><svg class="ic" aria-hidden="true" style="width: 14px; height: 14px"><use href="#i-calendario"/></svg>01/10/2026 — 31/10/2026</span><span class="a-pill"><svg class="ic" aria-hidden="true" style="width: 14px; height: 14px"><use href="#i-pessoas"/></svg>6.021 participantes</span></div>
+</div>
+<div class="a-rarte" role="img" aria-label="Arte da campanha"></div>
+</section>
+
+<div class="a-grid">
+
+<section class="a-card s8" aria-label="Placar">
+<div class="a-ch">
+<div><span class="a-lab">Classificação oficial</span><h2 style="margin-top: 6px">Placar ao vivo</h2></div>
+<span class="a-bd ok"><i></i>Atualiza a cada 60 segundos</span>
+</div>
+
+<div class="a-podio">
+<div class="a-pod p2"><span class="av">PF</span><b>pedro.funil</b><span class="vl">R$ 131,7 mil</span><div class="base"><strong>02</strong><small>Pódio</small></div></div>
+<div class="a-pod p1"><svg class="ic" aria-hidden="true" style="width: 26px; height: 26px; color: var(--ort)"><use href="#i-coroa"/></svg><span class="av">AE</span><b>ana.escala</b><span class="vl">R$ 148,2 mil</span><div class="base"><strong>01</strong><small>Líder</small></div></div>
+<div class="a-pod p3"><span class="av">LV</span><b>lu.vendas</b><span class="vl">R$ 118,4 mil</span><div class="base"><strong>03</strong><small>Pódio</small></div></div>
+</div>
+
+<div class="a-lab" style="display: flex; justify-content: space-between; padding: 0 4px 8px"><span>Posição · Competidor</span><span>Faturamento</span></div>
+<div class="a-rank"><ul>
+<li><span class="pos">04</span><span class="av">DB</span><div class="nm"><b>dudu.bots</b><span class="ok">Zona de premiação</span></div><div class="vl"><b>R$ 96,0 mil</b><span>R$ 52,2 mil do líder</span></div></li>
+<li><span class="pos">05</span><span class="av">CP</span><div class="nm"><b>carla.pix</b><span class="ok">Zona de premiação</span></div><div class="vl"><b>R$ 88,3 mil</b><span>R$ 59,9 mil do líder</span></div></li>
+<li><span class="pos">06</span><span class="av">TA</span><div class="nm"><b>tiago.ads</b><span>Em disputa</span></div><div class="vl"><b>R$ 74,9 mil</b><span>R$ 73,3 mil do líder</span></div></li>
+<li><span class="pos">07</span><span class="av">BL</span><div class="nm"><b>bia.launch</b><span>Em disputa</span></div><div class="vl"><b>R$ 69,1 mil</b><span>R$ 79,1 mil do líder</span></div></li>
+<li><span class="pos">08</span><span class="av">CS</span><div class="nm"><b>caio.sales</b><span>Em disputa</span></div><div class="vl"><b>R$ 61,5 mil</b><span>R$ 86,7 mil do líder</span></div></li>
+<li><span class="pos">09</span><span class="av">NB</span><div class="nm"><b>nanda.black</b><span>Em disputa</span></div><div class="vl"><b>R$ 57,2 mil</b><span>R$ 91,0 mil do líder</span></div></li>
+<li><span class="pos">10</span><span class="av">VC</span><div class="nm"><b>vini.copy</b><span>Em disputa</span></div><div class="vl"><b>R$ 52,8 mil</b><span>R$ 95,4 mil do líder</span></div></li>
+</ul></div>
+
+<div class="a-lab" style="margin: 22px 4px 8px">Sua posição</div>
+<div class="a-rank"><ul><li class="voce"><span class="pos">12</span><span class="av">MA</span><div class="nm"><b>Marina Alves</b><span>Sua conta</span></div><div class="vl"><b>R$ 41,7 mil</b><span>R$ 46,6 mil do Top 5</span></div></li></ul></div>
+</section>
+
+<div class="stack s4">
+
+<section class="a-passe" aria-label="Passe do competidor">
+<div class="cima">
+<div class="lab">Passe do competidor <span class="selo">outubro-2026</span></div>
+<div class="nome">Marina Alves</div>
+<div class="pp"><div><div class="lab">Sua posição</div><span class="pos"><small>P</small>12</span></div><div><div class="lab" style="text-align: right">Faturamento</div><div class="fat">R$ 41.700,00</div></div></div>
+<div class="prog"><div><span>R$ 46,6 mil para o Top 5</span><span>47%</span></div><div class="trilho"><i style="width: 47%"></i></div></div>
+</div>
+<div class="perf"></div>
+<div class="baixo">
+<div class="lab">A corrida termina em</div>
+<div class="cont"><div><b>13</b><small>Dias</small></div><div><b>05</b><small>Horas</small></div><div><b>02</b><small>Min</small></div><div><b>31</b><small>Seg</small></div></div>
+<div class="barras" aria-hidden="true"></div>
+<div class="cod">COYOTE BOT · RANK · POS-0012</div>
+</div>
+</section>
+
+<section class="a-card a-prem" aria-label="Premiação">
+<div class="a-lab" style="display: flex; align-items: center; gap: 8px"><svg class="ic" aria-hidden="true" style="width: 16px; height: 16px"><use href="#i-ranking"/></svg>Premiação</div>
+<div class="a-ch" style="margin: 6px 0 10px"><h2>Premiação da campanha</h2></div>
+<ul>
+<li><span class="tg um">P1</span><div><b>Viagem para Dubai</b><span>Pacote completo para 2 pessoas, com hospedagem</span></div></li>
+<li><span class="tg">P2</span><div><b>MacBook Air</b><span>Notebook novo, lacrado</span></div></li>
+<li><span class="tg">P3</span><div><b>iPhone 15</b><span>Smartphone novo, lacrado</span></div></li>
+<li><span class="tg">P4</span><div><b>R$ 1.000 em créditos</b><span>Para usar em anúncios</span></div></li>
+<li><span class="tg">P5</span><div><b>Mentoria de 1 hora</b><span>Com a equipe da plataforma</span></div></li>
+</ul>
+<p class="a-mut" style="margin-top: 12px; font-size: 12.5px">Os maiores faturamentos aprovados no período garantem classificação para a premiação oficial.</p>
+</section>
+
+</div>
+</div>
+
+</div></main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"tema":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":1700}}'>
+class Component extends DCLogic {
+renderVals() {
+return {
+tema: this.props.tema ?? 'dark'
+};
+}
+}
+</script>
+</body>
+</html>

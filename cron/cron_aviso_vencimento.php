@@ -12,6 +12,7 @@ exigirChamadaDeCron('cron_aviso_vencimento');
 require_once __DIR__ . '/../funcoes/log.php';
 require_once __DIR__ . '/../funcoes/fluxo_blocos.php';
 require_once __DIR__ . '/../funcoes/previas.php';
+require_once __DIR__ . '/../funcoes/guiado_ofertas.php';
 require_once __DIR__ . '/../funcoes/assinatura.php';
 require_once __DIR__ . '/../funcoes/execucao_fluxo.php';
 require_once __DIR__ . '/../funcoes/email.php';
@@ -65,6 +66,26 @@ try {
     }
 } catch (Throwable $e) {
     logAviso('Erro ao apagar mensagens agendadas: ' . $e->getMessage());
+}
+
+// Downsell com temporizador (Fluxo Guiado): lead que gerou o Pix e não pagou no prazo recebe a oferta com desconto.
+try {
+    $downsells = processarDownsellsAgendados($pdo);
+    if ($downsells > 0) {
+        logAviso("Downsell: $downsells oferta(s) enviada(s).");
+    }
+} catch (Throwable $e) {
+    logAviso('Erro ao enviar downsells agendados: ' . $e->getMessage());
+}
+
+// Sequência de Order Bumps (Fluxo Guiado): lead que gerou o Pix e não pagou recebe os bumps, um de cada vez, no tempo de cada um.
+try {
+    $order_bumps = processarOrderBumpsAgendados($pdo);
+    if ($order_bumps > 0) {
+        logAviso("Order Bump: $order_bumps oferta(s) enviada(s).");
+    }
+} catch (Throwable $e) {
+    logAviso('Erro ao enviar order bumps agendados: ' . $e->getMessage());
 }
 
 // Fila de e-mails (boas-vindas, verificação, reenvio de recuperação de senha).

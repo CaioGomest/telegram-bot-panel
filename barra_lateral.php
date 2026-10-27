@@ -107,7 +107,7 @@ $grupo_conta[] = ['href' => 'configuracao_usuario', 'label' => 'Minha Conta', 'c
 $grupo_admin = [];
 if ($is_admin) {
     $grupo_admin[] = ['href' => 'admin/dashboard', 'label' => 'Visão Geral', 'curto' => 'Visão geral', 'sub' => 'Plataforma', 'icone' => 'visao_geral'];
-    $grupo_admin[] = ['href' => 'admin/transacoes', 'label' => 'Transações', 'curto' => 'Transações', 'sub' => 'Vendas e splits', 'icone' => 'transacoes'];
+    $grupo_admin[] = ['href' => 'admin/transacoes', 'label' => 'Transações', 'curto' => 'Transações', 'sub' => 'Vendas e comissão', 'icone' => 'transacoes'];
     $grupo_admin[] = ['href' => 'admin/usuarios', 'label' => 'Usuários', 'curto' => 'Usuários', 'sub' => 'Contas e acessos', 'icone' => 'usuarios'];
     $grupo_admin[] = ['href' => 'admin/ranking', 'label' => 'Campanhas', 'curto' => 'Campanhas', 'sub' => 'Ranking e prêmios', 'icone' => 'campanhas'];
     $grupo_admin[] = ['href' => 'admin/comunidade', 'label' => 'Comunidade', 'curto' => 'Comunidade', 'sub' => 'Links oficiais', 'icone' => 'comunidade'];
@@ -135,7 +135,7 @@ function itemNavAtivo(string $href, string $pagina_atual): bool
     $filhas = [
         'bots' => ['bot'],
         'fluxos' => ['fluxo', 'fluxo_basico'],
-        'remarketing' => ['remarketing_detalhes'],
+        'remarketing' => ['remarketing_detalhes', 'remarketing_nova'],
         'ranking' => ['ranking_classificacao'],
     ];
     return in_array($pagina_atual, $filhas[$base] ?? [], true);
@@ -185,7 +185,7 @@ if (!$layout_a): ?>
             <img src="<?php echo htmlspecialchars(logoSistema($caminho_base)); ?>" alt="" class="logo-marca" onerror="this.style.display='none'">
             <div class="logo-textos">
                 <span class="logo-titulo"><?php echo htmlspecialchars(nomeSistema()); ?></span>
-                <span class="logo-subtitulo">Painel de automação</span>
+                <span class="logo-subtitulo">MENU</span>
             </div>
         </div>
 
@@ -401,5 +401,23 @@ if (!$layout_a): ?>
 })();
 </script>
 <?php endif; ?>
+<?php if (function_exists('manutencaoAtiva') && manutencaoAtiva()): ?>
+<?php // Manutenção ligada: quem chegou até aqui está liberado (cookie ou link); os outros veem a página "Em manutenção". A faixa evita esquecer ligada. ?>
+<style>
+.faixa-manutencao { position: fixed; right: 16px; bottom: 16px; z-index: 250; display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 32px); padding: 10px 14px; border-radius: 14px; border: 1px solid var(--er, #ff5d5d); background: var(--p, #12151b); color: var(--t, #f3f4f6); font: 600 13px/1.35 'Manrope', system-ui, sans-serif; box-shadow: 0 18px 40px -20px rgba(0, 0, 0, .8); }
+.faixa-manutencao a { flex-shrink: 0; color: var(--or, #ff7a2f); font-weight: 800; text-decoration: none; }
+@media (max-width: 900px) { .faixa-manutencao { bottom: 84px; } }
+</style>
+<div class="faixa-manutencao" role="status">
+    <span>Manutenção ligada: só você enxerga o sistema.</span>
+    <?php if ($is_admin): ?><a href="<?php echo htmlspecialchars($caminho_base); ?>admin/configuracoes#manutencao">Desligar</a><?php endif; ?>
+</div>
+<?php endif; ?>
 <?php include __DIR__ . '/parciais/sino_notificacoes.php'; ?>
 <script src="<?php echo htmlspecialchars($caminho_base); ?>assets/js/notificacoes.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/notificacoes.js'); ?>"></script>
+<?php if (function_exists('configSistema') && configSistema('push_ativo') === '1'): ?>
+<?php // Avisos push ligados pelo administrador: convite no sino, sincronização da inscrição e cancelamento ao sair (assets/js/push.js; o cartão fica em Minha Conta). Desligado, nada disso é carregado. ?>
+<link rel="stylesheet" href="<?php echo htmlspecialchars($caminho_base); ?>assets/css/push.css?v=<?php echo @filemtime(__DIR__ . '/assets/css/push.css'); ?>">
+<script>window.PUSH_CONFIG = { ativo: true };</script>
+<script src="<?php echo htmlspecialchars($caminho_base); ?>assets/js/push.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/push.js'); ?>"></script>
+<?php endif; ?>

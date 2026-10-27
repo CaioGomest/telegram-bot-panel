@@ -18,4 +18,5 @@ próprio (`zz_recv.php`) no mesmo servidor, nunca um serviço de terceiros; as c
 - `pg_a17.js` — Remarketing: cancelar campanha pendente, aba Falha, botão do estado vazio, data mínima.
 - `pg_a18.js` — Remarketing ponta a ponta: agenda pela tela → cron → banco (Telegram não simulado: envios contam como falha).
 - `pg_a19.js` — Editor do Fluxo Guiado: caixa "Enviar também o QR Code (foto)" (usa a conta `cliente5@gmial.com` do teste de estresse; `FLUXO=<id>`).
+- `pg_ranking_fotos.js` (22/10/2026) — Ranking com foto de perfil: pódio, lista, "Sua posição", mini-ranking do Início e aba Concurso (desktop, celular, tema escuro e claro). **Não grava nada**: antes, ponha `foto_perfil` em alguns usuários do top do mensal (arquivo em `uploads/perfis/` + `UPDATE usuarios`) e depois desfaça. `EMAIL=<usuário comum sem foto> SENHA=12345678 TOP='{"1":"arq1.jpg",...}' node pg_ranking_fotos.js` (contas `clienteN@gmial.com` do teste de estresse usam a senha 12345678; `entrar()` assume 123456 se não passar `SENHA`).
 - Os scripts antigos têm ids fixos (bot 311/312, usuário 49): troque pelos do seed ao rodar.

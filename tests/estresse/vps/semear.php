@@ -143,7 +143,7 @@ function vendas_do_bot(PDO $pdo, int $bid, int $fid, int $uid, int $n, array $id
         $criado = dt(90);
         $tg = $ids_tg ? $ids_tg[array_rand($ids_tg)] : (string) random_int(7000000000, 7100000000);
         $vendas[] = [$tg, $bid, $valor, $st, 'E' . $tag . '-' . (++$seq), $gw, '-1001000000001', 30, $criado, $st === 'pago' ? date('Y-m-d H:i:s', strtotime($criado) + 90) : null,
-                     $st === 'pago' ? round($valor * 0.07, 2) : 0, 'unica', $fid, 'Plano estresse'];
+                     $st === 'pago' ? 0.35 : 0, 'unica', $fid, 'Plano estresse'];
         // assinante ativo (validade só em 2027+: nenhuma cron real o encontra); só 1 em 10 pagas, para não explodir a tabela
         $meta[] = [$tg, ($st === 'pago' && $v % 10 === 0) ? date('Y-m-d H:i:s', time() + 400 * 86400) : null];
         if (count($vendas) >= $LOTE) $flush();

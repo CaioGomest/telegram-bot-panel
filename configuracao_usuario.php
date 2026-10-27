@@ -68,6 +68,7 @@ $url_foto_conta = urlFotoPerfil($foto_conta);
     <title>Minha Conta - <?php echo htmlspecialchars(nomeSistema()); ?></title>
     <?php include 'tema_inline.php'; ?>
     <link rel="stylesheet" href="assets/css/painel.css?v=<?php echo @filemtime(__DIR__.'/assets/css/painel.css'); ?>">
+    <link rel="stylesheet" href="assets/css/push.css?v=<?php echo @filemtime(__DIR__.'/assets/css/push.css'); ?>">
 </head>
 <body>
 <div class="layout-painel">
@@ -169,6 +170,55 @@ $url_foto_conta = urlFotoPerfil($foto_conta);
                 <input type="hidden" name="acao" value="remover_foto">
             </form>
         <?php endif; ?>
+
+        <?php
+        // Avisos no celular e no navegador (Web Push): o estado certo de cada aparelho é decidido pelo assets/js/push.js (carregado pela barra lateral quando o administrador liga os avisos).
+        // Desligado, o cartão já nasce no estado "desligado pelo administrador" e nenhum script de avisos roda.
+        $push_ligado_conta = configSistema('push_ativo') === '1';
+        ?>
+        <div class="a-grid" style="margin-top: 16px">
+            <section class="a-card s12 push-cartao" id="avisos">
+                <div class="a-ch"><h2>Avisos no celular e no navegador</h2></div>
+                <p class="a-mut push-intro">Receba um aviso quando um <strong>Pix for gerado</strong> e quando um <strong>Pix for pago</strong>, mesmo com o painel fechado. Cada aparelho (celular, computador) é ativado separadamente.</p>
+                <div id="push-cartao">
+                    <div class="push-estado" data-push-estado="carregando"<?php echo $push_ligado_conta ? '' : ' hidden'; ?>>
+                        <p class="push-aviso">Verificando este aparelho…</p>
+                    </div>
+                    <div class="push-estado" data-push-estado="admin-desligado"<?php echo $push_ligado_conta ? ' hidden' : ''; ?>>
+                        <p class="push-aviso">Os avisos no celular ainda não estão disponíveis.</p>
+                    </div>
+                    <div class="push-estado" data-push-estado="sem-suporte" hidden>
+                        <p class="push-aviso alerta">Este navegador não recebe avisos. Use o Chrome, o Edge, o Firefox ou o Safari atualizado.</p>
+                    </div>
+                    <div class="push-estado" data-push-estado="ios-instalar" hidden>
+                        <p class="push-aviso">No iPhone e no iPad os avisos só funcionam com o painel adicionado à <strong>Tela de Início</strong> (precisa do iOS ou iPadOS 16.4 ou mais novo). Faça assim:</p>
+                        <ol class="push-passos">
+                            <li><span>Abra esta página no <strong>Safari</strong>.</span></li>
+                            <li><span>Toque em <strong>Compartilhar</strong> <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"></path></svg> (o quadrado com a seta para cima).</span></li>
+                            <li><span>Toque em <strong>Adicionar à Tela de Início</strong> <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"></rect><path d="M12 8v8M8 12h8"></path></svg> e confirme.</span></li>
+                            <li><span>Abra o painel pelo <strong>ícone novo</strong> na Tela de Início e volte aqui para tocar em <strong>Ativar avisos</strong>.</span></li>
+                        </ol>
+                    </div>
+                    <div class="push-estado" data-push-estado="negada" hidden>
+                        <p class="push-aviso alerta">Os avisos estão bloqueados neste aparelho. Libere nas configurações do navegador (ou do app) e volte aqui. No Brave, ligue também “Usar serviços do Google para mensagens push” em <span class="mono">brave://settings/privacy</span>.</p>
+                        <div class="push-acoes"><button type="button" class="a-btn pri" id="push-rever">Já liberei, tentar ativar de novo</button></div>
+                    </div>
+                    <div class="push-estado" data-push-estado="ativar" hidden>
+                        <p class="push-aviso">Os avisos estão desligados neste aparelho.</p>
+                        <div class="push-acoes"><button type="button" class="a-btn pri" id="push-ativar">Ativar avisos neste aparelho</button></div>
+                    </div>
+                    <div class="push-estado" data-push-estado="ativo" hidden>
+                        <p class="push-aviso">Avisos ativos neste aparelho. Escolha abaixo o que ele deve avisar.</p>
+                        <div class="push-acoes"><button type="button" class="a-btn pri" id="push-testar-aqui">Enviar aviso de teste para este aparelho</button><button type="button" class="a-btn" id="push-desativar">Desativar neste aparelho</button></div>
+                    </div>
+                    <p class="push-aviso erro" id="push-erro" role="alert" hidden></p>
+                    <div class="push-bloco" id="push-dispositivos-bloco" hidden>
+                        <h3>Seus aparelhos</h3>
+                        <ul class="push-dispositivos" id="push-dispositivos"></ul>
+                    </div>
+                </div>
+            </section>
+        </div>
 
         <div class="a-grid" style="margin-top: 16px">
             <a href="gateways" class="a-tl s6">

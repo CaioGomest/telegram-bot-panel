@@ -120,9 +120,6 @@ CREATE TABLE IF NOT EXISTS `vendas` (
   `criado_em` datetime DEFAULT current_timestamp(),
   `pago_em` datetime DEFAULT NULL,
   `comissao_admin` decimal(10,2) DEFAULT 0.00,
-  `split_status` enum('sem_split','sem_credenciais','pago','falhou','parcial') DEFAULT NULL,
-  `split_valor` decimal(10,2) DEFAULT NULL,
-  `split_em` datetime DEFAULT NULL,
   `tipo_cobranca` enum('unica','assinatura','recorrente') DEFAULT 'unica',
   `status_renovacao` enum('pendente','renovada','cancelada') DEFAULT 'pendente',
   `venda_pai_id` int(11) DEFAULT NULL,
@@ -131,6 +128,7 @@ CREATE TABLE IF NOT EXISTS `vendas` (
   `ultimo_txid_renovacao` varchar(255) DEFAULT NULL,
   `id_fluxo` int(11) DEFAULT NULL,
   `nome_produto` varchar(150) DEFAULT NULL,
+  `link_entrega` varchar(500) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `idx_transacao_id` (`transacao_id`),
   KEY `idx_id_assinatura` (`id_assinatura`),
@@ -253,6 +251,42 @@ CREATE TABLE IF NOT EXISTS `previas_vistas` (
   CONSTRAINT `previas_vistas_ibfk_1` FOREIGN KEY (`bot_id`) REFERENCES `bots` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `downsell_agenda` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `bot_id` int(11) NOT NULL,
+  `id_telegram` varchar(50) NOT NULL,
+  `venda_id` int(11) NOT NULL,
+  `id_plano` varchar(64) NOT NULL,
+  `enviados` tinyint(3) unsigned NOT NULL DEFAULT 0,
+  `proximo_em` datetime NOT NULL,
+  `status` enum('pendente','processando','concluido','cancelado') NOT NULL DEFAULT 'pendente',
+  `criado_em` datetime DEFAULT current_timestamp(),
+  `atualizado_em` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unico_downsell_venda` (`venda_id`),
+  KEY `idx_downsell_pendentes` (`status`,`proximo_em`),
+  KEY `idx_downsell_lead` (`bot_id`,`id_telegram`,`status`),
+  CONSTRAINT `downsell_agenda_ibfk_1` FOREIGN KEY (`bot_id`) REFERENCES `bots` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `order_bump_agenda` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `bot_id` int(11) NOT NULL,
+  `id_telegram` varchar(50) NOT NULL,
+  `venda_id` int(11) NOT NULL,
+  `id_plano` varchar(64) NOT NULL,
+  `enviados` tinyint(3) unsigned NOT NULL DEFAULT 0,
+  `proximo_em` datetime NOT NULL,
+  `status` enum('pendente','processando','concluido','cancelado') NOT NULL DEFAULT 'pendente',
+  `criado_em` datetime DEFAULT current_timestamp(),
+  `atualizado_em` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unico_order_bump_venda` (`venda_id`),
+  KEY `idx_order_bump_pendentes` (`status`,`proximo_em`),
+  KEY `idx_order_bump_lead` (`bot_id`,`id_telegram`,`status`),
+  CONSTRAINT `order_bump_agenda_ibfk_1` FOREIGN KEY (`bot_id`) REFERENCES `bots` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `gateways` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `nome` varchar(50) NOT NULL,
@@ -287,61 +321,42 @@ CREATE TABLE IF NOT EXISTS `usuarios_gateways` (
   CONSTRAINT `usuarios_gateways_ibfk_2` FOREIGN KEY (`id_gateway`) REFERENCES `gateways` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `usuarios_splits` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `id_usuario` int(11) NOT NULL,
-  `gateway_nome` varchar(50) NOT NULL,
-  `tipo_split` enum('percentual','fixo') DEFAULT 'percentual',
-  `taxa_split` decimal(10,2) DEFAULT 0.00,
-  `chave_pix_split` varchar(255) NOT NULL,
-  `descricao` varchar(100) DEFAULT NULL,
-  `ordem` int(11) DEFAULT 0,
-  `criado_em` datetime DEFAULT current_timestamp(),
-  PRIMARY KEY (`id`),
-  KEY `id_usuario` (`id_usuario`),
-  CONSTRAINT `usuarios_splits_ibfk_1` FOREIGN KEY (`id_usuario`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `vendas_splits` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `venda_id` int(11) NOT NULL,
-  `usuario_split_id` int(11) DEFAULT NULL,
-  `chave_pix` varchar(255) NOT NULL,
-  `descricao` varchar(100) DEFAULT NULL,
-  `valor` decimal(10,2) NOT NULL,
-  `status` enum('pago','falhou') NOT NULL,
-  `erro` text DEFAULT NULL,
-  `criado_em` datetime DEFAULT current_timestamp(),
-  PRIMARY KEY (`id`),
-  KEY `venda_id` (`venda_id`),
-  KEY `usuario_split_id` (`usuario_split_id`),
-  CONSTRAINT `vendas_splits_ibfk_1` FOREIGN KEY (`venda_id`) REFERENCES `vendas` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `vendas_splits_ibfk_2` FOREIGN KEY (`usuario_split_id`) REFERENCES `usuarios_splits` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 CREATE TABLE IF NOT EXISTS `remarketing_campanhas` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `id_usuario` int(11) NOT NULL,
-  `bot_id` int(11) NOT NULL,
+  `bot_id` int(11) DEFAULT NULL,
+  `id_fluxo` int(11) DEFAULT NULL,
+  `bots_ids` varchar(120) DEFAULT NULL,
   `nome` varchar(100) DEFAULT NULL,
-  `audiencia` enum('nao_comprou','comprou') NOT NULL,
+  `audiencia` enum('nao_comprou','comprou','todos','pix_gerado','expirados','membros_ativos') NOT NULL,
+  `periodo_tipo` varchar(10) NOT NULL DEFAULT 'total',
+  `periodo_inicio` datetime DEFAULT NULL,
+  `periodo_fim` datetime DEFAULT NULL,
   `mensagem` text NOT NULL,
   `midia_caminho` varchar(255) DEFAULT NULL,
   `midia_tipo` enum('foto','video') DEFAULT NULL,
   `midia_file_id` varchar(255) DEFAULT NULL,
+  `midia_file_ids` text DEFAULT NULL,
+  `variantes` mediumtext DEFAULT NULL,
+  `ofertas` mediumtext DEFAULT NULL,
   `agendado_em` datetime NOT NULL,
-  `status` enum('pendente','processando','concluida','falha') DEFAULT 'pendente',
+  `status` enum('pendente','processando','concluida','falha','rascunho') DEFAULT 'pendente',
   `total_destinatarios` int(11) DEFAULT 0,
   `enviados` int(11) DEFAULT 0,
   `entregues` int(11) DEFAULT 0,
   `falhas` int(11) DEFAULT 0,
   `offset_envio` int(11) DEFAULT 0,
   `processado_em` datetime DEFAULT NULL,
+  `recorrencia` text DEFAULT NULL,
+  `execucoes` int(11) NOT NULL DEFAULT 0,
+  `acum_entregues` int(11) NOT NULL DEFAULT 0,
+  `acum_falhas` int(11) NOT NULL DEFAULT 0,
   `criado_em` datetime DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `id_usuario` (`id_usuario`),
   KEY `bot_id` (`bot_id`),
   KEY `idx_status_agendado` (`status`,`agendado_em`),
+  KEY `idx_rm_usuario` (`id_usuario`,`criado_em`),
   CONSTRAINT `remarketing_campanhas_ibfk_1` FOREIGN KEY (`id_usuario`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE,
   CONSTRAINT `remarketing_campanhas_ibfk_2` FOREIGN KEY (`bot_id`) REFERENCES `bots` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -352,10 +367,21 @@ CREATE TABLE IF NOT EXISTS `remarketing_envios` (
   `id_telegram` varchar(50) NOT NULL,
   `resultado` enum('sucesso','falha') NOT NULL,
   `resposta` text DEFAULT NULL,
+  `variante` tinyint(4) NOT NULL DEFAULT 0,
   `enviado_em` datetime DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `idx_campanha` (`campanha_id`),
   CONSTRAINT `remarketing_envios_ibfk_1` FOREIGN KEY (`campanha_id`) REFERENCES `remarketing_campanhas` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `remarketing_vendas` (
+  `venda_id` int(11) NOT NULL,
+  `campanha_id` int(11) NOT NULL,
+  `variante` tinyint(4) NOT NULL DEFAULT 0,
+  `criado_em` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`venda_id`),
+  KEY `idx_rmv_campanha` (`campanha_id`),
+  CONSTRAINT `remarketing_vendas_ibfk_1` FOREIGN KEY (`campanha_id`) REFERENCES `remarketing_campanhas` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `usuarios_traqueamento` (
@@ -641,6 +667,64 @@ CREATE TABLE IF NOT EXISTS `redirecionador_cliques_dia` (
   `cliques` int(11) NOT NULL DEFAULT 0,
   PRIMARY KEY (`redirecionador_id`,`dia`,`campanha`),
   CONSTRAINT `redirecionador_cliques_dia_ibfk_1` FOREIGN KEY (`redirecionador_id`) REFERENCES `redirecionadores` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Avisos push (Web Push) de Pix gerado e Pix pago — plano em deploy/PLANO-PUSH-NOTIFICACOES.md
+CREATE TABLE IF NOT EXISTS `push_inscricoes` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `id_usuario` int(11) NOT NULL,
+  `endpoint_hash` char(64) NOT NULL,
+  `endpoint` varchar(600) NOT NULL,
+  `p256dh` varchar(100) NOT NULL,
+  `auth` varchar(40) NOT NULL,
+  `plataforma` enum('ios','android','desktop','outro') NOT NULL DEFAULT 'outro',
+  `apelido` varchar(80) NOT NULL DEFAULT '',
+  `pref_pix_gerado` tinyint(1) NOT NULL DEFAULT 1,
+  `pref_pix_pago` tinyint(1) NOT NULL DEFAULT 1,
+  `ativo` tinyint(1) NOT NULL DEFAULT 1,
+  `falhas_seguidas` smallint(5) unsigned NOT NULL DEFAULT 0,
+  `primeira_falha_em` datetime DEFAULT NULL,
+  `ultimo_envio_ok` datetime DEFAULT NULL,
+  `ultimo_visto` datetime DEFAULT NULL,
+  `ultimo_aviso_gerado_em` datetime DEFAULT NULL,
+  `criado_em` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_push_endpoint` (`endpoint_hash`),
+  KEY `idx_push_usuario` (`id_usuario`,`ativo`),
+  CONSTRAINT `push_inscricoes_ibfk_1` FOREIGN KEY (`id_usuario`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `push_fila` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `id_inscricao` bigint(20) unsigned NOT NULL,
+  `tipo` tinyint(3) unsigned NOT NULL,
+  `id_venda` int(11) NOT NULL,
+  `estado` enum('pendente','enviando') NOT NULL DEFAULT 'pendente',
+  `tentativas` tinyint(3) unsigned NOT NULL DEFAULT 0,
+  `disponivel_em` datetime NOT NULL,
+  `expira_em` datetime NOT NULL,
+  `reservado_ate` datetime DEFAULT NULL,
+  `lote` char(16) DEFAULT NULL,
+  `criado_em` datetime(3) NOT NULL DEFAULT current_timestamp(3),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_push_item` (`id_inscricao`,`tipo`,`id_venda`),
+  KEY `idx_push_pronto` (`estado`,`disponivel_em`,`id`),
+  KEY `idx_push_lote` (`lote`),
+  CONSTRAINT `push_fila_ibfk_1` FOREIGN KEY (`id_inscricao`) REFERENCES `push_inscricoes` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `push_metricas_hora` (
+  `hora` datetime NOT NULL,
+  `enviados` int(10) unsigned NOT NULL DEFAULT 0,
+  `falhas_temporarias` int(10) unsigned NOT NULL DEFAULT 0,
+  `inscricoes_removidas` int(10) unsigned NOT NULL DEFAULT 0,
+  `descartados` int(10) unsigned NOT NULL DEFAULT 0,
+  `agrupados` int(10) unsigned NOT NULL DEFAULT 0,
+  `erros_fatais` int(10) unsigned NOT NULL DEFAULT 0,
+  `latencia_soma_ms` bigint(20) unsigned NOT NULL DEFAULT 0,
+  `latencia_n` int(10) unsigned NOT NULL DEFAULT 0,
+  `latencia_max_ms` int(10) unsigned NOT NULL DEFAULT 0,
+  PRIMARY KEY (`hora`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

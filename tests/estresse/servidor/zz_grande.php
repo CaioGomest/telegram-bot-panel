@@ -17,7 +17,7 @@ for ($lote = 0; $lote < 30; $lote++) {
     for ($i = 0; $i < 1000; $i++) {
         $st = ['pago', 'pago', 'expirado', 'cancelado'][array_rand([0, 1, 2, 3])]; $c = time() - random_int(0, 90 * 86400); $v = [19.9, 49.9, 97, 9.9][random_int(0, 3)];
         $rows[] = '(?,?,?,?,?,?,?,?,?,?)';
-        array_push($p, (string) ($base + random_int(0, 199999)), $b, $v, $st, 'ESTG' . $lote . 'x' . $i . 'u' . $u, date('Y-m-d H:i:s', $c), $st === 'pago' ? date('Y-m-d H:i:s', $c + 60) : null, 30, $f, $st === 'pago' ? round($v * .07, 2) : 0);
+        array_push($p, (string) ($base + random_int(0, 199999)), $b, $v, $st, 'ESTG' . $lote . 'x' . $i . 'u' . $u, date('Y-m-d H:i:s', $c), $st === 'pago' ? date('Y-m-d H:i:s', $c + 60) : null, 30, $f, $st === 'pago' ? 0.35 : 0);
     }
     $pdo->prepare("INSERT INTO vendas (id_telegram, bot_id, valor, status, transacao_id, criado_em, pago_em, dias_acesso, id_fluxo, comissao_admin) VALUES " . implode(',', $rows))->execute($p);
 }

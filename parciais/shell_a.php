@@ -37,7 +37,7 @@ if (!function_exists('iconeA')) {
             . ' title="' . htmlspecialchars($titulo) . '"' . ($ativo ? ' aria-current="page"' : '')
             . ($nova_aba ? ' target="_blank" rel="noopener"' : '') . '>'
             . iconeA($icones[$item['icone'] ?? 'debug'] ?? $icones['debug'])
-            . htmlspecialchars($item['curto'] ?? $item['label'])
+            . htmlspecialchars($item['label'])
             . seloA($item['badge'] ?? null)
             . '</a>';
     }
@@ -105,27 +105,39 @@ foreach ($a_abas as $a_aba) {
 $a_icone_sol = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>';
 ?>
 <aside class="a-rail" aria-label="Navegação principal">
-    <a class="a-logo" href="<?php echo htmlspecialchars($a_home); ?>" aria-label="<?php echo htmlspecialchars($a_nome_sistema); ?>, início"><img src="<?php echo htmlspecialchars($a_logo); ?>" alt="" onerror="this.style.display='none'"></a>
+    <div class="a-rail-cab">
+        <a class="a-logo" href="<?php echo htmlspecialchars($a_home); ?>" aria-label="<?php echo htmlspecialchars($a_nome_sistema); ?>, início"><img src="<?php echo htmlspecialchars($a_logo); ?>" alt="" onerror="this.style.display='none'"></a>
+        <div>
+            <b><?php echo htmlspecialchars($a_nome_sistema); ?></b>
+            <span>MENU</span>
+        </div>
+    </div>
+    <div class="a-rail-corpo">
     <?php
-    $a_primeiro_grupo = true;
     foreach ($grupos_menu as $a_titulo_grupo => $a_itens_grupo) {
-        // "Minha Conta" fica no avatar, no fim do trilho.
+        // "Minha Conta" fica no cartão do usuário, no rodapé.
         $a_itens_grupo = array_values(array_filter($a_itens_grupo, static fn($i) => $i['href'] !== 'configuracao_usuario'));
         if (!$a_itens_grupo) {
             continue;
         }
-        if (!$a_primeiro_grupo) {
-            echo '<span class="a-nsep" aria-hidden="true"></span>';
-        }
-        $a_primeiro_grupo = false;
+        echo '<div class="a-gt">' . htmlspecialchars($a_titulo_grupo) . '</div>';
         foreach ($a_itens_grupo as $a_item) {
             echo itemRailA($a_item, $pagina_atual, $icones, $a_base);
         }
     }
     ?>
+    </div>
     <div class="a-nfim">
-        <a class="a-avatar<?php echo $pagina_atual === 'configuracao_usuario' ? ' ativo' : ''; ?>" href="<?php echo $a_base; ?>configuracao_usuario" title="Minha Conta" aria-label="Minha Conta"<?php echo $pagina_atual === 'configuracao_usuario' ? ' aria-current="page"' : ''; ?>><?php echo htmlAvatarUsuario($iniciais, $foto_usuario, 'a-av', $a_base); ?></a>
-        <a class="a-ni" href="<?php echo $a_base; ?>logout" title="Sair" aria-label="Sair da conta"><?php echo iconeA($icones['sair']); ?>Sair</a>
+        <div class="a-rail-usr<?php echo $pagina_atual === 'configuracao_usuario' ? ' ativo' : ''; ?>">
+            <a class="a-rail-usr-l" href="<?php echo $a_base; ?>configuracao_usuario" title="Minha Conta" aria-label="Minha Conta"<?php echo $pagina_atual === 'configuracao_usuario' ? ' aria-current="page"' : ''; ?>>
+                <?php echo htmlAvatarUsuario($iniciais, $foto_usuario, 'a-av', $a_base); ?>
+                <div>
+                    <b><?php echo htmlspecialchars($nome_usuario); ?></b>
+                    <span><?php echo htmlspecialchars($email_usuario); ?></span>
+                </div>
+            </a>
+            <a class="a-sair-ic" href="<?php echo $a_base; ?>logout" title="Sair" aria-label="Sair da conta"><?php echo iconeA($icones['sair']); ?></a>
+        </div>
     </div>
 </aside>
 
@@ -174,24 +186,33 @@ $a_icone_sol = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable
 <div class="a-sheet" id="folha-menu" hidden>
     <div class="a-sheet-fundo" data-fechar-menu></div>
     <div class="a-sheet-caixa" role="dialog" aria-modal="true" aria-label="Menu">
-        <div class="a-sheet-usr">
-            <?php echo htmlAvatarUsuario($iniciais, $foto_usuario, 'a-av', $a_base); ?>
+        <div class="a-sheet-top">
+            <span class="a-logo" aria-hidden="true"><img src="<?php echo htmlspecialchars($a_logo); ?>" alt=""></span>
             <div>
-                <b><?php echo htmlspecialchars($nome_usuario); ?></b>
-                <span><?php echo htmlspecialchars($email_usuario); ?></span>
+                <b><?php echo htmlspecialchars($a_nome_sistema); ?></b>
+                <span>MENU</span>
             </div>
             <button type="button" class="a-ib" data-fechar-menu aria-label="Fechar o menu"><?php echo iconeA('M18 6L6 18M6 6l12 12'); ?></button>
         </div>
-        <?php echo $aviso_email_html; ?>
-        <?php foreach ($grupos_menu as $a_titulo_grupo => $a_itens_grupo): if (!$a_itens_grupo) continue; ?>
-        <div class="a-gt"><?php echo htmlspecialchars($a_titulo_grupo); ?></div>
-        <div class="a-sheet-g">
-            <?php foreach ($a_itens_grupo as $a_item) { echo itemTileA($a_item, $pagina_atual, $icones, $a_base); } ?>
-            <?php if ($a_titulo_grupo === 'Conta'): ?>
-            <a class="a-tile er" href="<?php echo $a_base; ?>logout"><?php echo iconeA($icones['sair']); ?>Sair</a>
-            <?php endif; ?>
+        <div class="a-sheet-corpo">
+            <?php echo $aviso_email_html; ?>
+            <?php foreach ($grupos_menu as $a_titulo_grupo => $a_itens_grupo): if (!$a_itens_grupo) continue; ?>
+            <div class="a-gt"><?php echo htmlspecialchars($a_titulo_grupo); ?></div>
+            <div class="a-sheet-g">
+                <?php foreach ($a_itens_grupo as $a_item) { echo itemTileA($a_item, $pagina_atual, $icones, $a_base); } ?>
+            </div>
+            <?php endforeach; ?>
         </div>
-        <?php endforeach; ?>
+        <div class="a-sheet-pe">
+            <div class="a-sheet-usr">
+                <?php echo htmlAvatarUsuario($iniciais, $foto_usuario, 'a-av', $a_base); ?>
+                <div>
+                    <b><?php echo htmlspecialchars($nome_usuario); ?></b>
+                    <span><?php echo htmlspecialchars($email_usuario); ?></span>
+                </div>
+                <a class="a-sair-ic" href="<?php echo $a_base; ?>logout" title="Sair" aria-label="Sair da conta"><?php echo iconeA($icones['sair']); ?></a>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -206,7 +227,7 @@ $a_icone_sol = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable
         requestAnimationFrame(function () { folha.classList.add('aberta'); });
         botao.setAttribute('aria-expanded', 'true');
         document.body.style.overflow = 'hidden';
-        var fechar = folha.querySelector('.a-sheet-usr .a-ib');
+        var fechar = folha.querySelector('.a-sheet-top .a-ib');
         if (fechar) fechar.focus();
     }
     function fechar() {

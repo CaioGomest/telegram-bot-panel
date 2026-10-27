@@ -2,144 +2,105 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/funcoes/usuario.php';
-require_once __DIR__ . '/funcoes/paginador.php';
-require_once __DIR__ . '/funcoes/icones.php';
+require_once __DIR__ . '/funcoes/gateways.php';
+require_once __DIR__ . '/funcoes/log.php';
+require_once __DIR__ . '/funcoes/remarketing_campanhas.php';
 bloquearAdmin();
-$id_usuario = $_SESSION['usuario_id'];
-$stmt_bots = $pdo->prepare("SELECT id, COALESCE(primeiro_nome, nome_usuario) as nome FROM bots WHERE id_usuario = ?");
-$stmt_bots->execute([$id_usuario]);
-$meus_bots = $stmt_bots->fetchAll(PDO::FETCH_ASSOC);
+$id_usuario = (int) $_SESSION['usuario_id'];
 
-/**
- * Confere que o caminho vindo do cliente (já devolvido pelo próprio endpoint de upload,
- * mas nunca é bom confiar cegamente num campo de formulário) fica de fato dentro de
- * uploads/ -- mesma proteção de webhook.php::resolverCaminhoUploadSeguro(), copiada
- * localmente porque remarketing.php não inclui webhook.php.
- */
-function resolverCaminhoUploadSeguroRemarketing(string $caminho): ?string
+/** Responde em JSON e encerra. */
+function respostaRemarketing(array $dados, int $status = 200): void
 {
-    if ($caminho === '' || strpos($caminho, 'uploads/') !== 0) {
-        return null;
-    }
-    $base_real = realpath(__DIR__ . '/uploads');
-    if ($base_real === false) {
-        return null;
-    }
-    $real = realpath(__DIR__ . '/' . $caminho);
-    if ($real === false) {
-        return null;
-    }
-    if ($real !== $base_real && strpos($real, $base_real . DIRECTORY_SEPARATOR) !== 0) {
-        return null;
-    }
-    return $real;
+    http_response_code($status);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($dados, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
 }
 
-function processarCampanha(array $input, PDO $pdo, int $id_usuario): array {
-    $bot_id = isset($input['bot_id']) ? (int)$input['bot_id'] : 0;
-    $nome = isset($input['nome']) ? mb_substr(trim((string)$input['nome']), 0, 100) : '';
-    $audiencia = isset($input['audiencia']) ? $input['audiencia'] : '';
-    $mensagem = isset($input['mensagem']) ? trim((string)$input['mensagem']) : '';
-    $agendado_str = isset($input['agendado_em']) ? trim((string)$input['agendado_em']) : '';
-    $midia_caminho = isset($input['midia_caminho']) ? trim((string)$input['midia_caminho']) : '';
-    $midia_tipo = isset($input['midia_tipo']) ? trim((string)$input['midia_tipo']) : '';
+/** Corpo da requisição: JSON (application/json) ou formulário. */
+function entradaRemarketing(): array
+{
+    if (stripos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') !== false) {
+        $corpo = json_decode((string) file_get_contents('php://input'), true);
+        return is_array($corpo) ? $corpo : [];
+    }
+    return $_POST;
+}
 
-    if (!in_array($audiencia, ['nao_comprou', 'comprou'], true)) {
-        return ['sucesso' => false, 'mensagem' => 'Audiência inválida.'];
+// ---------- API da tela (lista e assistente de criação) ----------
+// Leituras (GET) e ações (POST, com token CSRF no cabeçalho X-CSRF-Token). A lista e o assistente conversam só com isto.
+$acao_get = (string) ($_GET['action'] ?? '');
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && $acao_get !== '') {
+    switch ($acao_get) {
+        case 'listar':
+            respostaRemarketing(['sucesso' => true] + remarketingListar($pdo, $id_usuario));
+        case 'contexto':
+            respostaRemarketing(['sucesso' => true] + remarketingContexto($pdo, $id_usuario));
+        case 'obter':
+            $c = remarketingLinha($pdo, $id_usuario, (int) ($_GET['id'] ?? 0));
+            if (!$c) {
+                respostaRemarketing(['sucesso' => false, 'mensagem' => 'Campanha não encontrada.'], 404);
+            }
+            respostaRemarketing(['sucesso' => true, 'campanha' => remarketingParaEdicao($c)]);
+        case 'contar':
+            // Alcance estimado do passo "Público": quantos leads dos bots do fluxo caem no segmento e no período.
+            $id_fluxo = (int) ($_GET['id_fluxo'] ?? 0);
+            $segmento = (string) ($_GET['segmento'] ?? '');
+            $periodo = remarketingNormalizarPeriodo($_GET['periodo_tipo'] ?? 'total', $_GET['periodo_de'] ?? '', $_GET['periodo_ate'] ?? '');
+            if (!isset(REMARKETING_SEGMENTOS[$segmento]) || $periodo['erro'] !== null) {
+                respostaRemarketing(['sucesso' => false, 'mensagem' => $periodo['erro'] ?? 'Segmento inválido.'], 422);
+            }
+            $bots = remarketingBotsDoFluxo($pdo, $id_usuario, $id_fluxo);
+            $janela = remarketingIntervaloPeriodo($periodo['tipo'], $periodo['de'], $periodo['ate']);
+            $ids_bots = array_column($bots, 'id');
+            // O assistente recalcula a cada clique em segmento/período: guarda a conta por 20 s (público grande com Pix gerado/expirados é consulta pesada).
+            // Só a estimativa é guardada: iniciar a campanha conta de novo, na hora.
+            $total = contagemEmCache('rm_alcance|' . $id_usuario . '|' . implode(',', $ids_bots) . '|' . $segmento . '|' . ($janela ? $janela[0] . '/' . $janela[1] : 'total'),
+                static fn() => remarketingContarPublico($pdo, $ids_bots, $segmento, $janela[0] ?? null, $janela[1] ?? null), 20);
+            respostaRemarketing(['sucesso' => true, 'bots' => count($bots), 'total' => $total]);
+        case 'exportar':
+            remarketingExportarCsv($pdo, $id_usuario, (int) ($_GET['id'] ?? 0));
     }
-    if ($bot_id <= 0 || $mensagem === '') {
-        return ['sucesso' => false, 'mensagem' => 'Informe bot e mensagem.'];
-    }
-    // O bot_id vem do formulário: sem esta conferência, dava pra agendar a campanha pelo bot de OUTRO
-    // usuário, e a cron dispararia a mensagem pelo token dele para os leads dele.
-    $stmt_dono = $pdo->prepare("SELECT 1 FROM bots WHERE id = ? AND id_usuario = ?");
-    $stmt_dono->execute([$bot_id, $id_usuario]);
-    if (!$stmt_dono->fetchColumn()) {
-        return ['sucesso' => false, 'mensagem' => 'Bot não encontrado.'];
-    }
-    // Teto de uma mensagem do Telegram: acima disso todo envio falharia lá na cron, sem aviso aqui.
-    if (mb_strlen($mensagem) > 4096) {
-        return ['sucesso' => false, 'mensagem' => 'A mensagem tem limite de 4096 caracteres (é o máximo que o Telegram aceita).'];
-    }
-    if ($agendado_str === '' || strtotime($agendado_str) === false) {
-        return ['sucesso' => false, 'mensagem' => 'Informe a data e a hora do envio.'];
-    }
-    // Tolerância de 1 min pro tempo entre o usuário escolher "agora" e o POST chegar --
-    // sem isso, cron_remarketing.php pega qualquer agendado_em <= NOW() e dispara na
-    // rodada seguinte, então um horário já passado "funcionava" silenciosamente em vez
-    // de avisar que não era isso que o usuário escolheu.
-    if (strtotime($agendado_str) < time() - 60) {
-        return ['sucesso' => false, 'mensagem' => 'Esse horário já passou. Escolha uma data e hora futuras.'];
-    }
-
-    if ($midia_caminho !== '') {
-        if (!in_array($midia_tipo, ['foto', 'video'], true) || !resolverCaminhoUploadSeguroRemarketing($midia_caminho)) {
-            return ['sucesso' => false, 'mensagem' => 'Mídia inválida. Envie o arquivo de novo.'];
-        }
-        // Legenda de foto/vídeo no Telegram tem teto de 1024 caracteres -- bem menor que
-        // os 4096 de uma mensagem solta. Sem essa checagem, campanha grande falharia por
-        // destinatário lá no cron, sem aviso nenhum aqui na hora de criar.
-        if (mb_strlen($mensagem) > 1024) {
-            return ['sucesso' => false, 'mensagem' => 'Com foto/vídeo, a mensagem tem limite de 1024 caracteres (é a legenda, o Telegram não aceita mais que isso).'];
-        }
-    } else {
-        $midia_tipo = null;
-        $midia_caminho = null;
-    }
-
-    // Sempre agenda via cron — nunca envia inline para não travar a requisição
-    $agendado_em = date('Y-m-d H:i:s', strtotime($agendado_str));
-    $pdo->prepare("INSERT INTO remarketing_campanhas (id_usuario, bot_id, nome, audiencia, mensagem, midia_caminho, midia_tipo, agendado_em, status, criado_em) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pendente', NOW())")
-        ->execute([$id_usuario, $bot_id, $nome ?: null, $audiencia, $mensagem, $midia_caminho, $midia_tipo, $agendado_em]);
-    $campanha_id = (int)$pdo->lastInsertId();
-
-    return ['sucesso' => true, 'mensagem' => 'Campanha agendada para ' . date('d/m/Y H:i', strtotime($agendado_em)) . '.', 'campanha_id' => $campanha_id];
+    respostaRemarketing(['sucesso' => false, 'mensagem' => 'Ação inválida.'], 400);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $is_ajax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
-        || (stripos($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json') !== false);
-    if ($is_ajax) {
-        header('Content-Type: application/json; charset=utf-8');
-        verificarCsrf();
-        if (($_POST['acao'] ?? '') === 'cancelar_campanha') {
-            // Só dá pra cancelar o que ainda não começou: o status 'pendente' é conferido no próprio DELETE, então se a cron
-            // pegou a campanha (processando) no meio do caminho, nada é apagado e o usuário é avisado.
-            $stmt_cancela = $pdo->prepare("DELETE FROM remarketing_campanhas WHERE id = ? AND id_usuario = ? AND status = 'pendente'");
-            $stmt_cancela->execute([(int) ($_POST['id'] ?? 0), $id_usuario]);
-            echo json_encode($stmt_cancela->rowCount() > 0
-                ? ['sucesso' => true, 'mensagem' => 'Campanha cancelada. Nada foi enviado.']
-                : ['sucesso' => false, 'mensagem' => 'Só campanhas pendentes podem ser canceladas (esta já começou ou não existe mais).'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            exit;
-        }
-        $resp = processarCampanha($_POST, $pdo, $id_usuario);
-        echo json_encode($resp, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        exit;
+    verificarCsrf();
+    $entrada = entradaRemarketing();
+    $id = (int) ($entrada['id'] ?? 0);
+    switch ((string) ($entrada['acao'] ?? '')) {
+        case 'salvar':
+            $r = remarketingSalvar($pdo, $id_usuario, $entrada, $id);
+            respostaRemarketing($r, $r['sucesso'] ? 200 : 422);
+        case 'iniciar':
+            $r = remarketingIniciar($pdo, $id_usuario, $id);
+            respostaRemarketing($r, $r['sucesso'] ? 200 : 422);
+        case 'agendar':
+            // O modal "Agendar campanha" manda a frequência (uma vez, diário, horários, a cada X horas, dias da semana); quem manda só agendado_em é "uma vez".
+            $frequencia = $entrada['frequencia'] ?? null;
+            if (!is_array($frequencia)) {
+                $quando = trim(remarketingTxt($entrada['agendado_em'] ?? ''));
+                $frequencia = ['tipo' => 'uma_vez', 'data' => substr($quando, 0, 10), 'hora' => substr($quando, 11, 5)];
+            }
+            $f = remarketingNormalizarFrequencia($frequencia);
+            if ($f['erro'] !== null) {
+                respostaRemarketing(['sucesso' => false, 'mensagem' => $f['erro']], 422);
+            }
+            $r = remarketingIniciar($pdo, $id_usuario, $id, $f['primeira'] !== '' ? $f['primeira'] : null, $f['recorrencia']);
+            respostaRemarketing($r, $r['sucesso'] ? 200 : 422);
+        case 'parar':
+            $r = remarketingParar($pdo, $id_usuario, $id);
+            respostaRemarketing($r, $r['sucesso'] ? 200 : 422);
+        case 'excluir':
+            $r = remarketingExcluir($pdo, $id_usuario, $id);
+            respostaRemarketing($r, $r['sucesso'] ? 200 : 404);
     }
+    respostaRemarketing(['sucesso' => false, 'mensagem' => 'Ação inválida.'], 400);
 }
 
-if (($_GET['action'] ?? '') === 'contar_destinatarios') {
-    header('Content-Type: application/json; charset=utf-8');
-    $bot_id = isset($_GET['bot_id']) ? (int)$_GET['bot_id'] : 0;
-    $audiencia = $_GET['audiencia'] ?? '';
-    if ($bot_id <= 0 || !in_array($audiencia, ['nao_comprou', 'comprou'], true)) {
-        echo json_encode(['sucesso' => false, 'mensagem' => 'Parâmetros inválidos.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        exit;
-    }
-    $chk = $pdo->prepare("SELECT 1 FROM bots WHERE id = ? AND id_usuario = ?");
-    $chk->execute([$bot_id, $id_usuario]);
-    if (!$chk->fetchColumn()) {
-        echo json_encode(['sucesso' => false, 'mensagem' => 'Bot não encontrado.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        exit;
-    }
-    $sql_dest = "SELECT COUNT(*) FROM leads l WHERE l.bot_id = :bot_id";
-    $sql_dest .= ' AND ' . condicaoLeadPagou($audiencia !== 'nao_comprou');
-    $stmt_dest = $pdo->prepare($sql_dest);
-    $stmt_dest->execute(['bot_id' => $bot_id]);
-    $total = (int)$stmt_dest->fetchColumn();
-    echo json_encode(['sucesso' => true, 'total' => $total], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    exit;
-}
+$ic = static function (string $caminho): string {
+    return '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">' . $caminho . '</svg>';
+};
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -149,250 +110,134 @@ if (($_GET['action'] ?? '') === 'contar_destinatarios') {
     <title>Remarketing - <?php echo htmlspecialchars(nomeSistema()); ?></title>
     <?php include 'tema_inline.php'; ?>
     <link rel="stylesheet" href="assets/css/painel.css?v=<?php echo @filemtime(__DIR__.'/assets/css/painel.css'); ?>">
+    <link rel="stylesheet" href="assets/css/remarketing.css?v=<?php echo @filemtime(__DIR__.'/assets/css/remarketing.css'); ?>">
 </head>
 <body>
 <div class="layout-painel">
     <?php include 'barra_lateral.php'; ?>
-    <main class="conteudo-principal">
-        <div class="cabecalho-pagina">
+    <main class="conteudo-principal" id="rm-pagina">
+        <header class="a-ph">
             <div>
-                <h1>Remarketing</h1>
-                <p>Campanhas para recuperar quem não comprou ou engajar quem comprou.</p>
+                <h1 class="a-h1">Remarketing</h1>
+                <p class="a-sub">Centro de comando de campanhas: recupere quem não comprou e engaje quem já é cliente.</p>
             </div>
-            <div class="acoes-cabecalho">
-                <button class="botao botao-primario" id="btn-nova-campanha">+ Nova campanha</button>
-                <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>
-                    Tema
-                </button>
+            <div class="a-acts">
+                <a class="a-btn pri" href="remarketing_nova" id="btn-nova-campanha"><?php echo $ic('<path d="M12 5v14M5 12h14"></path>'); ?> Nova campanha</a>
             </div>
-        </div>
-        <div class="painel">
-            <?php
-                $f_bot = isset($_GET['bot_id']) ? (int)$_GET['bot_id'] : 0;
-                $f_aud = $_GET['audiencia'] ?? '';
-                $f_status = $_GET['status'] ?? '';
-                $limite = max(5, min(50, (int)($_GET['limite'] ?? 10)));
+        </header>
 
-                function montarUrlFiltroRemarketing(array $overrides, int $f_bot, string $f_aud, string $f_status, int $limite): string
-                {
-                    $params = array_filter([
-                        'bot_id'    => $f_bot ?: null,
-                        'audiencia' => $f_aud ?: null,
-                        'status'    => $f_status ?: null,
-                        'limite'    => $limite,
-                    ], fn($v) => $v !== null && $v !== '');
-                    $params = array_merge($params, $overrides);
-                    $params = array_filter($params, fn($v) => $v !== null && $v !== '');
-                    return 'remarketing?' . http_build_query($params);
-                }
-            ?>
-            <div class="barra-filtros rm-filtros" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;">
-                <div class="rm-filtros-esq" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
-                    <form method="GET" id="form-filtro-bot">
-                        <input type="hidden" name="audiencia" value="<?php echo htmlspecialchars($f_aud); ?>">
-                        <input type="hidden" name="status" value="<?php echo htmlspecialchars($f_status); ?>">
-                        <input type="hidden" name="limite" value="<?php echo $limite; ?>">
-                        <select name="bot_id" onchange="this.form.submit()">
-                            <option value="">Todos os bots</option>
-                            <?php foreach ($meus_bots as $b): ?>
-                                <option value="<?php echo $b['id']; ?>" <?php echo $f_bot == $b['id'] ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($b['nome']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </form>
-                    <form method="GET" id="form-filtro-audiencia">
-                        <input type="hidden" name="bot_id" value="<?php echo $f_bot; ?>">
-                        <input type="hidden" name="status" value="<?php echo htmlspecialchars($f_status); ?>">
-                        <input type="hidden" name="limite" value="<?php echo $limite; ?>">
-                        <select name="audiencia" onchange="this.form.submit()">
-                            <option value="">Todas as audiências</option>
-                            <option value="nao_comprou" <?php echo $f_aud === 'nao_comprou' ? 'selected' : ''; ?>>Não comprou</option>
-                            <option value="comprou" <?php echo $f_aud === 'comprou' ? 'selected' : ''; ?>>Comprou</option>
-                        </select>
-                    </form>
-                    <div class="seletor-periodo">
-                        <a href="<?php echo htmlspecialchars(montarUrlFiltroRemarketing(['status' => ''], $f_bot, $f_aud, $f_status, $limite)); ?>" class="periodo-item<?php echo $f_status === '' ? ' ativo' : ''; ?>">Todos</a>
-                        <a href="<?php echo htmlspecialchars(montarUrlFiltroRemarketing(['status' => 'pendente'], $f_bot, $f_aud, $f_status, $limite)); ?>" class="periodo-item<?php echo $f_status === 'pendente' ? ' ativo' : ''; ?>">Pendente</a>
-                        <a href="<?php echo htmlspecialchars(montarUrlFiltroRemarketing(['status' => 'processando'], $f_bot, $f_aud, $f_status, $limite)); ?>" class="periodo-item<?php echo $f_status === 'processando' ? ' ativo' : ''; ?>">Processando</a>
-                        <a href="<?php echo htmlspecialchars(montarUrlFiltroRemarketing(['status' => 'concluida'], $f_bot, $f_aud, $f_status, $limite)); ?>" class="periodo-item<?php echo $f_status === 'concluida' ? ' ativo' : ''; ?>">Concluída</a>
-                        <a href="<?php echo htmlspecialchars(montarUrlFiltroRemarketing(['status' => 'falha'], $f_bot, $f_aud, $f_status, $limite)); ?>" class="periodo-item<?php echo $f_status === 'falha' ? ' ativo' : ''; ?>">Falha</a>
-                    </div>
-                </div>
-                <form method="GET" id="form-filtro-limite">
-                    <input type="hidden" name="bot_id" value="<?php echo $f_bot; ?>">
-                    <input type="hidden" name="audiencia" value="<?php echo htmlspecialchars($f_aud); ?>">
-                    <input type="hidden" name="status" value="<?php echo htmlspecialchars($f_status); ?>">
-                    <select name="limite" onchange="this.form.submit()">
-                        <?php foreach ([10,20,30,50] as $opt): ?>
-                            <option value="<?php echo $opt; ?>" <?php echo $limite === $opt ? 'selected' : ''; ?>><?php echo $opt; ?> por página</option>
-                        <?php endforeach; ?>
-                    </select>
-                </form>
-            </div>
-            <?php
-            $pagina = max(1, (int)($_GET['pagina'] ?? 1));
-            $where = "c.id_usuario = :uid";
-            $params = ['uid' => $id_usuario];
-            if ($f_bot > 0) { $where .= " AND c.bot_id = :bot"; $params['bot'] = $f_bot; }
-            if ($f_aud === 'nao_comprou' || $f_aud === 'comprou') { $where .= " AND c.audiencia = :aud"; $params['aud'] = $f_aud; }
-            if (in_array($f_status, ['pendente','processando','concluida','falha'], true)) { $where .= " AND c.status = :status"; $params['status'] = $f_status; }
-            $stmt_total = $pdo->prepare("SELECT COUNT(*) FROM remarketing_campanhas c WHERE $where");
-            $stmt_total->execute($params);
-            $total_reg = (int)$stmt_total->fetchColumn();
-            $total_paginas = max(1, (int)ceil($total_reg / $limite));
-            $pagina = min($pagina, $total_paginas);
-            $offset = ($pagina - 1) * $limite;
-            ?>
-            <?php
-            $stmt_list = $pdo->prepare("SELECT c.*, COALESCE(b.primeiro_nome, b.nome_usuario) as nome_bot FROM remarketing_campanhas c JOIN bots b ON c.bot_id = b.id WHERE $where ORDER BY c.criado_em DESC LIMIT :lim OFFSET :off");
-            foreach ($params as $k => $v) {
-                $stmt_list->bindValue(':' . $k, $v);
-            }
-            $stmt_list->bindValue(':lim', $limite, PDO::PARAM_INT);
-            $stmt_list->bindValue(':off', $offset, PDO::PARAM_INT);
-            $stmt_list->execute();
-            $campanhas = $stmt_list->fetchAll(PDO::FETCH_ASSOC);
-            ?>
-            <div class="tabela-dados">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Nome</th>
-                            <th>Bot</th>
-                            <th>Aud.</th>
-                            <th>Mensagem</th>
-                            <th>Agendado</th>
-                            <th>Status</th>
-                            <th>Dest.</th>
-                            <th>Sucesso</th>
-                            <th>Falhas</th>
-                            <th>Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (empty($campanhas)): ?>
-                            <tr>
-                                <td colspan="10">
-                                    <div class="estado-vazio">
-                                        <div style="margin-bottom:10px; font-weight:600;">Nenhuma campanha criada</div>
-                                        <div>Crie sua primeira campanha de remarketing para engajar sua audiência.</div>
-                                        <button type="button" class="botao botao-primario" id="btn-nova-campanha-empty" style="margin-top:14px;">+ Nova campanha</button>
-                                    </div>
-                                </td>
-                            </tr>
-                        <?php else: foreach ($campanhas as $c): ?>
-                            <tr>
-                                <td><?php echo htmlspecialchars($c['nome'] ?: ('Campanha #' . $c['id'])); ?></td>
-                                <td><?php echo htmlspecialchars($c['nome_bot']); ?></td>
-                                <td>
-                                    <span class="badge badge-neutro"><?php echo $c['audiencia'] === 'nao_comprou' ? 'Não comprou' : 'Comprou'; ?></span>
-                                </td>
-                                <td title="<?php echo htmlspecialchars($c['mensagem']); ?>" class="texto-suave">
-                                    <?php echo htmlspecialchars(mb_strimwidth($c['mensagem'], 0, 60, '...')); ?>
-                                </td>
-                                <td class="mono"><?php echo date('d/m/Y H:i', strtotime($c['agendado_em'])); ?></td>
-                                <td>
-                                    <?php
-                                        $status = $c['status'];
-                                        $rotulos_status = ['pendente' => 'Pendente', 'processando' => 'Processando', 'concluida' => 'Concluída', 'falha' => 'Falha'];
-                                        $classe_status = 'badge-neutro';
-                                        if ($status === 'pendente') { $classe_status = 'badge-alerta'; }
-                                        if ($status === 'processando') { $classe_status = 'badge-alerta'; }
-                                        if ($status === 'concluida') { $classe_status = 'badge-sucesso'; }
-                                        if ($status === 'falha') { $classe_status = 'badge-perigo'; }
-                                    ?>
-                                    <span class="badge <?php echo $classe_status; ?>"><?php echo htmlspecialchars($rotulos_status[$status] ?? $status); ?></span>
-                                </td>
-                                <td><?php echo (int)$c['total_destinatarios']; ?></td>
-                                <td><?php echo (int)$c['entregues']; ?></td>
-                                <td><?php echo (int)$c['falhas']; ?></td>
-                                <td>
-                                    <div class="col-acoes">
-                                        <a class="btn-icon ver" href="remarketing_detalhes?campanha=<?php echo (int)$c['id']; ?>" title="Ver detalhes" aria-label="Ver detalhes"><?php echo iconeAcao('ver'); ?></a>
-                                        <?php if ($c['status'] === 'pendente'): ?>
-                                            <button type="button" class="btn-icon excluir btn-cancelar-campanha-lista" data-id="<?php echo (int)$c['id']; ?>" title="Cancelar campanha" aria-label="Cancelar campanha"><?php echo iconeAcao('excluir'); ?></button>
-                                        <?php endif; ?>
-                                    </div>
-                                </td>
-                            </tr>
-                        <?php endforeach; endif; ?>
-                    </tbody>
-                </table>
-            </div>
-            <?php echo paginador($total_reg, $limite); ?>
+        <section class="rm-kpis" aria-label="Resumo das campanhas">
+            <article class="a-card a-kpi"><div class="a-kh"><span class="a-ki"><?php echo $ic('<circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle>'); ?></span><span class="a-lab">Total de campanhas</span></div><div class="a-kv" id="kpi-total">0</div></article>
+            <article class="a-card a-kpi"><div class="a-kh"><span class="a-ki"><?php echo $ic('<path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>'); ?></span><span class="a-lab">Ativas agora</span></div><div class="a-kv" id="kpi-ativas">0</div></article>
+            <article class="a-card a-kpi"><div class="a-kh"><span class="a-ki"><?php echo $ic('<path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"></path>'); ?></span><span class="a-lab">Mensagens enviadas</span></div><div class="a-kv" id="kpi-enviadas">0</div></article>
+            <article class="a-card a-kpi"><div class="a-kh"><span class="a-ki"><?php echo $ic('<path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>'); ?></span><span class="a-lab">Receita total</span></div><div class="a-kv" id="kpi-receita">R$ 0,00</div></article>
+        </section>
+
+        <div class="a-card flat rm-filtros" id="rm-filtros">
+            <label class="a-search">
+                <?php echo $ic('<circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path>'); ?>
+                <input type="search" class="a-in" id="rm-busca" placeholder="Buscar campanhas..." aria-label="Buscar campanhas" autocomplete="off">
+            </label>
+            <select class="a-in rm-sel" id="rm-status" aria-label="Filtrar por situação">
+                <option value="">Todas as situações</option>
+                <option value="rascunho">Rascunho</option>
+                <option value="pendente">Agendada</option>
+                <option value="processando">Ativa</option>
+                <option value="concluida">Concluída</option>
+                <option value="falha">Falha</option>
+            </select>
+            <select class="a-in rm-sel" id="rm-ordem" aria-label="Ordenar campanhas">
+                <option value="recentes">Mais recentes</option>
+                <option value="antigas">Mais antigas</option>
+                <option value="receita">Maior receita</option>
+                <option value="enviadas">Mais enviadas</option>
+                <option value="nome">Nome (A–Z)</option>
+            </select>
         </div>
-        <div id="modal-nova-campanha" class="sobreposicao-modal">
-            <div class="modal-gateway" style="max-width: 720px;">
-                <div class="cabecalho-modal">
-                    <div class="titulo-modal">Nova Campanha</div>
-                    <button type="button" class="fechar-modal" id="btn-fechar-modal">✕</button>
-                </div>
-                <div class="corpo-modal">
-                    <form id="form-campanha">
-                        <?php echo campoCsrf(); ?>
-                        <div class="campo">
-                            <label for="modal-nome">Nome da campanha (opcional)</label>
-                            <input type="text" id="modal-nome" name="nome" maxlength="100" placeholder="Ex.: Recuperação carrinho — setembro">
-                        </div>
-                        <div class="grade grade-2 grade-compacta" style="margin-top:12px;">
-                            <div class="campo">
-                                <label for="modal-bot_id">Bot</label>
-                                <select id="modal-bot_id" name="bot_id" required>
-                                    <option value="">Selecione um Bot</option>
-                                    <?php foreach ($meus_bots as $b): ?>
-                                        <option value="<?php echo $b['id']; ?>"><?php echo htmlspecialchars($b['nome']); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div class="campo">
-                                <label for="modal-audiencia">Audiência</label>
-                                <select id="modal-audiencia" name="audiencia" required>
-                                    <option value="nao_comprou">Não comprou</option>
-                                    <option value="comprou">Comprou</option>
-                                </select>
-                                <small>Não comprou = iniciou o bot e nunca pagou. Comprou = já pagou pelo menos uma vez.</small>
-                            </div>
-                        </div>
-                        <div class="campo" style="margin-top:12px;">
-                            <label>Agendar envio</label>
-                            <div style="display:flex;gap:8px;">
-                                <input type="date" id="modal-data" aria-label="Data do envio" min="<?php echo date('Y-m-d'); ?>" required>
-                                <input type="time" id="modal-hora" aria-label="Hora do envio" required>
-                            </div>
-                            <input type="hidden" id="modal-agendado_em" name="agendado_em">
-                            <small>Obrigatório. A campanha só é enviada nessa data e hora.</small>
-                        </div>
-                        <div class="campo" style="margin-top:12px;">
-                            <small id="contador-destinatarios" style="display:none;"></small>
-                        </div>
-                        <div class="campo" style="margin-top:12px;">
-                            <label for="modal-mensagem">Mensagem</label>
-                            <textarea id="modal-mensagem" name="mensagem" rows="5" placeholder="Digite a mensagem da campanha..." required></textarea>
-                            <small><span id="contador-mensagem">0</span>/<span id="limite-mensagem">4096</span> caracteres</small>
-                        </div>
-                        <div class="campo" style="margin-top:12px;">
-                            <label for="modal-midia">Foto ou vídeo (opcional)</label>
-                            <input type="file" id="modal-midia" accept="image/jpeg,image/png,video/mp4,video/quicktime,video/x-matroska,video/webm">
-                            <button type="button" class="botao" id="btn-remover-midia" style="margin-left:8px;" hidden>Remover arquivo</button>
-                            <input type="hidden" id="modal-midia-caminho" name="midia_caminho">
-                            <input type="hidden" id="modal-midia-tipo" name="midia_tipo">
-                            <small>Foto até 5MB (jpg/png) ou vídeo até 20MB (mp4/mov/mkv/webm). Com mídia, a mensagem vira legenda e o limite cai pra 1024 caracteres.</small>
-                        </div>
-                        <div class="linha-acoes" style="margin-top:16px;">
-                            <button type="button" class="botao" id="btn-cancelar-campanha">Cancelar</button>
-                            <button type="submit" class="botao botao-primario">Agendar</button>
-                        </div>
-                    </form>
-                    <div id="modal-feedback" class="texto-suave" style="display:none;margin-top:12px;"></div>
-                </div>
-            </div>
-        </div>
-        <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-        <script src="assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/tema.js'); ?>"></script>
-        <script src="assets/remarketing.js?v=<?php echo @filemtime(__DIR__ . '/assets/remarketing.js'); ?>"></script>
+
+        <section id="rm-lista" aria-live="polite" aria-label="Campanhas por fluxo">
+            <div class="a-empty">Carregando campanhas...</div>
+        </section>
     </main>
 </div>
+
+<!-- Confirmação (iniciar e excluir) -->
+<div class="a-over" id="rm-confirma" role="dialog" aria-modal="true" aria-labelledby="rm-confirma-titulo">
+    <div class="a-modal rm-modal-peq">
+        <div class="a-mh"><h2 id="rm-confirma-titulo">Confirmar</h2></div>
+        <p class="a-mut" id="rm-confirma-texto"></p>
+        <div class="rm-modal-acoes">
+            <button type="button" class="a-btn" id="rm-confirma-nao">Cancelar</button>
+            <button type="button" class="a-btn pri" id="rm-confirma-sim">Confirmar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Agendar campanha: uma vez, diário, horários personalizados, a cada X horas ou dias da semana (recorrência) -->
+<div class="a-over" id="rm-agenda" role="dialog" aria-modal="true" aria-labelledby="rm-agenda-titulo">
+    <div class="a-modal rm-modal-agenda">
+        <div class="a-mh"><h2 id="rm-agenda-titulo"><?php echo $ic('<rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path>'); ?> Agendar campanha</h2></div>
+        <p class="a-mut" id="rm-agenda-nome"></p>
+
+        <div id="rm-agenda-form">
+            <span class="rm-lbl" id="rm-freq-rotulo">Frequência</span>
+            <div class="rm-freqs" role="radiogroup" aria-labelledby="rm-freq-rotulo">
+                <button type="button" class="rm-freq on" data-freq="uma_vez" role="radio" aria-checked="true">Uma vez</button>
+                <button type="button" class="rm-freq" data-freq="diario" role="radio" aria-checked="false">Diário</button>
+                <button type="button" class="rm-freq" data-freq="horarios" role="radio" aria-checked="false">Horários personalizados</button>
+                <button type="button" class="rm-freq" data-freq="a_cada" role="radio" aria-checked="false">A cada X horas</button>
+                <button type="button" class="rm-freq largo" data-freq="semana" role="radio" aria-checked="false">Dias da semana</button>
+            </div>
+
+            <div class="rm-painel" data-painel="uma_vez">
+                <div class="rm-agenda-campos">
+                    <label class="a-fld"><span>Data</span><input type="date" class="a-in" id="rm-agenda-data" min="<?php echo date('Y-m-d'); ?>"></label>
+                    <label class="a-fld"><span>Hora</span><input type="time" class="a-in" id="rm-agenda-hora"></label>
+                </div>
+            </div>
+            <div class="rm-painel" data-painel="diario" hidden>
+                <label class="a-fld"><span>Horário de execução</span><input type="time" class="a-in" id="rm-ag-diario"></label>
+            </div>
+            <div class="rm-painel" data-painel="horarios" hidden>
+                <span class="rm-lbl">Horários de execução</span>
+                <div id="rm-ag-horarios"></div>
+                <div class="rm-painel-acoes"><button type="button" class="a-btn" id="rm-ag-horario-mais"><?php echo $ic('<path d="M12 5v14M5 12h14"></path>'); ?> Adicionar horário</button></div>
+            </div>
+            <div class="rm-painel" data-painel="a_cada" hidden>
+                <div class="rm-agenda-campos">
+                    <label class="a-fld"><span>A cada (horas)</span><input type="number" class="a-in" id="rm-ag-horas" min="3" max="168" step="1" value="6" inputmode="numeric"></label>
+                    <span></span>
+                    <label class="a-fld"><span>Primeiro envio: data</span><input type="date" class="a-in" id="rm-ag-cada-data" min="<?php echo date('Y-m-d'); ?>"></label>
+                    <label class="a-fld"><span>Primeiro envio: hora</span><input type="time" class="a-in" id="rm-ag-cada-hora"></label>
+                </div>
+            </div>
+            <div class="rm-painel" data-painel="semana" hidden>
+                <span class="rm-lbl">Dias da semana</span>
+                <div class="rm-dias" id="rm-ag-dias">
+                    <?php foreach (REMARKETING_DIAS_SEMANA as $i => $dia): ?><button type="button" class="rm-dia" data-dia="<?php echo $i; ?>" aria-pressed="false"><?php echo $dia; ?></button><?php endforeach; ?>
+                </div>
+                <label class="a-fld rm-hora-semana"><span>Horário de execução</span><input type="time" class="a-in" id="rm-ag-semana"></label>
+            </div>
+
+            <div class="rm-dica" id="rm-agenda-dica" role="status"><?php echo $ic('<circle cx="12" cy="12" r="9"></circle><path d="M12 8v5M12 16h.01"></path>'); ?><span id="rm-agenda-dica-txt"></span></div>
+            <p class="rm-nota">Um fluxo só envia remarketing a cada 3 horas, no mínimo. Campanhas de outros fluxos não são afetadas.</p>
+        </div>
+        <p class="a-mut" id="rm-agenda-so-parar" hidden>Esta campanha está sendo enviada agora e repete sozinha. Desativar a recorrência faz ela parar depois deste envio.</p>
+
+        <p class="rm-erro" id="rm-agenda-erro" hidden></p>
+        <div class="rm-modal-acoes">
+            <button type="button" class="a-btn dg rm-acao-esq" id="rm-agenda-parar" hidden>Desativar agendamento</button>
+            <button type="button" class="a-btn" id="rm-agenda-nao">Cancelar</button>
+            <button type="button" class="a-btn pri" id="rm-agenda-sim">Agendar</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script>if (window.CSRF_TOKEN) { $.ajaxSetup({ headers: { 'X-CSRF-Token': window.CSRF_TOKEN } }); }</script>
+<script src="assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/tema.js'); ?>"></script>
+<script src="assets/remarketing.js?v=<?php echo @filemtime(__DIR__ . '/assets/remarketing.js'); ?>"></script>
 </body>
 </html>

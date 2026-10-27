@@ -139,6 +139,11 @@ Com o painel em `/var/www/painel` e o PHP em `/usr/bin/php` (ajuste os dois cami
 15 4 * * *  /usr/bin/php /var/www/painel/cron/cron_rotacionar_logs.php    >/dev/null 2>&1
 ```
 
+**Avisos push (Pix gerado / Pix pago no celular):** o interruptor fica em Admin → Configurações → Notificações (desligado por padrão). Quem envia é `cron/push_worker.php`:
+- **VPS (recomendado):** serviço systemd `deploy/vps/painel-push.service` (envia em ~50 ms). Instale com `install -m 644 painel-push.service /etc/systemd/system/ && systemctl daemon-reload && systemctl enable --now painel-push`.
+- **Hospedagem sem systemd:** uma linha de cron a cada minuto, `php /caminho/do/site/cron/push_worker.php` (trabalha ~58 s e sai; tem trava contra sobreposição). Sem nenhum dos dois, o próprio site envia logo depois de responder (funciona, mas ocupa o PHP).
+- Precisa de `openssl` e `curl` no PHP; as tabelas `push_*` são criadas pelo instalador / "Atualizar Banco".
+
 O fuso do servidor deve ser `America/Sao_Paulo` (os crons já fixam isso no PHP, mas o
 MySQL usa o do sistema). Os próprios crons gravam seus logs em `logs/`.
 

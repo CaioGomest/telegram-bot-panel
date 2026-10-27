@@ -26,7 +26,6 @@ foreach ($ug as &$l) {
 unset($l);
 $out['usuarios_gateways'] = $ug;
 
-$out['usuarios_splits'] = $pdo->query("SELECT * FROM usuarios_splits WHERE id_usuario = $uid")->fetchAll();
 
 $cfg = $pdo->query("SELECT * FROM configuracoes")->fetchAll();
 $out['configuracoes_chaves'] = array_map(fn($r) => array_keys($r), array_slice($cfg, 0, 1));

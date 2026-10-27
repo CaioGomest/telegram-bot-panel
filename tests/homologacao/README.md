@@ -20,6 +20,7 @@ Valida na prática o **Fluxo Guiado** e o **Editor Visual (n8n)**, de ponta a po
 | `g5.sh` | Guiado: avisos de vencimento, remoção do grupo, carência, renovação manual |
 | `g6.sh` | Guiado (08/10/2026): bot sem permissão de banir no grupo (dono avisado 1x/dia, tenta de novo), texto do aviso quando o fluxo não remove do grupo, QR Code em foto e botão Copiar no Pix |
 | `g7.sh` | Operação em escala (08/10/2026): `leads.pagou` nos 3 caminhos de pagamento, aviso de venda sem grupo (1x/dia), token de bot recusado (401/404) avisa o dono, resumo do payload e rotação de logs |
+| `g11.sh` | Guiado (22/10/2026): **entrega por link, grupo ou nada** em plano, pack, Upsell e Downsell — venda grava `link_entrega`, mensagem de pagamento confirmado nos 3 caminhos (botão, webhook da Omega, cron), link inválido recusado ao salvar pela API, banco ainda sem a coluna. Precisa da migração (`vendas.link_entrega`) na cópia |
 | `v1.sh` | Visual: mensagem, imagem, documento, vídeo, áudio, link, grupo, botões, casos estranhos |
 | `v2.sh` | Visual: ofertas encadeadas e valor final do Pix, sorteio |
 | `v3.sh` | Visual: delay curto/médio/longo, retomada pela cron, cancelamento |
@@ -29,6 +30,8 @@ Valida na prática o **Fluxo Guiado** e o **Editor Visual (n8n)**, de ponta a po
 | `e2e.sh` | Jornada completa do Guiado e funil do Visual com 3 clientes + números das telas |
 | `ui/ui2.js`, `ui3.js`, `ui4.js` | Chrome de verdade: editor Guiado, editor Visual (arrasta os 13 blocos), lista de fluxos/bots/leads |
 | `ui_engine1.sh`, `ui_engine2.sh` | Roda no motor o fluxo que o editor salvou (id passado como argumento) |
+| `ui/plano_recolher.js` | **Guiado > Planos (22/10/2026)**: recolher/expandir cada plano pela seta ou pelo cabeçalho, resumo ao vivo, estado mantido ao adicionar/remover plano, celular. Usa o editor novo (não salva nada); precisa de um usuário comum (`HOMOLOG_EMAIL`, `HOMOLOG_SENHA`) — admin é redirecionado para o painel admin |
+| `ui/entrega_link.js` | **Guiado > Entrega (22/10/2026)**: cria um fluxo novo pela tela e confere o campo "Entrega" no plano, pack, Upsell e Downsell (Nenhum / grupos / Link, "Igual à do plano oferecido" nas ofertas), o campo do endereço, a recusa de link vazio/sem https/com espaço, salvar, reabrir, fluxo antigo (sem `entrega_tipo`) abrindo igual e celular. Precisa de um usuário comum com um bot que tenha 2 grupos em `bot_grupos` (`-1001000000001/2`) |
 | `ui/zero_guiado.js` | **Do zero (16/10/2026)**: Guiado criado na tela, como pessoa (digita, escolhe, envia mídia): as 11 seções, validações, limites (20 packs, 8 prévias), salvar, recarregar do banco e conferir que tudo voltou igual |
 | `ui/zero_visual.js` | **Do zero**: Visual criado na tela: os 13 tipos de bloco (18 blocos), campos digitados, mídias enviadas, 22 ligações por clique nos conectores, renomear/mover/excluir, salvar, recarregar, exportar e importar |
 | `ui/zero_lista.js` | **Do zero**: começar pela lista (escolha Guiado/Visual), importar e excluir pela lista, editor Visual no celular (toque) |

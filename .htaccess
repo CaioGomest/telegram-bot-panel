@@ -34,6 +34,10 @@ Options -Indexes
     Header always set Strict-Transport-Security "max-age=31536000"
     Header always unset X-Powered-By
     Header unset X-Powered-By
+    # Service worker dos avisos push: o navegador precisa buscar a versão nova a cada verificação (sem cache do servidor nem do CDN).
+    <Files "sw.js">
+        Header set Cache-Control "no-cache"
+    </Files>
 </IfModule>
 
 # Backups de deploy (x.php.bak-AAAAMMDD-HHMM) eram servidos como texto puro: o padrão antigo só
@@ -57,6 +61,9 @@ Options -Indexes
 
     # Pastas/arquivos de controle de versão (.git) nunca saem pela web. (Era <DirectoryMatch>, que o Apache recusa em .htaccess: erro 500.)
     RewriteRule (^|/)\.git(/|$) - [F,L]
+
+    # Manifest do app (avisos push no iPhone exigem o painel na Tela de Início): /manifest.webmanifest -> manifest.php (404 enquanto os avisos estão desligados).
+    RewriteRule ^manifest\.webmanifest$ /manifest.php [L]
 
     # Redirecionamento: /l/{slug} -> l.php (link público dos anúncios, sem login).
     RewriteRule ^l/([A-Za-z0-9-]{3,40})/?$ /l.php?s=$1 [L,QSA]

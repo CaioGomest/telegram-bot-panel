@@ -115,8 +115,9 @@ tabelas_do_banco() { sql "SELECT table_name FROM information_schema.tables WHERE
 
 # Classificação das tabelas (schema de 15/10/2026, 39 tabelas). Se aparecer tabela fora destas listas, os scripts PARAM e pedem que alguém classifique.
 TABELAS_MANTER=(usuarios gateways configuracoes comunidade_links campanhas_ranking campanhas_ranking_premios)
+# usuarios_splits e vendas_splits (split do InfoPago) foram removidas pelo Atualizar Banco em 25/10/2026; ficam nesta lista só para o reset não parar num banco que ainda não migrou (se não existirem, ele apenas avisa).
 TABELAS_APAGAR=(fluxos bots leads leads_starts vendas atividades bot_grupos membros_grupos avisos_assinatura_enviados fluxo_continuacoes
-  fluxo_ofertas_aceitas mensagens_agendadas previas_vistas usuarios_gateways usuarios_splits vendas_splits remarketing_campanhas remarketing_envios
+  fluxo_ofertas_aceitas mensagens_agendadas previas_vistas downsell_agenda order_bump_agenda usuarios_gateways usuarios_splits vendas_splits remarketing_campanhas remarketing_envios remarketing_vendas
   usuarios_traqueamento links_rastreamento stories stories_visualizacoes webhooks webhooks_envios tokens_email fila_emails email_envios
   limites_taxa tentativas_login ranking_cache metricas_horarias_admin metricas_horarias_usuario redirecionadores redirecionador_destinos
   redirecionador_cliques_dia)

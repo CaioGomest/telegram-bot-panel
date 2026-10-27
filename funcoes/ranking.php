@@ -107,6 +107,32 @@ function iniciaisRanking(string $nome_exibicao): string
 }
 
 /**
+ * Trecho de SELECT que traz a foto de perfil. Banco que ainda não rodou a migração da coluna `foto_perfil`
+ * devolve NULL (o avatar cai nas iniciais) em vez de derrubar o ranking inteiro. `$agregado` serve às
+ * consultas com GROUP BY, onde a coluna precisa de função de agregação.
+ */
+function colunaFotoRanking(bool $agregado = false): string
+{
+    if (!function_exists('colunaFotoPerfilDisponivel') || !colunaFotoPerfilDisponivel()) {
+        return 'NULL AS foto_perfil';
+    }
+    return $agregado ? 'MAX(u.foto_perfil) AS foto_perfil' : 'u.foto_perfil';
+}
+
+/**
+ * Avatar redondo de uma linha do ranking: a foto do usuário e, sem foto, as iniciais do apelido.
+ * Quem está no pódio (posição 1 a 3) ganha o aro de medalha (`m1` ouro, `m2` prata, `m3` bronze).
+ */
+function htmlAvatarRanking(array $linha, string $nome_exibicao, string $classe = 'av'): string
+{
+    $posicao = (int) ($linha['posicao'] ?? 0);
+    if ($posicao >= 1 && $posicao <= 3) {
+        $classe .= ' m' . $posicao;
+    }
+    return htmlAvatarUsuario(iniciaisRanking($nome_exibicao), (string) ($linha['foto_perfil'] ?? ''), $classe);
+}
+
+/**
  * Pódio (top 3), linhas 4–10 e a posição do usuário logado, todas lidas de
  * `ranking_cache` (join com `usuarios` só pro apelido público — nunca nome
  * real/e-mail aparecem nessa tela pros outros usuários verem).
@@ -116,8 +142,9 @@ function buscarRankingCampanha(int $campanha_id, int $usuario_atual_id, int $cor
     global $pdo;
     $corte = max(1, min(10, $corte));
 
+    $coluna_foto = colunaFotoRanking();
     $stmt = $pdo->prepare("
-        SELECT rc.posicao, rc.id_usuario, rc.faturamento, u.apelido_publico
+        SELECT rc.posicao, rc.id_usuario, rc.faturamento, u.apelido_publico, $coluna_foto
         FROM ranking_cache rc
         JOIN usuarios u ON u.id = rc.id_usuario
         WHERE rc.campanha_id = ?
@@ -137,7 +164,7 @@ function buscarRankingCampanha(int $campanha_id, int $usuario_atual_id, int $cor
     $total_participantes = (int) $stmt_total->fetchColumn();
 
     $stmt_eu = $pdo->prepare("
-        SELECT rc.posicao, rc.id_usuario, rc.faturamento, u.apelido_publico
+        SELECT rc.posicao, rc.id_usuario, rc.faturamento, u.apelido_publico, $coluna_foto
         FROM ranking_cache rc
         JOIN usuarios u ON u.id = rc.id_usuario
         WHERE rc.campanha_id = ? AND rc.id_usuario = ?
@@ -178,8 +205,9 @@ function buscarRankingMensal(int $usuario_atual_id, ?DateTime $referencia = null
     $vazio = ['top3' => [], 'linhas' => [], 'sua_posicao' => null, 'total_participantes' => 0, 'faturamento_lider' => null, 'faturamento_top5' => null];
 
     try {
+        $coluna_foto_agregada = colunaFotoRanking(true);
         $stmt = $pdo->prepare("
-            SELECT m.id_usuario, SUM(m.valor_pago) AS faturamento, MAX(u.apelido_publico) AS apelido_publico
+            SELECT m.id_usuario, SUM(m.valor_pago) AS faturamento, MAX(u.apelido_publico) AS apelido_publico, $coluna_foto_agregada
             FROM metricas_horarias_usuario m
             JOIN usuarios u ON u.id = m.id_usuario
             WHERE m.data BETWEEN ? AND ? AND u.perfil = 'usuario'
@@ -228,13 +256,15 @@ function buscarRankingMensal(int $usuario_atual_id, ?DateTime $referencia = null
                 ) t
             ");
             $stmt_pos->execute([$inicio, $fim, $meu_fat]);
-            $stmt_ap = $pdo->prepare("SELECT apelido_publico FROM usuarios WHERE id = ?");
+            $stmt_ap = $pdo->prepare("SELECT apelido_publico, " . colunaFotoRanking() . " FROM usuarios u WHERE u.id = ?");
             $stmt_ap->execute([$usuario_atual_id]);
+            $meus_dados = $stmt_ap->fetch(PDO::FETCH_ASSOC) ?: [];
             $sua_posicao = [
                 'posicao' => (int) $stmt_pos->fetchColumn() + 1,
                 'id_usuario' => $usuario_atual_id,
                 'faturamento' => $meu_fat,
-                'apelido_publico' => $stmt_ap->fetchColumn() ?: null,
+                'apelido_publico' => ($meus_dados['apelido_publico'] ?? '') ?: null,
+                'foto_perfil' => $meus_dados['foto_perfil'] ?? null,
             ];
         }
     } catch (\Throwable $e) {

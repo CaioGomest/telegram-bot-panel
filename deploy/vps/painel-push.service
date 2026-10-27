@@ -1,0 +1,28 @@
+# Serviço do trabalhador dos avisos push (Pix gerado / Pix pago). Plano: deploy/PLANO-PUSH-NOTIFICACOES.md.
+# Instalar (na VPS, como root):
+#   install -m 644 painel-push.service /etc/systemd/system/painel-push.service   (a pasta deploy/ não existe em /var/www/painel: copie este arquivo do repositório, ex. para /root/painel-src/deploy/vps/)
+#   systemctl daemon-reload && systemctl enable --now painel-push
+# Ver: systemctl status painel-push · journalctl -u painel-push -n 50 · tail /var/www/painel/logs/push_worker.log
+# Parar/ligar sem mexer no serviço: Admin → Configurações → Notificações (interruptor geral).
+[Unit]
+Description=Painel - avisos push (Pix gerado / Pix pago)
+After=network-online.target mariadb.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/painel
+ExecStart=/usr/bin/php /var/www/painel/cron/push_worker.php --loop
+Restart=always
+RestartSec=2
+# O site vence o trabalhador quando a CPU aperta.
+Nice=10
+MemoryMax=300M
+TimeoutStopSec=15
+NoNewPrivileges=true
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

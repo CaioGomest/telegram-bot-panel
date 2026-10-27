@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Minha Conta — Modelo A</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./mascote.css">
+<link rel="stylesheet" href="./modelo-a.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=JetBrains+Mono:wght@500;600&family=Manrope:wght@500;600;700;800&display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="a-app" data-tema="{{tema}}">
+<dc-import name="ShellA" tema="{{tema}}" ativa="conta" titulo="Minha Conta"></dc-import>
+<main class="a-main"><div class="a-wrap">
+
+<header class="a-ph">
+<div><h1 class="a-h1">Minha Conta</h1><p class="a-sub">Dados pessoais e senha.</p></div>
+</header>
+
+<div class="a-aviso2 ok" style="margin-bottom: 16px" role="status"><svg class="ic" aria-hidden="true"><use href="#i-check"/></svg>Alterações salvas com sucesso.</div>
+
+<div class="a-grid">
+
+<form class="a-card s6" action="#">
+<div class="a-ch"><h2>Dados pessoais</h2></div>
+<div class="a-foto">
+<label class="big" for="a-foto" title="Trocar foto" style="cursor: pointer">M</label>
+<div class="a-form" style="gap: 8px">
+<div class="a-acts"><label class="a-btn" for="a-foto" id="a-trocar-foto">Trocar foto</label><button class="a-btn" type="button">Remover</button></div>
+<span class="a-mut" style="font-size: 12.5px">JPG, PNG ou WebP. Máximo 2 MB.</span>
+</div>
+<input id="a-foto" class="a-cb" type="file" accept="image/jpeg,image/png,image/webp">
+</div>
+<div class="a-form">
+<label class="a-fld"><span>Nome completo</span><input class="a-in" type="text" name="nome" value="Marina Alves" required></label>
+<label class="a-fld"><span>E-mail</span><input class="a-in" type="email" name="email" value="marina@exemplo.com.br" required></label>
+<label class="a-fld"><span>Apelido no Ranking</span><input class="a-in" type="text" name="apelido_publico" maxlength="40" placeholder="Ex: @seuapelido"><small>Nome que os outros usuários veem.</small></label>
+<div class="a-acts" style="justify-content: flex-end"><button class="a-btn pri" type="button">Salvar alterações</button></div>
+</div>
+</form>
+
+<form class="a-card s6" action="#">
+<div class="a-ch"><h2>Segurança</h2></div>
+<div class="a-form">
+<label class="a-fld"><span>Senha atual</span><input class="a-in" type="password" name="senha_atual" autocomplete="current-password" placeholder="Necessária só pra trocar a senha"></label>
+<label class="a-fld"><span>Nova senha</span><input class="a-in" type="password" name="senha" autocomplete="new-password" placeholder="Mínimo de 6 caracteres"><small>Deixe em branco para manter a senha atual.</small></label>
+<label class="a-fld"><span>Confirmar senha</span><input class="a-in" type="password" name="confirmar_senha" autocomplete="new-password" placeholder="Repita a nova senha"></label>
+<div class="a-acts" style="justify-content: flex-end"><button class="a-btn" type="button">Atualizar senha</button></div>
+</div>
+</form>
+
+<a class="a-tl s6" href="#"><svg class="ic" aria-hidden="true"><use href="#i-gateways"/></svg>Gateways de pagamento<svg class="ic go" aria-hidden="true"><use href="#i-dir"/></svg></a>
+<a class="a-tl er s6" href="#"><svg class="ic" aria-hidden="true"><use href="#i-sair"/></svg>Sair da conta<svg class="ic go" aria-hidden="true"><use href="#i-dir"/></svg></a>
+
+</div>
+
+</div></main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"tema":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+renderVals() {
+return {
+tema: this.props.tema ?? 'dark'
+};
+}
+}
+</script>
+</body>
+</html>

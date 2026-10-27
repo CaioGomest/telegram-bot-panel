@@ -9,6 +9,8 @@ require_once __DIR__ . '/funcoes/execucao_fluxo.php';
 require_once __DIR__ . '/funcoes/previas.php';
 require_once __DIR__ . '/funcoes/packs.php';
 require_once __DIR__ . '/funcoes/assinatura.php';
+require_once __DIR__ . '/funcoes/guiado_ofertas.php';
+require_once __DIR__ . '/funcoes/remarketing_ofertas.php';
 function buscarProximoDoInicio(array $dados): ?string
 {
     $operadores = $dados['operators'] ?? [];
@@ -216,6 +218,11 @@ if (strpos($texto, 'btn::') === 0) {
     }
     exit;
 }
+if (strpos($texto, 'rmk::') === 0) {
+    // Clique em botão de campanha de remarketing ("rmk::<campanha>::<plano>::<variante>"): plano, order bump (se a campanha tiver) e Pix. Ver funcoes/remarketing_ofertas.php.
+    tratarCliqueRemarketing($pdo, $token, $bot, (string) $id_chat, $texto);
+    exit;
+}
 if (strpos($texto, 'verificar_pagamento_') === 0) {
     $txid = str_replace('verificar_pagamento_', '', $texto);
     try {
@@ -275,7 +282,7 @@ if (strpos($texto, 'verificar_pagamento_') === 0) {
                         ];
                         $user_data_manual = montarUserDataTraqueamento($pdo, $venda['id_telegram'], $venda['bot_id']);
                         // Mesmo registro que o webhook da gateway faz: aparece em Atividade/notificações do dono.
-                        registrarAtividade((int)$id_usuario_dono, 'venda', 'Venda Aprovada', 'PIX R$ ' . number_format((float)$venda['valor'], 2, ',', '.') . ' pago (confirmado pelo cliente, identificador=' . $txid . ').');
+                        registrarAtividade((int)$id_usuario_dono, 'venda', 'Venda Aprovada', 'PIX de R$ ' . number_format((float)$venda['valor'], 2, ',', '.') . ' foi pago.');
 
                         enviarEventosTraqueamento((int)$id_usuario_dono, 'compra', $dados_evento_manual, $user_data_manual);
                         dispararWebhooks((int)$id_usuario_dono, 'payment_approved', [
@@ -290,6 +297,7 @@ if (strpos($texto, 'verificar_pagamento_') === 0) {
                          $msg = $texto_confirmado !== null
                              ? escaparMarkdownTelegram($texto_confirmado)
                              : "✅ *Pagamento Confirmado!*\n\nObrigado pela sua compra.";
+                        $link_aprovado = null;   // link do grupo desta venda (para a mensagem da aba Pagamentos, modelo novo)
                         if (!empty($venda['id_grupo_telegram'])) {
                             $id_grupo = $venda['id_grupo_telegram'];
                             // Usa a mesma lógica de cálculo de minutos que foi usada na criação da venda
@@ -330,6 +338,7 @@ if (strpos($texto, 'verificar_pagamento_') === 0) {
                                 'name' => 'Venda #' . $venda['id']
                             ]);
                             $link = (($invite['ok'] ?? false) && isset($invite['result']['invite_link'])) ? $invite['result']['invite_link'] : null;
+                            $link_aprovado = $link;
 
                             // Roda incondicionalmente -- mesmo se a criação do link falhar (Telegram
                             // fora do ar, bot sem permissão, etc.), a venda já foi marcada 'pago' e não
@@ -368,8 +377,14 @@ if (strpos($texto, 'verificar_pagamento_') === 0) {
                                 $msg .= "\n\n⚠️ Não foi possível gerar o link do grupo automaticamente. O administrador entrará em contato.";
                             }
                         }
-                        requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => $msg, 'parse_mode' => 'Markdown']);
-                        
+                        // Guiado no modelo novo da aba Pagamentos: mensagem, mídias e botão de acesso escolhidos pelo dono (funcoes/pagamentos_guiado.php);
+                        // qualquer outro caso (Editor Visual, fluxo antigo, renovação) segue com o texto de sempre.
+                        if (!pagamentoEnviarAprovacao($pdo, $token, $venda, $link_aprovado, !empty($venda['id_grupo_telegram']) && $link_aprovado === null, (int) ($minutos_acesso ?? 0))) {
+                            $msg .= textoEntregaLink($venda, 'markdown');   // Fluxo Guiado com entrega por link
+                            requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => $msg, 'parse_mode' => 'Markdown']);
+                        }
+                        ofertasPosPagamentoBasico($pdo, $token, $venda);   // Guiado: Upsell/Order Bump DEPOIS de pagar
+
                         // Atualização: Verifica se já foi processado para evitar duplicidade no fluxo
                         // Se for uma renovação (tem venda_pai_id ou foi gerado via cron), o fluxo já pode ter sido processado ou não se aplica.
                         // Mas aqui estamos falando do fluxo principal.
@@ -526,106 +541,6 @@ if ($texto === '/start') {
  * como null), então a confirmação de pagamento entrega o acesso normalmente sem tentar
  * continuar um grafo que não existe.
  */
-/**
- * Cache de mídia: o Telegram só aceita upload "do zero" no primeiro envio; depois reaproveita o
- * file_id. Quando o fluxo tem um canal/grupo de cache, a mídia sobe uma vez pra lá, o file_id fica
- * guardado em storage/cache_midia.json (chave = bot + arquivo + data de modificação, então trocar a
- * mídia gera um file_id novo) e os envios seguintes pros leads usam só o file_id.
- */
-function obterFileIdCacheMidia(string $token, string $id_cache, string $metodo, string $campo, string $caminho): ?string {
-    $arquivo_cache = __DIR__ . '/storage/cache_midia.json';
-    $chave = sha1($token . '|' . $id_cache . '|' . $caminho . '|' . (string) @filemtime($caminho));
-    $mapa = is_file($arquivo_cache) ? (json_decode((string) file_get_contents($arquivo_cache), true) ?: []) : [];
-    if (!empty($mapa[$chave])) {
-        return (string) $mapa[$chave];
-    }
-    $resposta = requisicaoTelegram($token, $metodo, ['chat_id' => $id_cache], [$campo => $caminho]);
-    $resultado = $resposta['result'] ?? [];
-    $file_id = $campo === 'photo' ? (end($resultado['photo'])['file_id'] ?? null) : ($resultado['video']['file_id'] ?? null);
-    if (!$file_id) {
-        return null;
-    }
-    $mapa[$chave] = $file_id;
-    @file_put_contents($arquivo_cache, json_encode($mapa), LOCK_EX);
-    return $file_id;
-}
-/**
- * Mensagem do modo Guiado (boas-vindas e ofertas) com foto ou vídeo opcional. Com mídia, o texto vai na legenda junto com o teclado; legenda
- * aceita no máximo 1024 caracteres, então acima disso a mídia vai sozinha e o texto (com o teclado) segue numa mensagem normal (até 4096).
- * Mídia que sumiu do servidor ou que o Telegram recusa: o lead não pode ficar sem a mensagem e sem os botões, então o texto vai mesmo assim.
- */
-function enviarMensagemComMidiaBasico(string $token, $id_chat, string $mensagem, string $teclado, string $midia_tipo, string $midia_bruta, string $id_cache = ''): void {
-    $midia_path = resolverCaminhoUploadSeguro($midia_bruta);
-    $botoes = $teclado !== '' ? ['reply_markup' => $teclado] : [];  // teclado vazio = mensagem sem botão (Boas-vindas com o CTA desligado)
-    if (in_array($midia_tipo, ['image', 'video'], true) && $midia_path) {
-        $metodo = $midia_tipo === 'image' ? 'sendPhoto' : 'sendVideo';
-        $campo = $midia_tipo === 'image' ? 'photo' : 'video';
-        $legenda_cabe = mb_strlen($mensagem) <= 1024;
-        $parametros = $legenda_cabe ? ['chat_id' => $id_chat, 'caption' => $mensagem] + $botoes : ['chat_id' => $id_chat];
-        $file_id = $id_cache !== '' ? obterFileIdCacheMidia($token, $id_cache, $metodo, $campo, $midia_path) : null;
-        $enviou = false;
-        if ($file_id) {
-            $resposta = requisicaoTelegram($token, $metodo, $parametros + [$campo => $file_id]);
-            $enviou = (bool) ($resposta['ok'] ?? false);
-        }
-        if (!$enviou) {
-            $resposta_envio = requisicaoTelegram($token, $metodo, $parametros, [$campo => $midia_path]);
-            $enviou = (bool) ($resposta_envio['ok'] ?? false);
-        }
-        if (!$enviou) {
-            requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => mb_substr($mensagem, 0, 4096)] + $botoes);
-            return;
-        }
-        if (!$legenda_cabe) {
-            requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => mb_substr($mensagem, 0, 4096)] + $botoes);
-        }
-        return;
-    }
-    requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => mb_substr($mensagem, 0, 4096)] + $botoes);
-}
-/** O botão CTA das boas-vindas é opcional ("mostrar_cta"); fluxo antigo, sem o campo, continua com o botão. */
-function boasVindasMostraCtaBasico(array $boas_vindas): bool {
-    return ($boas_vindas['mostrar_cta'] ?? true) !== false;
-}
-function enviarBoasVindasBasico(string $token, $id_chat, array $boas_vindas, string $id_cache = ''): void {
-    $mensagem = trim((string) ($boas_vindas['mensagem'] ?? '')) ?: 'Bem-vindo(a)!';
-    $texto_cta = trim((string) ($boas_vindas['texto_cta'] ?? '')) ?: 'Ver Planos';
-    $teclado = boasVindasMostraCtaBasico($boas_vindas)
-        ? json_encode(['inline_keyboard' => [[['text' => $texto_cta, 'callback_data' => 'basico::ver_planos'] + estiloBotaoBasicoValor((string) ($boas_vindas['cor_cta'] ?? ''))]]])
-        : '';
-    enviarMensagemComMidiaBasico($token, $id_chat, $mensagem, $teclado, (string) ($boas_vindas['midia_tipo'] ?? 'none'), (string) ($boas_vindas['midia_path'] ?? ''), $id_cache);
-}
-/**
- * Cor por botão (não mais uma cor "geral" por papel): cada plano, cada oferta e o CTA de
- * boas-vindas/suporte guardam o próprio valor de cor dentro do próprio registro
- * (plano['cor'], oferta['cor_aceitar'/'cor_recusar'], etc.), em vez de um mapa único de
- * papel->cor compartilhado por todos os botões daquele papel.
- */
-function estiloBotaoBasicoValor(string $valor): array {
-    return in_array($valor, ['primary', 'success', 'danger'], true) ? ['style' => $valor] : [];
-}
-function urlSuporteBasico(string $suporte): string {
-    $usuario = ltrim(trim($suporte), '@');
-    $usuario = preg_replace('#^(https?://)?(t\.me|telegram\.me)/#i', '', $usuario);
-    return preg_match('/^[A-Za-z0-9_]{4,32}$/', (string) $usuario) ? 'https://t.me/' . $usuario : '';
-}
-/** Periodicidades da assinatura recorrente (Pix recorrente nativo do gateway) aceitas num plano do Guiado, com o sufixo mostrado no botão. */
-const PERIODICIDADES_BASICO = ['semanal' => '/semana', 'mensal' => '/mês', 'trimestral' => '/trimestre', 'semestral' => '/semestre', 'anual' => '/ano'];
-function planoRecorrenteBasico(?array $plano): bool {
-    return $plano !== null && ($plano['cobranca'] ?? 'unica') === 'recorrente';
-}
-function periodicidadePlanoBasico(array $plano): string {
-    $p = strtolower((string) ($plano['periodicidade'] ?? 'mensal'));
-    return isset(PERIODICIDADES_BASICO[$p]) ? $p : 'mensal';
-}
-function localizarPlanoBasico(array $planos, string $id_plano): ?array {
-    foreach ($planos as $p) {
-        if ((string) ($p['id'] ?? '') === $id_plano) {
-            return $p;
-        }
-    }
-    return null;
-}
 function enviarListaPlanosBasico(string $token, $id_chat, array $planos, string $suporte = '', string $cor_suporte = '', array $previas = [], array $dados_packs = []): void {
     if (empty($planos)) {
         requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Nenhum plano disponível no momento.']);
@@ -658,36 +573,7 @@ function enviarListaPlanosBasico(string $token, $id_chat, array $planos, string 
  * Ordem: upsell -> downsell (só se recusou o upsell ou não há upsell) -> order bump -> Pix.
  * Variante do plano final: o = escolhido, u = destino do upsell, d = destino do downsell.
  */
-function planoDaOfertaBasico(array $dados_basico, string $tipo): ?array {
-    $oferta = $dados_basico['ofertas'][$tipo] ?? [];
-    if (empty($oferta['ativo'])) {
-        return null;
-    }
-    return localizarPlanoBasico($dados_basico['planos'] ?? [], (string) ($oferta['id_plano_destino'] ?? ''));
-}
 /** Upsell, downsell e order bump: texto + botões Aceitar/Recusar e, se a oferta tiver, foto ou vídeo (mesma regra das boas-vindas). */
-/**
- * Downsell no formato novo: sem botões Aceitar/Recusar, o cliente vê um botão para cada plano que o dono marcou (ofertas.downsell.planos_oferecidos).
- * Devolve os planos marcados que ainda existem, com a POSIÇÃO de cada um na lista salva como chave (a posição vai no callback_data: "p<posição>").
- * Fluxo antigo (id_plano_destino + Aceitar/Recusar, sem planos_oferecidos): devolve [] e segue o caminho antigo (downsellNovoFormatoBasico = false).
- */
-function downsellNovoFormatoBasico(array $dados_basico): bool {
-    return is_array($dados_basico['ofertas']['downsell']['planos_oferecidos'] ?? null);
-}
-function planosDoDownsellBasico(array $dados_basico): array {
-    $oferta = $dados_basico['ofertas']['downsell'] ?? [];
-    if (empty($oferta['ativo']) || !downsellNovoFormatoBasico($dados_basico)) {
-        return [];
-    }
-    $planos = [];
-    foreach (array_values($oferta['planos_oferecidos']) as $posicao => $id) {
-        $plano = localizarPlanoBasico($dados_basico['planos'] ?? [], (string) $id);
-        if ($plano) {
-            $planos[$posicao] = $plano;
-        }
-    }
-    return $planos;
-}
 /** Plano final de quem aceitou o downsell: variante "d<posição>" (novo) ou "d" (formato antigo, 1 plano). */
 function planoDoDownsellPorVariante(array $dados_basico, string $variante): ?array {
     if ($variante === 'd') {
@@ -698,40 +584,21 @@ function planoDoDownsellPorVariante(array $dados_basico, string $variante): ?arr
     }
     return null;
 }
-function enviarDownsellBasico(string $token, $id_chat, array $dados_basico, array $planos, string $id_plano_original, string $id_cache = ''): void {
-    $oferta = $dados_basico['ofertas']['downsell'] ?? [];
-    $desconto = max(0.0, min(100.0, (float) ($oferta['desconto_percentual'] ?? 0)));
-    $mensagem = trim((string) ($oferta['mensagem'] ?? '')) ?: (count($planos) > 1 ? 'Que tal uma destas opções?' : 'Que tal esta opção?');
-    $botoes = [];
-    foreach ($planos as $posicao => $plano) {
-        $valor = round((float) ($plano['valor'] ?? 0) * (1 - $desconto / 100), 2);
-        $rotulo = trim((string) ($plano['nome'] ?? 'Plano')) . ' — R$ ' . number_format($valor, 2, ',', '.') . (planoRecorrenteBasico($plano) ? PERIODICIDADES_BASICO[periodicidadePlanoBasico($plano)] : '')
-            . ($desconto > 0 ? ' (-' . rtrim(rtrim(number_format($desconto, 2, ',', ''), '0'), ',') . '%)' : '');
-        $botoes[] = [['text' => $rotulo, 'callback_data' => 'basico::of::dn::' . $id_plano_original . '::p' . $posicao] + estiloBotaoBasicoValor((string) ($plano['cor'] ?? ''))];
-    }
-    enviarMensagemComMidiaBasico($token, $id_chat, $mensagem, json_encode(['inline_keyboard' => $botoes]), (string) ($oferta['midia_tipo'] ?? 'none'), (string) ($oferta['midia_path'] ?? ''), $id_cache);
-}
-function enviarOfertaBasico(string $token, $id_chat, array $oferta, string $prefixo_callback, string $texto_padrao, string $id_cache = '', bool $permite_esconder_recusar = false): void {
-    $mensagem = trim((string) ($oferta['mensagem'] ?? '')) ?: $texto_padrao;
-    $aceitar = trim((string) ($oferta['texto_aceitar'] ?? '')) ?: 'Sim, quero!';
-    $recusar = trim((string) ($oferta['texto_recusar'] ?? '')) ?: 'Não, obrigado';
-    $botoes = [['text' => $aceitar, 'callback_data' => $prefixo_callback . '::1'] + estiloBotaoBasicoValor((string) ($oferta['cor_aceitar'] ?? ''))];
-    // Só o Upsell pode esconder o botão Recusar (no Downsell e no Order Bump o cliente ficaria sem como seguir para o Pix).
-    if (!($permite_esconder_recusar && !empty($oferta['esconder_recusar']))) {
-        $botoes[] = ['text' => $recusar, 'callback_data' => $prefixo_callback . '::0'] + estiloBotaoBasicoValor((string) ($oferta['cor_recusar'] ?? ''));
-    }
-    $teclado = json_encode(['inline_keyboard' => [$botoes]]);
-    enviarMensagemComMidiaBasico($token, $id_chat, $mensagem, $teclado, (string) ($oferta['midia_tipo'] ?? 'none'), (string) ($oferta['midia_path'] ?? ''), $id_cache);
-}
-function gerarPixBasico(string $token, $id_chat, array $dados_basico, string $id_plano, string $variante, bool $com_bump): void {
+/**
+ * $item_order_bump: um item da sequência de Order Bumps (ofertas.order_bump.itens) aceito pelo cliente; sem ele, o bump é o próprio ofertas.order_bump (jeito antigo).
+ * $agendar_ofertas: false no Pix de quem aceitou um bump da sequência (não recomeça downsell nem order bump: sem laço).
+ */
+function gerarPixBasico(string $token, $id_chat, array $dados_basico, string $id_plano, string $variante, bool $com_bump, ?array $item_order_bump = null, bool $agendar_ofertas = true): void {
     $pagamentos = $dados_basico['pagamentos'] ?? [];
     $plano = localizarPlanoBasico($dados_basico['planos'] ?? [], $id_plano);
     $desconto = 0.0;
+    $tipo_oferta = '';   // 'upsell' / 'downsell' quando o cliente aceitou uma oferta (a entrega pode ser da oferta); '' = plano escolhido direto
     if ($variante === 'u' || preg_match('/^d\d*$/', $variante)) {
         $tipo = $variante === 'u' ? 'upsell' : 'downsell';
         $destino = $tipo === 'upsell' ? planoDaOfertaBasico($dados_basico, 'upsell') : planoDoDownsellPorVariante($dados_basico, $variante);
         if ($destino) {
             $plano = $destino;
+            $tipo_oferta = $tipo;
             $desconto = max(0.0, min(100.0, (float) ($dados_basico['ofertas'][$tipo]['desconto_percentual'] ?? 0)));
         }
     }
@@ -746,12 +613,14 @@ function gerarPixBasico(string $token, $id_chat, array $dados_basico, string $id
     }
     $nome = (string) ($plano['nome'] ?? 'Produto');
     $recorrente = planoRecorrenteBasico($plano);
-    $bump = $dados_basico['ofertas']['order_bump'] ?? [];
+    $bump = $item_order_bump !== null ? $item_order_bump + ['ativo' => true] : ($dados_basico['ofertas']['order_bump'] ?? []);
     // Assinatura recorrente: o extra do order bump seria cobrado em todo ciclo, então não é aplicado.
     if ($com_bump && !$recorrente && !empty($bump['ativo'])) {
         $valor = round($valor + max(0.0, (float) ($bump['valor_extra'] ?? 0)), 2);
         $nome .= ' + ' . (trim((string) ($bump['nome'] ?? '')) ?: 'Extra');
     }
+    // Upsell/Downsell aceitos podem ter entrega própria; sem ela (ou "igual ao plano") vale a entrega do plano.
+    $entrega = entregaDoItemBasico($tipo_oferta !== '' ? ($dados_basico['ofertas'][$tipo_oferta] ?? []) : $plano, $tipo_oferta !== '' ? $plano : null);
     $propriedades_sinteticas = [
         'type' => 'pix',
         'nome' => $nome,
@@ -762,30 +631,33 @@ function gerarPixBasico(string $token, $id_chat, array $dados_basico, string $id
         'expiracao_minutos' => 15,
         'dias_acesso' => (int) ($plano['dias_acesso'] ?? 30),
         'unidade_acesso' => $plano['unidade_acesso'] ?? 'dias',
-        'id_grupo' => $plano['id_grupo'] ?? '',
-        'mostrar_copiar' => $pagamentos['mostrar_copiar'] ?? true,
-        'mostrar_qrcode' => !empty($pagamentos['qrcode_definido']) ? !empty($pagamentos['mostrar_qrcode']) : true,
-        'mostrar_confirmar' => $pagamentos['mostrar_confirmar'] ?? true,
-        'msg_instrucoes' => $pagamentos['msg_instrucoes'] ?? '',
-        'msg_confirmado' => $pagamentos['msg_confirmado'] ?? '',
-    ];
+        'id_grupo' => $entrega['id_grupo'],
+        'link_entrega' => $entrega['link_entrega'],
+        // Aba Pagamentos do Guiado: os campos de sempre e, no modelo novo, a configuração completa (funcoes/pagamentos_guiado.php).
+    ] + propriedadesPagamentoBasico($pagamentos);
+    $GLOBALS['ultima_venda_pix_id'] = 0;
     processarEEnviarBloco($token, $id_chat, ['properties' => $propriedades_sinteticas], '');
+    if ($tipo_oferta === '' && $agendar_ofertas && !empty($GLOBALS['ultima_venda_pix_id'])) {
+        // Downsell com temporizador e sequência de Order Bumps: o Pix do plano escolhido já saiu; se o lead não pagar, o cron manda as ofertas (funcoes/guiado_ofertas.php).
+        garantirConexaoBanco();
+        agendarDownsellBasico($GLOBALS['pdo'], (int) $GLOBALS['bot']['id'], (string) $id_chat, (int) $GLOBALS['ultima_venda_pix_id'], $id_plano, $dados_basico);
+        agendarOrderBumpsBasico($GLOBALS['pdo'], (int) $GLOBALS['bot']['id'], (string) $id_chat, (int) $GLOBALS['ultima_venda_pix_id'], $id_plano, $dados_basico);
+    }
 }
 function avancarOfertasBasico(string $token, $id_chat, array $dados_basico, string $etapa, string $id_plano, string $variante = 'o'): void {
     $ofertas = $dados_basico['ofertas'] ?? [];
     $id_cache = (string) ($dados_basico['cache_chat_id'] ?? '');  // canal/grupo de cache das mídias (mesmo das boas-vindas)
     if ($etapa === 'up') {
-        $destino = planoDaOfertaBasico($dados_basico, 'upsell');
-        if ($destino && (string) $destino['id'] !== $id_plano) {
-            enviarOfertaBasico($token, $id_chat, $ofertas['upsell'], 'basico::of::up::' . $id_plano, 'Quer fazer um upgrade para ' . ($destino['nome'] ?? 'outro plano') . '?', $id_cache, true);
-            return;
-        }
+        // Upsell agora é oferecido DEPOIS do pagamento (ofertasPosPagamentoBasico, funcoes/guiado_ofertas.php); antes do Pix o cliente vai direto ao que escolheu.
         $etapa = 'dn';
+    }
+    if ($etapa === 'dn' && downsellDepoisDoPixBasico($dados_basico)) {
+        $etapa = 'bp';   // downsell com temporizador: não entra no lugar do Pix, sai depois dele se o lead não pagar (agendado em gerarPixBasico)
     }
     if ($etapa === 'dn') {
         if (downsellNovoFormatoBasico($dados_basico)) {
             // Formato novo: um botão por plano marcado (o plano que o cliente já escolheu não é repetido). Sem plano sobrando, pula o downsell.
-            $candidatos = array_filter(planosDoDownsellBasico($dados_basico), function ($p) use ($id_plano) { return (string) ($p['id'] ?? '') !== $id_plano; });
+            $candidatos = planosDoDownsellSemOEscolhidoBasico($dados_basico, $id_plano);
             if ($candidatos) {
                 enviarDownsellBasico($token, $id_chat, $dados_basico, $candidatos, $id_plano, $id_cache);
                 return;
@@ -799,7 +671,8 @@ function avancarOfertasBasico(string $token, $id_chat, array $dados_basico, stri
         }
         $etapa = 'bp';
     }
-    if ($etapa === 'bp') {
+    if ($etapa === 'bp' && $variante === 'ofertaantiga') {
+        // (mantido só para botões de order bump de mensagens antigas, ver o tratamento de "basico::of::bp::" abaixo; o bump novo é oferecido depois do pagamento)
         $bump = $ofertas['order_bump'] ?? [];
         $plano_final = $variante === 'u' ? planoDaOfertaBasico($dados_basico, 'upsell') : (strpos($variante, 'd') === 0 ? planoDoDownsellPorVariante($dados_basico, $variante) : localizarPlanoBasico($dados_basico['planos'] ?? [], $id_plano));
         if (!planoRecorrenteBasico($plano_final) && !empty($bump['ativo']) && (float) ($bump['valor_extra'] ?? 0) > 0) {
@@ -867,6 +740,35 @@ function executarFluxoBasico(string $token, $id_chat, array $dados_basico, strin
         avancarOfertasBasico($token, $id_chat, $dados_basico, 'up', $id_plano_escolhido);
         return;
     }
+    if (strpos($texto, 'basico::bs::') === 0) {
+        // Order Bump da sequência (Pix não pago): "basico::bs::<id do plano>::<posição do bump>::1|0". Aceitar gera um Pix novo com plano + extra e encerra a sequência.
+        $partes = explode('::', substr($texto, strlen('basico::bs::')));
+        if (($partes[2] ?? '') !== '1') {
+            requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Tudo bem! 🙌']);
+            return;
+        }
+        $id_plano_bump = (string) ($partes[0] ?? '');
+        $plano_bump = localizarPlanoBasico($planos, $id_plano_bump);
+        $item_bump = orderBumpDepoisDoPixBasico($dados_basico) ? (itensOrderBumpBasico($dados_basico)[(int) ($partes[1] ?? -1)] ?? null) : null;
+        if (!$plano_bump || !$item_bump || planoRecorrenteBasico($plano_bump)) {
+            requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Essa oferta não está mais disponível.']);
+            return;
+        }
+        garantirConexaoBanco();
+        cancelarOrderBumpsDoLeadBasico($GLOBALS['pdo'], (int) $GLOBALS['bot']['id'], (string) $id_chat);
+        gerarPixBasico($token, $id_chat, $dados_basico, $id_plano_bump, 'o', true, $item_bump, false);
+        return;
+    }
+    if (strpos($texto, 'basico::pos::') === 0) {
+        // Oferta DEPOIS do pagamento: "basico::pos::up::<id do plano de destino>::1|0" (upsell) ou "basico::pos::bp::0::1|0" (order bump).
+        $partes = explode('::', substr($texto, strlen('basico::pos::')));
+        if (($partes[2] ?? '') === '1') {
+            gerarPixOfertaPosBasico($token, $id_chat, $dados_basico, (string) ($partes[0] ?? ''), (string) ($partes[1] ?? ''));
+        } else {
+            requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Tudo bem! Obrigado pela sua compra. 🙌']);
+        }
+        return;
+    }
     if (strpos($texto, 'basico::of::') === 0) {
         $partes = explode('::', substr($texto, strlen('basico::of::')));
         $etapa = $partes[0] ?? '';
@@ -882,6 +784,7 @@ function executarFluxoBasico(string $token, $id_chat, array $dados_basico, strin
                     requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Essa opção não está mais disponível. Toque em "Ver Planos" de novo.']);
                     return;
                 }
+                cancelarDownsellsDoLeadBasico($GLOBALS['pdo'], (int) $GLOBALS['bot']['id'], (string) $id_chat);   // ele respondeu à oferta: encerra as repetições do temporizador
                 avancarOfertasBasico($token, $id_chat, $dados_basico, 'bp', $id_plano, 'd' . (int) $m[1]);
             } else {
                 // formato antigo (botões Aceitar/Recusar de mensagens já enviadas)

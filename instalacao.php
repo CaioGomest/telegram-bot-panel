@@ -173,9 +173,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ja_instalado) {
             criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
             pago_em DATETIME NULL,
             comissao_admin DECIMAL(10,2) DEFAULT 0.00,
-            split_status ENUM('sem_split', 'sem_credenciais', 'pago', 'falhou', 'parcial') DEFAULT NULL,
-            split_valor DECIMAL(10,2) DEFAULT NULL,
-            split_em DATETIME DEFAULT NULL,
             tipo_cobranca ENUM('unica', 'assinatura', 'recorrente') DEFAULT 'unica',
             status_renovacao ENUM('pendente', 'renovada', 'cancelada') DEFAULT 'pendente',
             venda_pai_id INT DEFAULT NULL,
@@ -184,6 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ja_instalado) {
             ultimo_txid_renovacao VARCHAR(255) DEFAULT NULL,
             id_fluxo INT DEFAULT NULL,
             nome_produto VARCHAR(150) DEFAULT NULL,
+            link_entrega VARCHAR(500) DEFAULT NULL,
             FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE SET NULL,
             UNIQUE INDEX idx_transacao_id (transacao_id),
             INDEX idx_id_assinatura (id_assinatura),
@@ -277,6 +275,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ja_instalado) {
             FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
+        // Avisos push (Web Push) de Pix gerado e Pix pago — plano em deploy/PLANO-PUSH-NOTIFICACOES.md. Fila e aparelhos; interruptor geral em configuracoes.push_ativo (padrão desligado).
+        $pdo->exec("CREATE TABLE IF NOT EXISTS push_inscricoes (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            id_usuario INT NOT NULL,
+            endpoint_hash CHAR(64) NOT NULL,
+            endpoint VARCHAR(600) NOT NULL,
+            p256dh VARCHAR(100) NOT NULL,
+            auth VARCHAR(40) NOT NULL,
+            plataforma ENUM('ios','android','desktop','outro') NOT NULL DEFAULT 'outro',
+            apelido VARCHAR(80) NOT NULL DEFAULT '',
+            pref_pix_gerado TINYINT(1) NOT NULL DEFAULT 1,
+            pref_pix_pago TINYINT(1) NOT NULL DEFAULT 1,
+            ativo TINYINT(1) NOT NULL DEFAULT 1,
+            falhas_seguidas SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+            primeira_falha_em DATETIME NULL,
+            ultimo_envio_ok DATETIME NULL,
+            ultimo_visto DATETIME NULL,
+            ultimo_aviso_gerado_em DATETIME NULL,
+            criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_push_endpoint (endpoint_hash),
+            KEY idx_push_usuario (id_usuario, ativo),
+            FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+        $pdo->exec("CREATE TABLE IF NOT EXISTS push_fila (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            id_inscricao BIGINT UNSIGNED NOT NULL,
+            tipo TINYINT UNSIGNED NOT NULL,
+            id_venda INT NOT NULL,
+            estado ENUM('pendente','enviando') NOT NULL DEFAULT 'pendente',
+            tentativas TINYINT UNSIGNED NOT NULL DEFAULT 0,
+            disponivel_em DATETIME NOT NULL,
+            expira_em DATETIME NOT NULL,
+            reservado_ate DATETIME NULL,
+            lote CHAR(16) NULL,
+            criado_em DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+            UNIQUE KEY uq_push_item (id_inscricao, tipo, id_venda),
+            KEY idx_push_pronto (estado, disponivel_em, id),
+            KEY idx_push_lote (lote),
+            FOREIGN KEY (id_inscricao) REFERENCES push_inscricoes(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+        $pdo->exec("CREATE TABLE IF NOT EXISTS push_metricas_hora (
+            hora DATETIME NOT NULL PRIMARY KEY,
+            enviados INT UNSIGNED NOT NULL DEFAULT 0,
+            falhas_temporarias INT UNSIGNED NOT NULL DEFAULT 0,
+            inscricoes_removidas INT UNSIGNED NOT NULL DEFAULT 0,
+            descartados INT UNSIGNED NOT NULL DEFAULT 0,
+            agrupados INT UNSIGNED NOT NULL DEFAULT 0,
+            erros_fatais INT UNSIGNED NOT NULL DEFAULT 0,
+            latencia_soma_ms BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            latencia_n INT UNSIGNED NOT NULL DEFAULT 0,
+            latencia_max_ms INT UNSIGNED NOT NULL DEFAULT 0
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
         $pdo->exec("CREATE TABLE IF NOT EXISTS mensagens_agendadas (
             id INT AUTO_INCREMENT PRIMARY KEY,
             bot_id INT NOT NULL,
@@ -295,6 +346,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ja_instalado) {
             id_telegram VARCHAR(50) NOT NULL,
             visto_em DATETIME NOT NULL,
             PRIMARY KEY (bot_id, id_telegram),
+            FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS downsell_agenda (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            bot_id INT NOT NULL,
+            id_telegram VARCHAR(50) NOT NULL,
+            venda_id INT NOT NULL,
+            id_plano VARCHAR(64) NOT NULL,
+            enviados TINYINT UNSIGNED NOT NULL DEFAULT 0,
+            proximo_em DATETIME NOT NULL,
+            status ENUM('pendente', 'processando', 'concluido', 'cancelado') NOT NULL DEFAULT 'pendente',
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY unico_downsell_venda (venda_id),
+            INDEX idx_downsell_pendentes (status, proximo_em),
+            INDEX idx_downsell_lead (bot_id, id_telegram, status),
+            FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS order_bump_agenda (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            bot_id INT NOT NULL,
+            id_telegram VARCHAR(50) NOT NULL,
+            venda_id INT NOT NULL,
+            id_plano VARCHAR(64) NOT NULL,
+            enviados TINYINT UNSIGNED NOT NULL DEFAULT 0,
+            proximo_em DATETIME NOT NULL,
+            status ENUM('pendente', 'processando', 'concluido', 'cancelado') NOT NULL DEFAULT 'pendente',
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY unico_order_bump_venda (venda_id),
+            INDEX idx_order_bump_pendentes (status, proximo_em),
+            INDEX idx_order_bump_lead (bot_id, id_telegram, status),
             FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
@@ -329,55 +414,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ja_instalado) {
             UNIQUE KEY unique_user_gateway (id_usuario, id_gateway)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
-        $pdo->exec("CREATE TABLE IF NOT EXISTS usuarios_splits (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            id_usuario INT NOT NULL,
-            gateway_nome VARCHAR(50) NOT NULL,
-            tipo_split ENUM('percentual', 'fixo') DEFAULT 'percentual',
-            taxa_split DECIMAL(10,2) DEFAULT 0.00,
-            chave_pix_split VARCHAR(255) NOT NULL,
-            descricao VARCHAR(100) DEFAULT NULL,
-            ordem INT DEFAULT 0,
-            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
-
-        $pdo->exec("CREATE TABLE IF NOT EXISTS vendas_splits (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            venda_id INT NOT NULL,
-            usuario_split_id INT DEFAULT NULL,
-            chave_pix VARCHAR(255) NOT NULL,
-            descricao VARCHAR(100) DEFAULT NULL,
-            valor DECIMAL(10,2) NOT NULL,
-            status ENUM('pago', 'falhou') NOT NULL,
-            erro TEXT DEFAULT NULL,
-            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (venda_id) REFERENCES vendas(id) ON DELETE CASCADE,
-            FOREIGN KEY (usuario_split_id) REFERENCES usuarios_splits(id) ON DELETE SET NULL
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
-
+        // Campanha em etapas (25/10/2026): pertence a um fluxo (id_fluxo) e vai pelos bots dele (bots_ids, congelados ao iniciar); campanha antiga tem só bot_id.
+        // Os valores novos de audiencia e status ficam no FIM da lista de propósito (assim o banco antigo aceita a mudança sem reconstruir a tabela).
         $pdo->exec("CREATE TABLE IF NOT EXISTS remarketing_campanhas (
             id INT AUTO_INCREMENT PRIMARY KEY,
             id_usuario INT NOT NULL,
-            bot_id INT NOT NULL,
+            bot_id INT NULL,
+            id_fluxo INT NULL,
+            bots_ids VARCHAR(120) NULL,
             nome VARCHAR(100) DEFAULT NULL,
-            audiencia ENUM('nao_comprou','comprou') NOT NULL,
+            audiencia ENUM('nao_comprou','comprou','todos','pix_gerado','expirados','membros_ativos') NOT NULL,
+            periodo_tipo VARCHAR(10) NOT NULL DEFAULT 'total',
+            periodo_inicio DATETIME NULL,
+            periodo_fim DATETIME NULL,
             mensagem TEXT NOT NULL,
             midia_caminho VARCHAR(255) DEFAULT NULL,
             midia_tipo ENUM('foto','video') DEFAULT NULL,
             midia_file_id VARCHAR(255) DEFAULT NULL,
+            midia_file_ids TEXT NULL,
+            variantes MEDIUMTEXT NULL,
+            ofertas MEDIUMTEXT NULL,
             agendado_em DATETIME NOT NULL,
-            status ENUM('pendente','processando','concluida','falha') DEFAULT 'pendente',
+            status ENUM('pendente','processando','concluida','falha','rascunho') DEFAULT 'pendente',
             total_destinatarios INT DEFAULT 0,
             enviados INT DEFAULT 0,
             entregues INT DEFAULT 0,
             falhas INT DEFAULT 0,
             offset_envio INT DEFAULT 0,
             processado_em DATETIME NULL,
+            recorrencia TEXT NULL,
+            execucoes INT NOT NULL DEFAULT 0,
+            acum_entregues INT NOT NULL DEFAULT 0,
+            acum_falhas INT NOT NULL DEFAULT 0,
             criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE,
             FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE,
-            INDEX idx_status_agendado (status, agendado_em)
+            INDEX idx_status_agendado (status, agendado_em),
+            INDEX idx_rm_usuario (id_usuario, criado_em)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
         $pdo->exec("CREATE TABLE IF NOT EXISTS remarketing_envios (
@@ -386,9 +459,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ja_instalado) {
             id_telegram VARCHAR(50) NOT NULL,
             resultado ENUM('sucesso','falha') NOT NULL,
             resposta TEXT,
+            variante TINYINT NOT NULL DEFAULT 0,
             enviado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (campanha_id) REFERENCES remarketing_campanhas(id) ON DELETE CASCADE,
             INDEX idx_campanha (campanha_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+        // Qual venda veio de qual campanha (a receita do cartão da campanha soma só as vendas pagas daqui).
+        $pdo->exec("CREATE TABLE IF NOT EXISTS remarketing_vendas (
+            venda_id INT NOT NULL PRIMARY KEY,
+            campanha_id INT NOT NULL,
+            variante TINYINT NOT NULL DEFAULT 0,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (campanha_id) REFERENCES remarketing_campanhas(id) ON DELETE CASCADE,
+            INDEX idx_rmv_campanha (campanha_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
         $pdo->exec("CREATE TABLE IF NOT EXISTS usuarios_traqueamento (

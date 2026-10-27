@@ -36,7 +36,7 @@ if ($modo === 'del') {
         }
         try { $pdo->exec("DELETE FROM redirecionador_cliques_dia WHERE id_redirecionador NOT IN (SELECT id FROM redirecionadores)"); } catch (Throwable $x) {}
         $pdo->exec("DELETE FROM bots WHERE id_usuario = $u");
-        foreach (['redirecionadores', 'webhooks', 'fluxos', 'atividades', 'usuarios_gateways', 'usuarios_traqueamento', 'usuarios_splits', 'comunidade_links', 'stories'] as $t) {
+        foreach (['redirecionadores', 'webhooks', 'fluxos', 'atividades', 'usuarios_gateways', 'usuarios_traqueamento', 'comunidade_links', 'stories'] as $t) {
             try { $pdo->exec("DELETE FROM $t WHERE id_usuario = $u"); } catch (Throwable $x) {}
         }
         try { $pdo->exec("DELETE FROM tokens_email WHERE id_usuario = $u"); } catch (Throwable $x) {}

@@ -70,5 +70,29 @@ esperaErro('chave com byte nulo', '1', 'fixo', "abc\0def", 'ID do recebedor');
 esperaErro('chave com 256 caracteres', '1', 'fixo', str_repeat('a', 256), 'ID do recebedor');
 esperaErro('chave com UTF-8 inválido', '1', 'fixo', "abc\xC3\x28", 'ID do recebedor');
 
+// ---------- comissão gravada na venda (comissaoDoSplit) = o que a cobrança manda à OmegaPayments (splits[].amount)
+echo PHP_EOL . "--- comissão da venda x split enviado à gateway" . PHP_EOL;
+function confereComissao(string $nome, bool $certo, string $detalhe = ''): void
+{
+    global $ok, $falhas;
+    $certo ? $ok++ : $falhas++;
+    echo ($certo ? 'OK     ' : 'FALHOU ') . $nome . ($certo || $detalhe === '' ? '' : '  -> ' . $detalhe) . PHP_EOL;
+}
+$fixo_035 = [['chave' => 'prod123', 'valor' => '0.35', 'tipo' => 'fixo']];
+$pct_5 = [['chave' => 'prod123', 'valor' => '5.00', 'tipo' => 'percentual']];
+confereComissao('split fixo de R$ 0,35 em venda de R$ 1,60: comissão 0,35 (não 1,60 x 0,35%)', comissaoDoSplit($fixo_035, 1.60) === 0.35 && comissaoDoSplit($fixo_035, 2.10) === 0.35 && comissaoDoSplit($fixo_035, 197.0) === 0.35);
+confereComissao('split percentual de 5%: 5% do valor, em centavos arredondados', comissaoDoSplit($pct_5, 19.90) === 1.0 && comissaoDoSplit($pct_5, 1.60) === 0.08 && comissaoDoSplit($pct_5, 2.10) === 0.11);
+confereComissao('split nunca passa do valor da venda', comissaoDoSplit([['valor' => '5.00', 'tipo' => 'fixo']], 1.60) === 1.60 && comissaoDoSplit([['valor' => '150', 'tipo' => 'percentual']], 10.0) === 10.0);
+confereComissao('sem split (null, vazio, taxa 0) = 0,00', comissaoDoSplit(null, 10.0) === 0.0 && comissaoDoSplit([], 10.0) === 0.0 && comissaoDoSplit([['valor' => '0', 'tipo' => 'fixo']], 10.0) === 0.0);
+confereComissao('tipo ausente conta como percentual (padrão da gateway); item que não é lista é ignorado', comissaoDoSplit([['valor' => '10']], 20.0) === 2.0 && comissaoDoSplit(['lixo', ['valor' => '1', 'tipo' => 'fixo']], 20.0) === 1.0);
+confereComissao('vários itens somam (2 recebedores)', comissaoDoSplit([['valor' => '0.35', 'tipo' => 'fixo'], ['valor' => '10', 'tipo' => 'percentual']], 10.0) === 1.35);
+require_once __DIR__ . '/../../funcoes/omegapayments_banco.php';
+$omega = new OmegaPaymentsBanco('pub', 'sec');
+foreach ([[$fixo_035, 1.60], [$fixo_035, 2.10], [$pct_5, 19.90], [$pct_5, 1.60], [[['chave' => 'a', 'valor' => '0.35', 'tipo' => 'fixo'], ['chave' => 'b', 'valor' => '10', 'tipo' => 'percentual']], 10.0], [[['chave' => 'a', 'valor' => '5', 'tipo' => 'fixo']], 1.60]] as [$cfg, $valor_venda]) {
+    $payload = $omega->montaPayloadCobranca($valor_venda, '', $cfg, 900, 'Fulano', '12345678909');
+    $enviado = round(array_sum(array_column($payload['splits'] ?? [], 'amount')), 2);
+    confereComissao('a comissão gravada = a soma dos amount que a cobrança manda (' . json_encode($cfg) . ' em R$ ' . $valor_venda . ')', $enviado === comissaoDoSplit($cfg, $valor_venda), "enviado $enviado, comissão " . comissaoDoSplit($cfg, $valor_venda));
+}
+
 echo PHP_EOL . "RESUMO: $ok ok, $falhas falhas" . PHP_EOL;
 exit($falhas > 0 ? 1 : 0);

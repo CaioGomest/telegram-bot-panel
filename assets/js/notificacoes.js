@@ -121,11 +121,22 @@
             if (left + largura > window.innerWidth - 16) {
                 left = window.innerWidth - 16 - largura;
             }
+            var topo = rect.bottom + 8;
             painel.style.position = 'fixed';
-            painel.style.top = (rect.bottom + 8) + 'px';
+            painel.style.top = topo + 'px';
             painel.style.left = left + 'px';
             painel.style.right = 'auto';
             painel.style.width = largura + 'px';
+            // Antepassado com backdrop-filter/filter/transform (a barra de cima do Layout A tem blur) vira o "bloco de contenção" do position:fixed:
+            // left/top deixam de contar a partir da janela e o painel sai deslocado (23/10/2026: 272 px para a direita, cortado na borda).
+            // Mede onde ele caiu de verdade e compensa, seja qual for o antepassado.
+            var real = painel.getBoundingClientRect();
+            var dx = real.left - left;
+            var dy = real.top - topo;
+            if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+                painel.style.left = (left - dx) + 'px';
+                painel.style.top = (topo - dy) + 'px';
+            }
         }
 
         var fundo = document.createElement('div');

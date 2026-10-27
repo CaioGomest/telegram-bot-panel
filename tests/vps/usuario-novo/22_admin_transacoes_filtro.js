@@ -15,7 +15,7 @@ const chk = (n, c, x = '') => { c ? ok++ : falha++; console.log((c ? 'OK     ' :
     await entrar(c, process.env.ADMIN_EMAIL, process.env.ADMIN_SENHA);
     for (const [larg, alt, mobile] of [[1855, 700, false], [1000, 900, false], [390, 900, true]]) {
       await c.enviar('Emulation.setDeviceMetricsOverride', mobile ? { width: larg, height: alt, deviceScaleFactor: 2, mobile: true } : { width: larg, height: alt, deviceScaleFactor: 1, mobile: false });
-      await c.ir(BASE + '/admin/transacoes?split_status=pago'); await esp(1200);
+      await c.ir(BASE + '/admin/transacoes?comissao=com'); await esp(1200);
       const m = JSON.parse(await c.avaliar(`JSON.stringify((function(){
         var f=document.querySelector('.filtros-transacoes-form'); if(!f) return {semForm:true};
         var r=function(e){var b=e.getBoundingClientRect();return {x:Math.round(b.left),y:Math.round(b.top),w:Math.round(b.width),h:Math.round(b.height)}};
@@ -25,7 +25,7 @@ const chk = (n, c, x = '') => { c ? ok++ : falha++; console.log((c ? 'OK     ' :
       })())`));
       if (m.semForm) { chk('largura ' + larg + ': formulário novo presente', false); continue; }
       const hs = m.controles.map(x => x.h);
-      chk('largura ' + larg + ': rótulos dos 6 campos', m.rotulos.join(',') === 'Usuário,Status,Split,De,Até,Buscar', m.rotulos.join(','));
+      chk('largura ' + larg + ': rótulos dos 6 campos', m.rotulos.join(',') === 'Usuário,Status,Comissão,De,Até,Buscar', m.rotulos.join(','));
       chk('largura ' + larg + ': selects, datas e busca com a MESMA altura', Math.max(...hs) - Math.min(...hs) <= 2, 'alturas ' + hs.join('/'));
       chk('largura ' + larg + ': busca com o mesmo arredondamento dos selects', m.radiusBusca === m.radiusSelect, m.radiusBusca + ' vs ' + m.radiusSelect);
       chk('largura ' + larg + ': sem rolagem horizontal', m.rolagemX === false);

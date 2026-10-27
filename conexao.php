@@ -17,6 +17,10 @@ date_default_timezone_set('America/Sao_Paulo');
 require_once __DIR__ . '/funcoes/controle.php';
 controleGuarda();
 
+// Modo manutenção (funcoes/manutencao.php): também antes do banco. Desligada, é só uma checagem de arquivo.
+require_once __DIR__ . '/funcoes/manutencao.php';
+manutencaoGuarda();
+
 try {
     $dsn = "mysql:host=" . BANCO_HOST . ";dbname=" . BANCO_NOME . ";charset=utf8mb4";
     $options = [

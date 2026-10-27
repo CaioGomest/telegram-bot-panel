@@ -5,6 +5,9 @@ declare(strict_types=1);
 require_once 'conexao.php';
 require_once 'funcoes/usuario.php';
 require_once 'funcoes/log.php';
+require_once 'funcoes/entrega.php';
+require_once 'funcoes/grupos_telegram.php';
+require_once 'funcoes/pagamentos_guiado.php';
 
 if (!usuarioLogado()) {
     header('Content-Type: application/json; charset=utf-8');
@@ -183,14 +186,41 @@ function caminhoUploadValido(string $valor): bool
     );
 }
 
+/**
+ * Mídia de um item do Guiado (boas-vindas, Upsell, Downsell, Order Bump): o par midia_tipo/midia_path só aceita caminho de upload válido e, se o item tem
+ * a lista `midias` (várias fotos/vídeos, enviadas como álbum, até 10), ela fica só com foto/vídeo de caminho válido e preenchido; a 1ª repete nos campos do par
+ * (o bot e os fluxos salvos antes leem o par). Item sem `midias` não ganha lista.
+ */
+function sanitizarMidiasDoItem(array $item): array
+{
+    if (!caminhoUploadValido((string) ($item['midia_path'] ?? ''))) {
+        $item['midia_path'] = '';
+    }
+    if (isset($item['midias'])) {
+        $midias = [];
+        foreach ((array) $item['midias'] as $m) {
+            if (is_array($m) && in_array($m['tipo'] ?? '', ['image', 'video'], true) && (string) ($m['path'] ?? '') !== '' && caminhoUploadValido((string) $m['path'])) {
+                $midias[] = ['tipo' => (string) $m['tipo'], 'path' => (string) $m['path']];
+            }
+        }
+        $midias = array_slice($midias, 0, 10);
+        $item['midias'] = $midias;
+        $item['midia_tipo'] = $midias ? $midias[0]['tipo'] : 'none';
+        $item['midia_path'] = $midias ? $midias[0]['path'] : '';
+    }
+    return $item;
+}
+
 function sanitizarCaminhosMidiaFluxo(array $dados_grafico): array
 {
     // Modo básico: mídia nas Boas-vindas (aqui), nas Ofertas, nas Prévias, nos Packs e na Assinatura (mais abaixo).
     if (isset($dados_grafico['boas_vindas']) && is_array($dados_grafico['boas_vindas'])) {
-        $midia = (string) ($dados_grafico['boas_vindas']['midia_path'] ?? '');
-        if (!caminhoUploadValido($midia)) {
-            $dados_grafico['boas_vindas']['midia_path'] = '';
-        }
+        $dados_grafico['boas_vindas'] = sanitizarMidiasDoItem($dados_grafico['boas_vindas']);
+    }
+    // Aba Pagamentos no modelo novo (versao 2): grava só o que o bot entende, nos limites certos (texto até 3000, botões até 40, até 3 mídias de upload válido por aba).
+    // Fluxo sem "versao" (salvo antes do modelo novo) fica como está.
+    if (isset($dados_grafico['pagamentos']) && is_array($dados_grafico['pagamentos']) && pagamentoModoNovo($dados_grafico['pagamentos'])) {
+        $dados_grafico['pagamentos'] = pagamentoConfig($dados_grafico['pagamentos'], 'caminhoUploadValido');
     }
     // Prévias (lista de mídias), Packs (mídia de prévia de cada pack) e Assinatura (mídia dos avisos):
     // mesma regra, só "uploads/nome.ext".
@@ -208,9 +238,23 @@ function sanitizarCaminhosMidiaFluxo(array $dados_grafico): array
     }
     // Ofertas (upsell, downsell, order bump): mídia opcional, mesma regra.
     foreach (['upsell', 'downsell', 'order_bump'] as $tipo_oferta) {
-        if (isset($dados_grafico['ofertas'][$tipo_oferta]) && is_array($dados_grafico['ofertas'][$tipo_oferta]) && !caminhoUploadValido((string) ($dados_grafico['ofertas'][$tipo_oferta]['midia_path'] ?? ''))) {
-            $dados_grafico['ofertas'][$tipo_oferta]['midia_path'] = '';
+        if (isset($dados_grafico['ofertas'][$tipo_oferta]) && is_array($dados_grafico['ofertas'][$tipo_oferta])) {
+            $dados_grafico['ofertas'][$tipo_oferta] = sanitizarMidiasDoItem($dados_grafico['ofertas'][$tipo_oferta]);
         }
+    }
+    // Sequência de Order Bumps (até 5 itens): cada item tem a própria mídia opcional, com a mesma regra.
+    if (isset($dados_grafico['ofertas']['order_bump']['itens'])) {
+        $itens = [];
+        foreach (array_slice(array_values((array) $dados_grafico['ofertas']['order_bump']['itens']), 0, 5) as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            if (!caminhoUploadValido((string) ($item['midia_path'] ?? ''))) {
+                $item['midia_path'] = '';
+            }
+            $itens[] = $item;
+        }
+        $dados_grafico['ofertas']['order_bump']['itens'] = $itens;
     }
     foreach (['avisos_antes', 'avisos_no_dia', 'ao_expirar'] as $bloco) {
         if (isset($dados_grafico['assinatura'][$bloco]) && !caminhoUploadValido((string) ($dados_grafico['assinatura'][$bloco]['midia_path'] ?? ''))) {
@@ -339,6 +383,18 @@ try {
             responder(true, ['grupos' => $grupos]);
             break;
 
+        case 'registrar_grupo_por_id':
+            // Grupo onde o bot já estava antes do webhook nunca chegou em bot_grupos: aqui o dono informa o ID/@ e o painel confere no Telegram.
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                responder(false, ['mensagem' => 'Método não permitido.'], 405);
+            }
+            $resultado = registrarGrupoPorIdentificador($pdo, $usuario_id, (string) ($entrada['identificador'] ?? ''), 'requisicaoTelegram', (int) ($entrada['id_fluxo'] ?? 0));
+            if ($resultado['sucesso']) {
+                registrarAtividade($usuario_id, 'sistema', 'Grupo', 'Grupo adicionado pelo ID: ' . $resultado['grupo']['titulo']);
+            }
+            responder($resultado['sucesso'], $resultado, $resultado['sucesso'] ? 200 : 400);
+            break;
+
         case 'gateway_info':
             // PIX Recorrente era só da InfoPago (PIX Automático) -- nenhum gateway suportado
             // hoje implementa recorrência (a OmegaPayments não tem esse recurso na v1). Ver
@@ -433,6 +489,10 @@ try {
             if ($erro_preco !== null) {
                 responder(false, ['mensagem' => $erro_preco], 422);
             }
+            $erro_entrega = $modo === 'basico' ? validarEntregasFluxoGuiado($dados) : null;
+            if ($erro_entrega !== null) {
+                responder(false, ['mensagem' => $erro_entrega], 422);
+            }
             $stmt = $pdo->prepare("INSERT INTO fluxos (id_usuario, nome, descricao, link_suporte, modo, dados_fluxograma) VALUES (?, ?, ?, ?, ?, ?)");
             $stmt->execute([$usuario_id, $nome, $descricao, $link_suporte, $modo, json_encode($dados, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]);
             $novo_id = (int)$pdo->lastInsertId();
@@ -484,6 +544,10 @@ try {
                 $erro_preco = isset($dados_grafico['planos']) ? validarPrecosFluxoGuiado($dados_grafico, $minimo_pix) : validarPrecosFluxoVisual($dados_grafico, $minimo_pix);
                 if ($erro_preco !== null) {
                     responder(false, ['mensagem' => $erro_preco], 422);
+                }
+                $erro_entrega = isset($dados_grafico['planos']) ? validarEntregasFluxoGuiado($dados_grafico) : null;
+                if ($erro_entrega !== null) {
+                    responder(false, ['mensagem' => $erro_entrega], 422);
                 }
             }
             $json_grafico = json_encode($dados_grafico, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

@@ -136,12 +136,12 @@ try {
                     id_telegram, bot_id, valor, status, transacao_id, 
                     id_grupo_telegram, dias_acesso, tempo_acesso_minutos, 
                     tipo_cobranca, venda_pai_id, criado_em, 
-                    tempo_expiracao_minutos
+                    tempo_expiracao_minutos, comissao_admin
                 ) VALUES (
                     ?, ?, ?, 'gerado', ?, 
                     ?, ?, ?, 
                     'assinatura', ?, NOW(), 
-                    ?
+                    ?, ?
                 )
             ");
             
@@ -155,7 +155,8 @@ try {
                 $item['dias_acesso'],
                 $item['tempo_acesso_minutos'],
                 $item['venda_id'], // venda_pai_id
-                ($expiracao_segundos / 60)
+                ($expiracao_segundos / 60),
+                comissaoDoSplit($split_data, $valor)   // o mesmo split que acabou de ir na cobrança
             ]);
             require_once __DIR__ . '/../funcoes/traqueamento.php';
             herdarNomeProdutoVenda($pdo, (string) $txid, (int) $item['venda_id']);

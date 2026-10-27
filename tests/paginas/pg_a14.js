@@ -27,9 +27,9 @@ const { area, t, nota, salvar, esp } = require('./pg_t.js');
       const esperadoDia = db(`SELECT COUNT(*) n FROM vendas v JOIN bots b ON v.bot_id=b.id WHERE b.id_usuario=49 AND DATE(v.criado_em)='${hoje}'`)[0].n;
       return { ok: pago === 2 && busca === 1 && tg === 1 && dia === esperadoDia, det: `pago=${pago} txid=${busca} tg=${tg} hoje=${dia}/${esperadoDia}` };
     }, 'admin/transacoes');
-    await t('valores inválidos (status/datas/split/usuario/pagina, SQL) não quebram a página', async () => {
+    await t('valores inválidos (status/datas/comissão/usuario/pagina, SQL) não quebram a página', async () => {
       const falhas = [];
-      for (const q of ['?status=xyz', '?data_inicio=abc&data_fim=2020-99-99', '?split_status=foo', '?usuario_id=abc', '?pagina=-4', "?busca=' OR 1=1--", "?busca=%25%27", '?status=pago%27%3BDROP%20TABLE%20x']) {
+      for (const q of ['?status=xyz', '?data_inicio=abc&data_fim=2020-99-99', '?comissao=foo', '?usuario_id=abc', '?pagina=-4', "?busca=' OR 1=1--", "?busca=%25%27", '?status=pago%27%3BDROP%20TABLE%20x']) {
         await c.ir(BASE + '/admin/transacoes' + q + (q.includes('usuario_id') ? '' : (q.includes('?') ? '&' : '?') + 'usuario_id=49'));
         const tx = await c.avaliar('document.body.innerText');
         if (/Warning|Fatal|Notice:|SQLSTATE|syntax error/i.test(tx)) falhas.push(q);

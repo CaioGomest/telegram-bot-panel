@@ -1,3 +1,4 @@
+// ATENÇÃO (26/10/2026): a parte de REMARKETING deste teste mira a tela ANTIGA (janela "Nova campanha", filtros por bot/audiência, ações cancelar_campanha/contar_destinatarios), que foi trocada pela tela em etapas (tarefas_revisao_final.md, item 14). Esta parte não vale mais; a cobertura nova está em tests/remarketing/ (unitario_remarketing.php, ui/teste.js e integracao/rodar.js).
 // Teste 8: ações reais em links de rastreamento, redirecionamento (link curto), remarketing e traqueamento.
 process.env.BASE = 'https://coyotebot.com.br';
 const fs = require('fs'), path = require('path');

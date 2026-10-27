@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Modelo A — casca de navegação</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./mascote.css">
+<link rel="stylesheet" href="./modelo-a.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=JetBrains+Mono:wght@500;600&family=Manrope:wght@500;600;700;800&display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="a-app a-shell" data-tema="{{tema}}" data-ativa="{{ativa}}" style="display: contents">
+<dc-import name="Sprite"></dc-import>
+<input type="checkbox" id="a-mais" class="a-cb" defaultChecked="{{maisAberto}}" aria-label="Abrir o menu completo">
+
+<aside class="a-rail" aria-label="Navegação principal">
+<a class="a-logo" href="#" aria-label="Coyote Bot, início"></a>
+<a class="a-ni" data-k="dashboard" href="#" title="Dashboard"><svg class="ic" aria-hidden="true"><use href="#i-dashboard"/></svg>Início</a>
+<a class="a-ni" data-k="vendas" href="#" title="Vendas"><svg class="ic" aria-hidden="true"><use href="#i-vendas"/></svg>Vendas</a>
+<a class="a-ni" data-k="leads" href="#" title="Leads"><svg class="ic" aria-hidden="true"><use href="#i-leads"/></svg>Leads<span class="a-nb">2</span></a>
+<span class="a-nsep"></span>
+<a class="a-ni" data-k="bots" href="#" title="Meus Bots"><svg class="ic" aria-hidden="true"><use href="#i-bots"/></svg>Bots<span class="a-nb">1</span></a>
+<a class="a-ni" data-k="fluxos" href="#" title="Fluxos"><svg class="ic" aria-hidden="true"><use href="#i-fluxos"/></svg>Fluxos</a>
+<a class="a-ni" data-k="remarketing" href="#" title="Remarketing"><svg class="ic" aria-hidden="true"><use href="#i-remarketing"/></svg>Remarketing</a>
+<a class="a-ni" data-k="redirecionamento" href="#" title="Redirecionamento"><svg class="ic" aria-hidden="true"><use href="#i-redirecionamento"/></svg>Redirec.</a>
+<span class="a-nsep"></span>
+<a class="a-ni" data-k="traqueamento" href="#" title="Traqueamento"><svg class="ic" aria-hidden="true"><use href="#i-traqueamento"/></svg>Traqueam.</a>
+<a class="a-ni" data-k="links" href="#" title="Links de Rastreamento"><svg class="ic" aria-hidden="true"><use href="#i-links"/></svg>Links</a>
+<a class="a-ni" data-k="webhooks" href="#" title="Webhooks"><svg class="ic" aria-hidden="true"><use href="#i-webhooks"/></svg>Webhooks</a>
+<span class="a-nsep"></span>
+<a class="a-ni" data-k="ranking" href="#" title="Ranking"><svg class="ic" aria-hidden="true"><use href="#i-ranking"/></svg>Ranking</a>
+<a class="a-ni" data-k="comunidade" href="#" title="Comunidade (abre em nova aba)"><svg class="ic" aria-hidden="true"><use href="#i-comunidade"/></svg>Comunidade</a>
+<span class="a-nsep"></span>
+<a class="a-ni" data-k="gateways" href="#" title="Gateways"><svg class="ic" aria-hidden="true"><use href="#i-gateways"/></svg>Gateways</a>
+<div class="a-nfim">
+<a class="a-av" data-k="conta" href="#" title="Minha Conta" aria-label="Minha Conta">M</a>
+<a class="a-ni" href="#" title="Sair" aria-label="Sair da conta"><svg class="ic" aria-hidden="true"><use href="#i-sair"/></svg>Sair</a>
+</div>
+</aside>
+
+<header class="a-top">
+<div class="a-hi"><b>Boa noite, <em>Marina</em></b><span>18 de outubro de 2026</span></div>
+<div class="a-meta" title="Faturamento total até hoje">
+<span class="a-meta-ic"><svg class="ic" aria-hidden="true"><use href="#i-vendas"/></svg></span>
+<div class="a-meta-c">
+<div class="a-meta-l"><span>FATURAMENTO</span><span>0%</span></div>
+<div class="a-bar"><i style="width: 3%"></i></div>
+<div class="a-meta-l"><strong>R$ 13,40</strong><span>/ 10k</span></div>
+</div>
+</div>
+<a class="a-ib" href="#" aria-label="Comunidade (nova aba)" title="Comunidade"><svg class="ic" aria-hidden="true"><use href="#i-comunidade"/></svg></a>
+<button class="a-ib" type="button" aria-label="Notificações, 11 novas" title="Notificações"><svg class="ic" aria-hidden="true"><use href="#i-sino"/></svg><span class="a-nb">11</span></button>
+<button class="a-ib" type="button" aria-label="Alternar tema" title="Alternar tema"><svg class="ic" aria-hidden="true"><use href="#i-sol"/></svg></button>
+</header>
+
+<header class="a-mtop">
+<a class="a-logo" href="#" aria-label="Coyote Bot, início"></a>
+<div class="a-mt"><b>{{titulo}}</b><span>18 de outubro</span></div>
+<button class="a-ib" type="button" aria-label="Notificações, 11 novas"><svg class="ic" aria-hidden="true"><use href="#i-sino"/></svg><span class="a-nb">11</span></button>
+<button class="a-ib" type="button" aria-label="Alternar tema"><svg class="ic" aria-hidden="true"><use href="#i-sol"/></svg></button>
+</header>
+<div class="a-mmeta">
+<div class="a-meta-l"><span>FATURAMENTO · 0%</span><span><strong>R$ 13,40</strong> / 10k</span></div>
+<div class="a-bar"><i style="width: 3%"></i></div>
+</div>
+
+<nav class="a-tabbar" aria-label="Navegação principal">
+<a class="a-tab" data-k="dashboard" href="#"><svg class="ic" aria-hidden="true"><use href="#i-dashboard"/></svg>Início</a>
+<a class="a-tab" data-k="vendas" href="#"><svg class="ic" aria-hidden="true"><use href="#i-vendas"/></svg>Vendas</a>
+<a class="a-tab" data-k="leads" href="#"><svg class="ic" aria-hidden="true"><use href="#i-leads"/></svg>Leads<span class="a-nb">2</span></a>
+<a class="a-tab" data-k="bots" href="#"><svg class="ic" aria-hidden="true"><use href="#i-bots"/></svg>Bots</a>
+<label class="a-tab" for="a-mais"><svg class="ic" aria-hidden="true"><use href="#i-menu"/></svg>Mais</label>
+</nav>
+
+<div class="a-sheet" role="dialog" aria-label="Menu completo">
+<label class="a-sheet-fundo" for="a-mais"></label>
+<div class="a-sheet-caixa">
+<div class="a-sheet-usr">
+<span class="a-av">M</span>
+<div><b>Marina Alves</b><span>marina@exemplo.com.br</span></div>
+<label class="a-ib" for="a-mais" aria-label="Fechar o menu"><svg class="ic" aria-hidden="true"><use href="#i-fechar"/></svg></label>
+</div>
+<div class="a-aviso"><span>E-mail não confirmado</span><a class="a-btn" href="#">Reenviar</a></div>
+<div class="a-gt">Visão geral</div>
+<div class="a-sheet-g">
+<a class="a-tile" href="#"><svg class="ic" aria-hidden="true"><use href="#i-dashboard"/></svg>Dashboard</a>
+<a class="a-tile" href="#"><svg class="ic" aria-hidden="true"><use href="#i-vendas"/></svg>Vendas</a>
+<a class="a-tile" href="#"><svg class="ic" aria-hidden="true"><use href="#i-leads"/></svg>Leads</a>
+</div>
+<div class="a-gt">Automações</div>
+<div class="a-sheet-g">
+<a class="a-tile" href="#"><svg class="ic" aria-hidden="true"><use href="#i-bots"/></svg>Meus Bots</a>
+<a class="a-tile" href="#"><svg class="ic" aria-hidden="true"><use href="#i-fluxos"/></svg>Fluxos</a>
+<a class="a-tile" href="#"><svg class="ic" aria-hidden="true"><use href="#i-remarketing"/></svg>Remarketing</a>
+<a class="a-tile" href="#"><svg class="ic" aria-hidden="true"><use href="#i-redirecionamento"/></svg>Redirecionamento</a>
+</div>
+<div class="a-gt">Rastreamento</div>
+<div class="a-sheet-g">
+<a class="a-tile" href="#"><svg class="ic" aria-hidden="true"><use href="#i-traqueamento"/></svg>Traqueamento</a>
+<a class="a-tile" href="#"><svg class="ic" aria-hidden="true"><use href="#i-links"/></svg>Links de Rastreamento</a>
+<a class="a-tile" href="#"><svg class="ic" aria-hidden="true"><use href="#i-webhooks"/></svg>Webhooks</a>
+</div>
+<div class="a-gt">Comunidade</div>
+<div class="a-sheet-g">
+<a class="a-tile" href="#"><svg class="ic" aria-hidden="true"><use href="#i-ranking"/></svg>Ranking</a>
+<a class="a-tile" href="#"><svg class="ic" aria-hidden="true"><use href="#i-comunidade"/></svg>Comunidade</a>
+</div>
+<div class="a-gt">Conta</div>
+<div class="a-sheet-g">
+<a class="a-tile" href="#"><svg class="ic" aria-hidden="true"><use href="#i-gateways"/></svg>Gateways</a>
+<a class="a-tile" href="#"><svg class="ic" aria-hidden="true"><use href="#i-conta"/></svg>Minha Conta</a>
+<a class="a-tile er" href="#"><svg class="ic" aria-hidden="true"><use href="#i-sair"/></svg>Sair</a>
+</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"tema":{"editor":"enum","options":["dark","light"],"default":"dark"},"ativa":{"editor":null,"default":"dashboard"},"titulo":{"editor":null,"default":"Dashboard"},"maisAberto":{"editor":"boolean","default":false},"$preview":{"width":1440,"height":760}}'>
+class Component extends DCLogic {
+renderVals() {
+const v = this.props.maisAberto;
+return {
+tema: this.props.tema ?? 'dark',
+ativa: this.props.ativa ?? 'dashboard',
+titulo: this.props.titulo ?? 'Dashboard',
+maisAberto: v === true || v === 'true'
+};
+}
+}
+</script>
+</body>
+</html>

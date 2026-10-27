@@ -1,0 +1,62 @@
+/* Avisos push (Web Push): aba "Notificações" do admin e cartão "Avisos no celular e no navegador" da conta do vendedor.
+   Plano: deploy/PLANO-PUSH-NOTIFICACOES.md. Arquivo próprio para não mexer no painel.css (só as páginas que usam carregam este). */
+
+/* ----- Admin ----- */
+.push-chaves { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--bd); }
+.push-saude { margin: 14px 0 12px; padding: 0; display: grid; }
+.push-saude > div { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; padding: 9px 0; border-bottom: 1px solid var(--bd); }
+.push-saude dt { color: var(--m); font-size: 12.5px; }
+.push-saude dd { margin: 0; font-weight: 700; font-size: 13px; text-align: right; }
+.push-regenerar { margin-top: 10px; }
+.push-regenerar summary { cursor: pointer; color: var(--m); font-size: 13px; padding: 6px 0; }
+.push-regenerar summary:hover { color: var(--t); }
+.push-regenerar[open] summary { color: var(--t); }
+.push-regenerar .bloco-form { margin-top: 10px; }
+
+/* ----- Cartão do vendedor (Minha Conta) ----- */
+.push-cartao h3 { margin: 4px 0 0; font: 800 13px 'Manrope', sans-serif; letter-spacing: .02em; }
+.push-cartao .push-intro { margin: 0 0 14px; font-size: 13.5px; line-height: 1.55; }
+.push-estado { display: flex; flex-direction: column; gap: 14px; }
+.push-estado[hidden], .push-bloco[hidden] { display: none; }
+.push-bloco { display: flex; flex-direction: column; gap: 12px; }
+.push-aviso { margin: 0; padding: 12px 14px; border-radius: 12px; background: var(--p2); border: 1px solid var(--bd); color: var(--t); font-size: 13.5px; line-height: 1.55; }
+.push-aviso.alerta { background: var(--wasoft); border-color: transparent; color: var(--wa); }
+.push-aviso.erro { background: var(--ers, var(--dasoft)); border-color: transparent; color: var(--ert, var(--da)); }
+.push-passos { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; counter-reset: passo; }
+.push-passos li { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; background: var(--p2); border: 1px solid var(--bd); font-size: 13.5px; line-height: 1.5; counter-increment: passo; }
+.push-passos li::before { content: counter(passo); flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--or); color: #1a0a00; font: 800 13px 'Manrope', sans-serif; }
+.push-passos svg { width: 16px; height: 16px; vertical-align: -3px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.push-acoes { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.push-acoes .a-btn { min-height: 46px; }
+.push-dispositivos { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.push-dispositivo { padding: 14px; border-radius: 14px; background: var(--p2); border: 1px solid var(--bd); display: grid; gap: 12px; }
+.push-dispositivo.este { border-color: var(--or); }
+.push-dispositivo-topo { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.push-dispositivo-nome { font-weight: 800; font-size: 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.push-dispositivo-meta { color: var(--m); font-size: 12px; }
+.push-selo-este { font: 800 10px 'Manrope', sans-serif; letter-spacing: .08em; text-transform: uppercase; padding: 3px 8px; border-radius: 99px; background: var(--orsoft); color: var(--or); }
+.push-chaves-pref { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.push-interruptor { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; font-size: 13.5px; font-weight: 600; }
+.push-interruptor input { width: 18px; height: 18px; accent-color: var(--or); margin: 0; cursor: pointer; }
+.push-dispositivo-acoes { display: flex; flex-wrap: wrap; gap: 8px; }
+.push-dispositivo-acoes .a-btn { min-height: 42px; padding: 0 14px; font-size: 13px; }
+@media (max-width: 520px) {
+    .push-acoes .a-btn { width: 100%; }
+}
+
+/* ----- Convite discreto no sino (qualquer página; some com "Agora não" por 30 dias) ----- */
+.sino-convite-push { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 0 12px 10px; padding: 10px 12px; border-radius: 12px; background: var(--orsoft); color: var(--t); font-size: 12.5px; line-height: 1.4; }
+.sino-convite-push a { color: var(--or); font-weight: 800; text-decoration: none; }
+.sino-convite-push a:hover { text-decoration: underline; }
+.sino-convite-push button { margin-left: auto; min-height: 32px; padding: 4px 6px; border: 0; background: none; color: var(--m); font: 600 12px 'Manrope', sans-serif; cursor: pointer; }
+.sino-convite-push button:hover { color: var(--t); }
+.push-icones { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 14px; margin: 10px 0; }
+.push-icones img { border-radius: 14px; border: 1px solid var(--bd); background: #14161d; object-fit: contain; }
+.push-icones .push-icone-badge { border-radius: 10px; padding: 6px; }
+.push-icones p { flex: 1 1 220px; margin: 0; }
+
+/* Respiro entre os blocos do cartão (aviso, botões, "Seus aparelhos"): antes ficavam colados */
+#push-cartao { display: flex; flex-direction: column; gap: 16px; }
+#push-cartao[hidden], #push-cartao > [hidden] { display: none; }
+.push-estado .push-acoes { margin-top: 2px; }
+.push-bloco h3 { margin: 6px 0 0; }

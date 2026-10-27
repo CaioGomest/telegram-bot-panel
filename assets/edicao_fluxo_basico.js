@@ -7,8 +7,13 @@
     const RECORRENCIA_LIBERADA_NA_TELA = false;
     let lista_grupos_usuario = [];
     let planos = [];
-    let midia_tipo_atual = 'none';
-    let midia_path_atual = '';
+    // Mídias das boas-vindas, na ordem de envio: a 1ª aparece na caixa grande; as demais, na lista logo abaixo (até 10, viram um álbum no Telegram).
+    let bv_midias = [];
+    const bv_midias_max = 10;
+    let bv_lote = null;   // { n, total } enquanto sobe um grupo de arquivos escolhidos juntos (n = o que está subindo agora)
+    // Order Bumps 2 a 5 (o 1º é o painel fixo da seção): cada um é { nome, valor_extra, espera_minutos, mensagem, texto_aceitar, cor_aceitar, texto_recusar, cor_recusar, midia_tipo, midia_path }.
+    let bump_extras = [];
+    const bump_max = 5;
     let carregando = false;
     let ids_bots_vinculados = [];
     // Fluxo novo: bots que a pessoa já escolheu e que serão vinculados no primeiro "Salvar alterações" (o vínculo precisa do id do fluxo).
@@ -34,7 +39,7 @@
         $toast.removeClass('sucesso erro visivel').addClass(type).text(message);
         requestAnimationFrame(() => $toast.addClass('visivel'));
         clearTimeout(window.__toastTimeout);
-        window.__toastTimeout = setTimeout(() => $toast.removeClass('visivel'), 3000);
+        window.__toastTimeout = setTimeout(() => $toast.removeClass('visivel'), message.length > 90 ? 7000 : 3000);   // aviso comprido (ex.: resultado de vários envios) fica mais tempo
     }
 
     function carregarLimitesPagamento() {
@@ -84,29 +89,158 @@
         });
     }
 
+    // Lista de grupos do bot para o select "Grupo para acesso" (a mesma do n8n: tabela bot_grupos). Sem escolha, "Selecione um grupo…".
     function optsGrupos(id_grupo_selecionado) {
-        let html = '<option value="">Nenhum (apenas venda)</option>';
+        let html = '<option value="">Selecione um grupo…</option>';
+        let achou = false;
+        const vistos = {};
         lista_grupos_usuario.forEach(function (g) {
-            const sel = (String(g.id_telegram) === String(id_grupo_selecionado)) ? ' selected' : '';
-            html += '<option value="' + escaparHtml(g.id_telegram) + '"' + sel + '>' + escaparHtml(g.titulo) + '</option>';
+            if (vistos[g.id_telegram]) return;   // o mesmo grupo registrado para 2 bots da conta aparece uma vez só (o que se salva é o id do grupo)
+            vistos[g.id_telegram] = true;
+            const sel = (String(g.id_telegram) === String(id_grupo_selecionado));
+            achou = achou || sel;
+            html += '<option value="' + escaparHtml(g.id_telegram) + '"' + (sel ? ' selected' : '') + '>' + escaparHtml(g.titulo || g.id_telegram) + '</option>';
         });
+        // Grupo já salvo que não está na lista (bot saiu do grupo, lista que não carregou): sem esta opção o select mostraria "Selecione" e salvar apagaria a entrega.
+        if (id_grupo_selecionado && !achou) {
+            html += '<option value="' + escaparHtml(id_grupo_selecionado) + '" selected>' + escaparHtml(id_grupo_selecionado) + ' (grupo salvo)</option>';
+        }
         return html;
     }
 
-    // Plano/pack sem grupo é permitido (venda só com mensagem de confirmação), mas quase sempre é esquecimento: o cliente paga e
-    // não recebe nenhum acesso. Aviso fixo embaixo do campo, que some quando um grupo é escolhido.
-    function dicaSemGrupo(id_grupo, quem) {
-        return '<small class="dica-sem-grupo"' + (id_grupo ? ' hidden' : '') + '>⚠ Sem grupo: quem pagar ' + quem +
-            ' só recebe a mensagem de pagamento aprovado, sem nenhum acesso automático. Escolha um grupo ou entregue o conteúdo nessa mensagem.</small>';
+    // ===== Entrega (plano, pack, Upsell e Downsell) =====
+    // Como no n8n: um select do TIPO de entrega (nenhuma, acesso a grupo, link ou, só na oferta, "igual à do plano oferecido") e, escolhendo "Acesso a grupo",
+    // um segundo select com os grupos do bot. No JSON cada item guarda entrega_tipo ('nenhuma' | 'grupo' | 'link' | 'plano'), id_grupo e link_entrega
+    // (ver funcoes/entrega.php). Item antigo, sem entrega_tipo, só tem o id_grupo.
+    const ENTREGA_GRUPO = '__grupo__';
+    const ENTREGA_LINK = '__link__';
+    const ENTREGA_PLANO = '__plano__';
+    const ICONE_ATUALIZAR = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15 6.7L3 16M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M3 21v-5h5"/></svg>';
+
+    function valorEntregaDoItem(item, eh_oferta) {
+        const tipo = item.entrega_tipo || '';
+        if (eh_oferta && (tipo === 'plano' || tipo === '')) return ENTREGA_PLANO;   // oferta sem entrega própria usa a do plano oferecido
+        if (tipo === 'link') return ENTREGA_LINK;
+        if (tipo === 'nenhuma') return '';
+        return (tipo === 'grupo' || item.id_grupo) ? ENTREGA_GRUPO : '';   // item antigo, sem entrega_tipo, só tem o id_grupo
     }
+
+    function optsEntrega(valor, eh_oferta) {
+        return (eh_oferta ? '<option value="' + ENTREGA_PLANO + '"' + (valor === ENTREGA_PLANO ? ' selected' : '') + '>Igual à do plano oferecido</option>' : '') +
+            '<option value=""' + (valor === '' ? ' selected' : '') + '>Nenhum (apenas venda)</option>' +
+            '<option value="' + ENTREGA_GRUPO + '"' + (valor === ENTREGA_GRUPO ? ' selected' : '') + '>👥 Acesso a grupo</option>' +
+            '<option value="' + ENTREGA_LINK + '"' + (valor === ENTREGA_LINK ? ' selected' : '') + '>🔗 Link (enviado ao cliente)</option>';
+    }
+
+    // Item sem entrega é permitido (venda só com mensagem de confirmação), mas quase sempre é esquecimento: o cliente paga e
+    // não recebe nenhum acesso. Aviso fixo embaixo do campo, que some quando um grupo ou um link é escolhido.
+    // o = { rotulo, quem ("deste plano"), classe (classe própria do seletor, usada pelos testes), oferta (true no Upsell/Downsell) }
+    function htmlCampoEntrega(item, o) {
+        const valor = valorEntregaDoItem(item, !!o.oferta);
+        return '<div class="campo campo-entrega">' +
+            '<label>' + o.rotulo + '</label>' +
+            '<select class="entrega-select' + (o.classe ? ' ' + o.classe : '') + '">' + optsEntrega(valor, !!o.oferta) + '</select>' +
+            '<div class="entrega-grupo-area"' + (valor === ENTREGA_GRUPO ? '' : ' hidden') + '>' +
+            '<label>Grupo para acesso</label>' +
+            '<div class="entrega-grupo-seletor"><select class="entrega-grupo-select" aria-label="Grupo para acesso">' + optsGrupos(valor === ENTREGA_GRUPO ? String(item.id_grupo || '') : '') + '</select>' +
+            '<button type="button" class="editor-fluxo-icone-btn quadrado entrega-grupo-atualizar" title="Atualizar a lista de grupos" aria-label="Atualizar a lista de grupos">' + ICONE_ATUALIZAR + '</button></div>' +
+            '<small class="texto-ajuda">O bot precisa ser administrador do grupo, com a permissão de convidar usuários, para gerar o link de entrada e remover quem vence.</small>' +
+            '</div>' +
+            '<input type="text" inputmode="url" autocomplete="off" class="entrega-link" maxlength="500" placeholder="https://..." value="' + escaparHtml(item.link_entrega || '') + '"' + (valor === ENTREGA_LINK ? '' : ' hidden') + '>' +
+            '<small class="texto-ajuda dica-entrega-link"' + (valor === ENTREGA_LINK ? '' : ' hidden') + '>O cliente recebe este link na mensagem de pagamento aprovado, só depois de pagar.</small>' +
+            (o.oferta ? '<small class="texto-ajuda dica-entrega-plano"' + (valor === ENTREGA_PLANO ? '' : ' hidden') + '>Quem aceitar recebe o mesmo acesso do plano oferecido.</small>' : '') +
+            '<small class="dica-sem-grupo"' + (valor === '' ? '' : ' hidden') + '>⚠ Sem entrega: quem pagar ' + o.quem +
+            ' só recebe a mensagem de pagamento aprovado, sem nenhum acesso automático. Escolha um grupo ou um link, ou entregue o conteúdo nessa mensagem.</small>' +
+            '</div>';
+    }
+
+    function atualizarCampoEntrega($campo) {
+        const v = $campo.find('.entrega-select').val() || '';
+        $campo.find('.entrega-grupo-area').prop('hidden', v !== ENTREGA_GRUPO);
+        $campo.find('.entrega-link, .dica-entrega-link').prop('hidden', v !== ENTREGA_LINK);
+        $campo.find('.dica-entrega-plano').prop('hidden', v !== ENTREGA_PLANO);
+        $campo.find('.dica-sem-grupo').prop('hidden', v !== '');
+    }
+
+    // Lê o campo de entrega e devolve os 3 campos que vão no JSON do plano/pack/oferta.
+    function coletarEntrega($campo) {
+        const v = $campo.find('.entrega-select').val() || '';
+        if (v === ENTREGA_PLANO) return { entrega_tipo: 'plano', id_grupo: '', link_entrega: '' };
+        if (v === ENTREGA_LINK) return { entrega_tipo: 'link', id_grupo: '', link_entrega: $campo.find('.entrega-link').val().trim() };
+        if (v === ENTREGA_GRUPO) return { entrega_tipo: 'grupo', id_grupo: $campo.find('.entrega-grupo-select').val() || '', link_entrega: '' };
+        return { entrega_tipo: 'nenhuma', id_grupo: '', link_entrega: '' };
+    }
+
+    // Mesma regra do servidor (funcoes/entrega.php): só http/https, sem espaço, até 500 caracteres.
+    function linkEntregaValido(valor) {
+        if (!valor || valor.length > 500 || /\s/.test(valor) || !/^https?:\/\//i.test(valor)) return false;
+        try { return !!new URL(valor).hostname; } catch (e) { return false; }
+    }
+
+    $(document).on('change', '.entrega-select', function () {
+        const $campo = $(this).closest('.campo-entrega');
+        atualizarCampoEntrega($campo);
+        if ($(this).val() === ENTREGA_LINK) $campo.find('.entrega-link').trigger('focus');
+        if ($(this).val() === ENTREGA_GRUPO) $campo.find('.entrega-grupo-select').trigger('focus');
+    });
+
+    // Refaz a lista de grupos de TODOS os campos de entrega (depois de atualizar a lista), mantendo o que cada um tinha escolhido.
+    function recarregarGruposNosCampos() {
+        $('.entrega-grupo-select').each(function () {
+            const $s = $(this);
+            $s.html(optsGrupos($s.val() || ''));
+        });
+    }
+
+    $(document).on('click', '.entrega-grupo-atualizar', function () {
+        const $botao = $(this).prop('disabled', true);
+        carregarGruposUsuario().always(function () {
+            recarregarGruposNosCampos();
+            $botao.prop('disabled', false);
+            if (lista_grupos_usuario.length) exibirAviso('Lista de grupos atualizada.');
+            else exibirAviso('Nenhum grupo encontrado ainda: adicione o bot ao grupo como administrador e atualize de novo.', 'erro');
+        });
+    });
+
     $(document).on('change', '.campo-plano-cobranca', function () {
         const rec = this.value === 'recorrente', $p = $(this).closest('.painel-plano');
         $p.find('.campo-tempo-unico').prop('hidden', rec);
         $p.find('.campo-plano-periodo, .campo-plano-rec-dica').prop('hidden', !rec);
     });
-    $(document).on('change', '.campo-plano-grupo, .pk-grupo', function () {
-        $(this).closest('.campo').find('.dica-sem-grupo').prop('hidden', !!$(this).val());
-    });
+
+    // Cada plano pode ser recolhido (some o formulário, fica só o cabeçalho com nome, valor e tempo). É só da tela: não vai no salvar
+    // e sobrevive a adicionar/remover plano porque a chave é o id do plano.
+    const SETA_PLANO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+    const UNIDADE_PLANO = { dias: ['dia', 'dias'], horas: ['hora', 'horas'], minutos: ['minuto', 'minutos'] };
+    const PERIODO_PLANO = { semanal: 'por semana', mensal: 'por mês', trimestral: 'por trimestre', semestral: 'por semestre', anual: 'por ano' };
+    const planos_recolhidos = {};
+
+    // Resumo do cabeçalho, lido do que está na tela agora (assim acompanha o que a pessoa digita).
+    function resumoPlano($p) {
+        const valor = parseFloat($p.find('.campo-plano-valor').val()) || 0;
+        const partes = ['R$ ' + valor.toFixed(2).replace('.', ',')];
+        if ($p.find('.campo-plano-cobranca').val() === 'recorrente') {
+            partes.push(PERIODO_PLANO[$p.find('.campo-plano-periodo').val()] || 'recorrente');
+        } else {
+            const qtd = parseInt($p.find('.campo-plano-dias').val(), 10) || 30;
+            const un = UNIDADE_PLANO[$p.find('.campo-plano-unidade').val()] || UNIDADE_PLANO.dias;
+            partes.push(qtd + ' ' + un[qtd === 1 ? 0 : 1]);
+        }
+        return { nome: $p.find('.campo-plano-nome').val().trim(), info: partes.join(' · ') };
+    }
+
+    function atualizarResumoPlano($p) {
+        const r = resumoPlano($p);
+        $p.find('.plano-resumo-nome').text(r.nome || 'Plano sem nome').toggleClass('sem-nome', !r.nome);
+        $p.find('.plano-resumo-info').text(r.info);
+    }
+
+    function definirPlanoRecolhido($p, recolhido) {
+        const id = planos[parseInt($p.data('index'), 10)].id;
+        if (recolhido) planos_recolhidos[id] = true; else delete planos_recolhidos[id];
+        $p.toggleClass('recolhido', recolhido);
+        $p.find('.plano-alternar').attr({ 'aria-expanded': String(!recolhido), title: recolhido ? 'Expandir plano' : 'Recolher plano', 'aria-label': recolhido ? 'Expandir plano' : 'Recolher plano' });
+    }
 
     function renderPlanos() {
         const $lista = $('#lista-planos');
@@ -117,8 +251,16 @@
         let html = '';
         planos.forEach(function (p, i) {
             const rec = p.cobranca === 'recorrente';
+            if (!p.id) p.id = 'plano_' + Date.now() + '_' + i;
+            const recolhido = !!planos_recolhidos[p.id];
+            const rotulo = recolhido ? 'Expandir plano' : 'Recolher plano';
             html += '' +
-                '<div class="painel-plano" data-index="' + i + '" style="border:1px solid var(--bd); border-radius:10px; padding:12px; margin-bottom:10px;">' +
+                '<div class="painel-plano' + (recolhido ? ' recolhido' : '') + '" data-index="' + i + '" style="border:1px solid var(--bd); border-radius:10px; padding:12px; margin-bottom:10px;">' +
+                '  <div class="plano-topo">' +
+                '    <span class="plano-resumo"><strong class="plano-resumo-nome"></strong><small class="plano-resumo-info"></small></span>' +
+                '    <button type="button" class="btn-icon plano-alternar" aria-expanded="' + (!recolhido) + '" title="' + rotulo + '" aria-label="' + rotulo + '">' + SETA_PLANO + '</button>' +   // seta à DIREITA do cabeçalho (26/10/2026, pedido do dono)
+                '  </div>' +
+                '  <div class="plano-corpo">' +
                 '  <div class="grade grade-2 grade-compacta">' +
                 '    <div class="campo"><label>Nome do plano</label><input type="text" class="campo-plano-nome" value="' + escaparHtml(p.nome || '') + '" placeholder="Ex.: Mensal"></div>' +
                 '    <div class="campo"><label>Valor (R$)</label><input type="number" step="0.01" min="0" class="campo-plano-valor" value="' + (p.valor != null ? p.valor : 0) + '"></div>' +
@@ -134,7 +276,7 @@
                 '        </select>' +
                 '      </div>' +
                 '    </div>' +
-                '    <div class="campo"><label>Grupo de entrega</label><select class="campo-plano-grupo">' + optsGrupos(p.id_grupo) + '</select>' + dicaSemGrupo(p.id_grupo, 'deste plano') + '</div>' +
+                '    ' + htmlCampoEntrega(p, { rotulo: 'Entrega', quem: 'deste plano', classe: 'campo-plano-grupo' }) +
                 '  </div>' +
                 '  <div class="grade grade-2 grade-compacta" style="margin-top:8px;">' +
                 '    <div class="campo"><label>Cor do botão</label>' +
@@ -157,25 +299,26 @@
                 '    </div>' : '') +
                 '  </div>' +
                 '  <div style="display:flex; justify-content:flex-end; margin-top:8px;"><button type="button" class="btn-icon excluir remover-plano" title="Remover plano" aria-label="Remover plano">' + ACAO_SVG.excluir + '</button></div>' +
+                '  </div>' +
                 '</div>';
         });
         $lista.html(html);
+        $lista.find('.painel-plano').each(function () { atualizarResumoPlano($(this)); });
     }
 
     function sincronizarPlanosDoDom() {
         $('#lista-planos .painel-plano').each(function (i) {
             const $p = $(this);
-            planos[i] = {
+            planos[i] = Object.assign({
                 id: planos[i].id || ('plano_' + Date.now() + '_' + i),
                 nome: $p.find('.campo-plano-nome').val().trim(),
                 valor: parseFloat($p.find('.campo-plano-valor').val()) || 0,
                 dias_acesso: parseInt($p.find('.campo-plano-dias').val(), 10) || 30,
                 unidade_acesso: $p.find('.campo-plano-unidade').val(),
-                id_grupo: $p.find('.campo-plano-grupo').val(),
                 cor: $p.find('.campo-plano-cor').val() || '',
                 cobranca: $p.find('.campo-plano-cobranca').val() || 'unica',
                 periodicidade: $p.find('.campo-plano-periodo').val() || 'mensal'
-            };
+            }, coletarEntrega($p.find('.campo-entrega')));
         });
     }
 
@@ -211,22 +354,62 @@
     }
 
     // Sobe a foto/vídeo escolhido (mesmo envio das boas-vindas, das ofertas e dos packs) e devolve o tipo e o caminho pelo callback.
-    function enviarMidiaBasico(arquivo, aoTerminar) {
-        const eh_video = arquivo.type.indexOf('video') === 0;
+    // com_audio: só as Prévias aceitam áudio além de foto e vídeo.
+    function enviarMidiaBasico(arquivo, aoTerminar, com_audio) {
+        const campo = arquivo.type.indexOf('video') === 0 ? 'video' : (com_audio && arquivo.type.indexOf('audio') === 0 ? 'audio' : 'image');
         const fd = new FormData();
-        fd.append(eh_video ? 'video' : 'image', arquivo);
+        fd.append(campo, arquivo);
         $.ajax({
-            url: api_url + '?action=' + (eh_video ? 'upload_video_fluxo' : 'upload_imagem_fluxo'),
+            url: api_url + '?action=upload_' + (campo === 'image' ? 'imagem' : campo) + '_fluxo',
             method: 'POST',
             data: fd,
             processData: false,
             contentType: false
         }).done(function (resp) {
             if (!resp.sucesso) { aoTerminar(null, resp.mensagem || 'Erro ao enviar mídia.'); return; }
-            aoTerminar({ tipo: eh_video ? 'video' : 'image', caminho: resp.caminho || '' }, '');
+            aoTerminar({ tipo: campo, caminho: resp.caminho || '' }, '');
         }).fail(function (xhr) {
             aoTerminar(null, (xhr.responseJSON && xhr.responseJSON.mensagem) || 'Erro ao enviar mídia.');
         });
+    }
+
+    // Vários arquivos escolhidos de uma vez (Ctrl/Shift no computador, várias da galeria no celular): sobem um de cada vez, na ordem em que vieram,
+    // até o que ainda cabe na lista (vagas); o que passar disso fica de fora e é contado no aviso final.
+    // o = { vagas, enviar(arquivo, cb), aoProgredir(n, total), aoSubir(midia, k), aoFim({ total, enviadas, erros: [{ nome, erro }], descartadas }) }
+    function enviarMidiasEmSequencia(arquivos, o) {
+        const fila = arquivos.slice(0, Math.max(0, o.vagas));
+        const r = { total: arquivos.length, enviadas: 0, erros: [], descartadas: arquivos.length - fila.length };
+        (function proximo(k) {
+            if (k >= fila.length) { o.aoFim(r); return; }
+            o.aoProgredir(k + 1, fila.length);
+            o.enviar(fila[k], function (midia, erro) {
+                if (midia) { o.aoSubir(midia, k); r.enviadas++; }
+                else r.erros.push({ nome: fila[k].name || 'arquivo ' + (k + 1), erro: erro });
+                proximo(k + 1);
+            });
+        })(0);
+    }
+
+    // Aviso do fim do envio. Um arquivo só mantém as frases de sempre; vários dizem quantos entraram, o que falhou e o que passou do limite da lista.
+    function avisarResultadoLote(r, frase_um, limite) {
+        if (r.total === 1) {
+            if (r.enviadas) exibirAviso(frase_um);
+            else if (r.erros.length) exibirAviso(r.erros[0].erro, 'erro');
+            else if (r.descartadas) exibirAviso('A lista já está no limite de ' + limite + ' mídias.', 'erro');
+            return;
+        }
+        const partes = [];
+        if (r.enviadas) partes.push(r.enviadas === 1 ? '1 mídia anexada.' : r.enviadas + ' mídias anexadas.');
+        if (r.erros.length) partes.push((r.erros.length === 1 ? '1 não subiu: ' : r.erros.length + ' não subiram: ') + r.erros.map(function (e) { return e.nome + ' (' + e.erro + ')'; }).join('; ') + '.');
+        if (r.descartadas) partes.push((r.descartadas === 1 ? '1 ficou de fora' : r.descartadas + ' ficaram de fora') + ': o limite é de ' + limite + ' mídias.');
+        if (r.enviadas) partes.push('Clique em Salvar alterações para aplicar.');
+        exibirAviso(partes.join(' '), r.erros.length || r.descartadas ? 'erro' : 'sucesso');
+    }
+
+    // Texto do botão de adicionar outra mídia: o andamento enquanto sobe, o limite quando a lista enche, ou o convite de sempre.
+    function textoBotaoMidia(cheio, lote, maximo) {
+        if (lote) return lote.total > 1 ? 'Enviando mídia ' + lote.n + ' de ' + lote.total + '…' : 'Enviando mídia…';
+        return cheio ? 'Limite de ' + maximo + ' mídias' : '+ Adicionar outra foto ou vídeo';
     }
 
     // Boas-vindas: com "Mostrar botão (CTA)" desligado, o texto e a cor do botão somem da tela (o bot manda a lista de planos logo depois da mensagem).
@@ -236,14 +419,41 @@
         $('#bv-cta-dica').prop('hidden', mostra);
     }
 
+    // enviando: true enquanto sobe um arquivo novo. Com a caixa grande vazia a lista de extras some; o botão de adicionar só aparece com a 1ª mídia anexada.
     function atualizarPreviaMidia(enviando) {
-        desenharMidia($('#bv-midia-previa'), midia_tipo_atual, midia_path_atual, enviando, 'a mensagem de boas-vindas');
+        const primeira = bv_midias[0] || { tipo: 'none', path: '' };
+        desenharMidia($('#bv-midia-previa'), primeira.tipo, primeira.path, enviando, 'a mensagem de boas-vindas');
+        $('#bv-midias-extras').html(bv_midias.slice(1).map(function (m, k) {
+            const i = k + 1;
+            return '<div class="basico-bot" data-i="' + i + '"><span>' + (i + 1) + '. ' + (m.tipo === 'video' ? 'Vídeo' : 'Foto') + ' <small>' + escaparHtml(m.path.replace('uploads/', '')) + '</small></span>' +
+                '<span class="col-acoes"><button type="button" class="btn-icon bv-subir" title="Subir" aria-label="Subir">' + ACAO_SVG.subir + '</button> ' +
+                '<button type="button" class="btn-icon excluir bv-remover" title="Remover mídia" aria-label="Remover mídia">' + ACAO_SVG.excluir + '</button></span></div>';
+        }).join(''));
+        $('#bv-midias-adicionar').toggle(bv_midias.length > 0).prop('disabled', bv_midias.length >= bv_midias_max || !!bv_lote).text(textoBotaoMidia(bv_midias.length >= bv_midias_max, bv_lote, bv_midias_max));
+        $('#bv-midias-dica').toggle(bv_midias.length > 0);
     }
 
-    // Mídia de cada oferta (Upsell, Downsell, Order Bump): fica aqui e vai no JSON junto com o resto da oferta.
-    const ofertas_midia = { upsell: { tipo: 'none', path: '' }, downsell: { tipo: 'none', path: '' }, order_bump: { tipo: 'none', path: '' } };
+    // Mídias de cada oferta (Upsell, Downsell, Order Bump), na ordem de envio: ficam aqui e vão no JSON junto com o resto da oferta. A 1ª aparece na caixa grande;
+    // no Upsell e no Downsell as demais ficam numa lista logo abaixo (até 10, viram um álbum no Telegram). O Order Bump aceita 1.
+    const ofertas_midias = { upsell: [], downsell: [], order_bump: [] };
+    const ofertas_midias_max = { upsell: 10, downsell: 10, order_bump: 1 };
+    const ofertas_lote = { upsell: null, downsell: null, order_bump: null };   // { n, total } enquanto sobe arquivos escolhidos juntos
+    // Posição que o próximo arquivo escolhido numa oferta vai ocupar: 0 = caixa grande (anexa ou troca a 1ª), comprimento da lista = no fim.
+    const ofertas_destino_upload = { upsell: 0, downsell: 0, order_bump: 0 };
     function atualizarMidiaOferta(tipo, enviando) {
-        desenharMidia($('.painel[data-oferta="' + tipo + '"] .of-midia'), ofertas_midia[tipo].tipo, ofertas_midia[tipo].path, enviando, 'a mensagem da oferta');
+        const lista = ofertas_midias[tipo];
+        const primeira = lista[0] || { tipo: 'none', path: '' };
+        const $p = $('.painel[data-oferta="' + tipo + '"]');
+        desenharMidia($p.find('.of-midia'), primeira.tipo, primeira.path, enviando, 'a mensagem da oferta');
+        $p.find('.of-midias-extras').html(lista.slice(1).map(function (m, k) {
+            const i = k + 1;
+            return '<div class="basico-bot" data-i="' + i + '"><span>' + (i + 1) + '. ' + (m.tipo === 'video' ? 'Vídeo' : 'Foto') + ' <small>' + escaparHtml(m.path.replace('uploads/', '')) + '</small></span>' +
+                '<span class="col-acoes"><button type="button" class="btn-icon of-subir" title="Subir" aria-label="Subir">' + ACAO_SVG.subir + '</button> ' +
+                '<button type="button" class="btn-icon excluir of-remover" title="Remover mídia" aria-label="Remover mídia">' + ACAO_SVG.excluir + '</button></span></div>';
+        }).join(''));
+        const maximo = ofertas_midias_max[tipo];
+        $p.find('.of-midias-adicionar').toggle(lista.length > 0).prop('disabled', lista.length >= maximo || !!ofertas_lote[tipo]).text(textoBotaoMidia(lista.length >= maximo, ofertas_lote[tipo], maximo));
+        $p.find('.of-midias-dica').toggle(lista.length > 0 && $p.find('.of-midias-adicionar').length > 0);
     }
 
     // Canais/grupos onde algum bot vinculado a este fluxo já foi adicionado (tabela bot_grupos).
@@ -379,7 +589,7 @@
                 '<div class="campo"><label>Nome do pack</label><input type="text" class="pk-nome" maxlength="60" value="' + escaparHtml(p.nome || '') + '" placeholder="Pack Especial"></div>' +
                 '<div class="campo"><label>Descrição (exibida na prévia)</label><textarea class="pk-descricao" rows="2" placeholder="Descrição do pack...">' + escaparHtml(p.descricao || '') + '</textarea></div>' +
                 '<div class="campo"><label>Mídia de preview (antes da compra)</label><div class="linha-flex">' + midia + '</div></div>' +
-                '<div class="campo"><label>Entrega do pack</label><select class="pk-grupo">' + optsGrupos(p.id_grupo) + '</select>' + dicaSemGrupo(p.id_grupo, 'deste pack') + '</div>' +
+                htmlCampoEntrega(p, { rotulo: 'Entrega do pack', quem: 'deste pack', classe: 'pk-grupo' }) +
                 '</div>';
         }).join('') || '<div class="basico-bots-vazio"><strong>Nenhum pack ainda</strong><span>Adicione o primeiro pack</span></div>');
     }
@@ -393,7 +603,7 @@
             packs_itens[i].nome = $p.find('.pk-nome').val().trim();
             packs_itens[i].preco = parseFloat($p.find('.pk-preco').val()) || 0;
             packs_itens[i].descricao = $p.find('.pk-descricao').val().trim();
-            packs_itens[i].id_grupo = $p.find('.pk-grupo').val();
+            Object.assign(packs_itens[i], coletarEntrega($p.find('.campo-entrega')));
         });
     }
 
@@ -420,11 +630,13 @@
     // ===== Prévias que somem =====
     let previas_midias = [];
     const previas_max = 8;
+    let previas_lote = null;   // { n, total } enquanto sobe arquivos escolhidos juntos
     const previas_rotulo = { image: 'Foto', video: 'Vídeo', audio: 'Áudio' };
 
     function renderPreviasMidias() {
         $('#pv-contagem').text('(' + previas_midias.length + '/' + previas_max + ')');
-        $('#pv-adicionar').prop('disabled', previas_midias.length >= previas_max);
+        $('#pv-adicionar').prop('disabled', previas_midias.length >= previas_max || !!previas_lote)
+            .text(previas_lote ? (previas_lote.total > 1 ? 'Enviando mídia ' + previas_lote.n + ' de ' + previas_lote.total + '…' : 'Enviando mídia…') : '+ Adicionar mídia');
         $('#pv-lista').html(previas_midias.length ? previas_midias.map(function (m, i) {
             return '<div class="basico-bot" data-i="' + i + '"><span>' + (i + 1) + '. ' + previas_rotulo[m.tipo] + ' <small>' + escaparHtml(m.path.replace('uploads/', '')) + '</small></span>' +
                 '<span class="col-acoes"><button type="button" class="btn-icon pv-subir" title="Subir" aria-label="Subir" ' + (i === 0 ? 'disabled' : '') + '>' + ACAO_SVG.subir + '</button> ' +
@@ -437,7 +649,7 @@
             ativo: $('#pv-ativo').is(':checked'),
             texto_botao: $('#pv-botao').val().trim() || '🔥 Prévias Grátis',
             midias: previas_midias,
-            apagar_apos: parseInt($('#pv-apagar').val(), 10) || 15,
+            apagar_apos: parseInt($('#pv-apagar').val(), 10) || 5,
             rever: $('#pv-rever').val() || 'nunca',
             proteger: $('#pv-proteger').is(':checked'),
             mensagem_junto: $('#pv-junto').val(),
@@ -452,7 +664,7 @@
         $('#pv-detalhes').prop('hidden', !p.ativo);
         $('#pv-botao').val(p.texto_botao || '');
         previas_midias = Array.isArray(p.midias) ? p.midias.filter(function (m) { return m && m.path; }) : [];
-        $('#pv-apagar').val(String(p.apagar_apos || 15));
+        $('#pv-apagar').val(String(p.apagar_apos || 5));
         $('#pv-rever').val(p.rever || 'nunca');
         $('#pv-proteger').prop('checked', p.proteger !== false);
         $('#pv-junto').val(p.mensagem_junto || '');
@@ -557,6 +769,8 @@
         atualizarSelectsOfertas();
         $('.basico-nav-item').removeClass('ativo').filter('[data-secao="' + nome + '"]').addClass('ativo');
         $('.basico-secao').removeClass('ativa').filter('[data-secao="' + nome + '"]').addClass('ativa');
+        $('.editor-fluxo-corpo').attr('data-secao-ativa', nome);   // a coluna da direita mostra a prévia do Telegram só em Pagamentos
+        if (nome === 'pagamentos') PagamentosGuiado.aoMostrar();
         if (nome === 'conversoes') carregarConversoes();
         atualizarNavegacaoMobile();
         window.scrollTo(0, 0);
@@ -599,14 +813,95 @@
         $painel.find('.of-esconder-recusar-dica').prop('hidden', !esconder);
     }
 
+    // Downsell: o temporizador só faz sentido "Depois do Pix"; o intervalo só aparece com mais de 1 envio.
+    function mostrarTemporizadorDownsell($painel) {
+        $painel.find('.of-temporizador').toggle($painel.find('.of-quando').val() === 'depois_pix');
+        $painel.find('.of-intervalo-campo').toggle((parseInt($painel.find('.of-envios').val(), 10) || 1) > 1);
+    }
+
+    function numeroNoIntervalo(valor, minimo, maximo, padrao) {
+        const n = parseInt(valor, 10);
+        return isNaN(n) ? padrao : Math.min(maximo, Math.max(minimo, n));
+    }
+
+    // ===== Order Bump em sequência =====
+    // O painel fixo da seção é o Order Bump 1; os bumps 2 a 5 são cartões desenhados aqui (lista bump_extras). No modo "depois do pagamento" só vale o 1º.
+    function itemBumpVazio() {
+        return { nome: '', valor_extra: 0, espera_minutos: 10, mensagem: '', texto_aceitar: '', cor_aceitar: '', texto_recusar: '', cor_recusar: '', midia_tipo: 'none', midia_path: '' };
+    }
+
+    function htmlBumpExtra(it, i) {
+        const cores = function (atual) {
+            return [['', 'Padrão'], ['primary', 'Azul'], ['success', 'Verde'], ['danger', 'Vermelho']].map(function (c) {
+                return '<option value="' + c[0] + '"' + (atual === c[0] ? ' selected' : '') + '>' + c[1] + '</option>';
+            }).join('');
+        };
+        return '<div class="bp-item" data-i="' + i + '">' +
+            '<div class="bp-item-cabecalho"><h3 class="bp-item-titulo">Order Bump ' + (i + 2) + '</h3>' +
+            '<button type="button" class="btn-icon excluir bp-remover" title="Remover order bump" aria-label="Remover order bump">' + ACAO_SVG.excluir + '</button></div>' +
+            '<div class="campo"><label>Nome do extra</label><input type="text" class="bp-nome" maxlength="60" placeholder="Ex.: Pack bônus 2" value="' + escaparHtml(it.nome) + '"></div>' +
+            '<div class="grade grade-2 grade-compacta">' +
+            '<div class="campo"><label>Enviar quantos minutos depois do anterior</label><input type="number" min="1" max="1440" step="1" class="bp-espera" value="' + (it.espera_minutos || 10) + '"></div>' +
+            '<div class="campo"><label>Valor extra (R$)</label><input type="number" min="0" step="0.01" class="bp-valor" value="' + (it.valor_extra != null ? it.valor_extra : 0) + '"></div>' +
+            '</div>' +
+            '<div class="campo"><label>Mensagem da oferta</label><textarea class="bp-mensagem" rows="3" placeholder="Quer adicionar mais este bônus por só mais R$ 9,90?">' + escaparHtml(it.mensagem) + '</textarea></div>' +
+            '<div class="campo"><label>Mídia (opcional)</label><div class="area-previa-basico bp-midia" data-estado="vazio" data-tipo="none">Sem mídia</div>' +
+            '<input type="file" class="bp-midia-arquivo" accept="image/*,video/*" style="display:none"></div>' +
+            '<div class="grade grade-2 grade-compacta">' +
+            '<div class="campo"><label>Botão aceitar</label><input type="text" class="bp-aceitar" placeholder="Sim, quero!" value="' + escaparHtml(it.texto_aceitar) + '"></div>' +
+            '<div class="campo"><label>Cor do botão aceitar</label><select class="bp-aceitar-cor">' + cores(it.cor_aceitar || '') + '</select></div>' +
+            '<div class="campo"><label>Botão recusar</label><input type="text" class="bp-recusar" placeholder="Não, obrigado" value="' + escaparHtml(it.texto_recusar) + '"></div>' +
+            '<div class="campo"><label>Cor do botão recusar</label><select class="bp-recusar-cor">' + cores(it.cor_recusar || '') + '</select></div>' +
+            '</div></div>';
+    }
+
+    function renderBumpsExtras() {
+        $('#bp-extras').html(bump_extras.map(function (it, i) { return htmlBumpExtra(it, i); }).join(''));
+        $('#bp-extras .bp-item').each(function (i) {
+            desenharMidia($(this).find('.bp-midia'), bump_extras[i].midia_tipo, bump_extras[i].midia_path, false, 'a mensagem da oferta');
+        });
+        const cheio = bump_extras.length + 1 >= bump_max;
+        $('#bp-adicionar').prop('disabled', cheio).text(cheio ? 'Limite de ' + bump_max + ' order bumps' : '+ Adicionar order bump');
+    }
+
+    // Copia o que está digitado nos cartões para bump_extras (antes de redesenhar a lista e na hora de salvar).
+    function sincronizarBumpsDoDom() {
+        $('#bp-extras .bp-item').each(function (i) {
+            if (!bump_extras[i]) return;
+            const $b = $(this);
+            Object.assign(bump_extras[i], {
+                nome: $b.find('.bp-nome').val().trim(),
+                valor_extra: parseFloat($b.find('.bp-valor').val()) || 0,
+                espera_minutos: numeroNoIntervalo($b.find('.bp-espera').val(), 1, 1440, 10),
+                mensagem: $b.find('.bp-mensagem').val().trim(),
+                texto_aceitar: $b.find('.bp-aceitar').val().trim(),
+                cor_aceitar: $b.find('.bp-aceitar-cor').val() || '',
+                texto_recusar: $b.find('.bp-recusar').val().trim(),
+                cor_recusar: $b.find('.bp-recusar-cor').val() || ''
+            });
+        });
+    }
+
+    // "Depois do pagamento" é um order bump só e sem tempo: esconde o tempo, os títulos, os cartões e o botão de adicionar.
+    function atualizarModoBump() {
+        const $p = $painelOferta('order_bump');
+        const sequencia = $p.find('.of-quando').val() !== 'depois_pagamento';
+        $p.find('.of-espera-campo, .bp-sequencia-dica, .of-detalhes > .bp-item-titulo, #bp-extras, #bp-adicionar').toggle(sequencia);
+        $p.find('.bp-quando-campo').css('grid-column', sequencia ? '' : '1 / -1');
+    }
+
     function coletarOferta(tipo) {
         const $p = $painelOferta(tipo);
         const oferta = {
             ativo: $p.find('.of-ativo').is(':checked'),
             mensagem: $p.find('.of-mensagem').val().trim(),
-            midia_tipo: ofertas_midia[tipo].path ? ofertas_midia[tipo].tipo : 'none',
-            midia_path: ofertas_midia[tipo].path
+            // midias = lista completa (só no Upsell e no Downsell, até 10); midia_tipo/midia_path repetem a 1ª para quem lê o formato de uma mídia só.
+            midia_tipo: ofertas_midias[tipo].length ? ofertas_midias[tipo][0].tipo : 'none',
+            midia_path: ofertas_midias[tipo].length ? ofertas_midias[tipo][0].path : ''
         };
+        if ($p.find('.of-midias-adicionar').length) {
+            oferta.midias = ofertas_midias[tipo].map(function (m) { return { tipo: m.tipo, path: m.path }; });
+        }
         // O Downsell não tem botões de aceitar/recusar: o cliente vê um botão por plano marcado.
         if (tipo !== 'downsell') {
             oferta.texto_aceitar = $p.find('.of-aceitar').val().trim();
@@ -618,20 +913,39 @@
         if (tipo === 'order_bump') {
             oferta.nome = $p.find('.of-nome').val().trim();
             oferta.valor_extra = parseFloat($p.find('.of-valor-extra').val()) || 0;
+            oferta.quando = $p.find('.of-quando').val() === 'depois_pagamento' ? 'depois_pagamento' : 'depois_pix';
+            oferta.espera_minutos = numeroNoIntervalo($p.find('.of-espera').val(), 1, 1440, 5);
+            // `itens` = a sequência inteira (até 5). O 1º repete os campos do próprio order bump (o jeito de um bump só, depois do pagamento, segue lendo eles); os outros vêm dos cartões.
+            sincronizarBumpsDoDom();
+            const primeiro = {};
+            ['nome', 'valor_extra', 'espera_minutos', 'mensagem', 'texto_aceitar', 'cor_aceitar', 'texto_recusar', 'cor_recusar', 'midia_tipo', 'midia_path'].forEach(function (k) { primeiro[k] = oferta[k]; });
+            oferta.itens = [primeiro].concat(bump_extras.map(function (e) { return Object.assign({}, e); }));
         } else if (tipo === 'downsell') {
             oferta.planos_oferecidos = $p.find('.of-planos-lista input:checked').map(function () { return String(this.value); }).get();
             oferta.id_plano_destino = oferta.planos_oferecidos[0] || '';   // 1º marcado: mantém compatível com quem lê o formato antigo
             oferta.desconto_percentual = Math.min(100, Math.max(0, parseFloat($p.find('.of-desconto').val()) || 0));
+            oferta.quando = $p.find('.of-quando').val() === 'antes_pix' ? 'antes_pix' : 'depois_pix';
+            oferta.espera_minutos = numeroNoIntervalo($p.find('.of-espera').val(), 1, 1440, 10);
+            oferta.envios = numeroNoIntervalo($p.find('.of-envios').val(), 1, 5, 1);
+            oferta.intervalo_minutos = numeroNoIntervalo($p.find('.of-intervalo').val(), 1, 1440, 30);
         } else {
             oferta.id_plano_destino = $p.find('.of-plano').val() || '';
             oferta.desconto_percentual = Math.min(100, Math.max(0, parseFloat($p.find('.of-desconto').val()) || 0));
         }
+        // Upsell e Downsell escolhem como entregar (por padrão, igual ao plano oferecido). O Order Bump segue sem entrega própria.
+        if ($p.find('.of-entrega').length) Object.assign(oferta, coletarEntrega($p.find('.campo-entrega')));
         return oferta;
+    }
+
+    // Campo "Entrega" do Upsell e do Downsell (as opções dependem dos grupos carregados, então é desenhado aqui e não no PHP).
+    function desenharEntregaOferta(tipo, oferta) {
+        $painelOferta(tipo).find('.of-entrega').html(htmlCampoEntrega(oferta || {}, { rotulo: 'Entrega', quem: 'desta oferta', classe: 'of-entrega-select', oferta: true }));
     }
 
     function preencherOferta(tipo, oferta) {
         oferta = oferta || {};
         const $p = $painelOferta(tipo);
+        desenharEntregaOferta(tipo, oferta);
         $p.find('.of-ativo').prop('checked', !!oferta.ativo);
         mostrarDetalhesOferta($p);
         $p.find('.of-mensagem').val(oferta.mensagem || '');
@@ -639,22 +953,59 @@
         $p.find('.of-aceitar-cor').val(oferta.cor_aceitar || '');
         $p.find('.of-recusar').val(oferta.texto_recusar || '');
         $p.find('.of-recusar-cor').val(oferta.cor_recusar || '');
-        ofertas_midia[tipo] = { tipo: oferta.midia_path ? (oferta.midia_tipo || 'image') : 'none', path: oferta.midia_path || '' };
+        // Oferta salva antes das várias mídias só tem midia_tipo/midia_path: vira uma lista de 1.
+        ofertas_midias[tipo] = (Array.isArray(oferta.midias) && oferta.midias.length ? oferta.midias : (oferta.midia_path ? [{ tipo: oferta.midia_tipo === 'video' ? 'video' : 'image', path: oferta.midia_path }] : []))
+            .filter(function (m) { return m && m.path && (m.tipo === 'image' || m.tipo === 'video'); })
+            .slice(0, ofertas_midias_max[tipo])
+            .map(function (m) { return { tipo: m.tipo, path: m.path }; });
         atualizarMidiaOferta(tipo);
         $p.find('.of-esconder-recusar').prop('checked', !!oferta.esconder_recusar);
         mostrarCamposRecusar($p);
         if (tipo === 'order_bump') {
             $p.find('.of-nome').val(oferta.nome || '');
             $p.find('.of-valor-extra').val(oferta.valor_extra != null ? oferta.valor_extra : 0);
+            // Order bump já ligado e salvo sem "quando" é do tempo de um bump só, depois do pagamento: mantém assim. Desligado ou novo começa na sequência (depois do Pix).
+            const quando_bump = oferta.quando || (oferta.ativo ? 'depois_pagamento' : 'depois_pix');
+            $p.find('.of-quando').val(quando_bump === 'depois_pagamento' ? 'depois_pagamento' : 'depois_pix');
+            const itens_bump = Array.isArray(oferta.itens) ? oferta.itens : [];
+            $p.find('.of-espera').val(oferta.espera_minutos || (itens_bump[0] && itens_bump[0].espera_minutos) || 5);
+            bump_extras = itens_bump.slice(1, bump_max).map(function (it) {
+                return Object.assign(itemBumpVazio(), it, { midia_tipo: it.midia_path ? (it.midia_tipo || 'image') : 'none', midia_path: it.midia_path || '' });
+            });
+            renderBumpsExtras();
+            atualizarModoBump();
         } else if (tipo === 'downsell') {
             // formato novo: planos_oferecidos; fluxo antigo: só id_plano_destino (vira 1 plano marcado)
             const ids = Array.isArray(oferta.planos_oferecidos) ? oferta.planos_oferecidos : (oferta.id_plano_destino ? [oferta.id_plano_destino] : []);
             $p.find('.of-planos-lista').data('valor', ids.map(String));
             $p.find('.of-desconto').val(oferta.desconto_percentual != null ? oferta.desconto_percentual : 0);
+            // Downsell já salvo sem "quando" é do tempo em que só existia "antes do Pix": mantém assim. Downsell novo começa em "depois do Pix".
+            $p.find('.of-quando').val(oferta.quando || (Array.isArray(oferta.planos_oferecidos) ? 'antes_pix' : 'depois_pix'));
+            $p.find('.of-espera').val(oferta.espera_minutos || 10);
+            $p.find('.of-envios').val(oferta.envios || 1);
+            $p.find('.of-intervalo').val(oferta.intervalo_minutos || 30);
+            mostrarTemporizadorDownsell($p);
         } else {
             $p.find('.of-plano').data('valor', oferta.id_plano_destino || '');
             $p.find('.of-desconto').val(oferta.desconto_percentual != null ? oferta.desconto_percentual : 0);
         }
+    }
+
+    // Entrega por link precisa de um endereço válido (mesma regra do servidor). Pack desligado e oferta desligada não entram: não vendem nada.
+    function validarEntregaPorLink(d) {
+        const itens = d.planos.map(function (p) { return ['do plano', p]; });
+        if (d.packs.ativo) d.packs.itens.forEach(function (k) { if (k.ativo !== false) itens.push(['do pack', k]); });
+        [['upsell', 'do Upsell'], ['downsell', 'do Downsell']].forEach(function (o) { if (d.ofertas[o[0]].ativo) itens.push([o[1], d.ofertas[o[0]]]); });
+        for (let i = 0; i < itens.length; i++) {
+            const item = itens[i][1];
+            if (item.entrega_tipo === 'link' && !linkEntregaValido(item.link_entrega)) {
+                return 'A entrega por link ' + itens[i][0] + (item.nome ? ' "' + item.nome + '"' : '') + ' precisa de um endereço completo, começando com https:// (sem espaços).';
+            }
+            if (item.entrega_tipo === 'grupo' && !item.id_grupo) {
+                return 'Escolha o grupo da entrega ' + itens[i][0] + (item.nome ? ' "' + item.nome + '"' : '') + ' (ou mude a entrega para outra opção).';
+            }
+        }
+        return '';
     }
 
     function validarDados(dados) {
@@ -672,6 +1023,8 @@
         if (erro_minimo) return erro_minimo;
         if (d.ofertas.upsell.ativo && !d.ofertas.upsell.id_plano_destino) return 'Escolha o plano oferecido no Upsell ou desative-o.';
         if (d.ofertas.downsell.ativo && !d.ofertas.downsell.planos_oferecidos.length) return 'Marque pelo menos 1 plano oferecido no Downsell ou desative-o.';
+        const erro_entrega = validarEntregaPorLink(d);
+        if (erro_entrega) return erro_entrega;
         if (d.assinatura.avisos_antes.ativo && !d.assinatura.avisos_antes.dias.length) return 'Escolha pelo menos 1 dia nos avisos de renovação ou desative-os.';
         if (d.assinatura.avisos_no_dia.ativo && d.assinatura.avisos_no_dia.horarios.length !== (parseInt($('#as-dia-qtd').val(), 10) || 1)) return 'Escolha os horários dos avisos no dia da expiração (' + ($('#as-dia-qtd').val() || 1) + ').';
         if (d.packs.ativo) {
@@ -683,7 +1036,13 @@
             if (!d.packs.itens.some(function (p) { return p.ativo !== false; })) return 'Ative ou adicione pelo menos 1 pack, ou desative os Packs.';
         }
         if (d.previas.ativo && !d.previas.midias.length) return 'Adicione pelo menos 1 mídia nas Prévias ou desative-as.';
-        if (d.ofertas.order_bump.ativo && !(d.ofertas.order_bump.valor_extra > 0)) return 'Informe o valor extra do Order Bump ou desative-o.';
+        const bump = d.ofertas.order_bump;
+        if (bump.ativo && !(bump.valor_extra > 0)) return 'Informe o valor extra do Order Bump ou desative-o.';
+        if (bump.ativo && bump.quando === 'depois_pix') {
+            for (let i = 1; i < bump.itens.length; i++) {
+                if (!(bump.itens[i].valor_extra > 0)) return 'Informe o valor extra do Order Bump ' + (i + 1) + ' ou remova-o.';
+            }
+        }
         return '';
     }
 
@@ -821,8 +1180,10 @@
                 },
                 boas_vindas: {
                     mensagem: $('#bv-mensagem').val(),
-                    midia_tipo: midia_tipo_atual,
-                    midia_path: midia_path_atual,
+                    // midias = lista completa (até 10); midia_tipo/midia_path repetem a 1ª para quem lê o formato de uma mídia só.
+                    midias: bv_midias.map(function (m) { return { tipo: m.tipo, path: m.path }; }),
+                    midia_tipo: bv_midias.length ? bv_midias[0].tipo : 'none',
+                    midia_path: bv_midias.length ? bv_midias[0].path : '',
                     mostrar_cta: $('#bv-mostrar-cta').is(':checked'),
                     texto_cta: $('#bv-cta').val().trim() || 'Ver Planos',
                     cor_cta: $('#bv-cta-cor').val() || ''
@@ -831,14 +1192,8 @@
                 packs: coletarPacks(),
                 assinatura: coletarAssinatura(),
                 planos: planos,
-                pagamentos: {
-                    msg_instrucoes: $('#pg-msg-instrucoes').val(),
-                    msg_confirmado: $('#pg-msg-confirmado').val(),
-                    mostrar_copiar: $('#pg-mostrar-copiar').is(':checked'),
-                    mostrar_qrcode: $('#pg-mostrar-qrcode').is(':checked'),
-                    qrcode_definido: true,
-                    mostrar_confirmar: $('#pg-mostrar-confirmar').is(':checked')
-                }
+                // Aba Pagamentos (modelo novo, versao 2): ver assets/pagamentos_guiado.js e funcoes/pagamentos_guiado.php.
+                pagamentos: PagamentosGuiado.coletar()
             }
         };
     }
@@ -855,19 +1210,18 @@
         mostrarCamposCta();
         $('#bv-cta').val(bv.texto_cta || 'Ver Planos');
         $('#bv-cta-cor').val(bv.cor_cta || '');
-        midia_tipo_atual = bv.midia_tipo || 'none';
-        midia_path_atual = bv.midia_path || '';
+        // Fluxo salvo antes das várias mídias só tem midia_tipo/midia_path: vira uma lista de 1.
+        bv_midias = (Array.isArray(bv.midias) && bv.midias.length ? bv.midias : (bv.midia_path ? [{ tipo: bv.midia_tipo, path: bv.midia_path }] : []))
+            .filter(function (m) { return m && m.path && (m.tipo === 'image' || m.tipo === 'video'); })
+            .slice(0, bv_midias_max)
+            .map(function (m) { return { tipo: m.tipo, path: m.path }; });
         atualizarPreviaMidia();
 
         planos = Array.isArray(dados.planos) ? dados.planos : [];
         renderPlanos();
 
-        const pg = dados.pagamentos || {};
-        $('#pg-msg-instrucoes').val(pg.msg_instrucoes || 'Copie o código Pix abaixo e pague no app do seu banco.');
-        $('#pg-msg-confirmado').val(pg.msg_confirmado || 'Pagamento confirmado! Seu acesso foi liberado.');
-        $('#pg-mostrar-copiar').prop('checked', pg.mostrar_copiar !== false);
-        $('#pg-mostrar-qrcode').prop('checked', pg.qrcode_definido ? pg.mostrar_qrcode !== false : true);
-        $('#pg-mostrar-confirmar').prop('checked', pg.mostrar_confirmar !== false);
+        // Fluxo salvo antes do modelo novo (sem "versao") abre mostrando o que ele fazia; salvar passa para o modelo novo mantendo esse comportamento.
+        PagamentosGuiado.preencher(dados.pagamentos || {});
 
         $('#fluxo-ativo').prop('checked', dados.ativo !== false);
         atualizarRotuloAtivo();
@@ -976,6 +1330,7 @@
     }
 
     $(function () {
+        PagamentosGuiado.iniciar({ marcarSujo: marcarSujo, exibirAviso: exibirAviso, enviarMidia: enviarMidiaBasico, enviarMidias: enviarMidiasEmSequencia, avisarLote: avisarResultadoLote, escaparHtml: escaparHtml });
         carregarLimitesPagamento();
         carregarGruposUsuario().always(function () {
             const url_params = new URLSearchParams(window.location.search);
@@ -985,11 +1340,15 @@
             } else {
                 atualizarPreviaMidia();
                 ['upsell', 'downsell', 'order_bump'].forEach(function (tipo) { atualizarMidiaOferta(tipo); });
+                ['upsell', 'downsell'].forEach(function (tipo) { desenharEntregaOferta(tipo, {}); });
+                renderBumpsExtras();
+                atualizarModoBump();
                 renderPlanos();
                 atualizarSelectsOfertas();
                 preencherPrevias({});
                 preencherPacks({});
                 preencherAssinatura({});
+                PagamentosGuiado.padraoNovo();   // fluxo novo: texto sugerido e botões ligados
                 atualizarAvisoNovoFluxo();
                 carregarBots();
             }
@@ -1101,7 +1460,10 @@
                 .fail(function (xhr) { exibirAviso((xhr.responseJSON && xhr.responseJSON.mensagem) || 'Erro ao enviar mídia.', 'erro'); });
         });
         $('#pv-ativo').on('change', function () { $('#pv-detalhes').prop('hidden', !this.checked); });
-        $('#pv-adicionar').on('click', function () { $('#pv-arquivo').trigger('click'); });
+        $('#pv-adicionar').on('click', function () {
+            if (previas_lote || previas_midias.length >= previas_max) return;
+            $('#pv-arquivo').prop('multiple', true).trigger('click');
+        });
         $('#pv-lista').on('click', '.pv-remover', function () {
             previas_midias.splice(parseInt($(this).closest('[data-i]').data('i'), 10), 1);
             renderPreviasMidias();
@@ -1111,22 +1473,24 @@
             if (i > 0) { previas_midias.splice(i - 1, 0, previas_midias.splice(i, 1)[0]); renderPreviasMidias(); marcarSujo(); }
         });
         $('#pv-arquivo').on('change', function () {
-            const arquivo = this.files && this.files[0];
+            const arquivos = Array.prototype.slice.call(this.files || []);   // copiar antes de limpar: limpar o campo esvazia a lista
             this.value = '';
-            if (!arquivo || previas_midias.length >= previas_max) return;
-            const tipo = arquivo.type.indexOf('video') === 0 ? 'video' : (arquivo.type.indexOf('audio') === 0 ? 'audio' : 'image');
-            const fd = new FormData();
-            fd.append(tipo, arquivo);
-            exibirAviso('Enviando mídia...');
-            $.ajax({ url: api_url + '?action=upload_' + (tipo === 'image' ? 'imagem' : tipo) + '_fluxo', method: 'POST', data: fd, processData: false, contentType: false })
-                .done(function (resp) {
-                    if (!resp.sucesso) { exibirAviso(resp.mensagem || 'Erro ao enviar mídia.', 'erro'); return; }
-                    previas_midias.push({ tipo: tipo, path: resp.caminho || '' });
+            if (!arquivos.length || previas_lote) return;
+            enviarMidiasEmSequencia(arquivos, {
+                vagas: previas_max - previas_midias.length,
+                enviar: function (arquivo, aoTerminar) { enviarMidiaBasico(arquivo, aoTerminar, true); },
+                aoProgredir: function (n, total) { previas_lote = { n: n, total: total }; renderPreviasMidias(); },
+                aoSubir: function (midia) {
+                    previas_midias.push({ tipo: midia.tipo, path: midia.caminho });
                     renderPreviasMidias();
                     marcarSujo();
-                    exibirAviso('Mídia adicionada.');
-                })
-                .fail(function (xhr) { exibirAviso((xhr.responseJSON && xhr.responseJSON.mensagem) || 'Erro ao enviar mídia.', 'erro'); });
+                },
+                aoFim: function (r) {
+                    previas_lote = null;
+                    renderPreviasMidias();
+                    avisarResultadoLote(r, 'Mídia adicionada.', previas_max);
+                }
+            });
         });
         $('#conv-filtros').on('click', '.conv-filtro', function () {
             periodo_conversoes = String($(this).data('periodo'));
@@ -1188,6 +1552,52 @@
             mostrarDetalhesOferta($(this).closest('.painel'));
         }).on('change', '.of-esconder-recusar', function () {
             mostrarCamposRecusar($(this).closest('.painel'));
+        }).on('change input', '.of-quando, .of-envios', function () {
+            mostrarTemporizadorDownsell($(this).closest('.painel'));
+        }).on('change', '.painel[data-oferta="order_bump"] .of-quando', atualizarModoBump);
+
+        // Order Bumps 2 a 5: adicionar, remover e a mídia de cada um.
+        $('#bp-adicionar').on('click', function () {
+            sincronizarBumpsDoDom();
+            if (bump_extras.length + 1 >= bump_max) return;
+            bump_extras.push(itemBumpVazio());
+            renderBumpsExtras();
+            marcarSujo();
+        });
+        $('#bp-extras').on('click', '.bp-remover', function () {
+            sincronizarBumpsDoDom();
+            bump_extras.splice(parseInt($(this).closest('.bp-item').data('i'), 10), 1);
+            renderBumpsExtras();
+            marcarSujo();
+        }).on('click', '.bp-midia .midia-escolher, .bp-midia .midia-trocar', function () {
+            $(this).closest('.bp-item').find('.bp-midia-arquivo').trigger('click');
+        }).on('click', '.bp-midia .midia-tirar', function () {
+            sincronizarBumpsDoDom();
+            const it = bump_extras[parseInt($(this).closest('.bp-item').data('i'), 10)];
+            if (it) { it.midia_tipo = 'none'; it.midia_path = ''; }
+            renderBumpsExtras();
+            marcarSujo();
+            exibirAviso('Mídia tirada da oferta. Clique em Salvar alterações para aplicar.');
+        }).on('change', '.bp-midia-arquivo', function () {
+            const input = this;
+            if (!input.files || !input.files[0]) return;
+            const arquivo = input.files[0];
+            input.value = '';
+            const $item = $(input).closest('.bp-item');
+            const i = parseInt($item.data('i'), 10);
+            desenharMidia($item.find('.bp-midia'), 'none', '', true, '');
+            enviarMidiaBasico(arquivo, function (midia, erro) {
+                sincronizarBumpsDoDom();
+                if (!midia) {
+                    renderBumpsExtras();
+                    exibirAviso(erro, 'erro');
+                    return;
+                }
+                if (bump_extras[i]) { bump_extras[i].midia_tipo = midia.tipo; bump_extras[i].midia_path = midia.caminho; }
+                renderBumpsExtras();
+                marcarSujo();
+                exibirAviso('Mídia anexada à oferta. Clique em Salvar alterações para aplicar.');
+            });
         });
         $('#btn-atualizar-bots, #btn-atualizar-cache').on('click', function () {
             carregarGruposUsuario().always(carregarBots);
@@ -1209,6 +1619,12 @@
             renderPlanos();
             marcarSujo();
         });
+        $('#lista-planos').on('click', '.plano-topo', function () {
+            const $p = $(this).closest('.painel-plano');
+            definirPlanoRecolhido($p, !$p.hasClass('recolhido'));
+        }).on('input change', '.painel-plano', function () {
+            atualizarResumoPlano($(this));
+        });
         $(document).on('click', '.remover-plano', function () {
             sincronizarPlanosDoDom();
             const idx = parseInt($(this).closest('.painel-plano').data('index'), 10);
@@ -1218,61 +1634,108 @@
         });
 
         $('#bv-mostrar-cta').on('change', mostrarCamposCta);
+        // Posição que o próximo arquivo escolhido vai ocupar: 0 = caixa grande (anexa ou troca a 1ª), bv_midias.length = no fim da lista.
+        let bv_destino_upload = 0;
         $('#bv-midia-previa').on('click', '.midia-escolher, .midia-trocar', function () {
-            $('#bv-midia-arquivo').trigger('click');
+            if (bv_lote) return;
+            bv_destino_upload = 0;
+            $('#bv-midia-arquivo').prop('multiple', bv_midias.length === 0).trigger('click');   // trocar a 1ª é 1 arquivo só; com a caixa vazia pode marcar vários
         }).on('click', '.midia-tirar', function () {
-            midia_path_atual = '';
-            midia_tipo_atual = 'none';
+            bv_midias.shift();   // a seguinte (se houver) passa a ser a 1ª
             atualizarPreviaMidia();
             marcarSujo();
             exibirAviso('Mídia tirada das boas-vindas. Clique em Salvar alterações para aplicar.');
         });
+        $('#bv-midias-adicionar').on('click', function () {
+            if (bv_midias.length >= bv_midias_max || bv_lote) return;
+            bv_destino_upload = bv_midias.length;
+            $('#bv-midia-arquivo').prop('multiple', true).trigger('click');
+        });
+        $('#bv-midias-extras').on('click', '.bv-remover', function () {
+            bv_midias.splice(parseInt($(this).closest('[data-i]').data('i'), 10), 1);
+            atualizarPreviaMidia();
+            marcarSujo();
+        }).on('click', '.bv-subir', function () {
+            const i = parseInt($(this).closest('[data-i]').data('i'), 10);
+            if (i > 0) { bv_midias.splice(i - 1, 0, bv_midias.splice(i, 1)[0]); atualizarPreviaMidia(); marcarSujo(); }
+        });
         $('#bv-midia-arquivo').on('change', function () {
             const input = this;
-            if (!input.files || !input.files[0]) return;
-            const arquivo = input.files[0];
+            const arquivos = Array.prototype.slice.call(input.files || []);   // copiar antes de limpar: limpar o campo esvazia a lista
             input.value = '';  // permite escolher o mesmo arquivo de novo depois (sem isso o "change" não dispara)
-            atualizarPreviaMidia(true);
-            enviarMidiaBasico(arquivo, function (midia, erro) {
-                if (!midia) {
+            if (!arquivos.length || bv_lote) return;
+            // Destino 0 = a 1ª mídia entra (ou troca) na caixa grande; as demais e o botão "+ Adicionar outra" vão sempre para o fim da lista.
+            const na_caixa_grande = Math.min(bv_destino_upload, bv_midias.length) === 0;
+            enviarMidiasEmSequencia(arquivos, {
+                vagas: na_caixa_grande ? (bv_midias.length ? 1 : bv_midias_max) : bv_midias_max - bv_midias.length,
+                enviar: enviarMidiaBasico,
+                aoProgredir: function (n, total) { bv_lote = { n: n, total: total }; atualizarPreviaMidia(na_caixa_grande && n === 1); },
+                aoSubir: function (midia, k) {
+                    const nova = { tipo: midia.tipo, path: midia.caminho };
+                    if (na_caixa_grande && k === 0) bv_midias[0] = nova; else bv_midias.push(nova);
                     atualizarPreviaMidia();
-                    exibirAviso(erro, 'erro');
-                    return;
+                    marcarSujo();
+                },
+                aoFim: function (r) {
+                    bv_lote = null;
+                    atualizarPreviaMidia();
+                    avisarResultadoLote(r, 'Mídia anexada. Clique em Salvar alterações para aplicar.', bv_midias_max);
                 }
-                midia_path_atual = midia.caminho;
-                midia_tipo_atual = midia.tipo;
-                atualizarPreviaMidia();
-                marcarSujo();
-                exibirAviso('Mídia anexada. Clique em Salvar alterações para aplicar.');
             });
         });
 
         // Mídia das ofertas (Upsell, Downsell e Order Bump): um único conjunto de handlers para as 3.
+        const tipoDaOferta = function (el) { return $(el).closest('.painel[data-oferta]').data('oferta'); };
         $('#basico-conteudo').on('click', '.of-midia .midia-escolher, .of-midia .midia-trocar', function () {
-            $(this).closest('.painel[data-oferta]').find('.of-midia-arquivo').trigger('click');
+            const tipo = tipoDaOferta(this);
+            if (ofertas_lote[tipo]) return;
+            ofertas_destino_upload[tipo] = 0;
+            // trocar a 1ª é 1 arquivo só; com a caixa vazia pode marcar vários (o Order Bump aceita 1 mídia, então nunca)
+            $(this).closest('.painel[data-oferta]').find('.of-midia-arquivo').prop('multiple', ofertas_midias_max[tipo] > 1 && ofertas_midias[tipo].length === 0).trigger('click');
         }).on('click', '.of-midia .midia-tirar', function () {
-            const tipo = $(this).closest('.painel[data-oferta]').data('oferta');
-            ofertas_midia[tipo] = { tipo: 'none', path: '' };
+            const tipo = tipoDaOferta(this);
+            ofertas_midias[tipo].shift();   // a seguinte (se houver) passa a ser a 1ª
             atualizarMidiaOferta(tipo);
             marcarSujo();
             exibirAviso('Mídia tirada da oferta. Clique em Salvar alterações para aplicar.');
+        }).on('click', '.of-midias-adicionar', function () {
+            const tipo = tipoDaOferta(this);
+            if (ofertas_midias[tipo].length >= ofertas_midias_max[tipo] || ofertas_lote[tipo]) return;
+            ofertas_destino_upload[tipo] = ofertas_midias[tipo].length;
+            $(this).closest('.painel[data-oferta]').find('.of-midia-arquivo').prop('multiple', true).trigger('click');
+        }).on('click', '.of-midias-extras .of-remover', function () {
+            const tipo = tipoDaOferta(this);
+            ofertas_midias[tipo].splice(parseInt($(this).closest('[data-i]').data('i'), 10), 1);
+            atualizarMidiaOferta(tipo);
+            marcarSujo();
+        }).on('click', '.of-midias-extras .of-subir', function () {
+            const tipo = tipoDaOferta(this);
+            const i = parseInt($(this).closest('[data-i]').data('i'), 10);
+            if (i > 0) { ofertas_midias[tipo].splice(i - 1, 0, ofertas_midias[tipo].splice(i, 1)[0]); atualizarMidiaOferta(tipo); marcarSujo(); }
         }).on('change', '.of-midia-arquivo', function () {
             const input = this;
-            if (!input.files || !input.files[0]) return;
-            const arquivo = input.files[0];
+            const arquivos = Array.prototype.slice.call(input.files || []);   // copiar antes de limpar: limpar o campo esvazia a lista
             input.value = '';
-            const tipo = $(input).closest('.painel[data-oferta]').data('oferta');
-            atualizarMidiaOferta(tipo, true);
-            enviarMidiaBasico(arquivo, function (midia, erro) {
-                if (!midia) {
+            const tipo = tipoDaOferta(input);
+            if (!arquivos.length || ofertas_lote[tipo]) return;
+            const lista = ofertas_midias[tipo], maximo = ofertas_midias_max[tipo];
+            // Destino 0 = a 1ª mídia entra (ou troca) na caixa grande; as demais e o botão "+ Adicionar outra" vão sempre para o fim da lista.
+            const na_caixa_grande = Math.min(ofertas_destino_upload[tipo] || 0, lista.length) === 0;
+            enviarMidiasEmSequencia(arquivos, {
+                vagas: na_caixa_grande ? (lista.length ? 1 : maximo) : maximo - lista.length,
+                enviar: enviarMidiaBasico,
+                aoProgredir: function (n, total) { ofertas_lote[tipo] = { n: n, total: total }; atualizarMidiaOferta(tipo, na_caixa_grande && n === 1); },
+                aoSubir: function (midia, k) {
+                    const nova = { tipo: midia.tipo, path: midia.caminho };
+                    if (na_caixa_grande && k === 0) ofertas_midias[tipo][0] = nova; else ofertas_midias[tipo].push(nova);
                     atualizarMidiaOferta(tipo);
-                    exibirAviso(erro, 'erro');
-                    return;
+                    marcarSujo();
+                },
+                aoFim: function (r) {
+                    ofertas_lote[tipo] = null;
+                    atualizarMidiaOferta(tipo);
+                    avisarResultadoLote(r, 'Mídia anexada à oferta. Clique em Salvar alterações para aplicar.', maximo);
                 }
-                ofertas_midia[tipo] = { tipo: midia.tipo, path: midia.caminho };
-                atualizarMidiaOferta(tipo);
-                marcarSujo();
-                exibirAviso('Mídia anexada à oferta. Clique em Salvar alterações para aplicar.');
             });
         });
     });

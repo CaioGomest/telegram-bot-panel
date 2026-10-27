@@ -305,6 +305,14 @@ Ele regrava o Apache só com o domínio novo, descarta o vhost HTTPS antigo, ped
 ### 9.7 Escalar
 2 vCPU / 8 GB aguentam folgado o volume previsto (a hospedagem compartilhada, bem menor, aguentou ~50 requisições/s). Se crescer: (a) subir o plano da VPS e rodar `instalar.sh` de novo não é necessário — ajuste `innodb_buffer_pool_size` (25% da RAM) e `pm.max_children` em `/etc/php/*/fpm/pool.d/painel.conf`; (b) os crons de acesso/aviso/renovação são sequenciais (~45 membros/min): com muitos milhares de assinantes ativos, converse antes.
 
+### 9.8 Modo manutenção (23/10/2026)
+Para tirar o painel do ar "com educação" durante uma atualização ou migração: quem abre o sistema vê a página **Em manutenção** (503, atualiza sozinha) em vez de erro.
+
+- **Pelo painel:** Admin → Configurações → aba **Manutenção** (modo, mensagem, previsão em minutos, Desligar, link de liberação).
+- **Pelo SSH** (na pasta do painel, funciona até com o banco fora do ar): `cd /var/www/painel && sudo -u www-data php manutencao.php ligar --modo=total --volta-em=30 --msg="Atualizando o banco"`, depois `php manutencao.php status` e `php manutencao.php desligar`. Use o usuário do site (`www-data`) ou root (nesse caso o arquivo recebe o dono da pasta `storage/`).
+- **Modo `painel`** (padrão): só o painel/API mostram a manutenção; bots, pagamentos, links `/l/` e crons seguem. **Modo `total`**: o webhook do Telegram e o da gateway respondem 503 (eles tentam de novo depois), os links mostram a página e **todos os crons pausam** — use para mexer no banco e desligue assim que terminar.
+- O estado fica em `storage/manutencao.json` (some quando desliga). Quem ligou pelo painel segue vendo o sistema normal (cookie de 12 h); para outro navegador use o link `/?liberar=SEGREDO` mostrado na aba. A porta `/controle` (suspensão remota) nunca fecha. O `atualizar.sh` **não** liga a manutenção sozinho.
+
 ---
 
 ## 10. Revisão do SQL (resultado desta rodada)
@@ -354,6 +362,8 @@ O que existia: **não há arquivo `.sql` no repositório** — o schema mora em 
 | `/var/log/painel-instalacao.log` · `/var/log/painel-backup.log` | Logs dos scripts. |
 
 **Parâmetros do `instalar.sh`:** `--dominio` · `--email-ssl` · `--admin-email` · `--nome-sistema` · `--origem` · `--site-dir` · `--banco-nome` · `--banco-usuario` · `--com-www` · `--sem-ssl` · `--endurecer-ssh` · `--swap-gb` · `--controle-id` · `--controle-chave-publica` · `--forcar` · `--dry-run` · `--sim`.
+
+**Avisos push (20/10/2026):** 3 tabelas novas (`push_inscricoes`, `push_fila`, `push_metricas_hora`; já no `schema.sql`/instalador/"Atualizar Banco"). O trabalhador é o serviço opcional `deploy/vps/painel-push.service` (`php cron/push_worker.php --loop`, `Nice=10`, `MemoryMax=300M`); sem ele o site envia sozinho depois de responder. **Só instalar com autorização do dono:** `install -m 644 painel-push.service /etc/systemd/system/ && systemctl daemon-reload && systemctl enable --now painel-push`. Volta atrás: desligar o interruptor em Configurações → Notificações e `systemctl disable --now painel-push`. Plano e testes: `deploy/PLANO-PUSH-NOTIFICACOES.md`, `tests/push/README.md`.
 
 **Os 10 crons** (`/etc/cron.d/painel`, como `www-data`): `verificar_pix`, `verificar_acessos`, `aviso_vencimento`, `ranking`, `remarketing` (todo minuto) · `metricas_admin` (5 min) · `renovacao` (hora em hora) · `limpar_stories` (03:30) · `limpar_remarketing_envios` (03:45) · `rotacionar_logs` (04:15).
 

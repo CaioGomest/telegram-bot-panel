@@ -9,9 +9,17 @@ $caminho_base = '../';
 
 $usuario_id = (int)($_GET['usuario_id'] ?? 0);
 $status = trim($_GET['status'] ?? '');
-$split_status = trim($_GET['split_status'] ?? '');
-$data_inicio = trim($_GET['data_inicio'] ?? '');
-$data_fim = trim($_GET['data_fim'] ?? '');
+// Comissão da plataforma na venda (vendas.comissao_admin, gravada na criação da cobrança): '' = todas, 'com' = pagas com comissão, 'sem' = pagas sem comissão.
+// (O antigo filtro "Split" lia vendas.split_status, coluna do cash-out do InfoPago que nada mais preenche: removida.)
+$comissao = in_array($_GET['comissao'] ?? '', ['com', 'sem'], true) ? (string) $_GET['comissao'] : '';
+$periodo = trim($_GET['periodo'] ?? '');
+$data_inicio = '';
+$data_fim = '';
+if ($periodo === 'hoje') { $data_inicio = $data_fim = date('Y-m-d'); }
+elseif ($periodo === 'ontem') { $data_inicio = $data_fim = date('Y-m-d', strtotime('-1 day')); }
+elseif ($periodo === '7') { $data_inicio = date('Y-m-d', strtotime('-6 days')); }
+elseif ($periodo === '30') { $data_inicio = date('Y-m-d', strtotime('-29 days')); }
+else { $periodo = ''; }
 $busca = trim($_GET['busca'] ?? '');
 
 $where = ['1=1'];
@@ -38,11 +46,10 @@ if ($data_fim !== '') {
     $where[] = 'v.criado_em <= ?';
     $params[] = $data_fim . ' 23:59:59';
 }
-if ($split_status === 'pendente') {
-    $where[] = "v.status = 'pago' AND v.split_status IS NULL";
-} elseif ($split_status !== '') {
-    $where[] = 'v.split_status = ?';
-    $params[] = $split_status;
+if ($comissao === 'com') {
+    $where[] = "v.status = 'pago' AND v.comissao_admin > 0";
+} elseif ($comissao === 'sem') {
+    $where[] = "v.status = 'pago' AND v.comissao_admin = 0";
 }
 
 $where_sql = implode(' AND ', $where);
@@ -133,12 +140,10 @@ if ($ids_pagina) {
     $sql = "
         SELECT
             v.id, v.valor, v.status, v.transacao_id, v.id_telegram, v.criado_em, v.pago_em,
-            v.tipo_cobranca, v.comissao_admin, v.split_status, v.split_em,
+            v.tipo_cobranca, v.comissao_admin,
             b.id AS id_bot, COALESCE(b.primeiro_nome, b.nome_usuario) AS nome_bot,
             u.id AS id_usuario, u.nome AS nome_usuario,
-            g.titulo AS titulo_gateway,
-            g.taxa_split AS soma_pct,
-            g.chave_pix_split AS chave_pix_split
+            g.titulo AS titulo_gateway
         FROM vendas v
         JOIN bots b ON v.bot_id = b.id
         JOIN usuarios u ON b.id_usuario = u.id
@@ -153,22 +158,11 @@ if ($ids_pagina) {
     $transacoes = [];
 }
 
-$splits_por_venda = [];
-$venda_ids = array_column($transacoes, 'id');
-if (!empty($venda_ids)) {
-    $placeholders = implode(',', array_fill(0, count($venda_ids), '?'));
-    $stmt_splits = $pdo->prepare("SELECT venda_id, chave_pix, descricao, valor, status FROM vendas_splits WHERE venda_id IN ($placeholders) ORDER BY id");
-    $stmt_splits->execute($venda_ids);
-    foreach ($stmt_splits->fetchAll(PDO::FETCH_ASSOC) as $linha) {
-        $splits_por_venda[$linha['venda_id']][] = $linha;
-    }
-}
-
 if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename=transacoes.csv');
     $output = fopen('php://output', 'w');
-    fputcsv($output, ['ID', 'Data', 'Usuário', 'Bot', 'Valor', 'Status', 'Gateway', 'TXID', 'Status do Split', 'Detalhe do Split']);
+    fputcsv($output, ['ID', 'Data', 'Usuário', 'Bot', 'Valor', 'Status', 'Gateway', 'TXID', 'Comissão da plataforma (R$)']);
 
     $sql_export = "
         SELECT
@@ -176,9 +170,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             b.id AS id_bot, COALESCE(b.primeiro_nome, b.nome_usuario) AS nome_bot,
             u.nome AS nome_usuario,
             g.titulo AS titulo_gateway,
-            g.taxa_split,
-            g.chave_pix_split,
-            v.split_status
+            v.comissao_admin
         $sql_base
         ORDER BY v.criado_em DESC
     ";
@@ -186,32 +178,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     $stmt_export->execute($params);
     $vendas_export = $stmt_export->fetchAll(PDO::FETCH_ASSOC);
 
-    $splits_export = [];
-    $ids_export = array_column($vendas_export, 'id');
-    if (!empty($ids_export)) {
-        $placeholders = implode(',', array_fill(0, count($ids_export), '?'));
-        $stmt_splits_export = $pdo->prepare("SELECT venda_id, chave_pix, descricao, valor, status FROM vendas_splits WHERE venda_id IN ($placeholders) ORDER BY id");
-        $stmt_splits_export->execute($ids_export);
-        foreach ($stmt_splits_export->fetchAll(PDO::FETCH_ASSOC) as $linha) {
-            $splits_export[$linha['venda_id']][] = $linha;
-        }
-    }
-
     foreach ($vendas_export as $linha) {
-        $detalhe_split = '-';
-        if (!empty($splits_export[$linha['id']])) {
-            $partes = array_map(function ($s) {
-                $nome = $s['descricao'] ?: $s['chave_pix'];
-                return "$nome: R$ " . number_format((float)$s['valor'], 2, ',', '.') . " ({$s['status']})";
-            }, $splits_export[$linha['id']]);
-            $detalhe_split = implode(' | ', $partes);
-        }
-
-        $status_split = $linha['split_status'];
-        if ($status_split === null) {
-            $tem_split = (float) ($linha['taxa_split'] ?? 0) > 0 && trim((string) ($linha['chave_pix_split'] ?? '')) !== '';
-            $status_split = $tem_split ? 'pendente' : 'sem_split';
-        }
         fputcsv($output, [
             $linha['id'],
             date('d/m/Y H:i', strtotime($linha['criado_em'])),
@@ -221,8 +188,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             $linha['status'],
             csvSeguro($linha['titulo_gateway'] ?? '-'),
             csvSeguro($linha['transacao_id'] ?? '-'),
-            $status_split,
-            csvSeguro($detalhe_split),
+            $linha['status'] === 'pago' ? number_format((float) $linha['comissao_admin'], 2, ',', '.') : '',
         ]);
     }
     fclose($output);
@@ -242,45 +208,19 @@ function badgeStatusVenda(string $status): string {
     return "<span class=\"badge $classe\">$texto</span>";
 }
 
-function celulaSplit(array $venda, array $linhas_split): string {
+/**
+ * Comissão que a plataforma ganhou na venda: vendas.comissao_admin, o split enviado na cobrança (a OmegaPayments divide no pagamento). Venda não paga ainda
+ * não rendeu nada ("—"); paga sem comissão = a gateway não tinha split ligado naquela hora.
+ */
+function celulaComissao(array $venda): string {
     if ($venda['status'] !== 'pago') {
         return '<span class="badge badge-neutro">—</span>';
     }
-
-    if ($venda['split_status'] === null) {
-        $taxa = (float) ($venda['soma_pct'] ?? 0);
-        $chave = trim((string) ($venda['chave_pix_split'] ?? ''));
-        if ($taxa <= 0 || $chave === '') {
-            return '<span class="badge badge-neutro">Sem split</span>';
-        }
-        $html = '<span class="badge badge-alerta">Pendente</span>';
-        if ($venda['soma_pct'] !== null) {
-            $valor_esperado = round((float)$venda['valor'] * ((float)$venda['soma_pct'] / 100), 2);
-            $html .= '<div class="valor-esperado">≈ R$ ' . number_format($valor_esperado, 2, ',', '.') . '</div>';
-        }
-        return $html;
+    $comissao = (float) $venda['comissao_admin'];
+    if ($comissao <= 0) {
+        return '<span class="badge badge-neutro">Sem split</span>';
     }
-
-    $mapa_resumo = [
-        'pago' => ['Pago', 'badge-sucesso'],
-        'falhou' => ['Falhou', 'badge-perigo'],
-        'parcial' => ['Incompleto', 'badge-alerta'],
-        'sem_split' => ['Sem split configurado', 'badge-neutro'],
-        'sem_credenciais' => ['Sem credenciais de Cash-Out', 'badge-alerta'],
-    ];
-    [$texto_resumo, $classe_resumo] = $mapa_resumo[$venda['split_status']] ?? [htmlspecialchars((string) $venda['split_status']), 'badge-neutro'];
-    $html = "<span class=\"badge $classe_resumo\">$texto_resumo</span>";
-
-    foreach ($linhas_split as $linha) {
-        $ok = $linha['status'] === 'pago';
-        $classe = $ok ? 'badge-sucesso' : 'badge-perigo';
-        $texto = $ok ? 'Pago' : 'Falhou';
-        $nome = htmlspecialchars($linha['descricao'] ?: $linha['chave_pix']);
-        $valor = number_format((float)$linha['valor'], 2, ',', '.');
-        $html .= "<div class=\"celula-sub\"><span class=\"badge $classe\">$texto</span> $nome — R$ $valor</div>";
-    }
-
-    return $html;
+    return '<span class="mono">R$ ' . number_format($comissao, 2, ',', '.') . '</span>';
 }
 ?>
 <!DOCTYPE html>
@@ -300,7 +240,7 @@ function celulaSplit(array $venda, array $linhas_split): string {
         <div class="cabecalho-pagina">
             <div>
                 <h1>Transações</h1>
-                <p>Histórico de todas as vendas da plataforma, de todos os usuários, com status do split.</p>
+                <p>Histórico de todas as vendas da plataforma, de todos os usuários, com a comissão da plataforma em cada venda paga.</p>
             </div>
             <div class="acoes-cabecalho">
                 <?php /* Botão "Exportar CSV" desligado a pedido (14/10/2026). A exportação continua no topo deste arquivo (?export=csv); para religar, tire este comentário.
@@ -317,7 +257,7 @@ function celulaSplit(array $venda, array $linhas_split): string {
         </div>
 
 
-        <?php $tem_filtro = $usuario_id > 0 || $status !== '' || $split_status !== '' || $data_inicio !== '' || $data_fim !== '' || $busca !== ''; ?>
+        <?php $tem_filtro = $usuario_id > 0 || $status !== '' || $comissao !== '' || $data_inicio !== '' || $data_fim !== '' || $busca !== ''; ?>
         <div class="filtros-vendas">
             <form method="GET" class="filtros-vendas-form filtros-transacoes-form">
                 <label class="filtro-campo"><span>Usuário</span>
@@ -339,19 +279,20 @@ function celulaSplit(array $venda, array $linhas_split): string {
                         <option value="expirado" <?php echo $status === 'expirado' ? 'selected' : ''; ?>>Expirado</option>
                     </select>
                 </label>
-                <label class="filtro-campo"><span>Split</span>
-                    <select name="split_status" id="split_status">
-                        <option value="">Todos os splits</option>
-                        <option value="pago" <?php echo $split_status === 'pago' ? 'selected' : ''; ?>>Pago (todos)</option>
-                        <option value="parcial" <?php echo $split_status === 'parcial' ? 'selected' : ''; ?>>Parcial (alguns falharam)</option>
-                        <option value="pendente" <?php echo $split_status === 'pendente' ? 'selected' : ''; ?>>Pendente</option>
-                        <option value="falhou" <?php echo $split_status === 'falhou' ? 'selected' : ''; ?>>Falhou (todos)</option>
-                        <option value="sem_split" <?php echo $split_status === 'sem_split' ? 'selected' : ''; ?>>Sem split configurado</option>
-                        <option value="sem_credenciais" <?php echo $split_status === 'sem_credenciais' ? 'selected' : ''; ?>>Sem credenciais de Cash-Out</option>
+                <label class="filtro-campo"><span>Comissão</span>
+                    <select name="comissao" id="comissao">
+                        <option value="">Todas</option>
+                        <option value="com" <?php echo $comissao === 'com' ? 'selected' : ''; ?>>Pagas com comissão</option>
+                        <option value="sem" <?php echo $comissao === 'sem' ? 'selected' : ''; ?>>Pagas sem comissão</option>
                     </select>
                 </label>
-                <label class="filtro-campo filtro-data"><span>De</span><input type="date" name="data_inicio" id="data_inicio" value="<?php echo htmlspecialchars($data_inicio); ?>"></label>
-                <label class="filtro-campo filtro-data"><span>Até</span><input type="date" name="data_fim" id="data_fim" value="<?php echo htmlspecialchars($data_fim); ?>"></label>
+                <label class="filtro-campo"><span>Período</span>
+                    <select name="periodo" id="periodo">
+                        <?php foreach (['' => 'Total', 'hoje' => 'Hoje', 'ontem' => 'Ontem', '7' => '7 dias', '30' => '30 dias'] as $chave_periodo => $rotulo_periodo): ?>
+                            <option value="<?php echo $chave_periodo; ?>" <?php echo $periodo === (string) $chave_periodo ? 'selected' : ''; ?>><?php echo $rotulo_periodo; ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
                 <label class="filtro-campo filtro-busca"><span>Buscar</span><input type="text" name="busca" id="busca" maxlength="100" value="<?php echo htmlspecialchars($busca); ?>" placeholder="TXID ou ID do Telegram"></label>
                 <div class="filtro-acoes">
                     <button type="submit" class="botao botao-primario">Filtrar</button>
@@ -372,7 +313,7 @@ function celulaSplit(array $venda, array $linhas_split): string {
                             <th>Status</th>
                             <th>Gateway</th>
                             <th>TXID</th>
-                            <th class="col-numerica">Split</th>
+                            <th class="col-numerica">Comissão</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -388,7 +329,7 @@ function celulaSplit(array $venda, array $linhas_split): string {
                             <td><?php echo badgeStatusVenda($t['status']); ?></td>
                             <td class="texto-suave"><?php echo htmlspecialchars($t['titulo_gateway'] ?? '-'); ?></td>
                             <td class="mono texto-suave"><?php echo htmlspecialchars($t['transacao_id'] ?? '-'); ?></td>
-                            <td class="col-numerica"><?php echo celulaSplit($t, $splits_por_venda[$t['id']] ?? []); ?></td>
+                            <td class="col-numerica"><?php echo celulaComissao($t); ?></td>
                         </tr>
                         <?php endforeach; ?>
 

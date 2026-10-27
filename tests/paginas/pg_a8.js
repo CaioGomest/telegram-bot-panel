@@ -1,3 +1,4 @@
+// ATENÇÃO (26/10/2026): a parte de REMARKETING deste teste mira a tela ANTIGA (janela "Nova campanha", filtros por bot/audiência, ações cancelar_campanha/contar_destinatarios), que foi trocada pela tela em etapas (tarefas_revisao_final.md, item 14). Esta parte não vale mais; a cobertura nova está em tests/remarketing/ (unitario_remarketing.php, ui/teste.js e integracao/rodar.js).
 // ÁREA 8: Remarketing (lista, filtros, nova campanha, validações, detalhes, segurança)
 const { lancar, entrar, BASE, db, remoto } = require('./pg_lib.js');
 const { area, t, nota, salvar, esp } = require('./pg_t.js');

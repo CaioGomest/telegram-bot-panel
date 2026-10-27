@@ -134,7 +134,7 @@ const postar = (c, arq, campos) => c.avaliar(`(async function(){
     }
 
     // B4 transações
-    for (const q of ['status=pago', 'status=pendente', 'split_status=pendente', 'data_inicio=2026-10-01&data_fim=2026-10-15', 'busca=SIMTX1', 'busca=%27%20OR%201%3D1--', 'usuario_id=6062', 'pagina=99999']) {
+    for (const q of ['status=pago', 'status=pendente', 'data_inicio=2026-10-01&data_fim=2026-10-15', 'busca=SIMTX1', 'busca=%27%20OR%201%3D1--', 'usuario_id=6062', 'pagina=99999']) {
       const rr = await inspecionar(c, '/admin/transacoes?' + q, { pausa: 400 });
       const p = resumo(rr).filter(x => !/ícone sem title/.test(x));
       if (rr.ms > 12000) p.push('LENTO ' + rr.ms + ' ms');

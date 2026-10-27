@@ -12,9 +12,10 @@ html.layout-a {
     --f-b: 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif;
     --f-m: 'JetBrains Mono', ui-monospace, Menlo, monospace;
     --on-or: #1b0d04;
-    --largura-barra: 92px;
+    --med-ouro: #f5c542; --med-prata: #c3ccd9; --med-bronze: #e08a3c;
+    --a-barra: 272px;
     /* Conteúdo ocupa a tela toda até 1840 px; só acima disso sobra margem nas laterais (centralizado). A barra de cima usa a mesma medida para alinhar. */
-    --lateral-conteudo: calc((100vw - 92px - 1840px) / 2);
+    --lateral-conteudo: calc((100vw - var(--a-barra) - 1840px) / 2);
 }
 html.layout-a[data-theme="dark"] {
     --on-er: #2a0808;
@@ -38,6 +39,7 @@ html.layout-a[data-theme="light"] {
     --ors: var(--orsoft);
     --oks: rgba(18, 140, 76, .12); --was: rgba(176, 112, 0, .13); --ers: rgba(200, 40, 40, .1);
     --vit: #5b43d6; --vis: rgba(91, 67, 214, .11);
+    --med-ouro: #d9a21b; --med-prata: #8e99aa; --med-bronze: #c46f1f;
     --sh: 0 20px 40px -30px rgba(22, 24, 29, .4);
 }
 
@@ -50,7 +52,7 @@ html.layout-a .mono { font-family: var(--f-m); }
 html.layout-a .a-cb { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; }
 
 /* ---------- casca: trilho (desktop) ---------- */
-html.layout-a .a-rail { position: fixed; left: 0; top: 0; bottom: 0; width: 92px; z-index: 30; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 14px 8px 12px; background: var(--p); border-right: 1px solid var(--bd); overflow-y: auto; scrollbar-width: none; }
+html.layout-a .a-rail { position: fixed; left: 0; top: 0; bottom: 0; width: var(--a-barra); z-index: 30; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 14px 8px 12px; background: var(--p); border-right: 1px solid var(--bd); overflow-y: auto; scrollbar-width: none; }
 html.layout-a .a-rail::-webkit-scrollbar { display: none; }
 html.layout-a .a-logo { flex: none; display: block; width: 54px; height: 54px; border-radius: 17px; overflow: hidden; background: #0b0b0d; border: 1px solid var(--bd2); margin-bottom: 8px; }
 html.layout-a .a-logo img { display: block; width: 100%; height: 100%; object-fit: cover; }
@@ -64,11 +66,14 @@ html.layout-a .a-nb { position: absolute; top: 2px; right: 8px; min-width: 18px;
 html.layout-a .a-nfim { margin-top: auto; flex: none; display: flex; flex-direction: column; align-items: center; gap: 6px; padding-top: 10px; }
 html.layout-a .a-avatar { position: relative; display: block; border-radius: 16px; }
 html.layout-a .a-avatar.ativo { box-shadow: 0 0 0 2px var(--p), 0 0 0 4px var(--or); }
-html.layout-a .a-av { flex: none; width: 42px; height: 42px; border-radius: 14px; display: grid; place-items: center; overflow: hidden; background: linear-gradient(135deg, var(--or), #ff9a3d); color: var(--on-or); font: 800 16px var(--f-b); }
-html.layout-a .a-av img { display: block; width: 100%; height: 100%; object-fit: cover; }
+html.layout-a .a-av { position: relative; flex: none; width: 42px; height: 42px; border-radius: 14px; display: grid; place-items: center; overflow: hidden; background: linear-gradient(135deg, var(--or), #ff9a3d); color: var(--on-or); font: 800 16px var(--f-b); }
+/* Foto de perfil: preenche o quadrado por inteiro e centralizada (absoluta, senão a foto alta ficava presa no topo) e o degradê laranja das iniciais
+   some quando há foto (ele vazava em volta da borda arredondada). Vale para todos os avatares com foto abaixo (.big, .a-bot-av, .usuario-avatar, .bot-avatar). */
+html.layout-a .a-av img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; }
+html.layout-a .a-av:has(> img) { background: var(--p3); }
 
 /* ---------- casca: barra de cima (desktop) ---------- */
-html.layout-a .a-top { position: sticky; top: 0; z-index: 20; margin-left: 92px; display: flex; align-items: center; gap: 14px; padding: 14px max(28px, var(--lateral-conteudo)); background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(10px); }
+html.layout-a .a-top { position: sticky; top: 0; z-index: 20; margin-left: var(--a-barra); display: flex; align-items: center; gap: 14px; padding: 14px max(28px, var(--lateral-conteudo)); background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(10px); }
 html.layout-a .a-hi { display: flex; flex-direction: column; line-height: 1.1; min-width: 0; }
 html.layout-a .a-hi b { font: 700 26px var(--f-t); letter-spacing: .02em; text-transform: uppercase; }
 html.layout-a .a-hi b em { font-style: normal; color: var(--ort); }
@@ -113,7 +118,7 @@ html.layout-a .aviso-email button:disabled { opacity: .7; cursor: default; }
 html.layout-a .a-mtop, html.layout-a .a-tabbar, html.layout-a .a-sheet, html.layout-a .a-mmeta { display: none; }
 
 /* ---------- conteúdo ---------- */
-html.layout-a .conteudo-principal { display: block; flex: none; margin-left: 92px; min-width: 0; padding: 6px max(28px, var(--lateral-conteudo)) 56px; }
+html.layout-a .conteudo-principal { display: block; flex: none; margin-left: var(--a-barra); min-width: 0; padding: 6px max(28px, var(--lateral-conteudo)) 56px; }
 /* páginas que ainda têm o cabeçalho antigo: o tema agora vive na casca, e o logo do cabeçalho mobile antigo não se repete */
 html.layout-a .cabecalho-pagina .alternador-tema { display: none; }
 html.layout-a .cabecalho-pagina::before { display: none; }
@@ -327,8 +332,8 @@ html.layout-a .a-btn.desativado { opacity: .5; cursor: not-allowed; }
 /* ---------- bots ---------- */
 html.layout-a .a-bot { display: flex; flex-direction: column; gap: 14px; }
 html.layout-a .a-bot-top { display: flex; align-items: center; gap: 14px; }
-html.layout-a .a-bot-av { flex: none; display: grid; place-items: center; overflow: hidden; width: 66px; height: 66px; border-radius: 21px; background: var(--p3); color: var(--ort); }
-html.layout-a .a-bot-av img { display: block; width: 100%; height: 100%; object-fit: cover; }
+html.layout-a .a-bot-av { position: relative; flex: none; display: grid; place-items: center; overflow: hidden; width: 66px; height: 66px; border-radius: 21px; background: var(--p3); color: var(--ort); }
+html.layout-a .a-bot-av img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; }
 html.layout-a .a-bot-av-ico { display: grid; place-items: center; width: 100%; height: 100%; }
 html.layout-a .a-bot-av-ico svg { width: 30px; height: 30px; }
 html.layout-a .a-bot-id { min-width: 0; }
@@ -391,8 +396,9 @@ html.layout-a .a-opt span.d { color: var(--m); font-size: 13px; }
 
 /* ---------- minha conta ---------- */
 html.layout-a .a-foto { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
-html.layout-a .a-foto .big { display: grid; place-items: center; overflow: hidden; width: 84px; height: 84px; border-radius: 26px; background: linear-gradient(135deg, var(--or), #ff9a3d); color: var(--on-or); font: 800 30px var(--f-b); }
-html.layout-a .a-foto .big img { display: block; width: 100%; height: 100%; object-fit: cover; }
+html.layout-a .a-foto .big { position: relative; display: grid; place-items: center; overflow: hidden; width: 84px; height: 84px; border-radius: 26px; background: linear-gradient(135deg, var(--or), #ff9a3d); color: var(--on-or); font: 800 30px var(--f-b); }
+html.layout-a .a-foto .big img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; }
+html.layout-a .a-foto .big:has(> img) { background: var(--p3); }
 html.layout-a .a-form { display: grid; gap: 14px; }
 html.layout-a .a-tl { display: flex; align-items: center; gap: 14px; min-height: 66px; padding: 14px 18px; border: 1px solid var(--bd); border-radius: 18px; background: var(--p); font-weight: 800; color: inherit; text-decoration: none; }
 html.layout-a .a-tl:hover { border-color: var(--bd2); }
@@ -452,7 +458,7 @@ html.layout-a .a-podio.n1 { grid-template-columns: minmax(0, 320px); justify-con
 html.layout-a .a-podio.n2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 html.layout-a .a-pod { display: grid; justify-items: center; gap: 6px; text-align: center; min-width: 0; }
 html.layout-a .a-pod .av { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--bd2); background: var(--p3); font: 800 19px var(--f-b); }
-html.layout-a .a-pod.p1 .av { width: 78px; height: 78px; border-color: var(--or); color: var(--ort); }
+html.layout-a .a-pod.p1 .av { width: 78px; height: 78px; color: var(--ort); }
 html.layout-a .a-pod b { font-weight: 800; overflow-wrap: anywhere; }
 html.layout-a .a-pod .vl { font: 800 13px var(--f-m); color: var(--m); }
 html.layout-a .a-pod .base { width: 100%; display: grid; justify-items: center; padding: 14px 8px 10px; border-radius: 16px 16px 0 0; background: var(--p2); border: 1px solid var(--bd); }
@@ -463,14 +469,24 @@ html.layout-a .a-pod .base small { font: 700 10.5px var(--f-m); letter-spacing: 
 html.layout-a .a-rank ul { margin: 0; padding: 0; }
 html.layout-a .a-rank li { display: flex; align-items: center; gap: 14px; padding: 12px 4px; border-top: 1px solid var(--bd); list-style: none; }
 html.layout-a .a-rank .pos { flex: none; min-width: 42px; white-space: nowrap; font: 700 26px var(--f-t); color: var(--m); }
-html.layout-a .a-rank .av { display: grid; place-items: center; flex: none; width: 42px; height: 42px; border-radius: 50%; background: var(--p3); font: 800 14px var(--f-b); }
+html.layout-a .a-rank .av { display: grid; place-items: center; flex: none; width: 42px; height: 42px; border-radius: 50%; border: 2px solid var(--bd2); background: var(--p3); font: 800 14px var(--f-b); }
 html.layout-a .a-rank .nm { flex: 1; min-width: 0; display: grid; line-height: 1.25; }
 html.layout-a .a-rank .nm span { font-size: 12.5px; color: var(--m); }
 html.layout-a .a-rank .nm span.ok { color: var(--okt); }
+html.layout-a .a-rank .nm span.a-tag { color: var(--on-or); font-size: 10.5px; }
 html.layout-a .a-rank .vl { text-align: right; display: grid; line-height: 1.25; }
 html.layout-a .a-rank .vl b { font: 800 14px var(--f-m); }
 html.layout-a .a-rank .vl span { font: 500 11.5px var(--f-m); color: var(--m); }
 html.layout-a .a-rank li.voce { background: var(--ors); border-radius: 14px; border-top-color: transparent; }
+/* Foto do usuário no ranking (pódio, lista, "sua posição" e mini-ranking do dashboard): preenche o círculo; sem foto ficam as iniciais.
+   Top 3 ganha o aro de medalha (m1 ouro, m2 prata, m3 bronze). */
+html.layout-a .a-pod .av, html.layout-a .a-rank .av, html.layout-a .a-mr .av { position: relative; box-sizing: border-box; overflow: hidden; }
+html.layout-a .a-pod .av img, html.layout-a .a-rank .av img, html.layout-a .a-mr .av img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; }
+html.layout-a .a-pod .av.m1, html.layout-a .a-rank .av.m1, html.layout-a .a-mr .av.m1 { border-color: var(--med-ouro); }
+html.layout-a .a-pod .av.m2, html.layout-a .a-rank .av.m2, html.layout-a .a-mr .av.m2 { border-color: var(--med-prata); }
+html.layout-a .a-pod .av.m3, html.layout-a .a-rank .av.m3, html.layout-a .a-mr .av.m3 { border-color: var(--med-bronze); }
+html.layout-a .a-pod .av.m1 { border-width: 3px; box-shadow: 0 0 0 5px color-mix(in srgb, var(--med-ouro) 18%, transparent); }
+html.layout-a .a-mr .av { display: grid; place-items: center; flex: none; width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--bd2); background: var(--p3); font: 800 12px var(--f-b); }
 html.layout-a .a-tag { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: var(--or); color: var(--on-or); font: 800 10.5px var(--f-b); }
 
 html.layout-a .a-passe { overflow: hidden; border-radius: 24px; background: linear-gradient(160deg, #f1d9a4, #d9a94f); color: #2a1c05; box-shadow: var(--sh); }
@@ -686,3 +702,92 @@ html.layout-a[data-theme] .a-search .a-in { padding-left: 44px; }
 html.layout-a .a-prem .tg { color: var(--m); }
 html.layout-a .a-prem .tg.um { color: var(--ort); }
 html.layout-a .a-prem p.a-mut { margin-bottom: 0; }
+html.layout-a[data-theme] .icone-gateway-omegapayments { background: url('../img/gateways/omegapay-marca.png') center / 56% no-repeat, linear-gradient(135deg, #5b21b6, #2e1065); color: transparent; }
+
+/* ===== Menu do celular em GAVETA lateral (pedido do cliente, 21/10/2026): painel à direita com cabeçalho (logo, nome, "MENU", fechar), grupos com linhas de largura total, usuário e "Sair" fixos no rodapé ===== */
+@media (max-width: 900px) {
+    html.layout-a .a-sheet-fundo { background: rgba(0, 0, 0, .55); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+    html.layout-a .a-sheet-caixa { left: auto; top: 0; right: 0; bottom: 0; width: min(78%, 360px); max-height: none; display: flex; flex-direction: column; padding: 0; overflow: hidden; border-radius: 0; border-top: 0; border-left: 1px solid var(--bd2); transform: translateX(100%); }
+    html.layout-a .a-sheet.aberta .a-sheet-caixa { transform: none; }
+    html.layout-a .a-sheet-top { flex: none; display: flex; align-items: center; gap: 12px; padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 14px; border-bottom: 1px solid var(--bd); }
+    html.layout-a .a-sheet-top .a-logo { width: 44px; height: 44px; border-radius: 14px; margin: 0; }
+    html.layout-a .a-sheet-top > div { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.15; }
+    html.layout-a .a-sheet-top b { font: 800 15px var(--f-b); letter-spacing: .02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    html.layout-a .a-sheet-top > div > span { color: var(--m); font: 600 11px var(--f-m); letter-spacing: .14em; }
+    html.layout-a .a-sheet-corpo { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 6px 14px 14px; }
+    html.layout-a .a-gt { margin: 18px 4px 10px; }
+    html.layout-a .a-sheet-g { display: flex; flex-direction: column; gap: 8px; }
+    html.layout-a .a-tile { flex-direction: row; justify-content: flex-start; gap: 14px; min-height: 52px; padding: 0 16px; border-radius: 14px; background: var(--p2); font: 700 14.5px/1.2 var(--f-b); text-align: left; overflow-wrap: normal; }
+    html.layout-a .a-tile .ic { flex: none; width: 22px; height: 22px; color: var(--t); }
+    html.layout-a .a-tile.ativo { border-color: var(--or); background: var(--ors); }
+    html.layout-a .a-tile.ativo .ic { color: var(--ort); }
+    html.layout-a .a-tile .a-nb { position: static; margin-left: auto; }
+    html.layout-a .a-sheet-pe { flex: none; display: grid; gap: 8px; padding: 12px 14px calc(14px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--bd); background: var(--p); }
+    html.layout-a .a-sheet-pe .a-sheet-usr { margin: 0; padding: 10px 12px; border: 1px solid var(--bd); border-radius: 14px; background: var(--p2); }
+    html.layout-a .a-sheet-pe .a-sheet-usr .a-av { width: 38px; height: 38px; }
+    html.layout-a .a-sair { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 8px; color: var(--ert); font: 700 14.5px var(--f-b); text-decoration: none; }
+    html.layout-a .a-sair .ic { width: 22px; height: 22px; }
+}
+@media (max-width: 900px) {
+    html.layout-a .a-sheet-pe { grid-template-columns: minmax(0, 1fr); }
+    html.layout-a .a-sheet-pe .a-sheet-usr > div > span { white-space: nowrap; }
+}
+
+/* ===== Barra lateral do computador no MESMO modelo da gaveta do celular (pedido do cliente, 21/10/2026): largura fixa de 272 px, cabeçalho com logo + nome + "MENU",
+   grupos com título e linhas de largura total, usuário e "Sair" no rodapé ===== */
+@media (min-width: 901px) {
+    html.layout-a .a-rail { align-items: stretch; gap: 0; padding: 0; }
+    html.layout-a .a-rail-cab { flex: none; display: flex; align-items: center; gap: 12px; padding: 18px 18px 14px; border-bottom: 1px solid var(--bd); }
+    html.layout-a .a-rail-cab .a-logo { width: 44px; height: 44px; border-radius: 14px; margin: 0; }
+    html.layout-a .a-rail-cab > div { min-width: 0; display: flex; flex-direction: column; line-height: 1.15; }
+    html.layout-a .a-rail-cab b { font: 800 15px var(--f-b); letter-spacing: .02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    html.layout-a .a-rail-cab > div > span { color: var(--m); font: 600 11px var(--f-m); letter-spacing: .14em; }
+    html.layout-a .a-rail-corpo { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; padding: 4px 14px 14px; }
+    html.layout-a .a-rail-corpo::-webkit-scrollbar { display: none; }
+    html.layout-a .a-rail .a-gt { margin: 16px 12px 6px; }
+    /* Itens sem caixa (22/10/2026): ícone + texto direto sobre o fundo da barra; o ativo ganha o laranja suave e a barrinha na borda */
+    html.layout-a .a-rail .a-ni { flex-direction: row; justify-content: flex-start; gap: 14px; width: 100%; min-height: 44px; margin-bottom: 2px; padding: 0 12px; border: 0; border-radius: 12px; background: transparent; color: var(--t); font: 600 14px/1.2 var(--f-b); text-align: left; }
+    html.layout-a .a-rail .a-ni .ic { flex: none; width: 20px; height: 20px; color: var(--m); }
+    html.layout-a .a-rail .a-ni:hover { background: var(--p2); }
+    html.layout-a .a-rail .a-ni:hover .ic { color: var(--t); }
+    html.layout-a .a-rail .a-ni.ativo { background: var(--ors); color: var(--ort); }
+    html.layout-a .a-rail .a-ni.ativo .ic { color: var(--ort); }
+    html.layout-a .a-rail .a-ni.ativo::before { display: block; left: -14px; top: 10px; bottom: 10px; width: 3px; }
+    html.layout-a .a-rail .a-nb { position: static; margin-left: auto; }
+    html.layout-a .a-rail .a-nfim { margin-top: 0; align-items: stretch; gap: 8px; padding: 12px 14px 14px; border-top: 1px solid var(--bd); }
+    html.layout-a .a-rail-usr { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 10px 12px; border: 0; border-radius: 12px; background: transparent; text-decoration: none; }
+    html.layout-a .a-rail-usr:hover { background: var(--p2); }
+    html.layout-a .a-rail-usr.ativo { background: var(--ors); }
+    html.layout-a .a-rail-usr .a-av { width: 38px; height: 38px; }
+    html.layout-a .a-rail-usr > div { min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+    html.layout-a .a-rail-usr b { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    html.layout-a .a-rail-usr > div > span { color: var(--m); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    html.layout-a .a-rail .a-sair-d { margin: 0; border: 0; background: none; padding: 0 8px; color: var(--ert); }
+}
+@media (min-width: 901px) {
+    html.layout-a .a-rail .a-gt { font: 600 11px var(--f-m); letter-spacing: .1em; text-transform: uppercase; color: var(--m); }
+}
+
+/* Itens da barra/gaveta: fundo um degrau MAIS CLARO que o painel (--p2 sobre --p), borda sutil; antes ficavam quase pretos (--bg) e pesados (21/10/2026) */
+html.layout-a .a-tile:active { background: var(--p3); }
+html.layout-a .a-tile.ativo { background: var(--ors); }
+
+/* "Sair" ao lado do nome e do e-mail, à direita do cartão do usuário (gaveta do celular e barra do computador) */
+html.layout-a .a-sair-ic { flex: none; display: grid; place-items: center; width: 42px; height: 42px; margin-left: auto; border-radius: 12px; border: 1px solid var(--bd); background: var(--p3); color: var(--ert); text-decoration: none; }
+html.layout-a .a-sair-ic .ic { width: 20px; height: 20px; }
+html.layout-a .a-sair-ic:hover { border-color: var(--ert); }
+@media (min-width: 901px) {
+    html.layout-a .a-rail-usr { padding: 8px 8px 8px 12px; }
+    html.layout-a .a-rail-usr-l { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit; }
+    html.layout-a .a-rail-usr-l > div { min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+    html.layout-a .a-rail-usr-l b { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    html.layout-a .a-rail-usr-l > div > span { color: var(--m); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    html.layout-a .a-rail-usr .a-av { width: 38px; height: 38px; }
+    /* "Sair" do computador: só o ícone, sem caixa; fica vermelho ao passar o mouse */
+    html.layout-a .a-rail .a-sair-ic { width: 38px; height: 38px; border: 0; background: transparent; color: var(--m); }
+    html.layout-a .a-rail .a-sair-ic:hover { background: var(--ers); color: var(--ert); }
+    html.layout-a .a-rail .a-sair-ic .ic { width: 18px; height: 18px; }
+}
+@media (max-width: 900px) {
+    html.layout-a .a-sheet-pe .a-sheet-usr { padding: 8px 8px 8px 12px; }
+}

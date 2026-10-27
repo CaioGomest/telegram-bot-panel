@@ -104,5 +104,19 @@ try {
     logCronMetricas('Erro (usuário): ' . $e->getMessage());
 }
 
+// Avisos push: se o trabalhador parou ou há muitos erros, avisa o admin no sino (no máximo 1 vez por hora). Só carrega o código quando o interruptor geral está ligado.
+try {
+    require_once __DIR__ . '/../funcoes/configuracoes.php';
+    if (configSistema('push_ativo') === '1') {
+        require_once __DIR__ . '/../funcoes/push.php';
+        $problema_push = pushVerificarSaude($pdo);
+        if ($problema_push !== null) {
+            logCronMetricas('Avisos push com problema: ' . $problema_push);
+        }
+    }
+} catch (Throwable $e) {
+    logCronMetricas('Erro (avisos push): ' . $e->getMessage());
+}
+
 flock($lock, LOCK_UN);
 fclose($lock);

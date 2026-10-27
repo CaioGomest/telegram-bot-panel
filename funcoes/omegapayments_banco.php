@@ -16,6 +16,8 @@ declare(strict_types=1);
  * `splits[]`. Ver `anotacoes/OBSERVACOES.md` antes de considerar
  * isso 100% pronto pra produção.
  */
+require_once __DIR__ . '/split_validacao.php';
+
 class OmegaPaymentsBanco {
     private string $client_id;
     private string $client_secret;
@@ -144,12 +146,11 @@ class OmegaPaymentsBanco {
      * a API valida o campo nos dois endpoints (testado em 06/10/2026 — recebedor inexistente e soma acima do valor são recusados).
      */
     private function montaSplits(float $valor, array $split_config): array {
+        // A conta do valor de cada item é a mesma de comissaoDoSplit() (funcoes/split_validacao.php), que grava a comissão na venda.
         return array_map(static function (array $s) use ($valor): array {
-            $taxa = (float)($s['valor'] ?? 0);
-            $fatia = ($s['tipo'] ?? 'percentual') === 'fixo' ? $taxa : $valor * $taxa / 100;
             return [
                 'producerId' => (string)($s['chave'] ?? ''),
-                'amount'     => round(min($fatia, $valor), 2),
+                'amount'     => valorDaFatiaDoSplit($s, $valor),
             ];
         }, $split_config);
     }

@@ -8,6 +8,7 @@ require_once __DIR__ . '/funcoes/gateways.php';
 require_once __DIR__ . '/funcoes/webhooks.php';
 require_once __DIR__ . '/funcoes/fluxo_blocos.php';
 require_once __DIR__ . '/funcoes/execucao_fluxo.php';
+require_once __DIR__ . '/funcoes/guiado_ofertas.php';
 
 date_default_timezone_set('America/Sao_Paulo');
 
@@ -232,12 +233,14 @@ function criarVendaCicloOmegapayments(array $notificacao, string $txid): ?array 
         $pdo->prepare("
             INSERT INTO vendas (id_telegram, bot_id, valor, status, transacao_id, id_grupo_telegram, dias_acesso,
                 tempo_acesso_minutos, id_gateway, tempo_expiracao_minutos, criado_em, tipo_cobranca, id_assinatura,
-                venda_pai_id, id_plano, id_fluxo)
-            VALUES (?, ?, ?, 'gerado', ?, ?, ?, ?, ?, ?, ?, 'assinatura', ?, ?, ?, ?)
+                venda_pai_id, id_plano, id_fluxo, comissao_admin)
+            VALUES (?, ?, ?, 'gerado', ?, ?, ?, ?, ?, ?, ?, 'assinatura', ?, ?, ?, ?, ?)
         ")->execute([
             $pai['id_telegram'], $pai['bot_id'], $valor, $txid, $pai['id_grupo_telegram'], $pai['dias_acesso'],
             $pai['tempo_acesso_minutos'], $pai['id_gateway'], $minutos_expiracao, date('Y-m-d H:i:s'), $id_assinatura,
             $pai['venda_pai_id'] ?: $pai['id'], $pai['id_plano'], $pai['id_fluxo'] ?? null,
+            // A Omega repete a cobrança com os mesmos termos da assinatura (inclusive o split): a comissão do ciclo é a da primeira venda.
+            (float) ($pai['comissao_admin'] ?? 0),
         ]);
         require_once __DIR__ . '/funcoes/traqueamento.php';
         herdarNomeProdutoVenda($pdo, (string) $txid, (int) $pai['id']);
@@ -452,7 +455,7 @@ $id_dono   = (int)($bot_data['id_usuario'] ?? 0);
 
 if ($id_dono) {
     $valor_fmt = number_format((float)$venda['valor'], 2, ',', '.');
-    registrarAtividade($id_dono, 'venda', 'Venda Aprovada', "PIX OmegaPayments R$ {$valor_fmt} pago (identificador=$txid).");
+    registrarAtividade($id_dono, 'venda', 'Venda Aprovada', "PIX de R$ {$valor_fmt} foi pago.");
 
     require_once __DIR__ . '/funcoes/traqueamento.php';
     enviarEventosTraqueamento($id_dono, 'compra', [
@@ -486,10 +489,14 @@ $msg = $venda_ciclo_nova || !empty($venda['venda_pai_id'])
         ? htmlspecialchars($texto_confirmado)
         : "✅ <b>Pagamento Confirmado!</b>\n\nObrigado pela sua compra.");
 
+$link_aprovado = null;   // link do grupo desta venda (para a mensagem da aba Pagamentos, modelo novo)
+$tempo_aprovado = 0;
 if (!empty($venda['id_grupo_telegram'])) {
     $expiracao_minima = $assinatura_payload ? fimCicloAssinaturaOmegapayments($assinatura_payload) : null;
     $link = liberarAcessoGrupoOmegapayments($venda, $token_bot, $expiracao_minima);
     $tempo_minutos = (int)($venda['tempo_acesso_minutos'] ?? ($venda['dias_acesso'] * 1440));
+    $link_aprovado = $link ?: null;
+    $tempo_aprovado = $tempo_minutos;
 
     if ($link) {
         $msg .= "\n\n🚀 <b>Acesso Liberado!</b>\nClique no link abaixo para entrar no grupo exclusivo:\n\n$link\n\n⚠️ Este link é válido apenas para você.";
@@ -508,12 +515,22 @@ if (!empty($venda['id_grupo_telegram'])) {
     }
 }
 
-$resp_msg = requisicaoTelegramOmegapayments($token_bot, 'sendMessage', [
-    'chat_id'    => $venda['id_telegram'],
-    'text'       => $msg,
-    'parse_mode' => 'HTML'
-]);
-logWebhookOmegapayments("Mensagem enviada: " . json_encode($resp_msg));
+// Guiado no modelo novo da aba Pagamentos: mensagem, mídias e botão de acesso escolhidos pelo dono (funcoes/pagamentos_guiado.php). Renovação/ciclo de assinatura
+// e qualquer outro caso (Editor Visual, fluxo antigo) seguem com o texto de sempre.
+$aprovacao_nova = !$venda_ciclo_nova && empty($venda['venda_pai_id'])
+    && pagamentoEnviarAprovacao($pdo, $token_bot, $venda, $link_aprovado, !empty($venda['id_grupo_telegram']) && $link_aprovado === null, $tempo_aprovado);
+if ($aprovacao_nova) {
+    logWebhookOmegapayments("Mensagem de aprovação enviada (modelo novo da aba Pagamentos).");
+} else {
+    $msg .= textoEntregaLink($venda, 'html');   // Fluxo Guiado com entrega por link
+    $resp_msg = requisicaoTelegramOmegapayments($token_bot, 'sendMessage', [
+        'chat_id'    => $venda['id_telegram'],
+        'text'       => $msg,
+        'parse_mode' => 'HTML'
+    ]);
+    logWebhookOmegapayments("Mensagem enviada: " . json_encode($resp_msg));
+}
+ofertasPosPagamentoBasico($pdo, $token_bot, $venda);   // Guiado: Upsell/Order Bump DEPOIS de pagar
 
 if (!empty($venda['id_operador_fluxo']) && $id_dono) {
     executarFluxoOmegapayments($token_bot, (string)$venda['id_telegram'], (int)$venda['bot_id'], $venda['id_operador_fluxo'], $id_dono, 'output_pago');

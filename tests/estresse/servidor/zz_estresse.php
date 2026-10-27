@@ -95,7 +95,7 @@ for ($i = 1; $i <= $total_usuarios; $i++) {
         [$plano, $valor] = $planos[array_rand($planos)];
         $st = $estados[array_rand($estados)];
         $criado = aleatorio_data(30);
-        $vendas[] = [(string) (9000000 + $bid * 1000 + random_int(1, LEADS_POR_BOT)), $bid, $valor, $st, 'EST' . (++$tx) . 'U' . $uid, $criado, $st === 'pago' ? date('Y-m-d H:i:s', strtotime($criado) + 90) : null, 30, $fid, $st === 'pago' ? round($valor * 0.07, 2) : 0];
+        $vendas[] = [(string) (9000000 + $bid * 1000 + random_int(1, LEADS_POR_BOT)), $bid, $valor, $st, 'EST' . (++$tx) . 'U' . $uid, $criado, $st === 'pago' ? date('Y-m-d H:i:s', strtotime($criado) + 90) : null, 30, $fid, $st === 'pago' ? 0.35 : 0];
         if (count($vendas) >= 1500) lote($pdo, 'vendas', $cols_vendas, $vendas);
     }
     for ($a = 1; $a <= ATIVIDADES_POR_USUARIO; $a++) {

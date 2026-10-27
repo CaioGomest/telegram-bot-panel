@@ -4,12 +4,14 @@ declare(strict_types=1);
 /**
  * Packs do Fluxo Guiado: conteúdos avulsos vendidos além dos planos (até 20 por fluxo).
  * Config em dados_fluxograma['packs'] = {ativo, texto_botao, mensagem, itens[]}; cada item tem
- * emoji, nome, preço, descrição, mídia de preview e id_grupo (destino da entrega). A venda reusa
- * o mesmo motor de Pix dos planos (processarEEnviarBloco): a entrega no grupo e o registro da
+ * emoji, nome, preço, descrição, mídia de preview e a entrega (grupo ou link, ver funcoes/entrega.php). A venda reusa
+ * o mesmo motor de Pix dos planos (processarEEnviarBloco): a entrega e o registro da
  * venda são idênticos, só que o acesso é "longo" (pack não vence como um plano).
  *
  * callback_data (limite de 64 bytes): basico::packs | basico::pack::<id> | basico::packbuy::<id>
  */
+
+require_once __DIR__ . '/entrega.php';
 
 const PACKS_ACESSO_DIAS = 36500;
 
@@ -78,6 +80,7 @@ function enviarPreviaPackBasico(string $token, $id_chat, array $pack): void
 function gerarPixPackBasico(string $token, $id_chat, array $dados_basico, array $pack): void
 {
     $pagamentos = $dados_basico['pagamentos'] ?? [];
+    $entrega = entregaDoItemBasico($pack);
     processarEEnviarBloco($token, $id_chat, ['properties' => [
         'type' => 'pix',
         'nome' => trim((string) $pack['nome']),
@@ -86,11 +89,8 @@ function gerarPixPackBasico(string $token, $id_chat, array $dados_basico, array 
         'expiracao_minutos' => 15,
         'dias_acesso' => PACKS_ACESSO_DIAS,
         'unidade_acesso' => 'dias',
-        'id_grupo' => $pack['id_grupo'] ?? '',
-        'mostrar_copiar' => $pagamentos['mostrar_copiar'] ?? true,
-        'mostrar_qrcode' => !empty($pagamentos['qrcode_definido']) ? !empty($pagamentos['mostrar_qrcode']) : true,
-        'mostrar_confirmar' => $pagamentos['mostrar_confirmar'] ?? true,
-        'msg_instrucoes' => $pagamentos['msg_instrucoes'] ?? '',
-        'msg_confirmado' => $pagamentos['msg_confirmado'] ?? '',
-    ]], '');
+        'id_grupo' => $entrega['id_grupo'],
+        'link_entrega' => $entrega['link_entrega'],
+        // Aba Pagamentos do Guiado: os campos de sempre e, no modelo novo, a configuração completa (funcoes/pagamentos_guiado.php).
+    ] + propriedadesPagamentoBasico($pagamentos)], '');
 }

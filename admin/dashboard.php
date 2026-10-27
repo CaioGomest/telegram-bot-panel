@@ -326,12 +326,6 @@ if ($periodo === 'personalizado') {
                 </div>
                 <form method="GET" class="form-periodo">
                     <input type="hidden" name="periodo" value="<?php echo htmlspecialchars($periodo); ?>">
-                    <div class="grupo-data-personalizada<?php echo ($periodo === 'personalizado' ? ' ativo' : ''); ?>">
-                        <label for="data_inicio">De</label>
-                        <input type="date" id="data_inicio" name="data_inicio" aria-label="Data inicial" value="<?php echo htmlspecialchars($data_inicio); ?>" <?php echo ($periodo === 'personalizado' ? '' : 'disabled'); ?>>
-                        <label for="data_fim">Até</label>
-                        <input type="date" id="data_fim" name="data_fim" aria-label="Data final" value="<?php echo htmlspecialchars($data_fim); ?>" <?php echo ($periodo === 'personalizado' ? '' : 'disabled'); ?>>
-                    </div>
                 </form>
                 <button type="button" class="alternador-tema" onclick="alternarTema()" aria-label="Alternar tema">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>
@@ -417,43 +411,8 @@ if ($periodo === 'personalizado') {
 <script src="../assets/js/paginacao.js?v=<?php echo @filemtime(__DIR__ . '/../assets/js/paginacao.js'); ?>"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const periodo_btns = document.querySelectorAll('.seletor-periodo a');
-    const date_inputs = document.querySelectorAll('.grupo-data-personalizada input[type="date"]');
-    const filter_form = document.querySelector('.form-periodo');
-    const periodo_hidden = document.querySelector('input[name="periodo"]');
-    const date_group = document.querySelector('.grupo-data-personalizada');
-
-    periodo_btns.forEach(btn => {
-        btn.addEventListener('click', function(e) {
-            e.preventDefault();
-
-            const url = new URL(this.href, window.location.origin);
-            const periodo_selecionado = url.searchParams.get('periodo');
-
-            periodo_hidden.value = periodo_selecionado;
-
-            if (periodo_selecionado === 'personalizado') {
-                date_inputs.forEach(input => input.disabled = false);
-                date_group.classList.add('ativo');
-                date_inputs[0].focus();
-            } else {
-                date_inputs.forEach(input => input.disabled = true);
-                date_group.classList.remove('ativo');
-                filter_form.submit();
-            }
-        });
-    });
-
-    date_inputs.forEach(input => {
-        input.addEventListener('change', function() {
-            const data_inicio = document.querySelector('input[name="data_inicio"]').value;
-            const data_fim = document.querySelector('input[name="data_fim"]').value;
-
-            if (data_inicio && data_fim && periodo_hidden.value === 'personalizado') {
-                filter_form.submit();
-            }
-        });
-    });
+    // Os botões de período são links normais (?periodo=...): o próprio navegador troca a página. Aqui NÃO se intercepta o clique: em 25/10/2026 o bloco das datas
+    // "De/Até" saiu da tela e o script antigo, que ainda mexia nele, dava erro depois do preventDefault e o filtro parava de funcionar ("clico e nada acontece").
 
     const ctx = document.getElementById('adminChart');
     if (ctx) {

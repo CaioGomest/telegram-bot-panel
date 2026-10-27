@@ -16,6 +16,10 @@ declare(strict_types=1);
 
 const PREVIAS_MAX_MIDIAS = 8;
 const PREVIAS_ESPERA_MAXIMA_NO_WEBHOOK = 60;
+// Tempo curto é de propósito: com 10 s o lead dá print/grava a tela; a Shark usa 5 s (pedido do dono, 22/10/2026). O apagar de poucos segundos
+// depende do webhook segurar a requisição (fastcgi/litespeed_finish_request); sem isso só o cron de 1 minuto apaga.
+const PREVIAS_APAGAR_MINIMO = 1;
+const PREVIAS_APAGAR_PADRAO = 5;
 
 function previasTiposMidia(): array
 {
@@ -128,7 +132,7 @@ function enviarPreviasBasico(PDO $pdo, string $token, array $bot, string $id_cha
         requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Você já viu as prévias. O conteúdo completo está nos planos 👇', 'reply_markup' => json_encode(['inline_keyboard' => $botoes])]);
         return;
     }
-    $segundos = max(5, min(3600, (int) ($previas['apagar_apos'] ?? 15)));
+    $segundos = max(PREVIAS_APAGAR_MINIMO, min(3600, (int) ($previas['apagar_apos'] ?? PREVIAS_APAGAR_PADRAO)));
     $proteger = !empty($previas['proteger']);
     registrarPreviaVista($pdo, $bot_id, $id_chat);
 

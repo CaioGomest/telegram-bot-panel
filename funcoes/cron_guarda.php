@@ -18,6 +18,10 @@ function exigirChamadaDeCron(string $nome_cron): void
     if (function_exists('controleModoTotal') && controleModoTotal() && !in_array($nome_cron, ['cron_verificar_pix', 'cron_verificar_acessos'], true)) {
         exit(0);
     }
+    // Modo manutenção "total" (funcoes/manutencao.php): todos os crons pausam (migração do banco em andamento). Voltam sozinhos quando ela desliga.
+    if (function_exists('manutencaoModoTotal') && manutencaoModoTotal()) {
+        exit(0);
+    }
     if (PHP_SAPI === 'cli') {
         return;
     }
