@@ -13,7 +13,7 @@ function paginaLinkIndisponivel(int $status, string $mensagem): void
     header('Cache-Control: no-store');
     header('X-Robots-Tag: noindex, nofollow');
     echo '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">'
-        . '<meta name="viewport" content="width=device-width, initial-scale=1.0">'
+        . '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">'
         . '<meta name="robots" content="noindex"><title>Link indisponível</title>'
         . '<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0a0b0e;color:#f3f2f0;font:16px system-ui,sans-serif;text-align:center;padding:24px}'
         . 'h1{font-size:22px;margin:0 0 8px}p{margin:0;color:#8b9099}</style></head><body><div>'

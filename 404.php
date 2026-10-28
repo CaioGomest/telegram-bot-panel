@@ -20,7 +20,7 @@ if (is_file(__DIR__ . '/funcoes/configuracoes.php') && is_file(__DIR__ . '/confi
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Página não encontrada - <?php echo htmlspecialchars($nome); ?></title>
     <?php if (is_file($tema)) { include $tema; } ?>
     <?php if (is_file(__DIR__ . '/assets/css/painel.css')): ?>

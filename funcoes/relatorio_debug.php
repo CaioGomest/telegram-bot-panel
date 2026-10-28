@@ -12,7 +12,7 @@ function exibirRelatorioDebug(string $titulo, string $conteudo_html, string $cam
     <html lang="pt-BR">
     <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <title><?php echo htmlspecialchars($titulo); ?></title>
         <?php include __DIR__ . '/../tema_inline.php'; ?>
         <link rel="stylesheet" href="<?php echo $caminho_base; ?>assets/css/painel.css">

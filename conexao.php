@@ -84,7 +84,7 @@ try {
     header('Retry-After: 120');
     header('Content-Type: text/html; charset=utf-8');
     echo '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">'
-       . '<meta name="viewport" content="width=device-width, initial-scale=1.0">'
+       . '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">'
        . '<title>Fora do ar</title></head>'
        . '<body style="font-family:system-ui,sans-serif;background:#14161c;color:#e8e8e8;'
        . 'display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px;text-align:center;">'

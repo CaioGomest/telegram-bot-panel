@@ -5,6 +5,8 @@ require_once __DIR__ . '/funcoes/layout_a.php';
 $layout_a = layoutAAtivo($caminho_base ?? '');
 ?>
 <script>(function(){<?php if ($layout_a): ?>document.documentElement.classList.add('layout-a');<?php endif; ?><?php if (!$layout_a): ?>document.documentElement.classList.add('barra-fixa','sidebar-modelo');<?php endif; ?>try{var t=localStorage.getItem('tema')||'dark';document.documentElement.setAttribute('data-theme',t);if(localStorage.getItem('barra_fixa')==='1'){document.documentElement.classList.add('barra-fixa');}}catch(e){}})();</script>
+<?php // Sem zoom no celular: o <meta viewport> de cada página decide (só fluxo.php e fluxo_basico.php deixam dar zoom). O Safari do iPhone ignora user-scalable=no, então a pinça é barrada aqui. ?>
+<script>(function(){var m=document.querySelector('meta[name="viewport"]');if(!m||!/user-scalable\s*=\s*no/.test(m.content)){return;}document.documentElement.style.touchAction='pan-x pan-y';['gesturestart','gesturechange','gestureend'].forEach(function(n){document.addEventListener(n,function(e){e.preventDefault();});});})();</script>
 <?php if ($layout_a): ?>
 <link rel="stylesheet" href="<?php echo htmlspecialchars($caminho_base ?? ''); ?>assets/css/layout_a.css?v=<?php echo @filemtime(__DIR__ . '/assets/css/layout_a.css'); ?>">
 <?php endif; ?>

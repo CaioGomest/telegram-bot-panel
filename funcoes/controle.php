@@ -324,7 +324,7 @@ function controleResponderSuspenso(array $e, string $rel): void
     }
     header('Content-Type: text/html; charset=utf-8');
     $msg = trim($e['mensagem']) !== '' ? '<p style="color:#e8e8e8;margin:14px 0 0;line-height:1.6;">' . htmlspecialchars($e['mensagem'], ENT_QUOTES, 'UTF-8') . '</p>' : '';
-    echo '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">'
+    echo '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">'
        . '<meta name="robots" content="noindex"><title>Sistema suspenso</title></head>'
        . '<body style="font-family:system-ui,sans-serif;background:#14161c;color:#e8e8e8;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px;text-align:center;">'
        . '<div style="max-width:440px"><h1 style="font-size:20px;margin:0 0 10px;">Sistema suspenso</h1>'
