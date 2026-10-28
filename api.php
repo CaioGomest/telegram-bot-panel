@@ -256,6 +256,24 @@ function sanitizarCaminhosMidiaFluxo(array $dados_grafico): array
         }
         $dados_grafico['ofertas']['order_bump']['itens'] = $itens;
     }
+    // Downsell em sequência (item 38): as sequências extras (até 4) têm a própria mídia, com a mesma regra, e cada sequência guarda no máximo 10 planos criados.
+    if (isset($dados_grafico['ofertas']['downsell']['sequencias_extras'])) {
+        $extras = [];
+        foreach (array_slice(array_values((array) $dados_grafico['ofertas']['downsell']['sequencias_extras']), 0, DOWNSELL_MAXIMO_SEQUENCIAS - 1) as $extra) {
+            if (!is_array($extra)) {
+                continue;
+            }
+            $extra = sanitizarMidiasDoItem($extra);
+            if (isset($extra['planos_proprios'])) {
+                $extra['planos_proprios'] = array_slice(array_values((array) $extra['planos_proprios']), 0, DOWNSELL_PLANOS_PROPRIOS_MAXIMO);
+            }
+            $extras[] = $extra;
+        }
+        $dados_grafico['ofertas']['downsell']['sequencias_extras'] = $extras;
+    }
+    if (isset($dados_grafico['ofertas']['downsell']['planos_proprios'])) {
+        $dados_grafico['ofertas']['downsell']['planos_proprios'] = array_slice(array_values((array) $dados_grafico['ofertas']['downsell']['planos_proprios']), 0, DOWNSELL_PLANOS_PROPRIOS_MAXIMO);
+    }
     foreach (['avisos_antes', 'avisos_no_dia', 'ao_expirar'] as $bloco) {
         if (isset($dados_grafico['assinatura'][$bloco]) && !caminhoUploadValido((string) ($dados_grafico['assinatura'][$bloco]['midia_path'] ?? ''))) {
             $dados_grafico['assinatura'][$bloco]['midia_path'] = '';
@@ -489,7 +507,7 @@ try {
             if ($erro_preco !== null) {
                 responder(false, ['mensagem' => $erro_preco], 422);
             }
-            $erro_entrega = $modo === 'basico' ? (validarPlanoProprioUpsellBasico($dados) ?? validarEntregasFluxoGuiado($dados)) : null;
+            $erro_entrega = $modo === 'basico' ? (validarPlanoProprioUpsellBasico($dados) ?? validarPlanosProprioDownsellBasico($dados) ?? validarEntregasFluxoGuiado($dados)) : null;
             if ($erro_entrega !== null) {
                 responder(false, ['mensagem' => $erro_entrega], 422);
             }
@@ -545,7 +563,7 @@ try {
                 if ($erro_preco !== null) {
                     responder(false, ['mensagem' => $erro_preco], 422);
                 }
-                $erro_entrega = isset($dados_grafico['planos']) ? (validarPlanoProprioUpsellBasico($dados_grafico) ?? validarEntregasFluxoGuiado($dados_grafico)) : null;
+                $erro_entrega = isset($dados_grafico['planos']) ? (validarPlanoProprioUpsellBasico($dados_grafico) ?? validarPlanosProprioDownsellBasico($dados_grafico) ?? validarEntregasFluxoGuiado($dados_grafico)) : null;
                 if ($erro_entrega !== null) {
                     responder(false, ['mensagem' => $erro_entrega], 422);
                 }

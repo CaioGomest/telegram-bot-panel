@@ -7,7 +7,7 @@ const path = require('path');
 const fonte = fs.readFileSync(path.join(__dirname, '../../assets/edicao_fluxo_basico.js'), 'utf8');
 const m = fonte.match(/function validarPrecoMinimo\(d\) \{[\s\S]*?\n    \}\n/);
 if (!m) { console.log('FALHOU  função validarPrecoMinimo não encontrada em assets/edicao_fluxo_basico.js'); process.exit(1); }
-const montar = (minimo) => new Function('preco_minimo', m[0] + '\nreturn validarPrecoMinimo;')(minimo);
+const montar = (minimo) => new Function('preco_minimo', "const ID_UPSELL_PROPRIO = 'up_exclusivo';\n" + m[0] + '\nreturn validarPrecoMinimo;')(minimo);
 let ok = 0, falhas = 0;
 const confere = (nome, cond, det) => { if (cond) { ok++; console.log('OK     ' + nome); } else { falhas++; console.log('FALHOU ' + nome + (det !== undefined ? '  -> ' + JSON.stringify(det) : '')); } };
 const base = (planos, ofertas, packs) => ({ planos: planos, ofertas: ofertas || { upsell: {}, downsell: {} }, packs: packs || { ativo: false, itens: [] } });
@@ -29,6 +29,19 @@ confere('Downsell com 2 planos: só o Semanal com 50% (R$ 1,50) fica abaixo; fra
 // plano já abaixo + desconto: só a frase curta (o desconto não é o culpado)
 const baixo = base([{ id: 'p', nome: 'x', valor: 1 }], { upsell: { ativo: true, id_plano_destino: 'p', desconto_percentual: 10 }, downsell: {} });
 confere('plano já abaixo do mínimo + Upsell com desconto: só a frase curta', v15(baixo) === 'Para a Omega, o valor mínimo é R$ 1,50.', v15(baixo));
+
+// Downsell em sequência e planos criados no Downsell (item 38): espelha o lado servidor
+const dnb = (downsell) => base([{ id: 'a', nome: 'Mensal', valor: 20 }, { id: 'b', nome: 'Semanal', valor: 3 }], { upsell: {}, downsell: Object.assign({ ativo: true, planos_oferecidos: [], quando: 'depois_pix' }, downsell) });
+const MSG21 = 'Para a Omega, o valor mínimo é R$ 2,10.';
+confere('plano criado no Downsell de R$ 1,00 recusa só com o mínimo', v21(dnb({ criar_planos: true, planos_proprios: [{ nome: 'Relâmpago', valor: 1 }] })) === MSG21);
+confere('plano criado de R$ 2,50 passa mesmo com 50% de desconto no JSON (o preço é o digitado)', v21(dnb({ criar_planos: true, desconto_percentual: 50, planos_proprios: [{ nome: 'R', valor: 2.5 }] })) === '');
+confere('com "Criar planos" ligado, o plano marcado e escondido (Semanal com 50%) não entra na conta', v21(dnb({ criar_planos: true, planos_oferecidos: ['b'], desconto_percentual: 50, planos_proprios: [{ nome: 'X', valor: 9 }] })) === '');
+const seq2 = dnb({ planos_oferecidos: ['a'], desconto_percentual: 10, sequencias_extras: [{ planos_oferecidos: ['b'], desconto_percentual: 50 }] });
+confere('o Semanal na 2ª sequência com 50% (R$ 1,50) recusa e a frase aponta o Downsell', v21(seq2) === MSG21 + ' O Downsell, com 50% de desconto, sai por R$ 1,50.', v21(seq2));
+seq2.ofertas.downsell.sequencias_extras[0].desconto_percentual = 0;
+confere('a mesma 2ª sequência sem desconto (Semanal R$ 3,00) passa', v21(seq2) === '');
+seq2.ofertas.downsell.sequencias_extras[0] = { criar_planos: true, planos_proprios: [{ nome: 'Última chance', valor: 1 }] };
+confere('plano criado na 2ª sequência de R$ 1,00 recusa', v21(seq2) === MSG21);
 
 console.log('\n' + ok + ' ok, ' + falhas + ' falha(s)');
 process.exit(falhas ? 1 : 0);

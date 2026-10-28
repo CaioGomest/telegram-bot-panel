@@ -127,7 +127,7 @@ require_once dirname(__DIR__, 2) . '/funcoes/entrega.php';   // entregaDoItemBas
 require_once dirname(__DIR__, 2) . '/funcoes/pagamentos_guiado.php';   // propriedadesPagamentoBasico(), usada por gerarPixBasico
 
 foreach (['estiloBotaoBasicoValor', 'enviarMensagemComMidiaBasico', 'enviarBoasVindasBasico', 'enviarOfertaBasico', 'avancarOfertasBasico', 'planoDaOfertaBasico', 'localizarPlanoBasico', 'planoRecorrenteBasico', 'periodicidadePlanoBasico',
-    'boasVindasMostraCtaBasico', 'enviarListaPlanosBasico', 'urlSuporteBasico', 'downsellNovoFormatoBasico', 'planosDoDownsellBasico', 'planosDoDownsellSemOEscolhidoBasico', 'downsellDepoisDoPixBasico',
+    'boasVindasMostraCtaBasico', 'enviarListaPlanosBasico', 'urlSuporteBasico', 'downsellNovoFormatoBasico', 'planosDoDownsellBasico', 'planosDaSequenciaDownsellBasico', 'ofertaDaPosicaoDownsellBasico', 'planosDoDownsellSemOEscolhidoBasico', 'downsellDepoisDoPixBasico',
     'planoDoDownsellPorVariante', 'enviarDownsellBasico', 'gerarPixBasico', 'executarFluxoBasico',
     'midiasDoItemBasico', 'midiasBoasVindasBasico', 'enviarMidiaSoltaBasico', 'enviarAlbumBasico', 'enviarMensagemComMidiasBasico', 'itensOrderBumpBasico', 'orderBumpDepoisDoPixBasico'] as $f) {
     eval(extrairFuncao($fonte, $f));
@@ -411,6 +411,58 @@ $d = $dados_ent;
 $d['ofertas']['upsell'] += ['entrega_tipo' => 'grupo', 'id_grupo' => '-100777'];
 chk('Upsell aceito pelo botão antigo (variante "u") com grupo próprio', entregaDoPix($d, 'p1', 'u') === ['-100777', '']);
 chk('Upsell sem entrega própria: a do plano de destino (link)', entregaDoPix($dados_ent, 'p1', 'u') === ['', 'https://area.exemplo.com/vip']);
+
+echo "\n--- DOWNSELL EM SEQUÊNCIA e PLANO CRIADO NO DOWNSELL: Pix, desconto e entrega (item 38)\n";
+$dados_seq = [
+    'planos' => [
+        ['id' => 'p1', 'nome' => 'Mensal', 'valor' => 20, 'id_grupo' => '-100111'],
+        ['id' => 'p2', 'nome' => 'VIP', 'valor' => 100, 'entrega_tipo' => 'link', 'link_entrega' => 'https://area.exemplo.com/vip'],
+    ],
+    'ofertas' => ['downsell' => ['ativo' => true, 'quando' => 'depois_pix', 'planos_oferecidos' => ['p1', 'p2'], 'id_plano_destino' => 'p1', 'desconto_percentual' => 10,
+        'sequencias_extras' => [
+            ['planos_oferecidos' => ['p2'], 'desconto_percentual' => 50, 'entrega_tipo' => 'link', 'link_entrega' => 'https://promo.exemplo.com/seq2'],
+            ['criar_planos' => true, 'desconto_percentual' => 90, 'planos_proprios' => [
+                ['nome' => 'Relâmpago', 'valor' => 9.9, 'dias_acesso' => 3, 'unidade_acesso' => 'horas', 'entrega_tipo' => 'link', 'link_entrega' => 'https://x.exemplo.com/a'],
+                ['nome' => 'Bônus', 'valor' => 5, 'dias_acesso' => 7, 'entrega_tipo' => 'mensagem', 'mensagem_entrega' => 'Oi {nome}'],
+            ]],
+        ]]],
+];
+function pixDoDownsell(array $dados, string $id_plano, string $variante): array
+{
+    zerar();
+    gerarPixBasico('T', 123, $dados, $id_plano, $variante, false);
+    return $GLOBALS['chamadas'][0]['p'] ?? [];
+}
+$px = pixDoDownsell($dados_seq, 'p1', 'd1');
+chk('1ª sequência: o VIP sai com o desconto dela (10%): R$ 90,00, e entrega pelo plano (link do VIP)', ($px['valor'] ?? 0) == 90.0 && ($px['link_entrega'] ?? '') === 'https://area.exemplo.com/vip' && ($px['id_grupo'] ?? '?') === '', json_encode($px));
+$px = pixDoDownsell($dados_seq, 'p1', 'd100');
+chk('2ª sequência: o VIP sai com o desconto DELA (50%): R$ 50,00, e entrega pelo link da sequência (não pelo do plano)', ($px['valor'] ?? 0) == 50.0 && ($px['link_entrega'] ?? '') === 'https://promo.exemplo.com/seq2', json_encode($px));
+$px = pixDoDownsell($dados_seq, 'p1', 'd250');
+chk('plano criado no Downsell: vale o valor digitado (R$ 9,90, sem os 90% da sequência), com o nome, o prazo (3 horas) e o id dele', ($px['valor'] ?? 0) == 9.9 && ($px['nome'] ?? '') === 'Relâmpago' && ($px['dias_acesso'] ?? 0) === 3 && ($px['unidade_acesso'] ?? '') === 'horas' && ($px['id_produto'] ?? '') === 'plano_dn3_1', json_encode($px));
+chk('plano criado: entrega pela própria entrega (link dele, sem grupo)', ($px['link_entrega'] ?? '') === 'https://x.exemplo.com/a' && ($px['id_grupo'] ?? '?') === '' && ($px['mensagem_entrega'] ?? '?') === '');
+$px = pixDoDownsell($dados_seq, 'p1', 'd251');
+chk('outro plano criado, com entrega por mensagem: R$ 5,00, o texto vai na venda e não há grupo nem link', ($px['valor'] ?? 0) == 5.0 && ($px['mensagem_entrega'] ?? '') === 'Oi {nome}' && ($px['link_entrega'] ?? '?') === '' && ($px['id_grupo'] ?? '?') === '', json_encode($px));
+$px = pixDoDownsell($dados_seq, 'p1', 'd7');
+chk('posição que não existe mais: cai no plano que o cliente escolheu, sem desconto nenhum (R$ 20,00)', ($px['valor'] ?? 0) == 20.0 && ($px['id_grupo'] ?? '') === '-100111', json_encode($px));
+zerar();
+executarFluxoBasico('T', 123, $dados_seq, 'basico::of::dn::p1::p250');
+chk('toque no botão do plano criado (p250): gera o Pix dele e para as repetições da sequência', ($GLOBALS['chamadas'][0]['metodo'] ?? '') === 'PIX' && ($GLOBALS['chamadas'][0]['p']['valor'] ?? 0) == 9.9 && $GLOBALS['downsell_cancelados'] !== [], metodos());
+zerar();
+executarFluxoBasico('T', 123, $dados_seq, 'basico::of::dn::p1::p299');
+chk('botão de plano criado que foi apagado depois (posição que não existe): avisa que a opção não está mais disponível e não gera Pix', metodos() === 'sendMessage' && strpos((string) ($GLOBALS['chamadas'][0]['p']['text'] ?? ''), 'não está mais disponível') !== false, metodos());
+
+// Várias fotos/vídeos numa sequência extra (item 39): álbum e, logo depois, o texto da sequência com o botão do plano na posição dela
+$midias_seq = [['tipo' => 'image', 'path' => 'uploads/a.jpg'], ['tipo' => 'video', 'path' => 'uploads/b.mp4'], ['tipo' => 'image', 'path' => 'uploads/c.jpg']];
+$dados_album = $dados_seq;
+$dados_album['ofertas']['downsell']['sequencias_extras'][0] += ['mensagem' => 'Segunda chance', 'midias' => $midias_seq];
+zerar();
+enviarDownsellBasico('T', 123, $dados_album, planosDaSequenciaDownsellBasico($dados_album, 1), 'p1', '', 1);
+$album_seq = json_decode((string) ($GLOBALS['chamadas'][0]['p']['media'] ?? '[]'), true);
+chk('2ª sequência com 3 mídias: 1 álbum (foto, vídeo, foto) e depois a mensagem de texto', metodos() === 'sendMediaGroup,sendMessage' && array_column($album_seq, 'type') === ['photo', 'video', 'photo'], metodos());
+chk('2ª sequência com álbum: o texto da sequência e o botão do plano (posição 100) vão DEPOIS do álbum', ($GLOBALS['chamadas'][1]['p']['text'] ?? '') === 'Segunda chance' && (botoes($GLOBALS['chamadas'][1])[0]['callback_data'] ?? '') === 'basico::of::dn::p1::p100', json_encode($GLOBALS['chamadas'][1]['p'] ?? []));
+zerar();
+enviarDownsellBasico('T', 123, $dados_seq, planosDaSequenciaDownsellBasico($dados_seq, 1), 'p1', '', 1);
+chk('2ª sequência sem mídia: só a mensagem com o botão (sem álbum)', metodos() === 'sendMessage', metodos());
 
 echo "\n--- BOAS-VINDAS: botão CTA opcional (sem o botão, a lista de planos vem logo depois)\n";
 zerar();

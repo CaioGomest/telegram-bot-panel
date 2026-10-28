@@ -3239,3 +3239,19 @@ html .editor-fluxo-corpo .painel > .pg-barra + .pg-texto { margin-top: 0; }
 .entrega-grupo-seletor { display: flex; gap: 8px; }
 .entrega-grupo-seletor select { flex: 1; min-width: 0; }
 .entrega-grupo-seletor .editor-fluxo-icone-btn { flex: none; }
+
+/* Downsell em sequência e planos criados no Downsell (item 38): o Downsell 1 é o painel fixo, os 2 a 5 são cartões como os do Order Bump. Cada um tem o bloco "Planos oferecidos" com a chave "Criar planos"; os planos criados usam a mesma moldura dos da aba Planos. */
+#dn-adicionar { display: flex; width: fit-content; margin-left: auto; margin-top: 12px; }
+.dn-seq > * + * { margin-top: 14px; }
+.dn-seq + .campo { margin-top: 14px; }
+.dn-extra > .bp-item-cabecalho { margin-bottom: 0; }
+.dn-planos-cabecalho { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.dn-planos-titulo { font: 700 10.5px 'Manrope', sans-serif; letter-spacing: .1em; text-transform: uppercase; color: var(--m); }
+.dn-planos-cabecalho .basico-interruptor.sem-caixa { margin: 0; }
+.dn-proprios { display: flex; flex-direction: column; gap: 10px; }
+.dn-proprio { border: 1px solid var(--bd); border-radius: 10px; padding: 12px; }
+.dn-proprio-acoes { display: flex; justify-content: flex-end; margin-top: 8px; }
+.dn-proprio-adicionar { display: flex; width: fit-content; margin: 10px 0 0 auto; }
+.dn-planos-criados > .texto-ajuda, .dn-planos-marcados > .texto-ajuda { display: block; margin-top: 8px; }
+.dn-midias-adicionar { display: flex; width: fit-content; margin: 4px 0 0 auto; }
+.dn-midias-extras { margin-top: 8px; }

@@ -236,30 +236,63 @@ function enviarOfertaBasico(string $token, $id_chat, array $oferta, string $pref
 function downsellNovoFormatoBasico(array $dados_basico): bool {
     return is_array($dados_basico['ofertas']['downsell']['planos_oferecidos'] ?? null);
 }
+/**
+ * Planos de UMA sequência do Downsell (0 = a 1ª, que é o próprio ofertas.downsell), com a posição do botão como chave: sequência * 100 + posição na sequência.
+ * Sequência com "Criar planos" só tem os planos criados (a partir da posição +50); sem isso, só os planos marcados da aba Planos (posições 0 a 49).
+ * Na 1ª sequência as posições são as de sempre (0, 1, 2...), então botões de mensagens já enviadas continuam valendo.
+ */
+function planosDaSequenciaDownsellBasico(array $dados_basico, int $indice): array {
+    $sequencia = sequenciasDownsellBasico($dados_basico)[$indice] ?? null;
+    if ($sequencia === null) {
+        return [];
+    }
+    $base = $indice * DOWNSELL_POSICAO_SEQUENCIA;
+    $planos = [];
+    if (!empty($sequencia['criar_planos'])) {
+        foreach (planosProprioDoDownsellBasico($sequencia, $indice) as $i => $plano) {
+            $planos[$base + DOWNSELL_POSICAO_PROPRIOS + $i] = $plano;
+        }
+        return $planos;
+    }
+    foreach (array_slice(array_values((array) ($sequencia['planos_oferecidos'] ?? [])), 0, DOWNSELL_POSICAO_PROPRIOS) as $posicao => $id) {
+        $plano = localizarPlanoBasico($dados_basico['planos'] ?? [], (string) $id);
+        if ($plano) {
+            $planos[$base + $posicao] = $plano;
+        }
+    }
+    return $planos;
+}
+/** Todos os planos do Downsell (de todas as sequências), pela posição do botão: é o que o toque do cliente procura. */
 function planosDoDownsellBasico(array $dados_basico): array {
     $oferta = $dados_basico['ofertas']['downsell'] ?? [];
     if (empty($oferta['ativo']) || !downsellNovoFormatoBasico($dados_basico)) {
         return [];
     }
     $planos = [];
-    foreach (array_values($oferta['planos_oferecidos']) as $posicao => $id) {
-        $plano = localizarPlanoBasico($dados_basico['planos'] ?? [], (string) $id);
-        if ($plano) {
-            $planos[$posicao] = $plano;
-        }
+    foreach (array_keys(sequenciasDownsellBasico($dados_basico)) as $indice) {
+        $planos += planosDaSequenciaDownsellBasico($dados_basico, $indice);
     }
     return $planos;
 }
-/** Planos do downsell que o cliente ainda não escolheu (o plano que ele já pediu não é repetido na oferta). */
-function planosDoDownsellSemOEscolhidoBasico(array $dados_basico, string $id_plano): array {
-    return array_filter(planosDoDownsellBasico($dados_basico), function ($p) use ($id_plano) { return (string) ($p['id'] ?? '') !== $id_plano; });
+/** Oferta (mensagem, mídia, desconto, entrega) da sequência a que pertence a posição do botão; posição desconhecida cai no ofertas.downsell. */
+function ofertaDaPosicaoDownsellBasico(array $dados_basico, int $posicao): array {
+    return sequenciasDownsellBasico($dados_basico)[intdiv($posicao, DOWNSELL_POSICAO_SEQUENCIA)] ?? ($dados_basico['ofertas']['downsell'] ?? []);
 }
-function enviarDownsellBasico(string $token, $id_chat, array $dados_basico, array $planos, string $id_plano_original, string $id_cache = ''): void {
-    $oferta = $dados_basico['ofertas']['downsell'] ?? [];
-    $desconto = max(0.0, min(100.0, (float) ($oferta['desconto_percentual'] ?? 0)));
+/**
+ * Planos do downsell que o cliente ainda não escolheu (o plano que ele já pediu não é repetido na oferta). $indice = só os de uma sequência; null = de todas.
+ * Plano criado no Downsell nunca é "o que ele já escolheu": o escolhido antes do Pix é sempre um plano da aba Planos.
+ */
+function planosDoDownsellSemOEscolhidoBasico(array $dados_basico, string $id_plano, ?int $indice = null): array {
+    $planos = $indice === null ? planosDoDownsellBasico($dados_basico) : (downsellNovoFormatoBasico($dados_basico) && !empty($dados_basico['ofertas']['downsell']['ativo']) ? planosDaSequenciaDownsellBasico($dados_basico, $indice) : []);
+    return array_filter($planos, function ($p) use ($id_plano) { return (string) ($p['id'] ?? '') !== $id_plano; });
+}
+function enviarDownsellBasico(string $token, $id_chat, array $dados_basico, array $planos, string $id_plano_original, string $id_cache = '', int $indice = 0): void {
+    $oferta = sequenciasDownsellBasico($dados_basico)[$indice] ?? ($dados_basico['ofertas']['downsell'] ?? []);
+    $desconto_oferta = max(0.0, min(100.0, (float) ($oferta['desconto_percentual'] ?? 0)));
     $mensagem = trim((string) ($oferta['mensagem'] ?? '')) ?: (count($planos) > 1 ? 'Que tal uma destas opções?' : 'Que tal esta opção?');
     $botoes = [];
     foreach ($planos as $posicao => $plano) {
+        $desconto = !empty($plano['exclusivo_oferta']) ? 0.0 : $desconto_oferta;   // plano criado no Downsell vale pelo valor digitado
         $valor = round((float) ($plano['valor'] ?? 0) * (1 - $desconto / 100), 2);
         $rotulo = trim((string) ($plano['nome'] ?? 'Plano')) . ' — R$ ' . number_format($valor, 2, ',', '.') . (planoRecorrenteBasico($plano) ? PERIODICIDADES_BASICO[periodicidadePlanoBasico($plano)] : '')
             . ($desconto > 0 ? ' (-' . rtrim(rtrim(number_format($desconto, 2, ',', ''), '0'), ',') . '%)' : '');
@@ -313,7 +346,7 @@ function agendarDownsellBasico(PDO $pdo, int $bot_id, string $id_telegram, int $
         return;
     }
     try {
-        $espera = temporizadorDownsellBasico($dados_basico['ofertas']['downsell'])['espera'];
+        $espera = temporizadorDownsellBasico(sequenciasDownsellBasico($dados_basico)[0] ?? $dados_basico['ofertas']['downsell'])['espera'];
         cancelarDownsellsDoLeadBasico($pdo, $bot_id, $id_telegram);   // novo Pix recomeça a contagem
         $pdo->prepare("INSERT INTO downsell_agenda (bot_id, id_telegram, venda_id, id_plano, proximo_em) VALUES (?, ?, ?, ?, NOW() + INTERVAL ? MINUTE)")
             ->execute([$bot_id, $id_telegram, $id_venda, $id_plano, $espera]);
@@ -339,11 +372,28 @@ function enviarDownsellAgendadoBasico(PDO $pdo, array $linha): array {
     if (!is_array($dados) || ($dados['ativo'] ?? true) === false || !downsellDepoisDoPixBasico($dados)) {
         return [false, null];
     }
+    $id_cache = (string) ($dados['cache_chat_id'] ?? '');
+    $sequencias = sequenciasDownsellBasico($dados);
+    if (count($sequencias) > 1) {
+        // Várias sequências: a coluna enviados é a posição da próxima; cada uma tem o próprio tempo, contado do envio anterior (a 1ª, do Pix). Sequência sem plano
+        // para oferecer é pulada (conta como passo) e a seguinte segue no horário dela.
+        $indice = (int) $linha['enviados'];
+        if ($indice >= count($sequencias)) {
+            return [false, null];
+        }
+        $proxima = ($indice + 1) < count($sequencias) ? temporizadorDownsellBasico($sequencias[$indice + 1])['espera'] : null;
+        $candidatos = planosDoDownsellSemOEscolhidoBasico($dados, (string) $linha['id_plano'], $indice);
+        if (!$candidatos) {
+            return [false, $proxima];
+        }
+        enviarDownsellBasico((string) $linha['token'], $linha['id_telegram'], $dados, $candidatos, (string) $linha['id_plano'], $id_cache, $indice);
+        return [true, $proxima];
+    }
     $candidatos = planosDoDownsellSemOEscolhidoBasico($dados, (string) $linha['id_plano']);
     if (!$candidatos) {
         return [false, null];
     }
-    enviarDownsellBasico((string) $linha['token'], $linha['id_telegram'], $dados, $candidatos, (string) $linha['id_plano'], (string) ($dados['cache_chat_id'] ?? ''));
+    enviarDownsellBasico((string) $linha['token'], $linha['id_telegram'], $dados, $candidatos, (string) $linha['id_plano'], $id_cache);
     $temporizador = temporizadorDownsellBasico($dados['ofertas']['downsell']);
     return [true, ((int) $linha['enviados'] + 1) < $temporizador['envios'] ? $temporizador['intervalo'] : null];
 }

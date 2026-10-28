@@ -18,6 +18,7 @@ if (!preg_match('/function validarPrecosFluxoGuiado\(.*?\n}\n/s', $fonte, $mg)) 
     exit(1);
 }
 eval($mg[0]);
+require_once __DIR__ . '/../../funcoes/entrega.php';   // sequenciasDownsellBasico() e planosProprioDoDownsellBasico(), usadas por validarPrecosFluxoGuiado
 
 $ok = 0;
 $falhas = 0;
@@ -91,6 +92,22 @@ confere('Guiado: Upsell com plano próprio de R$ 1,50 passa mesmo com 50% de des
 $proprio_ok['ofertas']['upsell']['plano_proprio']['valor'] = 1.0;
 $proprio_ok['ofertas']['upsell']['ativo'] = false;
 confere('Guiado: Upsell com plano próprio abaixo do mínimo, mas desligado, não é conferido', validarPrecosFluxoGuiado($proprio_ok, 1.5) === null);
+
+// Downsell em sequência e planos criados no Downsell (item 38): o plano criado vale pelo valor digitado (sem desconto) e a sequência com "Criar planos" ignora os marcados escondidos
+$dn_base = ['planos' => [['id' => 'a', 'nome' => 'Mensal', 'valor' => 20.0], ['id' => 'b', 'nome' => 'Semanal', 'valor' => 3.0]], 'packs' => []];
+$criado = function (array $downsell) use ($dn_base): array { return $dn_base + ['ofertas' => ['downsell' => $downsell + ['ativo' => true, 'planos_oferecidos' => [], 'quando' => 'depois_pix']]]; };
+confere('Guiado: plano criado no Downsell de R$ 1,00 recusa só com o mínimo', validarPrecosFluxoGuiado($criado(['criar_planos' => true, 'planos_proprios' => [['nome' => 'Relâmpago', 'valor' => 1.0]]]), $min) === $msg_omega, var_export(validarPrecosFluxoGuiado($criado(['criar_planos' => true, 'planos_proprios' => [['nome' => 'Relâmpago', 'valor' => 1.0]]]), $min), true));
+confere('Guiado: plano criado de R$ 2,50 passa mesmo com 50% de desconto no JSON (o preço é o digitado)', validarPrecosFluxoGuiado($criado(['criar_planos' => true, 'desconto_percentual' => 50, 'planos_proprios' => [['nome' => 'Relâmpago', 'valor' => 2.5]]]), $min) === null);
+confere('Guiado: com "Criar planos" ligado, o plano marcado e escondido (Semanal com 50%) não entra na conta', validarPrecosFluxoGuiado($criado(['criar_planos' => true, 'planos_oferecidos' => ['b'], 'desconto_percentual' => 50, 'planos_proprios' => [['nome' => 'X', 'valor' => 9.0]]]), $min) === null);
+confere('Guiado: plano criado incompleto (sem nome ou sem valor) não é oferecido e não trava o salvamento', validarPrecosFluxoGuiado($criado(['criar_planos' => true, 'planos_proprios' => [['nome' => '', 'valor' => 1.0], ['nome' => 'Sem valor', 'valor' => 0]]]), $min) === null);
+$seq2 = $criado(['planos_oferecidos' => ['a'], 'desconto_percentual' => 10, 'sequencias_extras' => [['planos_oferecidos' => ['b'], 'desconto_percentual' => 50]]]);
+confere('Guiado: o Semanal na 2ª sequência com 50% (R$ 1,50) recusa e a frase aponta uma sequência do Downsell', validarPrecosFluxoGuiado($seq2, $min) === $msg_omega . ' Uma sequência do Downsell, com 50% de desconto, sai por R$ 1,50.', var_export(validarPrecosFluxoGuiado($seq2, $min), true));
+$seq2['ofertas']['downsell']['sequencias_extras'][0]['desconto_percentual'] = 0;
+confere('Guiado: a mesma 2ª sequência sem desconto (Semanal R$ 3,00) passa', validarPrecosFluxoGuiado($seq2, $min) === null);
+$seq2['ofertas']['downsell']['sequencias_extras'][0] = ['criar_planos' => true, 'planos_proprios' => [['nome' => 'Última chance', 'valor' => 1.0]]];
+confere('Guiado: plano criado na 2ª sequência de R$ 1,00 recusa', validarPrecosFluxoGuiado($seq2, $min) === $msg_omega);
+$seq2['ofertas']['downsell']['quando'] = 'antes_pix';
+confere('Guiado: sequências extras só valem com "Depois do Pix": em "Antes do Pix" a 2ª sequência é ignorada', validarPrecosFluxoGuiado($seq2, $min) === null);
 
 echo PHP_EOL . "$ok ok, $falhas falha(s)" . PHP_EOL;
 exit($falhas > 0 ? 1 : 0);

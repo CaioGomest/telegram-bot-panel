@@ -5,6 +5,7 @@ require_once __DIR__ . '/../conexao.php';
 require_once __DIR__ . '/log.php';
 require_once __DIR__ . '/criptografia.php';
 require_once __DIR__ . '/split_validacao.php';
+require_once __DIR__ . '/entrega.php';   // sequ�ncias e planos criados do Downsell (validarPrecosFluxoGuiado); s� fun��es puras
 
 function getAdminGatewayConfig(string $nome): ?array {
     global $pdo;
@@ -312,7 +313,7 @@ function validarPrecosFluxoGuiado(array $dados, float $minimo): ?string {
         $pior = null;
         $desc_pior = 0.0;
         // Downsell novo: vários planos (planos_oferecidos); Upsell e Downsell antigo: um (id_plano_destino).
-        $ids_destino = ($tipo === 'downsell' && is_array($oferta['planos_oferecidos'] ?? null)) ? $oferta['planos_oferecidos'] : [$oferta['id_plano_destino'] ?? ''];
+        $ids_destino = ($tipo === 'downsell' && !empty($oferta['criar_planos'])) ? [] : (($tipo === 'downsell' && is_array($oferta['planos_oferecidos'] ?? null)) ? $oferta['planos_oferecidos'] : [$oferta['id_plano_destino'] ?? '']);
         foreach ($ids_destino as $id_destino) {
             $destino = $planos_por_id[(string)$id_destino] ?? null;
             $desconto_oferta = (float)($oferta['desconto_percentual'] ?? 0);
@@ -336,6 +337,41 @@ function validarPrecosFluxoGuiado(array $dados, float $minimo): ?string {
         }
         if ($pior !== null) {
             $derivados[] = 'O ' . $rotulo . ', com ' . rtrim(rtrim(number_format($desc_pior, 2, ',', ''), '0'), ',') . '% de desconto, sai por ' . $reais($pior) . '.';
+        }
+    }
+    // Downsell em sequência (27/10/2026): os planos criados no Downsell (valem pelo valor digitado, sem desconto) e as sequências 2 a 5 (planos marcados, com o desconto de cada uma).
+    // A 1ª sequência, com planos marcados, já foi conferida no laço acima.
+    $downsell = $dados['ofertas']['downsell'] ?? [];
+    if (!empty($downsell['ativo'])) {
+        $pior_sequencia = null;
+        $desc_sequencia = 0.0;
+        foreach (sequenciasDownsellBasico($dados) as $indice_sequencia => $sequencia) {
+            foreach (planosProprioDoDownsellBasico($sequencia, $indice_sequencia) as $proprio) {
+                if ((float)$proprio['valor'] < $minimo) {
+                    $problemas[] = 'o plano "' . $proprio['nome'] . '" do Downsell (' . $reais((float)$proprio['valor']) . ')';
+                }
+            }
+            if ($indice_sequencia === 0 || !empty($sequencia['criar_planos'])) {
+                continue;
+            }
+            $desconto = max(0.0, min(100.0, (float)($sequencia['desconto_percentual'] ?? 0)));
+            foreach ((array)($sequencia['planos_oferecidos'] ?? []) as $id_destino) {
+                $destino = $planos_por_id[(string)$id_destino] ?? null;
+                if (!$destino) {
+                    continue;
+                }
+                $final = round((float)($destino['valor'] ?? 0) * (1 - $desconto / 100), 2);
+                if ($final > 0 && $final < $minimo) {
+                    $problemas[] = 'o Downsell ' . ($indice_sequencia + 1) . ' (plano "' . trim((string)($destino['nome'] ?? '')) . '" sai por ' . $reais($final) . ')';
+                    if ($desconto > 0 && (float)($destino['valor'] ?? 0) >= $minimo && ($pior_sequencia === null || $final < $pior_sequencia)) {
+                        $pior_sequencia = $final;
+                        $desc_sequencia = $desconto;
+                    }
+                }
+            }
+        }
+        if ($pior_sequencia !== null) {
+            $derivados[] = 'Uma sequência do Downsell, com ' . rtrim(rtrim(number_format($desc_sequencia, 2, ',', ''), '0'), ',') . '% de desconto, sai por ' . $reais($pior_sequencia) . '.';
         }
     }
     if (!$problemas) {

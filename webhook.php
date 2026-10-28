@@ -593,13 +593,15 @@ function gerarPixBasico(string $token, $id_chat, array $dados_basico, string $id
     $plano = localizarPlanoBasico($dados_basico['planos'] ?? [], $id_plano);
     $desconto = 0.0;
     $tipo_oferta = '';   // 'upsell' / 'downsell' quando o cliente aceitou uma oferta (a entrega pode ser da oferta); '' = plano escolhido direto
+    $oferta_aceita = [];   // a oferta aceita: no Downsell em sequência, a sequência a que o botão tocado pertence
     if ($variante === 'u' || preg_match('/^d\d*$/', $variante)) {
         $tipo = $variante === 'u' ? 'upsell' : 'downsell';
         $destino = $tipo === 'upsell' ? planoDaOfertaBasico($dados_basico, 'upsell') : planoDoDownsellPorVariante($dados_basico, $variante);
         if ($destino) {
             $plano = $destino;
             $tipo_oferta = $tipo;
-            $desconto = descontoDaOfertaBasico($dados_basico['ofertas'][$tipo] ?? []);
+            $oferta_aceita = ($tipo === 'downsell' && preg_match('/^d(\d+)$/', $variante, $m_posicao)) ? ofertaDaPosicaoDownsellBasico($dados_basico, (int) $m_posicao[1]) : ($dados_basico['ofertas'][$tipo] ?? []);
+            $desconto = !empty($destino['exclusivo_oferta']) ? 0.0 : descontoDaOfertaBasico($oferta_aceita);   // plano criado no Downsell vale pelo valor digitado
         }
     }
     if (!$plano) {
@@ -620,7 +622,8 @@ function gerarPixBasico(string $token, $id_chat, array $dados_basico, string $id
         $nome .= ' + ' . (trim((string) ($bump['nome'] ?? '')) ?: 'Extra');
     }
     // Upsell/Downsell aceitos podem ter entrega própria; sem ela (ou "igual ao plano") vale a entrega do plano.
-    $entrega = entregaCompletaDoItemBasico($tipo_oferta !== '' ? ($dados_basico['ofertas'][$tipo_oferta] ?? []) : $plano, $tipo_oferta !== '' ? $plano : null);
+    // Plano criado dentro do Downsell entrega pela própria entrega, não pela da sequência.
+    $entrega = !empty($plano['exclusivo_oferta']) ? entregaCompletaDoItemBasico($plano) : entregaCompletaDoItemBasico($tipo_oferta !== '' ? $oferta_aceita : $plano, $tipo_oferta !== '' ? $plano : null);
     $propriedades_sinteticas = [
         'type' => 'pix',
         'nome' => $nome,

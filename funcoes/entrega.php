@@ -103,8 +103,24 @@ function validarEntregasFluxoGuiado(array $dados): ?string
     }
     foreach (['upsell' => 'do Upsell', 'downsell' => 'do Downsell'] as $tipo => $rotulo) {
         $oferta = $dados['ofertas'][$tipo] ?? null;
-        if (is_array($oferta) && !empty($oferta['ativo'])) {
+        if (!is_array($oferta) || empty($oferta['ativo'])) {
+            continue;
+        }
+        if ($tipo !== 'downsell') {
             $itens[] = [$rotulo, $oferta];
+            continue;
+        }
+        // Downsell em sequência: cada sequência entrega pela própria entrega (planos marcados) ou, com "Criar planos", cada plano criado entrega pela sua.
+        $sequencias = sequenciasDownsellBasico($dados);
+        foreach ($sequencias as $i => $sequencia) {
+            $rotulo_sequencia = $rotulo . (count($sequencias) > 1 ? ' (sequência ' . ($i + 1) . ')' : '');
+            if (empty($sequencia['criar_planos'])) {
+                $itens[] = [$rotulo_sequencia, $sequencia];
+                continue;
+            }
+            foreach ((array) ($sequencia['planos_proprios'] ?? []) as $proprio) {
+                $itens[] = ['do plano do Downsell', $proprio];
+            }
         }
     }
     foreach ($itens as [$rotulo, $item]) {
@@ -195,6 +211,119 @@ function validarPlanoProprioUpsellBasico(array $dados): ?string
     }
     if ((int) ($proprio['dias_acesso'] ?? 0) < 1) {
         return 'O plano do Upsell "' . trim((string) $proprio['nome']) . '" precisa ter um tempo de acesso de pelo menos 1.';
+    }
+    return null;
+}
+
+/**
+ * Downsell em sequência (27/10/2026, pedido do dono, no jeito das "Sequências de Downsell" da SharkBot): várias ofertas de downsell, cada uma com o próprio tempo, mensagem,
+ * mídia, desconto, planos e entrega. A 1ª sequência é o próprio ofertas.downsell (todo fluxo salvo antes disso é uma sequência só); as outras ficam em
+ * ofertas.downsell.sequencias_extras (até DOWNSELL_MAXIMO_SEQUENCIAS no total), no mesmo formato de uma oferta, e só valem com quando = 'depois_pix' (o Pix
+ * não pago é que dispara a sequência). Cada sequência escolhe os planos de duas maneiras: marcando os que já existem na aba Planos (planos_oferecidos, com o desconto
+ * da sequência) ou, com criar_planos ligado, só com planos criados ali mesmo (planos_proprios, que não aparecem em "Ver Planos", valem pelo valor digitado, sem
+ * desconto, e cada um tem a própria entrega).
+ */
+const DOWNSELL_MAXIMO_SEQUENCIAS = 5;
+const DOWNSELL_PLANOS_PROPRIOS_MAXIMO = 10;
+/** Posição do botão no callback_data ("p<posição>"): sequência * 100 + posição na sequência; os planos criados começam em +50 (os marcados usam 0 a 49). */
+const DOWNSELL_POSICAO_SEQUENCIA = 100;
+const DOWNSELL_POSICAO_PROPRIOS = 50;
+
+/** As sequências do Downsell, na ordem da tela: [0] = o próprio ofertas.downsell; as demais só com "depois do Pix". Vazio se não há Downsell. */
+function sequenciasDownsellBasico(array $dados): array
+{
+    $oferta = $dados['ofertas']['downsell'] ?? null;
+    if (!is_array($oferta)) {
+        return [];
+    }
+    $primeira = $oferta;
+    unset($primeira['sequencias_extras']);
+    $sequencias = [$primeira];
+    if (($oferta['quando'] ?? '') === 'depois_pix' && is_array($oferta['sequencias_extras'] ?? null)) {
+        foreach (array_slice(array_values($oferta['sequencias_extras']), 0, DOWNSELL_MAXIMO_SEQUENCIAS - 1) as $extra) {
+            if (is_array($extra)) {
+                $sequencias[] = $extra;
+            }
+        }
+    }
+    return $sequencias;
+}
+
+/**
+ * Os planos criados dentro de uma sequência do Downsell, no mesmo formato dos de `planos` e com a posição na lista salva como chave (plano incompleto, sem nome ou
+ * sem valor, não é oferecido mas a posição dos outros não muda). O id ("dn<sequência>_<posição>") é só deles; `exclusivo_oferta` avisa o motor de que valem pelo valor
+ * digitado (sem o desconto da sequência) e entregam pela própria entrega. Sequência sem "criar_planos" devolve [].
+ */
+function planosProprioDoDownsellBasico(array $sequencia, int $indice_sequencia): array
+{
+    if (empty($sequencia['criar_planos']) || !is_array($sequencia['planos_proprios'] ?? null)) {
+        return [];
+    }
+    $planos = [];
+    foreach (array_slice(array_values($sequencia['planos_proprios']), 0, DOWNSELL_PLANOS_PROPRIOS_MAXIMO) as $i => $proprio) {
+        if (!is_array($proprio)) {
+            continue;
+        }
+        $nome = mb_substr(trim((string) ($proprio['nome'] ?? '')), 0, 80);   // o mesmo limite do campo na tela
+        $valor = round((float) ($proprio['valor'] ?? 0), 2);
+        if ($nome === '' || $valor <= 0) {
+            continue;
+        }
+        $unidade = (string) ($proprio['unidade_acesso'] ?? 'dias');
+        $tipo_entrega = (string) ($proprio['entrega_tipo'] ?? '');
+        $planos[$i] = [
+            'id' => 'dn' . ($indice_sequencia + 1) . '_' . ($i + 1),
+            'nome' => $nome,
+            'valor' => $valor,
+            'dias_acesso' => max(1, (int) ($proprio['dias_acesso'] ?? 30)),
+            'unidade_acesso' => in_array($unidade, ['dias', 'horas', 'minutos'], true) ? $unidade : 'dias',
+            'cobranca' => 'unica',
+            'entrega_tipo' => in_array($tipo_entrega, ['grupo', 'link', 'mensagem'], true) ? $tipo_entrega : 'nenhuma',
+            'id_grupo' => (string) ($proprio['id_grupo'] ?? ''),
+            'link_entrega' => (string) ($proprio['link_entrega'] ?? ''),
+            'mensagem_entrega' => (string) ($proprio['mensagem_entrega'] ?? ''),
+            'exclusivo_oferta' => true,
+        ];
+    }
+    return $planos;
+}
+
+/**
+ * Confere, antes de salvar, os planos criados no Downsell: cada sequência com "Criar planos" ligado precisa de pelo menos 1 plano (até DOWNSELL_PLANOS_PROPRIOS_MAXIMO),
+ * e cada plano de nome, valor maior que zero e tempo de acesso válidos. Retorna a mensagem de erro (pronta para mostrar) ou null se está tudo certo.
+ */
+function validarPlanosProprioDownsellBasico(array $dados): ?string
+{
+    $oferta = $dados['ofertas']['downsell'] ?? null;
+    if (!is_array($oferta) || empty($oferta['ativo'])) {
+        return null;
+    }
+    $sequencias = sequenciasDownsellBasico($dados);
+    foreach ($sequencias as $i => $sequencia) {
+        if (empty($sequencia['criar_planos'])) {
+            continue;
+        }
+        $rotulo = 'Downsell' . (count($sequencias) > 1 ? ' ' . ($i + 1) : '');
+        $lista = is_array($sequencia['planos_proprios'] ?? null) ? array_values($sequencia['planos_proprios']) : [];
+        if (!$lista) {
+            return 'Crie pelo menos 1 plano no ' . $rotulo . ' (ou desligue "Criar planos" e marque os planos que já existem).';
+        }
+        if (count($lista) > DOWNSELL_PLANOS_PROPRIOS_MAXIMO) {
+            return 'O ' . $rotulo . ' aceita no máximo ' . DOWNSELL_PLANOS_PROPRIOS_MAXIMO . ' planos criados.';
+        }
+        foreach ($lista as $n => $proprio) {
+            $proprio = is_array($proprio) ? $proprio : [];
+            $nome = trim((string) ($proprio['nome'] ?? ''));
+            if ($nome === '') {
+                return 'Dê um nome ao plano ' . ($n + 1) . ' do ' . $rotulo . '.';
+            }
+            if (!((float) ($proprio['valor'] ?? 0) > 0)) {
+                return 'O plano "' . $nome . '" do ' . $rotulo . ' precisa ter valor maior que zero.';
+            }
+            if ((int) ($proprio['dias_acesso'] ?? 0) < 1) {
+                return 'O plano "' . $nome . '" do ' . $rotulo . ' precisa ter um tempo de acesso de pelo menos 1.';
+            }
+        }
     }
     return null;
 }

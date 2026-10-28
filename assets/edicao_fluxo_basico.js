@@ -14,6 +14,13 @@
     // Order Bumps 2 a 5 (o 1º é o painel fixo da seção): cada um é { nome, valor_extra, espera_minutos, mensagem, texto_aceitar, cor_aceitar, texto_recusar, cor_recusar, midia_tipo, midia_path }.
     let bump_extras = [];
     const bump_max = 5;
+    let downsell_extras = [];   // Downsell 2 a 5 (cartões); o Downsell 1 é o painel fixo da seção
+    const downsell_max = 5;     // o mesmo limite do servidor (DOWNSELL_MAXIMO_SEQUENCIAS em funcoes/entrega.php)
+    const downsell_proprios_max = 10;   // planos criados por downsell (DOWNSELL_PLANOS_PROPRIOS_MAXIMO)
+    const downsell_midias_max = 10;     // fotos/vídeos por downsell: viram um álbum no Telegram (o mesmo limite do Downsell 1)
+    let downsell_uid = 0;               // identifica cada cartão enquanto sobe arquivos (o número da posição muda ao remover um cartão)
+    const downsell_lotes = {};          // uid -> { n, total } enquanto sobe arquivos escolhidos juntos
+    const downsell_destino_upload = {}; // uid -> posição que o próximo arquivo ocupa (0 = caixa grande, comprimento da lista = no fim)
     let carregando = false;
     let ids_bots_vinculados = [];
     // Fluxo novo: bots que a pessoa já escolheu e que serão vinculados no primeiro "Salvar alterações" (o vínculo precisa do id do fluxo).
@@ -58,23 +65,34 @@
         if (d.packs.ativo) d.packs.itens.forEach(function (k) { if (k.ativo !== false && k.preco > 0 && k.preco < preco_minimo) problemas.push('o pack "' + (k.nome || 'sem nome') + '" (' + reais(k.preco) + ')'); });
         ['upsell', 'downsell'].forEach(function (tipo) {
             const o = d.ofertas[tipo];
-            const ids = tipo === 'downsell' ? (o.planos_oferecidos || []) : [o.id_plano_destino];
-            ids.forEach(function (id) {
-                let destino = d.planos.filter(function (p) { return String(p.id) === String(id); })[0];
-                if (tipo === 'upsell' && id === ID_UPSELL_PROPRIO && o.plano_proprio) destino = { valor: o.plano_proprio.valor };   // plano só do Upsell: preço digitado, sem desconto
-                if (o.ativo && destino) {
-                    const final = Math.round(destino.valor * (1 - (o.desconto_percentual || 0) / 100) * 100) / 100;
+            const rotulo = tipo === 'upsell' ? 'Upsell' : 'Downsell';
+            // Downsell em sequência: cada sequência tem os próprios planos e desconto; com "Criar planos", valem os planos criados (valor digitado, sem desconto).
+            const sequencias = tipo === 'downsell' ? [o].concat(o.sequencias_extras || []) : [o];
+            sequencias.forEach(function (s) {
+                const destinos = [];   // { valor, desconto }
+                if (tipo === 'downsell' && s.criar_planos) {
+                    (s.planos_proprios || []).forEach(function (p) { destinos.push({ valor: p.valor, desconto: 0 }); });
+                } else {
+                    const ids = tipo === 'downsell' ? (s.planos_oferecidos || []) : [s.id_plano_destino];
+                    ids.forEach(function (id) {
+                        let destino = d.planos.filter(function (p) { return String(p.id) === String(id); })[0];
+                        if (tipo === 'upsell' && id === ID_UPSELL_PROPRIO && s.plano_proprio) destino = { valor: s.plano_proprio.valor };   // plano só do Upsell: preço digitado, sem desconto
+                        if (destino) destinos.push({ valor: destino.valor, desconto: s.desconto_percentual || 0 });
+                    });
+                }
+                destinos.forEach(function (destino) {
+                    if (!o.ativo) return;
+                    const final = Math.round(destino.valor * (1 - destino.desconto / 100) * 100) / 100;
                     if (final > 0 && final < preco_minimo) {
-                        problemas.push('o ' + (tipo === 'upsell' ? 'Upsell' : 'Downsell') + ' (' + reais(final) + ' após o desconto)');
+                        problemas.push('o ' + rotulo + ' (' + reais(final) + ' após o desconto)');
                         // Só o desconto é o culpado (o plano sozinho passa): aí a frase curta confunde, então diz qual oferta e quanto ela sai.
-                        if ((o.desconto_percentual || 0) > 0 && destino.valor >= preco_minimo) {
-                            const rotulo = tipo === 'upsell' ? 'Upsell' : 'Downsell';
+                        if (destino.desconto > 0 && destino.valor >= preco_minimo) {
                             const atual = derivados.filter(function (x) { return x.rotulo === rotulo; })[0];
-                            if (!atual) derivados.push({ rotulo: rotulo, desconto: o.desconto_percentual, final: final });
+                            if (!atual) derivados.push({ rotulo: rotulo, desconto: destino.desconto, final: final });
                             else if (final < atual.final) { atual.final = final; }
                         }
                     }
-                }
+                });
             });
         });
         // Só o valor (sem comissão da plataforma nem a lista do que está abaixo); a frase extra só aparece quando o culpado é o desconto de uma oferta.
@@ -809,12 +827,12 @@
         // Downsell: vários planos (caixa de marcar); cada plano marcado vira um botão no bot. Mantém o que já estava marcado.
         const $lista = $painelOferta('downsell').find('.of-planos-lista');
         const marcados = $lista.data('valor') != null ? $lista.data('valor') : $lista.find('input:checked').map(function () { return String(this.value); }).get();
-        let caixas = '';
-        planos.forEach(function (p) {
-            caixas += '<label class="of-plano-opcao"><input type="checkbox" value="' + escaparHtml(p.id) + '"' + (marcados.indexOf(String(p.id)) !== -1 ? ' checked' : '') + '> <span>' +
-                escaparHtml((p.nome || 'Plano sem nome') + ' — R$ ' + (Number(p.valor) || 0).toFixed(2).replace('.', ',')) + '</span></label>';
+        $lista.html(htmlPlanosMarcaveis(marcados)).removeData('valor');
+        // Downsell 2 a 5: a mesma lista, mantendo o que cada um já tinha marcado.
+        $('#dn-extras .dn-planos-lista').each(function () {
+            const $l = $(this);
+            $l.html(htmlPlanosMarcaveis($l.find('input:checked').map(function () { return String(this.value); }).get()));
         });
-        $lista.html(caixas || '<div class="of-planos-vazio">Crie pelo menos 1 plano na seção Planos para oferecê-lo aqui.</div>').removeData('valor');
     }
 
     // Upsell com plano próprio (27/10/2026, pedido do dono): em vez de escolher um plano da seção Planos, o dono digita nome, valor e tempo de acesso ali mesmo.
@@ -873,6 +891,212 @@
         if ($(this).val() === ID_UPSELL_PROPRIO) $painelOferta('upsell').find('.of-proprio-nome').trigger('focus');
     });
 
+    // ===== Downsell em sequência e planos criados dentro do Downsell (item 38, 27/10/2026) =====
+    // Pedido do dono, no jeito das "Sequências de Downsell" da SharkBot: dá para ter vários downsells, cada um com o próprio tempo, mensagem, mídia, desconto, planos e entrega.
+    // O Downsell 1 é o painel fixo da seção; os 2 a 5 são cartões (downsell_extras), como os Order Bumps 2 a 5, e só valem com "Depois do Pix" (o Pix não pago dispara a
+    // sequência; o tempo de cada um conta do envio anterior). Em cada um, a chave "Criar planos" troca os planos marcados da aba Planos por planos criados ali mesmo
+    // (cartão igual ao da aba Planos): valem pelo valor digitado, sem desconto, não aparecem em "Ver Planos" e cada um tem a própria entrega. Ver funcoes/entrega.php.
+    function htmlPlanosMarcaveis(marcados) {
+        let caixas = '';
+        planos.forEach(function (p) {
+            caixas += '<label class="of-plano-opcao"><input type="checkbox" value="' + escaparHtml(p.id) + '"' + (marcados.indexOf(String(p.id)) !== -1 ? ' checked' : '') + '> <span>' +
+                escaparHtml((p.nome || 'Plano sem nome') + ' — R$ ' + (Number(p.valor) || 0).toFixed(2).replace('.', ',')) + '</span></label>';
+        });
+        return caixas || '<div class="of-planos-vazio">Crie pelo menos 1 plano na seção Planos para oferecê-lo aqui.</div>';
+    }
+
+    // O bloco "Planos oferecidos" (marcar os que já existem, ou "Criar planos"): o mesmo no Downsell 1 (classe_lista = of-planos-lista) e nos cartões (dn-planos-lista).
+    function htmlBlocoPlanosDownsell(classe_lista) {
+        return '<div class="dn-planos-cabecalho"><span class="dn-planos-titulo">Planos oferecidos</span>' +
+            '<label class="basico-interruptor sem-caixa dn-criar-chave"><input type="checkbox" class="dn-criar"> <span>Criar planos</span></label></div>' +
+            '<div class="dn-planos-marcados"><div class="' + classe_lista + '"></div>' +
+            '<small class="texto-ajuda">Só os planos marcados aparecem para o cliente (o plano que ele já escolheu antes não é repetido), com o desconto abaixo.</small></div>' +
+            '<div class="dn-planos-criados" hidden><div class="dn-proprios"></div>' +
+            '<button type="button" class="botao botao-claro dn-proprio-adicionar">+ Criar plano</button>' +
+            '<small class="texto-ajuda">Estes planos existem só aqui: não aparecem em "Ver Planos". Cada um vira um botão da oferta, pelo valor que você digitar (sem o desconto) e com a própria entrega.</small></div>';
+    }
+
+    function planoProprioDownsellVazio() {
+        return { nome: '', valor: 0, dias_acesso: 30, unidade_acesso: 'dias', entrega_tipo: 'nenhuma', id_grupo: '', link_entrega: '', mensagem_entrega: '' };
+    }
+
+    // Cartão de um plano criado no Downsell: a moldura, o cabeçalho com o resumo e a seta de recolher são os da aba Planos; dentro, Nome, Valor, Tempo de acesso e Entrega.
+    function htmlPlanoProprioDownsell(p) {
+        const unidades = [['dias', 'Dias'], ['horas', 'Horas'], ['minutos', 'Minutos']].map(function (u) {
+            return '<option value="' + u[0] + '"' + ((p.unidade_acesso || 'dias') === u[0] ? ' selected' : '') + '>' + u[1] + '</option>';
+        }).join('');
+        return '<div class="dn-proprio painel-plano">' +
+            '<div class="plano-topo"><span class="plano-resumo"><strong class="plano-resumo-nome sem-nome">Plano sem nome</strong><small class="plano-resumo-info">R$ 0,00 · 30 dias</small></span>' +
+            '<button type="button" class="btn-icon plano-alternar" aria-expanded="true" title="Recolher plano" aria-label="Recolher plano">' + SETA_PLANO + '</button></div>' +
+            '<div class="plano-corpo">' +
+            '<div class="grade grade-2 grade-compacta">' +
+            '<div class="campo"><label>Nome do plano</label><input type="text" class="dn-p-nome" maxlength="80" placeholder="Ex.: Oferta relâmpago" value="' + escaparHtml(p.nome) + '"></div>' +
+            '<div class="campo"><label>Valor (R$)</label><input type="number" step="0.01" min="0" class="dn-p-valor" value="' + (p.valor != null ? p.valor : 0) + '"></div>' +
+            '</div>' +
+            '<div class="grade grade-2 grade-compacta" style="margin-top:8px;">' +
+            '<div class="campo"><label>Tempo de acesso</label><div style="display:flex; gap:6px;">' +
+            '<input type="number" min="1" class="dn-p-dias" value="' + (p.dias_acesso || 30) + '" style="max-width:80px;"><select class="dn-p-unidade">' + unidades + '</select></div></div>' +
+            htmlCampoEntrega(p, { rotulo: 'Entrega', quem: 'deste plano', classe: 'dn-p-entrega-select' }) +
+            '</div>' +
+            '<div class="dn-proprio-acoes"><button type="button" class="btn-icon excluir dn-proprio-remover" title="Remover plano" aria-label="Remover plano">' + ACAO_SVG.excluir + '</button></div>' +
+            '</div></div>';
+    }
+
+    function resumoPlanoProprioDownsell($c) {
+        const nome = $c.find('.dn-p-nome').val().trim();
+        const valor = parseFloat($c.find('.dn-p-valor').val()) || 0;
+        const qtd = parseInt($c.find('.dn-p-dias').val(), 10) || 30;
+        const un = UNIDADE_PLANO[$c.find('.dn-p-unidade').val()] || UNIDADE_PLANO.dias;
+        $c.find('.plano-resumo-nome').text(nome || 'Plano sem nome').toggleClass('sem-nome', !nome);
+        $c.find('.plano-resumo-info').text('R$ ' + valor.toFixed(2).replace('.', ',') + ' · ' + qtd + ' ' + un[qtd === 1 ? 0 : 1]);
+    }
+
+    // Aviso de "nenhum plano" quando a lista está vazia e o botão de criar (que trava no limite).
+    function atualizarVaziosProprios($bloco) {
+        const $lista = $bloco.find('.dn-proprios');
+        const n = $lista.find('.dn-proprio').length;
+        $lista.find('.of-planos-vazio').remove();
+        if (!n) $lista.append('<div class="of-planos-vazio">Nenhum plano criado ainda. Toque em "+ Criar plano".</div>');
+        const cheio = n >= downsell_proprios_max;
+        $bloco.find('.dn-proprio-adicionar').prop('disabled', cheio).text(cheio ? 'Limite de ' + downsell_proprios_max + ' planos' : '+ Criar plano');
+    }
+
+    function desenharPlanosProprios($bloco, lista) {
+        $bloco.find('.dn-proprios').html(lista.slice(0, downsell_proprios_max).map(function (p) { return htmlPlanoProprioDownsell(Object.assign(planoProprioDownsellVazio(), p)); }).join(''));
+        $bloco.find('.dn-proprio').each(function () { resumoPlanoProprioDownsell($(this)); });
+        atualizarVaziosProprios($bloco);
+    }
+
+    function adicionarPlanoProprioDownsell($bloco) {
+        if ($bloco.find('.dn-proprio').length >= downsell_proprios_max) return;
+        $bloco.find('.dn-proprios .of-planos-vazio').remove();
+        const $novo = $(htmlPlanoProprioDownsell(planoProprioDownsellVazio())).appendTo($bloco.find('.dn-proprios'));
+        resumoPlanoProprioDownsell($novo);
+        atualizarVaziosProprios($bloco);
+        $novo.find('.dn-p-nome').trigger('focus');
+    }
+
+    function coletarPlanosProprios($bloco) {
+        return $bloco.find('.dn-proprio').map(function () {
+            const $c = $(this);
+            return Object.assign({
+                nome: $c.find('.dn-p-nome').val().trim(),
+                valor: parseFloat($c.find('.dn-p-valor').val()) || 0,
+                dias_acesso: parseInt($c.find('.dn-p-dias').val(), 10) || 30,
+                unidade_acesso: $c.find('.dn-p-unidade').val() || 'dias'
+            }, coletarEntrega($c.find('.campo-entrega')));
+        }).get();
+    }
+
+    // "Criar planos" ligado: some a lista dos planos marcados, o desconto e a entrega da sequência (cada plano criado tem a sua) e aparecem os cartões.
+    function atualizarModoCriarPlanos($seq) {
+        const criar = $seq.find('.dn-criar').first().is(':checked');
+        $seq.find('.dn-planos-marcados').first().prop('hidden', criar);
+        $seq.find('.dn-planos-criados').first().prop('hidden', !criar);
+        $seq.find('.dn-desconto-campo').first().prop('hidden', criar);
+        $seq.find('.dn-entrega-campo').first().prop('hidden', criar);
+    }
+
+    function itemDownsellVazio() {
+        return { uid: ++downsell_uid, mensagem: '', midias: [], espera_minutos: 30, desconto_percentual: 0, planos_oferecidos: [], criar_planos: false, planos_proprios: [],
+            entrega_tipo: 'plano', id_grupo: '', link_entrega: '', mensagem_entrega: '' };
+    }
+
+    function htmlDownsellExtra(it, i) {
+        return '<div class="bp-item dn-seq dn-extra" data-i="' + i + '">' +
+            '<div class="bp-item-cabecalho"><h3 class="bp-item-titulo">Downsell ' + (i + 2) + '</h3>' +
+            '<button type="button" class="btn-icon excluir dn-remover" title="Remover downsell" aria-label="Remover downsell">' + ACAO_SVG.excluir + '</button></div>' +
+            '<div class="campo"><label>Enviar quantos minutos depois do anterior</label><input type="number" min="1" max="1440" step="1" class="dn-espera" value="' + (it.espera_minutos || 30) + '"></div>' +
+            '<div class="dn-planos">' + htmlBlocoPlanosDownsell('dn-planos-lista') + '</div>' +
+            '<div class="campo dn-desconto-campo"><label>Desconto (%)</label><input type="number" min="0" max="100" step="1" class="dn-desconto" value="' + (it.desconto_percentual != null ? it.desconto_percentual : 0) + '"></div>' +
+            '<div class="dn-entrega dn-entrega-campo">' + htmlCampoEntrega(it, { rotulo: 'Entrega', quem: 'desta oferta', classe: 'dn-entrega-select', oferta: true }) + '</div>' +
+            '<div class="campo"><label>Mensagem da oferta</label><textarea class="dn-mensagem" rows="3" placeholder="Última chance! Esta condição vale só por hoje.">' + escaparHtml(it.mensagem) + '</textarea></div>' +
+            '<div class="campo"><label>Mídia (opcional)</label><div class="area-previa-basico dn-midia" data-estado="vazio" data-tipo="none">Sem mídia</div>' +
+            '<input type="file" class="dn-midia-arquivo" accept="image/*,video/*" style="display:none">' +
+            '<div class="dn-midias-extras"></div>' +
+            '<button type="button" class="botao botao-claro dn-midias-adicionar" style="display:none">+ Adicionar outra foto ou vídeo</button>' +
+            '<small class="texto-ajuda dn-midias-dica" style="display:none">Com mais de uma foto/vídeo (até 10), elas vão juntas num álbum, na ordem da lista, e o texto com os botões chega logo depois.</small></div>' +
+            '</div>';
+    }
+
+    // Mídias de um cartão, na ordem de envio: a 1ª na caixa grande e as demais numa lista logo abaixo (até 10, viram um álbum), como no Downsell 1.
+    function midiasSalvasDoItem(item) {
+        return (Array.isArray(item.midias) && item.midias.length ? item.midias : (item.midia_path ? [{ tipo: item.midia_tipo === 'video' ? 'video' : 'image', path: item.midia_path }] : []))
+            .filter(function (m) { return m && m.path && (m.tipo === 'image' || m.tipo === 'video'); })
+            .slice(0, downsell_midias_max)
+            .map(function (m) { return { tipo: m.tipo, path: m.path }; });
+    }
+
+    function atualizarMidiasDoExtra($c, it, enviando) {
+        const lista = it.midias, primeira = lista[0] || { tipo: 'none', path: '' };
+        desenharMidia($c.find('.dn-midia'), primeira.tipo, primeira.path, enviando, 'a mensagem da oferta');
+        $c.find('.dn-midias-extras').html(lista.slice(1).map(function (m, k) {
+            const j = k + 1;
+            return '<div class="basico-bot" data-i="' + j + '"><span>' + (j + 1) + '. ' + (m.tipo === 'video' ? 'Vídeo' : 'Foto') + ' <small>' + escaparHtml(m.path.replace('uploads/', '')) + '</small></span>' +
+                '<span class="col-acoes"><button type="button" class="btn-icon dn-midia-subir" title="Subir" aria-label="Subir">' + ACAO_SVG.subir + '</button> ' +
+                '<button type="button" class="btn-icon excluir dn-midia-remover" title="Remover mídia" aria-label="Remover mídia">' + ACAO_SVG.excluir + '</button></span></div>';
+        }).join(''));
+        const lote = downsell_lotes[it.uid] || null;
+        $c.find('.dn-midias-adicionar').toggle(lista.length > 0).prop('disabled', lista.length >= downsell_midias_max || !!lote).text(textoBotaoMidia(lista.length >= downsell_midias_max, lote, downsell_midias_max));
+        $c.find('.dn-midias-dica').toggle(lista.length > 0);
+    }
+
+    // O envio de arquivos demora e o dono pode mexer nos cartões enquanto isso: o cartão é achado pelo uid, não pela posição.
+    function atualizarMidiasDoExtraPorUid(uid, enviando) {
+        const i = downsell_extras.findIndex(function (e) { return e.uid === uid; });
+        if (i >= 0) atualizarMidiasDoExtra($('#dn-extras .dn-extra').eq(i), downsell_extras[i], enviando);
+    }
+
+    function renderDownsellExtras() {
+        $('#dn-extras').html(downsell_extras.map(function (it, i) { return htmlDownsellExtra(it, i); }).join(''));
+        $('#dn-extras .dn-extra').each(function (i) {
+            const it = downsell_extras[i], $c = $(this);
+            atualizarMidiasDoExtra($c, it);
+            $c.find('.dn-planos-lista').html(htmlPlanosMarcaveis(it.planos_oferecidos));
+            $c.find('.dn-criar').prop('checked', !!it.criar_planos);
+            desenharPlanosProprios($c.find('.dn-planos'), it.planos_proprios);
+            atualizarModoCriarPlanos($c);
+        });
+        const cheio = downsell_extras.length + 1 >= downsell_max;
+        $('#dn-adicionar').prop('disabled', cheio).text(cheio ? 'Limite de ' + downsell_max + ' downsells' : '+ Adicionar downsell');
+        mostrarTemporizadorDownsell($painelOferta('downsell'));
+    }
+
+    // Copia o que está digitado nos cartões para downsell_extras (antes de redesenhar a lista e na hora de salvar).
+    function sincronizarDownsellExtrasDoDom() {
+        $('#dn-extras .dn-extra').each(function (i) {
+            if (!downsell_extras[i]) return;
+            const $c = $(this);
+            Object.assign(downsell_extras[i], {
+                espera_minutos: numeroNoIntervalo($c.find('.dn-espera').val(), 1, 1440, 30),
+                mensagem: $c.find('.dn-mensagem').val().trim(),
+                desconto_percentual: Math.min(100, Math.max(0, parseFloat($c.find('.dn-desconto').val()) || 0)),
+                planos_oferecidos: $c.find('.dn-planos-lista input:checked').map(function () { return String(this.value); }).get(),
+                criar_planos: $c.find('.dn-criar').is(':checked'),
+                planos_proprios: coletarPlanosProprios($c.find('.dn-planos'))
+            }, coletarEntrega($c.find('.dn-entrega .campo-entrega')));
+        });
+    }
+
+    // O que vai no JSON de um cartão. Com "Criar planos", a entrega da sequência não vale (cada plano criado entrega pela sua).
+    function saidaSequenciaDownsell(e) {
+        const s = {
+            mensagem: e.mensagem, midias: e.midias.map(function (m) { return { tipo: m.tipo, path: m.path }; }), midia_tipo: e.midias.length ? e.midias[0].tipo : 'none', midia_path: e.midias.length ? e.midias[0].path : '',
+            espera_minutos: e.espera_minutos, desconto_percentual: e.desconto_percentual,
+            planos_oferecidos: e.planos_oferecidos.slice(), criar_planos: !!e.criar_planos, planos_proprios: e.planos_proprios.map(function (p) { return Object.assign({}, p); }),
+            entrega_tipo: e.entrega_tipo, id_grupo: e.id_grupo, link_entrega: e.link_entrega, mensagem_entrega: e.mensagem_entrega
+        };
+        if (s.criar_planos) Object.assign(s, { entrega_tipo: 'plano', id_grupo: '', link_entrega: '', mensagem_entrega: '' });
+        return s;
+    }
+
+    // Só "Depois do Pix" tem sequência: o título "Downsell 1", os cartões e o botão de adicionar somem em "Antes do Pix".
+    function atualizarModoDownsell() {
+        const $p = $painelOferta('downsell');
+        $p.find('.dn-titulo-1, #dn-extras, #dn-adicionar').toggle($p.find('.of-quando').val() === 'depois_pix');
+        mostrarTemporizadorDownsell($p);
+    }
+
     // Os campos da oferta só aparecem com o interruptor "Ativar" ligado.
     function mostrarDetalhesOferta($painel) {
         $painel.find('.of-detalhes').prop('hidden', !$painel.find('.of-ativo').is(':checked'));
@@ -888,7 +1112,9 @@
     // Downsell: o temporizador só faz sentido "Depois do Pix"; o intervalo só aparece com mais de 1 envio.
     function mostrarTemporizadorDownsell($painel) {
         $painel.find('.of-temporizador').toggle($painel.find('.of-quando').val() === 'depois_pix');
-        $painel.find('.of-intervalo-campo').toggle((parseInt($painel.find('.of-envios').val(), 10) || 1) > 1);
+        const em_sequencia = downsell_extras.length > 0;   // com mais de um downsell, cada um é enviado uma vez: "repetir" some (o que se repete é a sequência)
+        $painel.find('.of-envios-campo').toggle(!em_sequencia);
+        $painel.find('.of-intervalo-campo').toggle(!em_sequencia && (parseInt($painel.find('.of-envios').val(), 10) || 1) > 1);
     }
 
     function numeroNoIntervalo(valor, minimo, maximo, padrao) {
@@ -1000,6 +1226,12 @@
             oferta.espera_minutos = numeroNoIntervalo($p.find('.of-espera').val(), 1, 1440, 10);
             oferta.envios = numeroNoIntervalo($p.find('.of-envios').val(), 1, 5, 1);
             oferta.intervalo_minutos = numeroNoIntervalo($p.find('.of-intervalo').val(), 1, 1440, 30);
+            const $seq1 = $('#dn-seq-1');
+            oferta.criar_planos = $seq1.find('.dn-criar').is(':checked');
+            oferta.planos_proprios = coletarPlanosProprios($seq1.find('.dn-planos'));
+            sincronizarDownsellExtrasDoDom();
+            oferta.sequencias_extras = oferta.quando === 'depois_pix' ? downsell_extras.map(saidaSequenciaDownsell) : [];
+            if (oferta.sequencias_extras.length) oferta.envios = 1;   // com mais de um downsell, cada um sai uma vez
         } else {
             oferta.id_plano_destino = $p.find('.of-plano').val() || '';
             if (oferta.id_plano_destino === ID_UPSELL_PROPRIO) {
@@ -1015,7 +1247,9 @@
             }
         }
         // Upsell e Downsell escolhem como entregar (por padrão, igual ao plano oferecido). O Order Bump segue sem entrega própria.
-        if ($p.find('.of-entrega').length) Object.assign(oferta, coletarEntrega($p.find('.campo-entrega')));
+        if ($p.find('.of-entrega').length) Object.assign(oferta, coletarEntrega($p.find('.of-entrega').first().find('.campo-entrega')));
+        // Downsell com "Criar planos": a entrega da oferta não vale (cada plano criado entrega pela sua) e fica como "igual ao plano" para não guardar um valor escondido.
+        if (tipo === 'downsell' && oferta.criar_planos) Object.assign(oferta, { entrega_tipo: 'plano', id_grupo: '', link_entrega: '', mensagem_entrega: '' });
         return oferta;
     }
 
@@ -1067,6 +1301,19 @@
             $p.find('.of-envios').val(oferta.envios || 1);
             $p.find('.of-intervalo').val(oferta.intervalo_minutos || 30);
             mostrarTemporizadorDownsell($p);
+            const $seq1 = $('#dn-seq-1');
+            $seq1.find('.dn-criar').prop('checked', !!oferta.criar_planos);
+            desenharPlanosProprios($seq1.find('.dn-planos'), Array.isArray(oferta.planos_proprios) ? oferta.planos_proprios : []);
+            atualizarModoCriarPlanos($seq1);
+            downsell_extras = (Array.isArray(oferta.sequencias_extras) ? oferta.sequencias_extras : []).slice(0, downsell_max - 1).map(function (it) {
+                return Object.assign(itemDownsellVazio(), it, {
+                    midias: midiasSalvasDoItem(it),
+                    planos_oferecidos: (Array.isArray(it.planos_oferecidos) ? it.planos_oferecidos : []).map(String),
+                    planos_proprios: Array.isArray(it.planos_proprios) ? it.planos_proprios : [], criar_planos: !!it.criar_planos
+                });
+            });
+            renderDownsellExtras();
+            atualizarModoDownsell();
         } else {
             $p.find('.of-plano').data('valor', oferta.id_plano_destino || '');
             $p.find('.of-desconto').val(oferta.desconto_percentual != null ? oferta.desconto_percentual : 0);
@@ -1089,7 +1336,14 @@
     function validarEntregaPorLink(d) {
         const itens = d.planos.map(function (p) { return ['do plano', p]; });
         if (d.packs.ativo) d.packs.itens.forEach(function (k) { if (k.ativo !== false) itens.push(['do pack', k]); });
-        [['upsell', 'do Upsell'], ['downsell', 'do Downsell']].forEach(function (o) { if (d.ofertas[o[0]].ativo) itens.push([o[1], d.ofertas[o[0]]]); });
+        if (d.ofertas.upsell.ativo) itens.push(['do Upsell', d.ofertas.upsell]);
+        if (d.ofertas.downsell.ativo) {
+            const sequencias = [d.ofertas.downsell].concat(d.ofertas.downsell.sequencias_extras || []);
+            sequencias.forEach(function (s, k) {
+                if (s.criar_planos) (s.planos_proprios || []).forEach(function (p) { itens.push(['do plano do Downsell', p]); });
+                else itens.push(['do Downsell' + (sequencias.length > 1 ? ' ' + (k + 1) : ''), s]);
+            });
+        }
         for (let i = 0; i < itens.length; i++) {
             const item = itens[i][1];
             if (item.entrega_tipo === 'link' && !linkEntregaValido(item.link_entrega)) {
@@ -1124,7 +1378,23 @@
             if (!proprio.nome) return 'Dê um nome ao plano do Upsell (ou escolha um plano que já existe).';
             if (!(proprio.valor > 0)) return 'O plano do Upsell "' + proprio.nome + '" precisa ter valor maior que zero.';
         }
-        if (d.ofertas.downsell.ativo && !d.ofertas.downsell.planos_oferecidos.length) return 'Marque pelo menos 1 plano oferecido no Downsell ou desative-o.';
+        if (d.ofertas.downsell.ativo) {
+            const sequencias = [d.ofertas.downsell].concat(d.ofertas.downsell.sequencias_extras || []);
+            for (let i = 0; i < sequencias.length; i++) {
+                const s = sequencias[i];
+                const rotulo = 'Downsell' + (sequencias.length > 1 ? ' ' + (i + 1) : '');
+                if (s.criar_planos) {
+                    if (!s.planos_proprios.length) return 'Crie pelo menos 1 plano no ' + rotulo + ' (ou desligue "Criar planos" e marque os planos que já existem).';
+                    for (let j = 0; j < s.planos_proprios.length; j++) {
+                        const p = s.planos_proprios[j];
+                        if (!p.nome) return 'Dê um nome ao plano ' + (j + 1) + ' do ' + rotulo + '.';
+                        if (!(p.valor > 0)) return 'O plano "' + p.nome + '" do ' + rotulo + ' precisa ter valor maior que zero.';
+                    }
+                } else if (!s.planos_oferecidos.length) {
+                    return i === 0 ? 'Marque pelo menos 1 plano oferecido no Downsell ou desative-o.' : 'Marque pelo menos 1 plano oferecido no ' + rotulo + ' ou remova-o.';
+                }
+            }
+        }
         const erro_entrega = validarEntregaPorLink(d);
         if (erro_entrega) return erro_entrega;
         if (d.assinatura.avisos_antes.ativo && !d.assinatura.avisos_antes.dias.length) return 'Escolha pelo menos 1 dia nos avisos de renovação ou desative-os.';
@@ -1432,6 +1702,7 @@
     }
 
     $(function () {
+        $('#dn-planos-1').html(htmlBlocoPlanosDownsell('of-planos-lista'));
         PagamentosGuiado.iniciar({ marcarSujo: marcarSujo, exibirAviso: exibirAviso, enviarMidia: enviarMidiaBasico, enviarMidias: enviarMidiasEmSequencia, avisarLote: avisarResultadoLote, escaparHtml: escaparHtml });
         carregarLimitesPagamento();
         carregarGruposUsuario().always(function () {
@@ -1445,6 +1716,8 @@
                 ['upsell', 'downsell'].forEach(function (tipo) { desenharEntregaOferta(tipo, {}); });
                 renderBumpsExtras();
                 atualizarModoBump();
+                renderDownsellExtras();
+                atualizarModoDownsell();
                 renderPlanos();
                 atualizarSelectsOfertas();
                 preencherPrevias({});
@@ -1656,7 +1929,99 @@
             mostrarCamposRecusar($(this).closest('.painel'));
         }).on('change input', '.of-quando, .of-envios', function () {
             mostrarTemporizadorDownsell($(this).closest('.painel'));
-        }).on('change', '.painel[data-oferta="order_bump"] .of-quando', atualizarModoBump);
+        }).on('change', '.painel[data-oferta="order_bump"] .of-quando', atualizarModoBump)
+          .on('change', '.painel[data-oferta="downsell"] .of-quando', atualizarModoDownsell);
+
+        // Downsell 2 a 5: adicionar, remover e a mídia de cada um.
+        $('#dn-adicionar').on('click', function () {
+            sincronizarDownsellExtrasDoDom();
+            if (downsell_extras.length + 1 >= downsell_max) return;
+            downsell_extras.push(itemDownsellVazio());
+            renderDownsellExtras();
+            marcarSujo();
+        });
+        $('#dn-extras').on('click', '.dn-remover', function () {
+            sincronizarDownsellExtrasDoDom();
+            downsell_extras.splice(parseInt($(this).closest('.dn-extra').data('i'), 10), 1);
+            renderDownsellExtras();
+            marcarSujo();
+        }).on('click', '.dn-midia .midia-escolher, .dn-midia .midia-trocar', function () {
+            const $c = $(this).closest('.dn-extra'), it = downsell_extras[parseInt($c.data('i'), 10)];
+            if (!it || downsell_lotes[it.uid]) return;
+            downsell_destino_upload[it.uid] = 0;
+            // trocar a 1ª é 1 arquivo só; com a caixa vazia pode marcar vários
+            $c.find('.dn-midia-arquivo').prop('multiple', it.midias.length === 0).trigger('click');
+        }).on('click', '.dn-midia .midia-tirar', function () {
+            const $c = $(this).closest('.dn-extra'), it = downsell_extras[parseInt($c.data('i'), 10)];
+            if (!it) return;
+            it.midias.shift();   // a seguinte (se houver) passa a ser a 1ª
+            atualizarMidiasDoExtra($c, it);
+            marcarSujo();
+            exibirAviso('Mídia tirada da oferta. Clique em Salvar alterações para aplicar.');
+        }).on('click', '.dn-midias-adicionar', function () {
+            const $c = $(this).closest('.dn-extra'), it = downsell_extras[parseInt($c.data('i'), 10)];
+            if (!it || it.midias.length >= downsell_midias_max || downsell_lotes[it.uid]) return;
+            downsell_destino_upload[it.uid] = it.midias.length;
+            $c.find('.dn-midia-arquivo').prop('multiple', true).trigger('click');
+        }).on('click', '.dn-midias-extras .dn-midia-remover', function () {
+            const $c = $(this).closest('.dn-extra'), it = downsell_extras[parseInt($c.data('i'), 10)];
+            if (!it) return;
+            it.midias.splice(parseInt($(this).closest('[data-i]').data('i'), 10), 1);
+            atualizarMidiasDoExtra($c, it);
+            marcarSujo();
+        }).on('click', '.dn-midias-extras .dn-midia-subir', function () {
+            const $c = $(this).closest('.dn-extra'), it = downsell_extras[parseInt($c.data('i'), 10)];
+            const j = parseInt($(this).closest('[data-i]').data('i'), 10);
+            if (it && j > 0) { it.midias.splice(j - 1, 0, it.midias.splice(j, 1)[0]); atualizarMidiasDoExtra($c, it); marcarSujo(); }
+        }).on('change', '.dn-midia-arquivo', function () {
+            const input = this;
+            const arquivos = Array.prototype.slice.call(input.files || []);   // copiar antes de limpar: limpar o campo esvazia a lista
+            input.value = '';
+            const it = downsell_extras[parseInt($(input).closest('.dn-extra').data('i'), 10)];
+            if (!arquivos.length || !it || downsell_lotes[it.uid]) return;
+            const uid = it.uid;
+            // Destino 0 = a 1ª mídia entra (ou troca) na caixa grande; as demais e o botão "+ Adicionar outra" vão sempre para o fim da lista.
+            const na_caixa_grande = Math.min(downsell_destino_upload[uid] || 0, it.midias.length) === 0;
+            enviarMidiasEmSequencia(arquivos, {
+                vagas: na_caixa_grande ? (it.midias.length ? 1 : downsell_midias_max) : downsell_midias_max - it.midias.length,
+                enviar: enviarMidiaBasico,
+                aoProgredir: function (n, total) { downsell_lotes[uid] = { n: n, total: total }; atualizarMidiasDoExtraPorUid(uid, na_caixa_grande && n === 1); },
+                aoSubir: function (midia, k) {
+                    const alvo = downsell_extras.filter(function (e) { return e.uid === uid; })[0];
+                    if (!alvo) return;   // o cartão foi removido enquanto o arquivo subia
+                    const nova = { tipo: midia.tipo, path: midia.caminho };
+                    if (na_caixa_grande && k === 0) alvo.midias[0] = nova; else alvo.midias.push(nova);
+                    atualizarMidiasDoExtraPorUid(uid);
+                    marcarSujo();
+                },
+                aoFim: function (r) {
+                    delete downsell_lotes[uid];
+                    atualizarMidiasDoExtraPorUid(uid);
+                    avisarResultadoLote(r, 'Mídia anexada à oferta. Clique em Salvar alterações para aplicar.', downsell_midias_max);
+                }
+            });
+        });
+        // "Criar planos" e os planos criados dentro do Downsell (valem para o Downsell 1 e para os cartões 2 a 5).
+        $('#basico-conteudo').on('change', '.dn-criar', function () {
+            atualizarModoCriarPlanos($(this).closest('.dn-seq'));
+            const $bloco = $(this).closest('.dn-planos');
+            if ($(this).is(':checked') && !$bloco.find('.dn-proprio').length) adicionarPlanoProprioDownsell($bloco);
+        }).on('click', '.dn-proprio-adicionar', function () {
+            adicionarPlanoProprioDownsell($(this).closest('.dn-planos'));
+            marcarSujo();
+        }).on('click', '.dn-proprio-remover', function () {
+            const $bloco = $(this).closest('.dn-planos');
+            $(this).closest('.dn-proprio').remove();
+            atualizarVaziosProprios($bloco);
+            marcarSujo();
+        }).on('click', '.dn-proprio .plano-topo', function () {
+            const $c = $(this).closest('.dn-proprio');
+            const recolhido = !$c.hasClass('recolhido');
+            $c.toggleClass('recolhido', recolhido);
+            $c.find('.plano-alternar').attr({ 'aria-expanded': String(!recolhido), title: recolhido ? 'Expandir plano' : 'Recolher plano', 'aria-label': recolhido ? 'Expandir plano' : 'Recolher plano' });
+        }).on('input change', '.dn-proprio', function () {
+            resumoPlanoProprioDownsell($(this));
+        });
 
         // Order Bumps 2 a 5: adicionar, remover e a mídia de cada um.
         $('#bp-adicionar').on('click', function () {

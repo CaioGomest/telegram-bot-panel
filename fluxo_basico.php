@@ -230,7 +230,7 @@ bloquearAdmin();
                 <section class="basico-secao" data-secao="downsell">
                     <div class="painel" data-oferta="downsell">
                         <div class="painel-cabecalho"><h2>Downsell</h2></div>
-                        <p class="texto-ajuda">Mostra os planos que você escolher, com desconto, como botões. Não tem botão de aceitar nem de recusar: o cliente toca no plano que quiser e recebe o Pix dele. Você escolhe se a oferta sai antes do Pix ou depois dele, se o cliente não pagar.</p>
+                        <p class="texto-ajuda">Mostra os planos que você escolher, com desconto, como botões. Não tem botão de aceitar nem de recusar: o cliente toca no plano que quiser e recebe o Pix dele. Você escolhe se a oferta sai antes do Pix ou depois dele, se o cliente não pagar. Os planos podem ser os que já existem (com desconto) ou criados só para o Downsell, e depois do Pix dá para ter até 5 downsells em sequência, cada um com a própria mensagem, mídia, desconto, planos e entrega.</p>
                         <label class="basico-interruptor sem-caixa"><input type="checkbox" class="of-ativo"> <span>Ativar downsell</span></label>
                         <div class="of-detalhes" hidden>
                         <div class="campo"><label>Quando enviar</label>
@@ -242,17 +242,19 @@ bloquearAdmin();
                         <div class="of-temporizador">
                             <div class="grade grade-2 grade-compacta">
                                 <div class="campo"><label>Primeiro envio após (minutos)</label><input type="number" min="1" max="1440" step="1" class="of-espera" value="10"></div>
-                                <div class="campo"><label>Quantos envios</label><input type="number" min="1" max="5" step="1" class="of-envios" value="1"></div>
+                                <div class="campo of-envios-campo"><label>Quantos envios</label><input type="number" min="1" max="5" step="1" class="of-envios" value="1"></div>
                                 <div class="campo of-intervalo-campo" style="display:none"><label>Repetir a cada (minutos)</label><input type="number" min="1" max="1440" step="1" class="of-intervalo" value="30"></div>
                             </div>
-                            <small class="texto-ajuda">O cliente recebe o Pix normal. Se não pagar nesse prazo, chega a oferta com desconto; com mais de 1 envio, ela se repete no intervalo escolhido até ele pagar ou tocar num plano. A conferência roda a cada minuto.</small>
+                            <small class="texto-ajuda">O cliente recebe o Pix normal. Se não pagar nesse prazo, chega a oferta com desconto; com mais de 1 envio, ela se repete no intervalo escolhido até ele pagar ou tocar num plano. Quer ofertas diferentes uma depois da outra (outro desconto, outros planos, outra mensagem)? Use "+ Adicionar downsell" no fim da seção. A conferência roda a cada minuto.</small>
                         </div>
-                        <div class="campo"><label>Planos oferecidos</label>
-                            <div class="of-planos-lista"></div>
-                            <small class="texto-ajuda">Só os planos marcados aparecem para o cliente (o plano que ele já escolheu antes não é repetido).</small>
+                        <h3 class="bp-item-titulo dn-titulo-1">Downsell 1</h3>
+                        <!-- Downsell em sequência (item 38): o Downsell 1 é este painel; os 2 a 5 são cartões desenhados pelo JS em #dn-extras. O bloco dos planos (marcar os que já existem ou
+                             "Criar planos") é desenhado pelo JS em #dn-planos-1, o mesmo das sequências extras. A Entrega (.of-entrega) vale para os planos marcados; plano criado traz a própria. -->
+                        <div class="dn-seq" id="dn-seq-1">
+                            <div class="dn-planos" id="dn-planos-1"></div>
+                            <div class="campo dn-desconto-campo"><label>Desconto (%)</label><input type="number" min="0" max="100" step="1" class="of-desconto" value="0"></div>
+                            <div class="of-entrega dn-entrega-campo"></div>
                         </div>
-                        <div class="campo"><label>Desconto (%)</label><input type="number" min="0" max="100" step="1" class="of-desconto" value="0"></div>
-                        <div class="of-entrega"></div>
                         <div class="campo"><label>Mensagem da oferta</label><textarea class="of-mensagem" rows="3" placeholder="Espera! Tenho uma condição especial pra você."></textarea></div>
                         <div class="campo"><label>Mídia (opcional)</label>
                             <div class="area-previa-basico of-midia" data-estado="vazio" data-tipo="none">Sem mídia</div>
@@ -261,6 +263,8 @@ bloquearAdmin();
                             <button type="button" class="botao botao-claro of-midias-adicionar" style="display:none">+ Adicionar outra foto ou vídeo</button>
                             <small class="texto-ajuda of-midias-dica" style="display:none">Com mais de uma foto/vídeo (até 10), elas vão juntas num álbum, na ordem da lista, e o texto com os botões chega logo depois.</small>
                         </div>
+                        <div id="dn-extras"></div>
+                        <button type="button" class="botao botao-claro" id="dn-adicionar">+ Adicionar downsell</button>
                     </div>
                     </div>
                 </section>
