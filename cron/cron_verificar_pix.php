@@ -40,7 +40,7 @@ function requisicaoTelegramLocal(string $token, string $metodo, array $parametro
     curl_setopt($ch, CURLOPT_TIMEOUT, 15);
     $resposta = curl_exec($ch);
     $r = json_decode($resposta ?: '', true) ?: ['ok' => false];
-    registrarRespostaTelegram($token, $r);
+    registrarRespostaTelegram($token, $r, $metodo);
     return $r;
 }
 

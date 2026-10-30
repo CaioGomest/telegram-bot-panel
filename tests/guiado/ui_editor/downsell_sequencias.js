@@ -303,7 +303,7 @@ const GRUPOS = [
 
         // ---- "Antes do Pix": sem sequência
         await escolher(D + ' .of-quando', 'antes_pix');
-        chk('em "Antes do Pix" somem o título "Downsell 1", os cartões e o botão de adicionar (a sequência só existe depois do Pix)', !(await visivel(D + ' .dn-titulo-1')) && !(await visivel('#dn-extras')) && !(await visivel('#dn-adicionar')));
+        chk('em "Antes do Pix" somem os cartões extras e o botão de adicionar, e o cartão do Downsell 1 fica (com o tempo escondido)', (await visivel('#dn-seq-1')) && (await visivel(D + ' .dn-titulo-1')) && !(await visivel(D + ' .of-temporizador')) && !(await visivel('#dn-extras')) && !(await visivel('#dn-adicionar')));
         dados = await salvar();
         chk('salvar em "Antes do Pix": não leva sequências extras', !!dados && dados.dados_fluxograma.ofertas.downsell.quando === 'antes_pix' && dados.dados_fluxograma.ofertas.downsell.sequencias_extras.length === 0, await toast());
         await escolher(D + ' .of-quando', 'depois_pix');

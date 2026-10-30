@@ -4,6 +4,9 @@ require_once __DIR__ . '/../conexao.php';
 require_once __DIR__ . '/../funcoes/cron_guarda.php';
 exigirChamadaDeCron('cron_remarketing');
 require_once __DIR__ . '/../funcoes/remarketing.php';
+require_once __DIR__ . '/../funcoes/chat.php';
+// As mensagens desta rodada entram no histórico do chat de cada lead marcadas como "remarketing" (gravadas em lote).
+chatOrigemAtual(CHAT_ORIGEM_REMARKETING);
 
 const BATCH_SIZE    = 1000;  // leads por campanha por rodada
 const MAX_CAMPANHAS = 20;    // campanhas simultâneas por rodada
@@ -384,7 +387,10 @@ while (true) {
         $res    = curl_multi_getcontent($ch) ?: '';
         $json   = json_decode($res, true);
         $ok     = (bool)($json['ok'] ?? false);
-        if (!$ok) { registrarRespostaTelegram($meta['token'], $json); }
+        // Todo envio passa aqui (não só o que falhou): erro = token recusado; sucesso = vai para o histórico do chat.
+        // O tipo real (texto/foto/vídeo) sai da própria resposta do Telegram; o bot_id já é conhecido (sem consulta).
+        chatRegistrarBot($meta['token'], (int) $bot_id);
+        registrarRespostaTelegram($meta['token'], $json, 'sendMessage');
 
         // Tratamento de rate limit (429): registra para pausar após este tick
         if (!$ok && isset($json['parameters']['retry_after'])) {

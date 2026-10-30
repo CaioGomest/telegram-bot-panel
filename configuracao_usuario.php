@@ -19,6 +19,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $resultado = removerFotoPerfil($usuario_id);
         $mensagem = $resultado['sucesso'] ? 'Foto de perfil removida.' : $resultado['erro'];
         $tipo_mensagem = $resultado['sucesso'] ? 'sucesso' : 'erro';
+    } elseif ($acao === 'cor' || $acao === 'cor_padrao') {
+        $cor_escolhida = $acao === 'cor_padrao' ? null : trim($_POST['cor_destaque'] ?? '');
+        $resultado = salvarCorDestaqueUsuario($usuario_id, $cor_escolhida);
+        if ($resultado['sucesso']) {
+            $mensagem = $cor_escolhida === null ? 'Cor do sistema voltou ao padrão.' : 'Cor do sistema atualizada.';
+            $tipo_mensagem = 'sucesso';
+        } else {
+            $mensagem = $resultado['erro'];
+            $tipo_mensagem = 'erro';
+        }
     } else {
         $nome = trim($_POST['nome'] ?? '');
         $email = trim($_POST['email'] ?? '');
@@ -59,6 +69,11 @@ $iniciais_conta = mb_strtoupper(mb_substr($partes_nome[0] ?? '?', 0, 1)
     . (count($partes_nome) > 1 ? mb_substr((string) end($partes_nome), 0, 1) : ''));
 $foto_conta = fotoPerfilDaSessao();
 $url_foto_conta = urlFotoPerfil($foto_conta);
+
+// Cores sugeridas: as mesmas da paleta do admin (Configurações). A primeira é o laranja padrão do CSS.
+$cores_sugeridas = ['#ff6a1a', '#3b82f6', '#22c55e', '#a855f7', '#ef4444', '#ec4899', '#eab308'];
+$cor_usuario = corDestaqueUsuario((int) $usuario_id);
+$cor_atual = $cor_usuario ?? corPrimariaSistema();
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -160,6 +175,36 @@ $url_foto_conta = urlFotoPerfil($foto_conta);
             </section>
         </form>
 
+        <div class="a-grid" style="margin-top: 16px">
+            <section class="a-card s12" id="cor-sistema">
+                <div class="a-ch"><h2>Cor do sistema</h2></div>
+                <p class="a-mut">Troca a cor do painel.</p>
+                <form method="POST" action="#cor-sistema" class="a-form" id="form-cor-sistema">
+                    <?php echo campoCsrf(); ?>
+                    <input type="hidden" name="acao" value="cor">
+                    <div class="cor-opcoes" role="group" aria-label="Cores sugeridas">
+                        <?php foreach ($cores_sugeridas as $cor_sugerida): ?>
+                            <button type="button" class="cor-opcao" data-cor="<?php echo $cor_sugerida; ?>" style="--cor-opcao: <?php echo $cor_sugerida; ?>" aria-label="Usar a cor <?php echo $cor_sugerida; ?>" title="<?php echo $cor_sugerida; ?>"></button>
+                        <?php endforeach; ?>
+                    </div>
+                    <div class="a-acts" style="align-items: flex-end">
+                        <label class="a-fld" for="cor_destaque"><span>Outra cor</span>
+                            <input type="color" id="cor_destaque" name="cor_destaque" value="<?php echo htmlspecialchars($cor_atual); ?>">
+                        </label>
+                        <?php if ($cor_usuario !== null): ?>
+                            <button type="submit" class="a-btn" form="form-cor-padrao">Voltar ao padrão</button>
+                        <?php endif; ?>
+                    </div>
+                </form>
+                <?php if ($cor_usuario !== null): ?>
+                    <form method="POST" action="#cor-sistema" id="form-cor-padrao" hidden>
+                        <?php echo campoCsrf(); ?>
+                        <input type="hidden" name="acao" value="cor_padrao">
+                    </form>
+                <?php endif; ?>
+            </section>
+        </div>
+
         <form method="POST" enctype="multipart/form-data" id="form-foto-perfil" hidden>
             <?php echo campoCsrf(); ?>
             <input type="hidden" name="acao" value="foto">
@@ -178,7 +223,7 @@ $url_foto_conta = urlFotoPerfil($foto_conta);
         ?>
         <div class="a-grid" style="margin-top: 16px">
             <section class="a-card s12 push-cartao" id="avisos">
-                <div class="a-ch"><h2>Avisos no celular e no navegador</h2></div>
+                <div class="a-ch"><h2>Notificações</h2></div>
                 <p class="a-mut push-intro">Receba um aviso quando um <strong>Pix for gerado</strong> e quando um <strong>Pix for pago</strong>, mesmo com o painel fechado. Cada aparelho (celular, computador) é ativado separadamente.</p>
                 <div id="push-cartao">
                     <div class="push-estado" data-push-estado="carregando"<?php echo $push_ligado_conta ? '' : ' hidden'; ?>>
@@ -245,6 +290,23 @@ $url_foto_conta = urlFotoPerfil($foto_conta);
     if (!form || !input) return;
     input.addEventListener('change', function () {
         if (input.files && input.files.length) form.submit();
+    });
+})();
+
+(function () {
+    // Cor sugerida: preenche o seletor e envia de uma vez.
+    var input = document.getElementById('cor_destaque');
+    var form = document.getElementById('form-cor-sistema');
+    if (!input || !form) return;
+    document.querySelectorAll('.cor-opcao').forEach(function (botao) {
+        botao.addEventListener('click', function () {
+            input.value = botao.getAttribute('data-cor');
+            form.submit();
+        });
+    });
+    // Escolheu a cor no seletor: salva na hora (sem botão "Salvar cor")
+    input.addEventListener('change', function () {
+        form.submit();
     });
 })();
 </script>

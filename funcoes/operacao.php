@@ -13,7 +13,8 @@ declare(strict_types=1);
  *  - registrarInicioConversa(): uma linha em leads_starts por /start (lead novo ou quem voltou); é o que o dashboard conta como "starts".
  *  - contagemEmCache():         COUNT caro com resultado guardado por alguns segundos (paginadores de tabelas enormes).
  *  - registrarRespostaTelegram(): chamado por todo ponto que fala com a API do Telegram; token recusado (401/404) vira
- *                               aviso ao dono, uma vez.
+ *                               aviso ao dono, uma vez. Com o nome do método (send*), a mensagem aceita entra no histórico
+ *                               do chat do lead (funcoes/chat.php).
  *  - resumoPayloadGateway():    versão enxuta (sem dados do pagador nem código Pix) do payload do webhook, para o log.
  */
 
@@ -103,9 +104,17 @@ function aposPagamentoConfirmado(array $venda): void
  * Olha a resposta de qualquer chamada ao Telegram. 401 (Unauthorized) e 404 (Not Found, que é como o Telegram responde a token
  * que não existe mais) = token revogado/trocado. Marca o bot e avisa o dono no sino, só na primeira vez.
  */
-function registrarRespostaTelegram(string $token, $resposta): void
+function registrarRespostaTelegram(string $token, $resposta, string $metodo = ''): void
 {
-    if (!is_array($resposta) || ($resposta['ok'] ?? true) !== false) {
+    if (!is_array($resposta)) {
+        return;
+    }
+    if (($resposta['ok'] ?? true) !== false) {
+        // Mensagem aceita pelo Telegram (send*): entra no histórico do chat do lead, em lote (funcoes/chat.php).
+        if ($metodo !== '' && strncmp($metodo, 'send', 4) === 0 && ($resposta['ok'] ?? false) === true) {
+            require_once __DIR__ . '/chat.php';
+            chatRegistrarEnvio($token, $resposta, $metodo);
+        }
         return;
     }
     $codigo = (int) ($resposta['error_code'] ?? 0);

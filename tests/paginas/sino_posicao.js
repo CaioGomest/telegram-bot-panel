@@ -89,6 +89,8 @@ const CASOS = [
     { nome: 'Layout A, página rolada', html: PAGINA_LAYOUT_A, janelas: [[1600, 900, 'janela 1600'], [390, 800, 'celular 390']], rolar: 600 },
     { nome: 'casca antiga, desktop', html: PAGINA_CASCA_ANTIGA, janelas: [[1600, 900, 'janela 1600'], [1280, 800, 'janela 1280'], [900, 800, 'janela estreita 900']] },
     { nome: 'casca antiga, celular', html: PAGINA_CASCA_ANTIGA, janelas: [[390, 800, 'celular 390'], [768, 900, 'tablet 768']] },
+    // janela baixa com a lista cheia: o painel tem de caber na altura e o rodapé "Marcar todas como lidas" tem de continuar visível (29/10/2026: ficava cortado)
+    { nome: 'casca antiga, janela baixa com lista cheia', html: PAGINA_CASCA_ANTIGA, janelas: [[1280, 520, 'janela 1280x520'], [390, 600, 'celular 390x600']], encher: true },
 ];
 
 let ok = 0, falhas = 0;
@@ -110,8 +112,15 @@ const esp = (ms) => new Promise(r => setTimeout(r, ms));
                 if (caso.rolar) await c.avaliar(`window.scrollTo(0, ${caso.rolar})`);
                 await esp(100);
                 const larg_antes = Number(await c.avaliar(`document.documentElement.scrollWidth`));
+                if (caso.encher) {
+                    // enche a lista com 12 itens antes de abrir (o painel mede a altura na hora de abrir)
+                    await c.avaliar(`(function(){ var l = document.querySelector('.sino-lista'); for (var i = 0; i < 12; i++) { var d = document.createElement('div'); d.className = 'item-atividade'; d.textContent = 'Pix gerado ' + i; l.appendChild(d); } })()`);
+                }
                 await c.avaliar(`document.querySelector('.sino-notificacoes').click()`);
                 await esp(300);
+                const rod = JSON.parse(await c.avaliar(`JSON.stringify((function(){ var r = document.querySelector('.sino-marcar-todas').getBoundingClientRect(); return { baixo: Math.round(r.bottom), altura: window.innerHeight, itens: document.querySelectorAll('.sino-lista > *').length }; })())`));
+                chk(nome + ': o rodapé "Marcar todas como lidas" fica inteiro dentro da janela', rod.baixo <= rod.altura, rod);
+                if (caso.encher) chk(nome + ': a lista cheia está no painel (12 itens)', rod.itens >= 12, rod);
                 const m = JSON.parse(await c.avaliar(`JSON.stringify((function(){ var b = document.querySelector('.sino-notificacoes').getBoundingClientRect(), p = document.querySelector('.sino-painel').getBoundingClientRect(); return { sino_dir: Math.round(b.right), sino_baixo: Math.round(b.bottom), p_esq: Math.round(p.left), p_dir: Math.round(p.right), p_topo: Math.round(p.top), p_larg: Math.round(p.width), janela: window.innerWidth, sino_visivel: b.width > 0, pagina_larg: document.documentElement.scrollWidth, rolado: Math.round(window.scrollY) }; })())`));
                 chk(nome + ': o sino está visível na barra de cima', m.sino_visivel, m);
                 if (caso.rolar) chk(nome + ': a página estava mesmo rolada quando o sino abriu', m.rolado > 0, m);

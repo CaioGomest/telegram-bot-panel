@@ -10,6 +10,7 @@ require_once __DIR__ . '/funcoes/previas.php';
 require_once __DIR__ . '/funcoes/packs.php';
 require_once __DIR__ . '/funcoes/assinatura.php';
 require_once __DIR__ . '/funcoes/guiado_ofertas.php';
+require_once __DIR__ . '/funcoes/chat.php';
 require_once __DIR__ . '/funcoes/remarketing_ofertas.php';
 function buscarProximoDoInicio(array $dados): ?string
 {
@@ -134,6 +135,9 @@ if (isset($atualizacao['my_chat_member'])) {
     echo 'ok status';
     exit;
 }
+// Histórico do chat (botão "Abrir Chat" em Leads): o que o lead mandou entra na fila e vai ao banco num INSERT só, no fim da requisição.
+chatRegistrarBot($token, (int) $bot['id']);
+chatRegistrarRecebida((int) $bot['id'], is_array($atualizacao) ? $atualizacao : []);
 $id_chat = null;
 $texto = '';
 if (isset($atualizacao['callback_query'])) {
@@ -686,7 +690,7 @@ function avancarOfertasBasico(string $token, $id_chat, array $dados_basico, stri
     }
     gerarPixBasico($token, $id_chat, $dados_basico, $id_plano, $variante, false);
 }
-function executarFluxoBasico(string $token, $id_chat, array $dados_basico, string $texto): void {
+function executarFluxoBasico(string $token, $id_chat, array $dados_basico, string $texto, int $id_msg_clicada = 0): void {
     $boas_vindas = $dados_basico['boas_vindas'] ?? [];
     $planos = $dados_basico['planos'] ?? [];
 
@@ -705,6 +709,14 @@ function executarFluxoBasico(string $token, $id_chat, array $dados_basico, strin
         return;
     }
     if ($texto === 'basico::ver_planos') {
+        // Tira o botão da mensagem clicada: a lista já aparece e o botão não serve para mandar outra.
+        if ($id_msg_clicada > 0) {
+            requisicaoTelegram($token, 'editMessageReplyMarkup', ['chat_id' => $id_chat, 'message_id' => $id_msg_clicada, 'reply_markup' => json_encode(['inline_keyboard' => []])]);
+        }
+        // Toques rápidos já enfileirados: só o primeiro manda a lista.
+        if (!travarListaPlanosBasico($token, $id_chat)) {
+            return;
+        }
         enviarListaPlanosBasico($token, $id_chat, $planos, (string) ($dados_basico['suporte'] ?? ''), (string) ($dados_basico['suporte_cor'] ?? ''), $dados_basico['previas'] ?? [], $dados_basico['packs'] ?? []);
         return;
     }
@@ -814,7 +826,7 @@ if (!empty($bot['id_fluxo_conectado'])) {
         $fluxo = $stmt->fetch();
         if ($fluxo && ($fluxo['modo'] ?? 'avancado') === 'basico') {
             $dados_basico = json_decode($fluxo['dados_fluxograma'] ?? '{}', true);
-            executarFluxoBasico($token, $id_chat, is_array($dados_basico) ? $dados_basico : [], $texto);
+            executarFluxoBasico($token, $id_chat, is_array($dados_basico) ? $dados_basico : [], $texto, (int) ($atualizacao['callback_query']['message']['message_id'] ?? 0));
         } elseif ($fluxo) {
             $dados_fluxo = json_decode($fluxo['dados_fluxograma'] ?? '{}', true);
             $dados_fluxo = is_array($dados_fluxo) ? $dados_fluxo : ['operators' => [], 'links' => []];

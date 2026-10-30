@@ -104,7 +104,7 @@ function requisicaoTelegram(string $token, string $metodo, array $parametros = [
         ];
     }
 
-    registrarRespostaTelegram($token, $decodificado);
+    registrarRespostaTelegram($token, $decodificado, $metodo);
     $decodificado['http_code'] = $codigo_http;
     return $decodificado;
 }

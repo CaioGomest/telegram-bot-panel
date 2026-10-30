@@ -155,6 +155,18 @@ class OmegaPaymentsBanco {
         }, $split_config);
     }
 
+    /**
+     * A OmegaPayments recusa nome de cliente com menos de 3 caracteres (HTTP 400, "too_small"):
+     * nome do lead do Telegram curto (ex.: "Jo") vira "lead telegram" em vez de derrubar o Pix.
+     */
+    private function nomeClienteGateway(string $nome_cliente): string {
+        $nome = trim($nome_cliente);
+        if (mb_strlen($nome) < 3) {
+            return 'lead telegram';
+        }
+        return substr($nome, 0, 200);
+    }
+
     public function montaPayloadCobranca(
         float $valor,
         string $chave_pix,
@@ -175,7 +187,7 @@ class OmegaPaymentsBanco {
             'identifier'  => bin2hex(random_bytes(16)),
             'amount'      => round($valor, 2),
             'client'      => [
-                'name'     => substr($nome_cliente !== '' ? $nome_cliente : 'Cliente Telegram', 0, 200),
+                'name'     => $this->nomeClienteGateway($nome_cliente),
                 'email'    => "cliente+{$documento_limpo}@telegrambot.local",
                 'phone'    => '11999999999',
                 'document' => $documento_limpo,
@@ -286,7 +298,7 @@ class OmegaPaymentsBanco {
                 'periodicity'     => $periodo['periodicity'],
             ],
             'client' => [
-                'name'     => substr($nome_cliente !== '' ? $nome_cliente : 'Cliente Telegram', 0, 200),
+                'name'     => $this->nomeClienteGateway($nome_cliente),
                 'email'    => "cliente+{$documento_limpo}@telegrambot.local",
                 'phone'    => '11999999999',
                 'document' => $documento_limpo,

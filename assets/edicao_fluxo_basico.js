@@ -1090,10 +1090,10 @@
         return s;
     }
 
-    // Só "Depois do Pix" tem sequência: o título "Downsell 1", os cartões e o botão de adicionar somem em "Antes do Pix".
+    // Só "Depois do Pix" tem sequência: os cartões extras e o botão de adicionar somem em "Antes do Pix" (o Downsell 1 continua, é o próprio downsell).
     function atualizarModoDownsell() {
         const $p = $painelOferta('downsell');
-        $p.find('.dn-titulo-1, #dn-extras, #dn-adicionar').toggle($p.find('.of-quando').val() === 'depois_pix');
+        $p.find('#dn-extras, #dn-adicionar').toggle($p.find('.of-quando').val() === 'depois_pix');
         mostrarTemporizadorDownsell($p);
     }
 

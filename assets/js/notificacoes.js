@@ -137,6 +137,10 @@
                 painel.style.left = (left - dx) + 'px';
                 painel.style.top = (topo - dy) + 'px';
             }
+            // Janela baixa: o painel não pode passar da borda de baixo, senão o rodapé ("Marcar todas como lidas") some.
+            // Limita a altura ao espaço que sobra; a lista rola por dentro (.sino-lista) e o rodapé fica visível.
+            var caixa = painel.getBoundingClientRect();
+            painel.style.maxHeight = Math.max(200, window.innerHeight - caixa.top - 16) + 'px';
         }
 
         var fundo = document.createElement('div');

@@ -79,6 +79,8 @@ $sql_select = "
         l.id_telegram,
         l.telefone,
         l.criado_em as data_inicio,
+        l.bot_id,
+        b.nome_usuario as bot_usuario,
         COALESCE(b.primeiro_nome, b.nome_usuario) as nome_bot,
         (SELECT COUNT(*) FROM vendas v WHERE v.id_telegram = l.id_telegram AND v.bot_id = l.bot_id AND v.status = 'pago') as total_compras,
         (SELECT SUM(v.valor) FROM vendas v WHERE v.id_telegram = l.id_telegram AND v.bot_id = l.bot_id AND v.status = 'pago') as total_gasto,
@@ -185,6 +187,7 @@ unset($params_link['pagina']);
     <title>Leads - <?php echo htmlspecialchars(nomeSistema()); ?></title>
     <?php include 'tema_inline.php'; ?>
     <link rel="stylesheet" href="assets/css/painel.css?v=<?php echo @filemtime(__DIR__.'/assets/css/painel.css'); ?>">
+    <link rel="stylesheet" href="assets/css/chat_leads.css?v=<?php echo @filemtime(__DIR__.'/assets/css/chat_leads.css'); ?>">
 </head>
 <body>
 <div class="layout-painel">
@@ -243,12 +246,13 @@ unset($params_link['pagina']);
                         <th>Plano</th>
                         <th>Compras</th>
                         <th class="num">Total gasto</th>
+                        <th class="num">Chat</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($leads)): ?>
                         <tr>
-                            <td colspan="8" class="full a-vazio-linha">Nenhum lead encontrado.</td>
+                            <td colspan="9" class="full a-vazio-linha">Nenhum lead encontrado.</td>
                         </tr>
                     <?php else: ?>
                         <?php foreach ($leads as $lead): ?>
@@ -281,6 +285,19 @@ unset($params_link['pagina']);
                                 </td>
                                 <td data-l="Compras"><?php echo $lead['total_compras']; ?></td>
                                 <td class="num c-val">R$ <?php echo number_format((float)$lead['total_gasto'], 2, ',', '.'); ?></td>
+                                <td class="num">
+                                    <?php // Os dados da conversa vão no próprio botão: a lista lateral do chat é montada no navegador a partir das linhas desta página (nenhuma consulta a mais). ?>
+                                    <button type="button" class="a-btn chat-abrir"
+                                            data-bot-id="<?php echo (int) $lead['bot_id']; ?>"
+                                            data-tg="<?php echo htmlspecialchars((string) $lead['id_telegram'], ENT_QUOTES); ?>"
+                                            data-nome="<?php echo htmlspecialchars($nome_lead, ENT_QUOTES); ?>"
+                                            data-bot="<?php echo htmlspecialchars((string) $lead['bot_usuario'], ENT_QUOTES); ?>"
+                                            data-inicio="<?php echo htmlspecialchars(date('Y-m-d', strtotime($lead['data_inicio'])), ENT_QUOTES); ?>"
+                                            aria-label="Abrir chat com <?php echo htmlspecialchars($nome_lead, ENT_QUOTES); ?>">
+                                        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                                        <span class="t">Abrir chat</span>
+                                    </button>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>
@@ -292,6 +309,7 @@ unset($params_link['pagina']);
 </div>
 
 <script src="assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/tema.js'); ?>"></script>
+<script src="assets/chat_leads.js?v=<?php echo @filemtime(__DIR__ . '/assets/chat_leads.js'); ?>" defer></script>
 <script>
 (function () {
     var form = document.getElementById('form-busca-lead');

@@ -72,6 +72,31 @@ function enviarMensagemComMidiaBasico(string $token, $id_chat, string $mensagem,
 function boasVindasMostraCtaBasico(array $boas_vindas): bool {
     return ($boas_vindas['mostrar_cta'] ?? true) !== false;
 }
+/**
+ * Trava curta por chat para a lista de planos: se a lista saiu há menos de 10 s, o clique seguinte (toques rápidos já enfileirados) não manda outra.
+ * Devolve false quando deve ficar quieto. Sem conseguir gravar a trava, manda a lista (é melhor repetir do que deixar o cliente sem planos).
+ */
+function travarListaPlanosBasico(string $token, $id_chat): bool {
+    $pasta = __DIR__ . '/../storage/travas_planos';
+    if (!is_dir($pasta) && !@mkdir($pasta, 0755, true) && !is_dir($pasta)) {
+        return true;
+    }
+    $f = @fopen($pasta . '/' . md5($token . '|' . $id_chat) . '.trava', 'c+');
+    if ($f === false) {
+        return true;
+    }
+    flock($f, LOCK_EX);
+    $agora = time();
+    $liberada = $agora - (int) stream_get_contents($f) >= 10;
+    if ($liberada) {
+        ftruncate($f, 0);
+        rewind($f);
+        fwrite($f, (string) $agora);
+    }
+    flock($f, LOCK_UN);
+    fclose($f);
+    return $liberada;
+}
 /** O Telegram aceita no máximo 10 itens num álbum (sendMediaGroup). */
 const MIDIAS_MAXIMO_BASICO = 10;
 /**

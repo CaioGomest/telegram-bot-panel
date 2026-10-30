@@ -52,6 +52,14 @@ try {
     logLimparRemarketingEnvios($total_removidas > 0
         ? "Removidas $total_removidas linha(s) de remarketing_envios com mais de " . RETENCAO_DIAS . " dias."
         : 'Nada pra limpar.');
+
+    // Histórico do chat dos leads (funcoes/chat.php) também expira: mesma ideia, e este cron já está agendado em todo servidor,
+    // então não precisa de entrada nova no crontab.
+    require_once __DIR__ . '/../funcoes/chat.php';
+    $chat_removidas = chatLimparAntigas();
+    if ($chat_removidas > 0) {
+        logLimparRemarketingEnvios("Removidas $chat_removidas mensagem(ns) de chat_mensagens com mais de " . CHAT_RETENCAO_DIAS . " dias.");
+    }
 } catch (Throwable $e) {
     logLimparRemarketingEnvios('Erro: ' . $e->getMessage());
 }

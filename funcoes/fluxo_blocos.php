@@ -38,7 +38,7 @@ function requisicaoTelegram(string $token, string $metodo, array $parametros = [
     curl_setopt($ch, CURLOPT_TIMEOUT, !empty($arquivos) ? 30 : 15);
     $resposta = curl_exec($ch);
     $decodificado = json_decode($resposta ?: '', true);
-    registrarRespostaTelegram($token, $decodificado);
+    registrarRespostaTelegram($token, $decodificado, $metodo);
     return is_array($decodificado) ? $decodificado : ['ok' => false, 'description' => 'resposta inválida'];
 }
 

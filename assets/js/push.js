@@ -335,7 +335,10 @@
         link.textContent = ehIOS && !instalado ? 'Como ativar' : 'Ativar';
         var depois = document.createElement('button');
         depois.type = 'button';
-        depois.textContent = 'Agora não';
+        // X no canto (sem texto): mesma ação de antes, esconder por 30 dias; o nome fica no aria-label e no title
+        depois.setAttribute('aria-label', 'Agora não');
+        depois.title = 'Agora não';
+        depois.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18 6L6 18M6 6l12 12"></path></svg>';
         depois.addEventListener('click', function () {
             gravarLocal(CHAVE_CONVITE, String(Date.now() + 30 * 24 * 3600 * 1000));
             caixa.remove();

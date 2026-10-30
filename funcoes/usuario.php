@@ -640,12 +640,48 @@ function contarTotalUsuarios(): int {
     }
 }
 
+/**
+ * Cor de destaque escolhida pelo usuário em Minha Conta (#rrggbb), ou null quando ele usa a cor do sistema.
+ * Nunca derruba a página: sem banco disponível, volta null.
+ */
+function corDestaqueUsuario(int $id): ?string {
+    global $pdo;
+
+    try {
+        $stmt = $pdo->prepare("SELECT cor_destaque FROM usuarios WHERE id = ?");
+        $stmt->execute([$id]);
+        $cor = $stmt->fetchColumn();
+    } catch (Throwable $e) {
+        return null;
+    }
+
+    return is_string($cor) && preg_match('/^#[0-9a-f]{6}$/i', $cor) ? strtolower($cor) : null;
+}
+
+/** Grava a cor de destaque do usuário. null volta para a cor do sistema. Só aceita #rrggbb. */
+function salvarCorDestaqueUsuario(int $id, ?string $cor): array {
+    global $pdo;
+
+    if ($cor !== null && !preg_match('/^#[0-9a-f]{6}$/i', $cor)) {
+        return ['sucesso' => false, 'erro' => 'Cor inválida. Use o formato #rrggbb.'];
+    }
+
+    try {
+        $stmt = $pdo->prepare("UPDATE usuarios SET cor_destaque = ? WHERE id = ?");
+        $stmt->execute([$cor === null ? null : strtolower($cor), $id]);
+        return ['sucesso' => true];
+    } catch (PDOException $e) {
+        error_log("Erro ao salvar cor de destaque do usuario $id: " . $e->getMessage());
+        return ['sucesso' => false, 'erro' => 'Não foi possível salvar a cor. Tente de novo.'];
+    }
+}
+
 function obterDetalhesUsuario(int $id): array {
     global $pdo;
-    
+
     try {
         $stmt = $pdo->prepare("
-            SELECT id, nome, email, apelido_publico, perfil, criado_em
+            SELECT id, nome, email, apelido_publico, cor_destaque, perfil, criado_em
             FROM usuarios
             WHERE id = ?
         ");

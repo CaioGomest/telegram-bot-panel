@@ -86,6 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ja_instalado) {
             nome VARCHAR(100) NOT NULL,
             apelido_publico VARCHAR(40) DEFAULT NULL,
             foto_perfil VARCHAR(255) DEFAULT NULL,
+            cor_destaque CHAR(7) DEFAULT NULL,
             email VARCHAR(150) NOT NULL UNIQUE,
             email_verificado_em DATETIME DEFAULT NULL,
             google_id VARCHAR(255) DEFAULT NULL UNIQUE,
@@ -273,6 +274,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ja_instalado) {
             nome VARCHAR(100) DEFAULT NULL,
             criado_em DATETIME NOT NULL,
             PRIMARY KEY (bot_id, id_telegram, tipo),
+            FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+        // Histórico do chat de cada lead (botão "Abrir Chat" em Leads; funcoes/chat.php).
+        $pdo->exec("CREATE TABLE IF NOT EXISTS chat_mensagens (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            bot_id INT NOT NULL,
+            id_telegram VARCHAR(50) NOT NULL,
+            direcao TINYINT UNSIGNED NOT NULL DEFAULT 0,
+            origem TINYINT UNSIGNED NOT NULL DEFAULT 0,
+            tipo VARCHAR(12) NOT NULL DEFAULT 'texto',
+            texto VARCHAR(1000) NOT NULL DEFAULT '',
+            criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_chat_conversa (bot_id, id_telegram, id),
+            INDEX idx_chat_criado (criado_em),
             FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 

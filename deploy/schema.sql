@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS `usuarios` (
   `nome` varchar(100) NOT NULL,
   `apelido_publico` varchar(40) DEFAULT NULL,
   `foto_perfil` varchar(255) DEFAULT NULL,
+  `cor_destaque` char(7) DEFAULT NULL,
   `email` varchar(150) NOT NULL,
   `email_verificado_em` datetime DEFAULT NULL,
   `google_id` varchar(255) DEFAULT NULL,
@@ -228,6 +229,21 @@ CREATE TABLE IF NOT EXISTS `fluxo_ofertas_aceitas` (
   `criado_em` datetime NOT NULL,
   PRIMARY KEY (`bot_id`,`id_telegram`,`tipo`),
   CONSTRAINT `fluxo_ofertas_aceitas_ibfk_1` FOREIGN KEY (`bot_id`) REFERENCES `bots` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `chat_mensagens` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `bot_id` int(11) NOT NULL,
+  `id_telegram` varchar(50) NOT NULL,
+  `direcao` tinyint(3) unsigned NOT NULL DEFAULT 0,
+  `origem` tinyint(3) unsigned NOT NULL DEFAULT 0,
+  `tipo` varchar(12) NOT NULL DEFAULT 'texto',
+  `texto` varchar(1000) NOT NULL DEFAULT '',
+  `criado_em` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_chat_conversa` (`bot_id`,`id_telegram`,`id`),
+  KEY `idx_chat_criado` (`criado_em`),
+  CONSTRAINT `chat_mensagens_ibfk_1` FOREIGN KEY (`bot_id`) REFERENCES `bots` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `mensagens_agendadas` (

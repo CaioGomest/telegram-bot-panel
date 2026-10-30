@@ -43,13 +43,23 @@ if (configSistema('push_ativo') === '1'):
 // a mesma especificidade, quem vem depois no documento vence, então um :root simples perderia
 // pro painel.css. html[data-theme]:root tem especificidade maior que os dois blocos de tema,
 // então sobrescreve os dois de uma vez, independente da ordem de carregamento.
-$cor_primaria = corPrimariaSistema();
+// Cor escolhida pelo usuário em Minha Conta vale por cima da cor do sistema; sem escolha (null), segue o sistema.
+$cor_usuario = null;
+if (isset($_SESSION['usuario_id']) && function_exists('corDestaqueUsuario')) {
+    $cor_usuario = corDestaqueUsuario((int) $_SESSION['usuario_id']);
+}
+$cor_primaria = $cor_usuario ?? corPrimariaSistema();
 ?>
 <style>
 html[data-theme]:root {
     --or: <?php echo htmlspecialchars($cor_primaria); ?>;
     --or2: <?php echo htmlspecialchars(corClareada($cor_primaria)); ?>;
     --orsoft: <?php echo htmlspecialchars(corSuave($cor_primaria)); ?>;
+<?php if ($cor_usuario !== null): ?>
+    --or3: <?php echo htmlspecialchars(corEscurecida($cor_usuario)); ?>;
+    --on-or: <?php echo htmlspecialchars(corTextoSobre($cor_usuario)); ?>;
+    --sobre-or: <?php echo htmlspecialchars(corTextoSobre($cor_usuario)); ?>;
+<?php endif; ?>
 }
 </style>
 <?php endif; ?>

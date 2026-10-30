@@ -44,12 +44,13 @@
     .push-acoes .a-btn { width: 100%; }
 }
 
-/* ----- Convite discreto no sino (qualquer página; some com "Agora não" por 30 dias) ----- */
-.sino-convite-push { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 0 12px 10px; padding: 10px 12px; border-radius: 12px; background: var(--orsoft); color: var(--t); font-size: 12.5px; line-height: 1.4; }
+/* ----- Convite discreto no sino (qualquer página; o X do canto esconde por 30 dias) ----- */
+.sino-convite-push { position: relative; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px 12px; margin: 0 12px 10px; padding: 12px 40px; border-radius: 12px; background: var(--orsoft); color: var(--t); font-size: 12.5px; line-height: 1.4; text-align: center; }
 .sino-convite-push a { color: var(--or); font-weight: 800; text-decoration: none; }
 .sino-convite-push a:hover { text-decoration: underline; }
-.sino-convite-push button { margin-left: auto; min-height: 32px; padding: 4px 6px; border: 0; background: none; color: var(--m); font: 600 12px 'Manrope', sans-serif; cursor: pointer; }
-.sino-convite-push button:hover { color: var(--t); }
+.sino-convite-push button { position: absolute; top: 4px; right: 4px; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--m); cursor: pointer; }
+.sino-convite-push button:hover { color: var(--t); background: var(--p2); }
+.sino-convite-push button svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 .push-icones { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 14px; margin: 10px 0; }
 .push-icones img { border-radius: 14px; border: 1px solid var(--bd); background: #14161d; object-fit: contain; }
 .push-icones .push-icone-badge { border-radius: 10px; padding: 6px; }

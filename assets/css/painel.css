@@ -267,8 +267,8 @@ html[data-theme].barra-fixa { --largura-barra: 272px; }
     height: 34px;
     border-radius: 10px;
     flex-shrink: 0;
-    background: linear-gradient(140deg, var(--or), #b83d00);
-    color: #fff;
+    background: var(--or);
+    color: var(--sobre-or, #fff);
     display: grid;
     place-items: center;
     font: 800 13px 'Manrope', sans-serif;
@@ -419,7 +419,7 @@ html.sino-aberto .topo-painel { z-index: auto; }
     padding: 0 4px;
     border-radius: 99px;
     background: var(--or);
-    color: #fff;
+    color: var(--sobre-or, #fff);
     font: 700 10px 'Manrope', sans-serif;
     line-height: 16px;
     text-align: center;
@@ -435,6 +435,8 @@ html.sino-aberto .topo-painel { z-index: auto; }
     box-shadow: var(--shadow);
     z-index: 40;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 .sino-painel-cabecalho {
     display: flex;
@@ -461,6 +463,8 @@ html.sino-aberto .topo-painel { z-index: auto; }
     gap: 8px;
     padding: 0 12px 12px;
     max-height: 360px;
+    min-height: 0;
+    flex: 1 1 auto;
     overflow-y: auto;
     overscroll-behavior: contain;
 }
@@ -495,7 +499,7 @@ html.sino-aberto .topo-painel { z-index: auto; }
     font: 700 12px 'Manrope', sans-serif;
     cursor: pointer;
 }
-.periodo-item.ativo { background: var(--or); color: #fff; }
+.periodo-item.ativo { background: var(--or); color: var(--sobre-or, #fff); }
 .form-periodo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .grupo-data-personalizada {
     display: none;
@@ -524,14 +528,14 @@ html.sino-aberto .topo-painel { z-index: auto; }
 .botao-primario {
     background: var(--or);
     border-color: var(--or);
-    color: #fff;
+    color: var(--sobre-or, #fff);
     box-shadow: 0 8px 20px -10px var(--or);
 }
-.botao-primario:hover { background: var(--or2); border-color: var(--or2); color: #fff; }
+.botao-primario:hover { background: var(--or2); border-color: var(--or2); color: var(--sobre-or, #fff); }
 html[data-theme] a.botao-primario,
 html[data-theme] a.botao-primario:hover,
 html[data-theme] button.botao-primario,
-html[data-theme] button.botao-primario:hover { color: #fff; }
+html[data-theme] button.botao-primario:hover { color: var(--sobre-or, #fff); }
 .botao-claro { background: transparent; }
 .botao-secundario { background: transparent; }
 .botao-perigo:hover { border-color: var(--da); color: var(--da); }
@@ -813,8 +817,8 @@ a.btn-icon { text-decoration: none; }
     white-space: nowrap;
 }
 .paginacao-link:hover:not(.disabled) { border-color: var(--or); color: var(--or); }
-.paginacao-link.active { background: var(--or); border-color: var(--or); color: #fff; }
-html[data-theme] a.paginacao-link.active { color: #fff; }
+.paginacao-link.active { background: var(--or); border-color: var(--or); color: var(--sobre-or, #fff); }
+html[data-theme] a.paginacao-link.active { color: var(--sobre-or, #fff); }
 .paginacao-link.disabled { color: var(--m); cursor: not-allowed; opacity: .6; }
 .paginacao-dots { display: flex; align-items: center; justify-content: center; padding: 0 4px; color: var(--m); height: 32px; }
 
@@ -1066,7 +1070,7 @@ html[data-theme] .barra-filtros select {
 }
 .aba-status:hover { color: var(--t); background: var(--p2); }
 .aba-status:focus-visible { outline: 2px solid var(--or); outline-offset: 2px; }
-.aba-status.ativa, .aba-status.ativa:hover { background: var(--or); color: #fff; }
+.aba-status.ativa, .aba-status.ativa:hover { background: var(--or); color: var(--sobre-or, #fff); }
 
 /* ===== Tabela de dados ===== */
 .tabela-dados { overflow-x: auto; margin: 0 -20px -20px; }
@@ -1266,7 +1270,7 @@ html[data-theme] .barra-filtros select {
 
 .cartao-gateway-topo { padding: 14px 16px 12px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .selo-prioridade { display: inline-flex; align-items: center; gap: 5px; background: var(--p3); color: var(--m); font: 700 10.5px 'Manrope', sans-serif; padding: 3px 9px; border-radius: 99px; }
-.selo-prioridade.principal { background: var(--or); color: #fff; }
+.selo-prioridade.principal { background: var(--or); color: var(--sobre-or, #fff); }
 .selo-metodo { display: inline-flex; align-items: center; gap: 4px; background: var(--oksoft); color: var(--ok); font: 700 10px 'Manrope', sans-serif; padding: 2px 8px; border-radius: 12px; }
 
 .corpo-cartao-gateway { padding: 0 16px 14px; display: flex; flex-direction: column; align-items: center; text-align: center; }
@@ -1615,7 +1619,7 @@ html[data-theme="light"] .badge-modo-fluxo.visual { background: rgba(124, 58, 23
 html[data-theme] .login-cabecalho-logo { border: 1px solid var(--bd); }
 
 /* ===== Minha Conta: cartões "Dados pessoais" / "Segurança" + lista de links ===== */
-.conta-avatar { width: 76px; height: 76px; border-radius: 22px; display: flex; align-items: center; justify-content: center; font: 700 26px 'Manrope', sans-serif; color: #fff; background: var(--or); margin-bottom: 16px; overflow: hidden; flex-shrink: 0; }
+.conta-avatar { width: 76px; height: 76px; border-radius: 22px; display: flex; align-items: center; justify-content: center; font: 700 26px 'Manrope', sans-serif; color: var(--sobre-or, #fff); background: var(--or); margin-bottom: 16px; overflow: hidden; flex-shrink: 0; }
 .conta-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .conta-foto { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
 .conta-foto .conta-avatar { margin-bottom: 0; cursor: pointer; }
@@ -1645,7 +1649,7 @@ html[data-theme] .pagina-texto h1, html[data-theme] .pagina-texto h2 { color: va
 html[data-theme] .login-abas { background: var(--p2); border: 1px solid var(--bd); }
 .login-aba { flex: 1; text-align: center; padding: 13px 8px; border-radius: 11px; font: 700 13.5px 'Manrope', sans-serif; }
 html[data-theme] .login-aba { color: var(--m); }
-html[data-theme] .login-aba.ativa { background: var(--or); color: #fff; }
+html[data-theme] .login-aba.ativa { background: var(--or); color: var(--sobre-or, #fff); }
 /* Botão "Continuar com Google": branco fixo nos dois temas (é a identidade visual oficial
    do botão do Google, não segue o tema do app) e escopado com html[data-theme] .botao-google
    de propósito -- html[data-theme] a { color: inherit } (mais acima neste arquivo) tem mais
@@ -1750,7 +1754,7 @@ html[data-theme="light"] .hero-ranking-moldura { opacity: .5; }
 .rotulo-sua-posicao { font: 800 10px 'Manrope', sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--m); margin: 26px 4px 10px; padding-top: 18px; border-top: 1px dashed var(--bd2); }
 .faixa-sua-posicao { display: flex; align-items: center; gap: 12px; padding: 14px; border: 1.5px solid var(--or); border-radius: 14px; background: var(--orsoft); }
 .faixa-sua-posicao .linha-ranking-pos { color: var(--or); width: 66px; font-size: 30px; }
-.faixa-sua-posicao .linha-ranking-avatar { background: var(--or); color: #fff; border-color: var(--or); }
+.faixa-sua-posicao .linha-ranking-avatar { background: var(--or); color: var(--sobre-or, #fff); border-color: var(--or); }
 
 /* ===== Mini-ranking (widget da dashboard) =====
    Resumo do /ranking em formato de cartão por linha, mesma paleta do pódio (1º em --or,
@@ -1774,9 +1778,9 @@ html[data-theme="light"] .hero-ranking-moldura { opacity: .5; }
 .mini-ranking-nome-texto { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .mini-ranking-voce-tag { flex: none; color: var(--or); font-weight: 800; }
 .mini-ranking-pos { flex: none; font: 800 10.5px 'Manrope', sans-serif; padding: 1px 6px; border-radius: 99px; background: var(--p3); color: var(--m); }
-.mini-ranking-item.lider .mini-ranking-pos { background: var(--or); color: #fff; }
+.mini-ranking-item.lider .mini-ranking-pos { background: var(--or); color: var(--sobre-or, #fff); }
 .mini-ranking-valor { font: 800 12.5px 'Manrope', sans-serif; font-variant-numeric: tabular-nums; padding: 5px 10px; border-radius: 99px; background: var(--p3); color: var(--t); white-space: nowrap; }
-.mini-ranking-item.lider .mini-ranking-valor { background: rgba(255, 106, 26, .16); color: var(--or); }
+.mini-ranking-item.lider .mini-ranking-valor { background: var(--orsoft); color: var(--or); }
 .mini-ranking-rodape { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--bd); text-align: center; }
 .mini-ranking-rodape a { font: 700 12px 'Manrope', sans-serif; color: var(--or); }
 .mini-ranking-vazio { padding: 26px 10px; text-align: center; color: var(--m); font-size: 12.5px; }
@@ -2941,7 +2945,7 @@ html[data-theme] .painel-cabecalho small.texto-ajuda { display: inline; margin: 
    Antes era uma coluna de 700 px com o resto da tela vazio. Sem JavaScript as seções aparecem todas, empilhadas. */
 .config-abas { margin: 0 0 16px; align-self: flex-start; }
 .config-abas .aba-contagem { margin-left: 6px; padding: 1px 7px; border-radius: 99px; background: var(--p3); color: var(--m); font-size: 11px; }
-.config-abas .aba-status.ativa .aba-contagem { background: rgba(255,255,255,.25); color: #fff; }
+.config-abas .aba-status.ativa .aba-contagem { background: rgba(255,255,255,.25); color: var(--sobre-or, #fff); }
 .ponto-estado { display: inline-block; width: 7px; height: 7px; margin-left: 7px; border-radius: 50%; background: var(--m); opacity: .45; vertical-align: middle; }
 .ponto-estado.ok { background: var(--ok); opacity: 1; }
 .aba-status.ativa .ponto-estado.ok { background: #fff; }
@@ -2985,12 +2989,12 @@ html[data-theme] .painel-cabecalho small.texto-ajuda { display: inline; margin: 
 .previa-lateral { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px; border: 1px solid var(--bd); border-radius: 14px; background: var(--p2); }
 .previa-lateral img { width: 38px; height: 38px; border-radius: 10px; object-fit: cover; }
 .previa-lateral strong { font: 800 15px 'Manrope', sans-serif; min-width: 0; overflow-wrap: anywhere; }
-.previa-item-ativo { margin-left: auto; padding: 6px 12px; border-radius: 10px; background: var(--previa-cor); color: #fff; font: 700 12px 'Manrope', sans-serif; }
+.previa-item-ativo { margin-left: auto; padding: 6px 12px; border-radius: 10px; background: var(--previa-cor); color: var(--sobre-or, #fff); font: 700 12px 'Manrope', sans-serif; }
 .previa-aba { display: flex; align-items: center; gap: 8px; max-width: 260px; padding: 9px 14px; border: 1px solid var(--bd); border-radius: 10px 10px 0 0; background: var(--p3); font-size: 12.5px; }
 .previa-aba img { width: 16px; height: 16px; border-radius: 3px; object-fit: cover; flex-shrink: 0; }
 .previa-aba span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .previa-botoes { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.previa-botao { padding: 9px 20px; border-radius: 10px; background: var(--previa-cor); color: #fff; font: 700 12.5px 'Manrope', sans-serif; }
+.previa-botao { padding: 9px 20px; border-radius: 10px; background: var(--previa-cor); color: var(--sobre-or, #fff); font: 700 12.5px 'Manrope', sans-serif; }
 .previa-link { color: var(--previa-cor); font: 700 13px 'Manrope', sans-serif; text-decoration: underline; }
 .previa-selo { padding: 4px 11px; border-radius: 99px; border: 1px solid var(--previa-cor); color: var(--previa-cor); font: 700 11.5px 'Manrope', sans-serif; }
 
@@ -3048,7 +3052,7 @@ html[data-theme] .painel-cabecalho small.texto-ajuda { display: inline; margin: 
 
 /* Bot novo: o botão "Trazer dados" pulsa quando o token já foi colado (o nome e o username só vêm depois do clique) e, no celular, o campo do
    token ocupa a linha toda com os dois botões embaixo. */
-html[data-theme] .botao.destaque-acao { background: var(--or); border-color: var(--or); color: #fff; animation: destaque-pulso 1.8s ease-in-out infinite; }
+html[data-theme] .botao.destaque-acao { background: var(--or); border-color: var(--or); color: var(--sobre-or, #fff); animation: destaque-pulso 1.8s ease-in-out infinite; }
 @keyframes destaque-pulso { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 138, 0, .55); } 50% { box-shadow: 0 0 0 7px rgba(255, 138, 0, 0); } }
 @media (prefers-reduced-motion: reduce) { html[data-theme] .botao.destaque-acao { animation: none; } }
 @media (max-width: 560px) {
@@ -3255,3 +3259,8 @@ html .editor-fluxo-corpo .painel > .pg-barra + .pg-texto { margin-top: 0; }
 .dn-planos-criados > .texto-ajuda, .dn-planos-marcados > .texto-ajuda { display: block; margin-top: 8px; }
 .dn-midias-adicionar { display: flex; width: fit-content; margin: 4px 0 0 auto; }
 .dn-midias-extras { margin-top: 8px; }
+
+/* Cor do sistema (Minha Conta): bolinhas de cor sugerida */
+.cor-opcoes { display: flex; flex-wrap: wrap; gap: 10px; margin: 4px 0 14px; }
+.cor-opcao { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--bd2); background: var(--cor-opcao); cursor: pointer; padding: 0; }
+.cor-opcao:hover, .cor-opcao:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--p), 0 0 0 5px var(--cor-opcao); }

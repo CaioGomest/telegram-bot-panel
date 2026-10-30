@@ -93,7 +93,11 @@ function iniciar(porta, arquivoLog) {
             if (erro) { codigo = 400; corpo = { ok: false, error_code: 400, description: erro }; }
             else {
                 const id = ++contador;
-                const resultado = { message_id: id, chat: { id: p.chat_id } };
+                // como o Telegram de verdade: o chat traz o tipo ("private" para conversa com pessoa), e a mensagem traz data e texto/legenda
+                // (o histórico do chat dos leads, funcoes/chat.php, só guarda chat privado e lê tudo isso da resposta)
+                const resultado = { message_id: id, date: Math.floor(Date.now() / 1000), chat: { id: Number(p.chat_id), type: Number(p.chat_id) > 0 ? 'private' : 'supergroup' } };
+                if (p.text !== undefined) resultado.text = p.text;
+                if (p.caption !== undefined) resultado.caption = p.caption;
                 if (metodo === 'sendPhoto') resultado.photo = [{ file_id: 'FIDs' + id }, { file_id: 'FIDg' + id }];
                 if (metodo === 'sendVideo') resultado.video = { file_id: 'FIDv' + id };
                 corpo = { ok: true, result: resultado };

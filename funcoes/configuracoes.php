@@ -134,6 +134,21 @@ function corSuave(string $hex, float $alpha = 0.13): string
     return "rgba($r, $g, $b, $alpha)";
 }
 
+/** Escurece um hex #rrggbb em direção ao preto. Usada pro fim do gradiente de destaque (--or3). */
+function corEscurecida(string $hex, float $fator = 0.3): string
+{
+    [$r, $g, $b] = sscanf($hex, '#%02x%02x%02x');
+    return sprintf('#%02x%02x%02x', (int) round($r * (1 - $fator)), (int) round($g * (1 - $fator)), (int) round($b * (1 - $fator)));
+}
+
+/** Cor do texto sobre a cor de destaque: escuro em cor clara (amarelo, verde-claro), branco no resto. */
+function corTextoSobre(string $hex): string
+{
+    [$r, $g, $b] = sscanf($hex, '#%02x%02x%02x');
+    $luminancia = (0.2126 * $r + 0.7152 * $g + 0.0722 * $b) / 255;
+    return $luminancia > 0.6 ? '#1b0d04' : '#ffffff';
+}
+
 /**
  * Salva um arquivo de marca (logo/favicon) em uploads/ com nome fixo por tipo, pra não
  * acumular lixo a cada troca. A extensão vem de uma lista fechada e, para formato que o PHP

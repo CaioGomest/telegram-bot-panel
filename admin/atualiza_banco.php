@@ -741,6 +741,11 @@ try {
         echo "Coluna 'foto_perfil' adicionada em 'usuarios'.<br>";
     } catch (PDOException $e) {}
 
+    try {
+        $pdo->exec("ALTER TABLE usuarios ADD COLUMN cor_destaque CHAR(7) DEFAULT NULL AFTER foto_perfil");
+        echo "Coluna 'cor_destaque' adicionada em 'usuarios'.<br>";
+    } catch (PDOException $e) {}
+
     // Login com Google: guarda o "sub" (ID único e permanente do Google pra aquela conta) e
     // usa pra achar o usuário depois -- e-mail sozinho não serve como chave de identidade
     // permanente porque a pessoa pode trocar o e-mail da conta Google. NULL pra quem nunca
@@ -1170,6 +1175,22 @@ try {
         FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
     echo "Tabela 'fluxo_ofertas_aceitas' OK.<br>";
+
+    // Histórico do chat de cada lead (botão "Abrir Chat" em Leads; funcoes/chat.php). Escrita em lote, leitura pelo índice da conversa, retenção de 60 dias.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS chat_mensagens (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        bot_id INT NOT NULL,
+        id_telegram VARCHAR(50) NOT NULL,
+        direcao TINYINT UNSIGNED NOT NULL DEFAULT 0,
+        origem TINYINT UNSIGNED NOT NULL DEFAULT 0,
+        tipo VARCHAR(12) NOT NULL DEFAULT 'texto',
+        texto VARCHAR(1000) NOT NULL DEFAULT '',
+        criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_chat_conversa (bot_id, id_telegram, id),
+        INDEX idx_chat_criado (criado_em),
+        FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+    echo "Tabela 'chat_mensagens' OK.<br>";
 
     // Avisos push (Web Push) de Pix gerado e Pix pago — plano em deploy/PLANO-PUSH-NOTIFICACOES.md. Fila e aparelhos; interruptor geral em configuracoes.push_ativo (padrão desligado).
     $pdo->exec("CREATE TABLE IF NOT EXISTS push_inscricoes (
