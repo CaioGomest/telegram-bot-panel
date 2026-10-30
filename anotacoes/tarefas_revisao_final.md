@@ -513,5 +513,11 @@ Repositório: `telegram-bot-panel` (branch `new`). Situação de publicação de
 - **Publicação (VPS, 30/10, ~08:15 do servidor):** `atualizar.sh` com o pacote completo do PC (`/root/painel-novo-8`), backup automático antes, simulação: nada seria apagado, config e dados intactos, sem mudança de banco. O único arquivo que mudou é `assets/chat_leads.js`: md5 no ar = md5 do PC (`6fbe1cf6…`), com `POLL_RAPIDO = 3000` e `POLL_LENTO = 6000`, e o site entrega o mesmo arquivo. `/login` 200, `/leads` 302, `/ajax/chat_mensagens.php` 401, `/webhook.php` 200; sem erro PHP novo. Verificação: mesma falha de sempre ("1 usuário com senha padrão"). O navegador pega a versão nova sozinho (a página pede o JS com `?v=` da data do arquivo). Homologação e GitHub não.
 - **Como voltar atrás:** voltar `POLL_RAPIDO = 4000` e `POLL_LENTO = 12000` no `assets/chat_leads.js`.
 
+### 54. Commitar tudo no GitHub ("commita tudo por favor", 30/10) — ✅ feito: commit `a58218f` na branch `new`
+- **O que entrou:** 47 arquivos (35 alterados + 12 novos), um commit só, cobrindo os itens 41 a 53: Abrir chat nos Leads (item 52 e 53), cor do sistema por usuário (45 a 51), nome de comprador curto no Pix (42/43), trava da lista de planos (43) e Downsell 1 dentro do cartão (41). A mensagem do commit descreve cada bloco e diz o que ainda não foi visto ao vivo.
+- **Cuidados (repositório público):** arquivos adicionados um a um (nunca `git add -A`); varredura de segredos (valores dos arquivos `credenciais-*` gitignored, tokens de bot, chaves privadas, `-pw`, IPs) sem nenhum achado nas linhas novas; `php -l` e `node --check` limpos em todos os arquivos do commit.
+- **Publicado:** `git push origin new` (e027509..a58218f). `layout-coyote` e `main` **não** foram atualizados (só mediante pedido do dono). A VPS já tinha esse código (publicada em 30/10); a homologação não.
+- **Como voltar atrás:** `git revert a58218f` (não reescrever a história de uma branch pública).
+
 ## Próximos pedidos
 _(a lista abaixo é preenchida conforme o dono for pedindo)_
