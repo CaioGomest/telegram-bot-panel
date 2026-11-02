@@ -120,7 +120,7 @@ TABELAS_APAGAR=(fluxos bots leads leads_starts vendas atividades bot_grupos memb
   fluxo_ofertas_aceitas chat_mensagens mensagens_agendadas previas_vistas downsell_agenda order_bump_agenda usuarios_gateways usuarios_splits vendas_splits remarketing_campanhas remarketing_envios remarketing_vendas
   usuarios_traqueamento links_rastreamento stories stories_visualizacoes webhooks webhooks_envios tokens_email fila_emails email_envios
   limites_taxa tentativas_login ranking_cache metricas_horarias_admin metricas_horarias_usuario redirecionadores redirecionador_destinos
-  redirecionador_cliques_dia)
+  redirecionador_cliques_dia geo_ip_cache)
 
 em_lista() { local x="$1"; shift; local i; for i in "$@"; do [[ "$i" == "$x" ]] && return 0; done; return 1; }
 

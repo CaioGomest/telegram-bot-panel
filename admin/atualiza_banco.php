@@ -620,7 +620,8 @@ try {
     foreach (esquemaRedirecionamento() as $sql_redirecionamento) {
         $pdo->exec($sql_redirecionamento);
     }
-    echo "Tabelas de redirecionamento OK.<br>";
+    migrarProtecaoRedirecionamento();
+    echo "Tabelas de redirecionamento OK (proteção, segmentação e cache de país).<br>";
 
     // Identidade visual do painel (white-label): nome, logo e favicon por instalação.
     // Ver funcoes/configuracoes.php e admin/configuracoes.php.

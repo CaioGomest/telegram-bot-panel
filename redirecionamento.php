@@ -94,6 +94,7 @@ bloquearAdmin();
             <a href="#rd-sec-endereco">Endereço</a>
             <a href="#rd-sec-origem">Origem e UTMs</a>
             <a href="#rd-sec-protecao">Proteção</a>
+            <a href="#rd-sec-segmentacao">Segmentação</a>
             <a href="#rd-sec-destino">Destino</a>
         </nav>
 
@@ -144,9 +145,56 @@ bloquearAdmin();
 
             <section class="painel rd-sec" id="rd-sec-protecao">
                 <h3>Proteção</h3>
-                <div class="rd-cartoes rd-cartoes-2" id="rd-protecoes">
-                    <button type="button" class="rd-cartao ativo" data-protecao="nenhuma"><strong>Nenhuma</strong><span>Conta todos os cliques.</span></button>
-                    <button type="button" class="rd-cartao" data-protecao="filtrar_robos"><strong>Filtrar robôs</strong><span>Não conta cliques de robôs e pré-visualizações (eles ainda chegam ao destino).</span></button>
+                <p class="texto-suave rd-dica" style="margin-top:0;">Escolha a estratégia de filtragem do tráfego. Apenas uma pode ficar ativa por link.</p>
+                <div class="rd-cartoes rd-cartoes-3" id="rd-protecoes">
+                    <button type="button" class="rd-cartao ativo" data-protecao="nenhuma"><strong>Sem proteção</strong><span>Encaminha todo acesso diretamente ao destino.</span></button>
+                    <button type="button" class="rd-cartao" data-protecao="cloaker"><strong>Cloaker + AntiClone</strong><span>Barra robôs de anúncio e links compartilhados.</span></button>
+                    <button type="button" class="rd-cartao" data-protecao="cloaker_v2"><strong>Cloaker V2 <em class="rd-selo">Avançado</em></strong><span>Tudo do Cloaker, mais uma análise do navegador (barra navegador automatizado).</span></button>
+                </div>
+
+                <h4 class="rd-subtitulo">Resposta para tráfego bloqueado</h4>
+                <div class="rd-cartoes rd-cartoes-2" id="rd-bloqueios">
+                    <button type="button" class="rd-cartao ativo" data-bloqueio="pagina_segura"><strong>Página segura</strong><span>Mostra uma página neutra, sem nada do seu produto.</span></button>
+                    <button type="button" class="rd-cartao" data-bloqueio="redirecionar"><strong>Redirecionar</strong><span>Envia o acesso bloqueado para outra URL.</span></button>
+                </div>
+                <div class="campo" id="rd-campo-bloqueio-url" style="margin-top:12px;" hidden>
+                    <label for="rd-bloqueio-url">URL para o tráfego bloqueado</label>
+                    <input type="text" inputmode="url" id="rd-bloqueio-url" maxlength="500" placeholder="https://www.exemplo.com.br" autocomplete="off" spellcheck="false">
+                </div>
+                <p class="texto-suave rd-dica">Vale para a Proteção e para a Segmentação. Acesso bloqueado não conta como clique.</p>
+
+                <div class="rd-linhas" id="rd-opcoes-cloaker">
+                    <label class="rd-linha-opcao">
+                        <span class="rd-linha-texto"><strong>Bloquear bots de anúncios</strong><span>Filtra crawlers conhecidos do Facebook, Google, TikTok e outras redes.</span></span>
+                        <span class="basico-interruptor sem-caixa"><input type="checkbox" id="rd-bloquear-bots" checked></span>
+                    </label>
+                    <label class="rd-linha-opcao" id="rd-linha-anti">
+                        <span class="rd-linha-texto"><strong>Anti-compartilhamento</strong><span id="rd-anti-texto">Restringe acessos que cheguem de links compartilhados fora da campanha original.</span></span>
+                        <span class="basico-interruptor sem-caixa"><input type="checkbox" id="rd-anti-compartilhamento"></span>
+                    </label>
+                </div>
+            </section>
+
+            <section class="painel rd-sec" id="rd-sec-segmentacao">
+                <h3>Segmentação</h3>
+                <p class="texto-suave rd-dica" style="margin-top:0;">Controle países e validação de idioma.</p>
+                <div class="rd-linhas">
+                    <label class="rd-linha-opcao">
+                        <span class="rd-linha-texto"><strong>Filtrar por localização</strong><span>Somente países selecionados poderão seguir para o destino real.</span></span>
+                        <span class="basico-interruptor sem-caixa"><input type="checkbox" id="rd-filtrar-pais"></span>
+                    </label>
+                </div>
+                <div id="rd-bloco-paises" hidden>
+                    <h4 class="rd-subtitulo">Países permitidos</h4>
+                    <p class="texto-suave rd-dica" style="margin:0 0 10px;">A seleção é inclusiva: todo país não marcado é bloqueado.</p>
+                    <div class="rd-paises" id="rd-paises"></div>
+                    <div class="rd-linhas" style="margin-top:14px;">
+                        <label class="rd-linha-opcao">
+                            <span class="rd-linha-texto"><strong>Conferir idioma do navegador</strong><span>Também compara o idioma informado pelo navegador com os países permitidos.</span></span>
+                            <span class="basico-interruptor sem-caixa"><input type="checkbox" id="rd-validar-idioma"></span>
+                        </label>
+                    </div>
+                    <p class="texto-suave rd-dica">O país vem do IP do visitante. Se não for possível descobrir o país, o acesso passa (uma falha do serviço de localização não derruba suas vendas).</p>
                 </div>
             </section>
 
@@ -181,6 +229,7 @@ bloquearAdmin();
                     <li><b>01</b><div><strong>Entrada</strong><span id="rd-j-entrada"></span></div></li>
                     <li><b>02</b><div><strong>Atribuição</strong><span id="rd-j-atribuicao"></span></div></li>
                     <li><b>03</b><div><strong>Proteção</strong><span id="rd-j-protecao"></span></div></li>
+                    <li><b>04</b><div><strong>Segmentação</strong><span id="rd-j-segmentacao"></span></div></li>
                     <li class="final"><b>→</b><div><strong>Destino final</strong><span id="rd-j-destino"></span></div></li>
                 </ol>
             </div>

@@ -4,7 +4,7 @@
     const ICONE_EDITAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>';
     const ICONE_LIXO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
 
-    let opcoes = { bots: [], dominios: [], plataformas: {}, host: location.host, esquema: location.protocol.replace(':', ''), base: '' };
+    let opcoes = { bots: [], dominios: [], plataformas: {}, paises: [], host: location.host, esquema: location.protocol.replace(':', ''), base: '' };
     let links = [];
     let ed = null;          // estado do editor
     let ed_original = '';   // snapshot pra detectar alteração
@@ -113,7 +113,8 @@
                 '<span class="rd-celula-url" title="' + esc(l.url) + '">' + esc(l.url.replace(/^https?:\/\//, '')) + '</span>' +
                 (plat ? '<span class="badge badge-neutro">' + esc(plat) + '</span>' : '') + '</div></td>' +
                 '<td>' + destino + '</td>' +
-                '<td>' + numero(l.cliques) + '<div class="texto-suave rd-sub">' + numero(l.cliques_7d) + ' em 7 dias</div></td>' +
+                '<td>' + numero(l.cliques) + '<div class="texto-suave rd-sub">' + numero(l.cliques_7d) + ' em 7 dias</div>' +
+                (l.bloqueados ? '<div class="texto-suave rd-sub">' + numero(l.bloqueados) + ' bloqueados</div>' : '') + '</td>' +
                 '<td>' + numero(l.starts) + '</td>' +
                 '<td>' + numero(l.leads) + '</td>' +
                 '<td>' + numero(l.vendas_qtd) + '<div class="texto-suave rd-sub">' + moeda(l.vendas_valor) + '</div></td>' +
@@ -161,7 +162,9 @@
     function estadoVazio() {
         return {
             id: 0, titulo: '', ativo: true, dominio: '', formato: 'aleatorio', slug: '',
-            plataforma: 'meta', protecao: 'nenhuma', modo: 'aleatorio', bots: [], url: ''
+            plataforma: 'meta', protecao: 'nenhuma', modo: 'aleatorio', bots: [], url: '',
+            bloqueio_tipo: 'pagina_segura', bloqueio_url: '', bloquear_bots: true, anti_compartilhamento: false,
+            filtrar_pais: false, paises: [], validar_idioma: false
         };
     }
 
@@ -190,7 +193,14 @@
         renderizarPlataformas();
         renderizarBots();
         marcarCartoes('#rd-protecoes', 'protecao', ed.protecao);
+        marcarCartoes('#rd-bloqueios', 'bloqueio', ed.bloqueio_tipo);
         marcarCartoes('#rd-modos', 'modo', ed.modo);
+        $('#rd-bloqueio-url').val(ed.bloqueio_url);
+        $('#rd-bloquear-bots').prop('checked', ed.bloquear_bots);
+        $('#rd-anti-compartilhamento').prop('checked', ed.anti_compartilhamento);
+        $('#rd-filtrar-pais').prop('checked', ed.filtrar_pais);
+        $('#rd-validar-idioma').prop('checked', ed.validar_idioma);
+        renderizarPaises();
         atualizarTudo();
 
         $('#rd-editor').addClass('aberto').attr('aria-hidden', 'false');
@@ -254,6 +264,47 @@
         $('#rd-bots').html(html);
     }
 
+    function renderizarPaises() {
+        let html = '';
+        (opcoes.paises || []).forEach(function (p) {
+            const marcado = ed.paises.indexOf(p.codigo) !== -1;
+            html += '<label class="rd-pais' + (marcado ? ' ativo' : '') + '">' +
+                '<input type="checkbox" class="rd-pais-caixa" value="' + esc(p.codigo) + '"' + (marcado ? ' checked' : '') + '>' +
+                '<strong>' + esc(p.nome) + '</strong><em>' + esc(p.codigo) + '</em></label>';
+        });
+        $('#rd-paises').html(html);
+    }
+
+    function nomesPaises() {
+        const mapa = {};
+        (opcoes.paises || []).forEach(function (p) { mapa[p.codigo] = p.nome; });
+        return ed.paises.map(function (c) { return mapa[c] || c; });
+    }
+
+    function textoProtecao() {
+        if (ed.protecao === 'nenhuma') { return 'Sem filtro: todos os cliques seguem para o destino e são contados.'; }
+        const itens = [];
+        if (ed.bloquear_bots) { itens.push('robôs de anúncio'); }
+        if (ed.anti_compartilhamento && ed.plataforma !== 'outra') { itens.push('links compartilhados'); }
+        if (ed.protecao === 'cloaker_v2') { itens.push('navegador automatizado'); }
+        const o = itens.length ? 'Barra ' + itens.join(', ') + '. ' : 'Nenhum filtro ligado. ';
+        return (ed.protecao === 'cloaker_v2' ? 'Cloaker V2: ' : 'Cloaker + AntiClone: ') + o + textoBloqueio();
+    }
+
+    function textoBloqueio() {
+        return ed.bloqueio_tipo === 'redirecionar'
+            ? 'Tráfego bloqueado vai para ' + (ed.bloqueio_url || 'a URL informada') + '.'
+            : 'Tráfego bloqueado vê a página segura.';
+    }
+
+    function textoSegmentacao() {
+        if (!ed.filtrar_pais) { return 'Sem filtro de país: o público de qualquer lugar passa.'; }
+        const nomes = nomesPaises();
+        if (!nomes.length) { return 'Escolha ao menos um país permitido.'; }
+        return 'Só passa quem estiver em ' + nomes.slice(0, 3).join(', ') + (nomes.length > 3 ? ' e mais ' + (nomes.length - 3) : '') +
+            (ed.validar_idioma ? ', com idioma do navegador conferido' : '') + '. ' + (ed.protecao === 'nenhuma' ? textoBloqueio() : '');
+    }
+
     function slugPrevia() {
         if (ed.id > 0) { return ed.slug; }
         if (ed.formato === 'personalizado') { return ed.slug || 'seu-endereco'; }
@@ -271,7 +322,19 @@
         $('#rd-j-entrada').text(url.replace(/^https?:\/\//, ''));
         const plat = opcoes.plataformas[ed.plataforma] || {};
         $('#rd-j-atribuicao').text((plat.query ? plat.nome + ': UTMs de campanha, anúncio e conjunto' : 'Sem UTMs automáticas') + '. Quem chegar fica marcado como rd_' + (ed.id > 0 || ed.formato === 'personalizado' ? slug : 'código') + '.');
-        $('#rd-j-protecao').text(ed.protecao === 'filtrar_robos' ? 'Robôs e pré-visualizações não entram na contagem.' : 'Todos os cliques são contados.');
+        $('#rd-j-protecao').text(textoProtecao());
+        $('#rd-j-segmentacao').text(textoSegmentacao());
+
+        const com_cloaker = ed.protecao !== 'nenhuma';
+        $('#rd-opcoes-cloaker').prop('hidden', !com_cloaker);
+        const sem_sinal = ed.plataforma === 'outra';
+        $('#rd-linha-anti').toggleClass('desligada', sem_sinal);
+        $('#rd-anti-compartilhamento').prop('disabled', sem_sinal);
+        $('#rd-anti-texto').text(sem_sinal
+            ? 'Indisponível em "Outra origem": só dá para conferir links de Meta, TikTok ou Google Ads.'
+            : 'Restringe acessos que cheguem de links compartilhados fora da campanha original.');
+        $('#rd-campo-bloqueio-url').prop('hidden', ed.bloqueio_tipo !== 'redirecionar');
+        $('#rd-bloco-paises').prop('hidden', !ed.filtrar_pais);
 
         const nomes = opcoes.bots.filter(function (b) { return ed.bots.indexOf(b.id) !== -1; }).map(function (b) { return '@' + b.usuario; });
         let destino;
@@ -319,6 +382,12 @@
         if (ed.id <= 0 && ed.formato === 'personalizado' && (ed.slug.length < 3 || ed.slug.length > 40)) {
             exibirAviso('O endereço precisa ter de 3 a 40 caracteres.', 'erro'); irPara('#rd-sec-endereco'); return;
         }
+        if (ed.bloqueio_tipo === 'redirecionar' && (ed.protecao !== 'nenhuma' || ed.filtrar_pais) && !/^https?:\/\/[^\s/]+\.[^\s]+$/i.test($.trim(ed.bloqueio_url))) {
+            exibirAviso('Informe uma URL válida (começando com http ou https) para o tráfego bloqueado.', 'erro'); irPara('#rd-sec-protecao'); $('#rd-bloqueio-url').trigger('focus'); return;
+        }
+        if (ed.filtrar_pais && !ed.paises.length) {
+            exibirAviso('Escolha ao menos um país permitido ou desligue o filtro por localização.', 'erro'); irPara('#rd-sec-segmentacao'); return;
+        }
         if (ed.ativo && !ed.bots.length) {
             exibirAviso('Escolha ao menos um bot de destino ou deixe o link inativo.', 'erro'); irPara('#rd-sec-destino'); return;
         }
@@ -329,7 +398,10 @@
             url: url_api + '?action=salvar_redirecionador', method: 'POST', contentType: 'application/json',
             data: JSON.stringify({
                 id: ed.id, titulo: titulo, ativo: ed.ativo ? 1 : 0, dominio: ed.dominio, formato: ed.formato, slug: ed.slug,
-                plataforma: ed.plataforma, protecao: ed.protecao, modo: ed.modo, bots: ed.bots
+                plataforma: ed.plataforma, protecao: ed.protecao, modo: ed.modo, bots: ed.bots,
+                bloqueio_tipo: ed.bloqueio_tipo, bloqueio_url: $.trim(ed.bloqueio_url), bloquear_bots: ed.bloquear_bots ? 1 : 0,
+                anti_compartilhamento: ed.anti_compartilhamento ? 1 : 0, filtrar_pais: ed.filtrar_pais ? 1 : 0,
+                paises: ed.paises, validar_idioma: ed.validar_idioma ? 1 : 0
             })
         }).done(function (res) {
             exibirAviso(res.mensagem || 'Link salvo.');
@@ -373,7 +445,10 @@
                 id: parseInt(l.id, 10), titulo: l.titulo || '', ativo: !!parseInt(l.ativo, 10), dominio: l.dominio || '',
                 formato: 'personalizado', slug: l.slug || '', plataforma: l.plataforma || 'meta',
                 protecao: l.protecao || 'nenhuma', modo: l.modo || 'aleatorio',
-                bots: (l.bots || []).map(function (b) { return parseInt(b, 10); }), url: l.url || ''
+                bots: (l.bots || []).map(function (b) { return parseInt(b, 10); }), url: l.url || '',
+                bloqueio_tipo: l.bloqueio_tipo || 'pagina_segura', bloqueio_url: l.bloqueio_url || '',
+                bloquear_bots: !!parseInt(l.bloquear_bots, 10), anti_compartilhamento: !!parseInt(l.anti_compartilhamento, 10),
+                filtrar_pais: !!parseInt(l.filtrar_pais, 10), paises: l.paises || [], validar_idioma: !!parseInt(l.validar_idioma, 10)
             });
         }).fail(function (xhr) {
             exibirAviso(mensagemErro(xhr, 'Não foi possível carregar o link.'), 'erro');
@@ -507,6 +582,28 @@
         $('#rd-protecoes').on('click', '.rd-cartao', function () {
             ed.protecao = $(this).data('protecao');
             marcarCartoes('#rd-protecoes', 'protecao', ed.protecao);
+            atualizarTudo();
+        });
+        $('#rd-bloqueios').on('click', '.rd-cartao', function () {
+            ed.bloqueio_tipo = $(this).data('bloqueio');
+            marcarCartoes('#rd-bloqueios', 'bloqueio', ed.bloqueio_tipo);
+            atualizarTudo();
+            if (ed.bloqueio_tipo === 'redirecionar') { $('#rd-bloqueio-url').trigger('focus'); }
+        });
+        $('#rd-bloqueio-url').on('input', function () { ed.bloqueio_url = this.value; atualizarTudo(); });
+        $('#rd-bloquear-bots').on('change', function () { ed.bloquear_bots = this.checked; atualizarTudo(); });
+        $('#rd-anti-compartilhamento').on('change', function () { ed.anti_compartilhamento = this.checked; atualizarTudo(); });
+        $('#rd-filtrar-pais').on('change', function () {
+            ed.filtrar_pais = this.checked;
+            if (this.checked && !ed.paises.length) { ed.paises = ['BR']; renderizarPaises(); }
+            atualizarTudo();
+        });
+        $('#rd-validar-idioma').on('change', function () { ed.validar_idioma = this.checked; atualizarTudo(); });
+        $('#rd-paises').on('change', '.rd-pais-caixa', function () {
+            const codigo = String(this.value);
+            ed.paises = ed.paises.filter(function (c) { return c !== codigo; });
+            if (this.checked) { ed.paises.push(codigo); }
+            $(this).closest('.rd-pais').toggleClass('ativo', this.checked);
             atualizarTudo();
         });
         $('#rd-modos').on('click', '.rd-cartao', function () {

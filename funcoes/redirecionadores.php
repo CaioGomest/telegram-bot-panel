@@ -35,7 +35,8 @@ const REDIRECIONADOR_PLATAFORMAS = [
     ],
 ];
 
-const REDIRECIONADOR_PROTECOES = ['nenhuma', 'filtrar_robos'];
+// 'filtrar_robos' é o valor antigo: a migração e o salvar tratam como 'cloaker'. Ver funcoes/protecao_redirecionamento.php.
+const REDIRECIONADOR_PROTECOES = ['nenhuma', 'cloaker', 'cloaker_v2', 'filtrar_robos'];
 const REDIRECIONADOR_MODOS = ['aleatorio', 'sequencial'];
 
 function esquemaRedirecionamento(): array
@@ -51,6 +52,14 @@ function esquemaRedirecionamento(): array
             plataforma VARCHAR(20) NOT NULL DEFAULT 'meta',
             protecao VARCHAR(20) NOT NULL DEFAULT 'nenhuma',
             modo VARCHAR(20) NOT NULL DEFAULT 'aleatorio',
+            bloqueio_tipo VARCHAR(20) NOT NULL DEFAULT 'pagina_segura',
+            bloqueio_url VARCHAR(500) DEFAULT NULL,
+            bloquear_bots TINYINT(1) NOT NULL DEFAULT 1,
+            anti_compartilhamento TINYINT(1) NOT NULL DEFAULT 0,
+            filtrar_pais TINYINT(1) NOT NULL DEFAULT 0,
+            paises VARCHAR(200) NOT NULL DEFAULT '',
+            validar_idioma TINYINT(1) NOT NULL DEFAULT 0,
+            bloqueados INT NOT NULL DEFAULT 0,
             cliques INT NOT NULL DEFAULT 0,
             starts INT NOT NULL DEFAULT 0,
             leads INT NOT NULL DEFAULT 0,
@@ -76,7 +85,37 @@ function esquemaRedirecionamento(): array
             PRIMARY KEY (redirecionador_id, dia, campanha),
             FOREIGN KEY (redirecionador_id) REFERENCES redirecionadores(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        "CREATE TABLE IF NOT EXISTS geo_ip_cache (
+            ip VARCHAR(45) NOT NULL PRIMARY KEY,
+            pais CHAR(2) NOT NULL,
+            consultado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            KEY idx_geo_ip_consultado (consultado_em)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
     ];
+}
+
+/** Colunas de proteção/segmentação que bancos criados antes de 02/11/2026 não têm. Idempotente. */
+function migrarProtecaoRedirecionamento(): void
+{
+    global $pdo;
+    $colunas = [
+        'bloqueio_tipo' => "VARCHAR(20) NOT NULL DEFAULT 'pagina_segura' AFTER modo",
+        'bloqueio_url' => 'VARCHAR(500) DEFAULT NULL AFTER bloqueio_tipo',
+        'bloquear_bots' => 'TINYINT(1) NOT NULL DEFAULT 1 AFTER bloqueio_url',
+        'anti_compartilhamento' => 'TINYINT(1) NOT NULL DEFAULT 0 AFTER bloquear_bots',
+        'filtrar_pais' => 'TINYINT(1) NOT NULL DEFAULT 0 AFTER anti_compartilhamento',
+        'paises' => "VARCHAR(200) NOT NULL DEFAULT '' AFTER filtrar_pais",
+        'validar_idioma' => 'TINYINT(1) NOT NULL DEFAULT 0 AFTER paises',
+        'bloqueados' => 'INT NOT NULL DEFAULT 0 AFTER validar_idioma',
+    ];
+    $existentes = $pdo->query("SHOW COLUMNS FROM redirecionadores")->fetchAll(PDO::FETCH_COLUMN);
+    foreach ($colunas as $nome => $definicao) {
+        if (!in_array($nome, $existentes, true)) {
+            $pdo->exec("ALTER TABLE redirecionadores ADD COLUMN $nome $definicao");
+        }
+    }
+    // O antigo "filtrar robôs" só deixava de contar o clique; agora é o Cloaker (bloqueia de verdade).
+    $pdo->exec("UPDATE redirecionadores SET protecao = 'cloaker' WHERE protecao = 'filtrar_robos'");
 }
 
 /** Cria as tabelas se faltarem, pra tela funcionar mesmo antes de rodar "Atualizar Banco". */
@@ -93,6 +132,13 @@ function garantirTabelasRedirecionamento(): bool
             foreach (esquemaRedirecionamento() as $sql) {
                 $pdo->exec($sql);
             }
+        }
+        if (!$pdo->query("SHOW COLUMNS FROM redirecionadores LIKE 'bloqueados'")->fetchColumn()
+            || !$pdo->query("SHOW TABLES LIKE 'geo_ip_cache'")->fetchColumn()) {
+            foreach (esquemaRedirecionamento() as $sql) {
+                $pdo->exec($sql);
+            }
+            migrarProtecaoRedirecionamento();
         }
         $ok = true;
     } catch (\Throwable $e) {
@@ -203,6 +249,7 @@ function opcoesRedirecionamento(int $usuario_id): array
         'bots' => $bots,
         'dominios' => dominiosRedirecionamento(),
         'plataformas' => $plataformas,
+        'paises' => paisesRedirecionamentoParaTela(),
         'host' => $ctx['host'],
         'esquema' => $ctx['esquema'],
         'base' => $ctx['base'],
@@ -255,6 +302,7 @@ function listarRedirecionadores(int $usuario_id): array
         $r['id'] = (int) $r['id'];
         $r['ativo'] = (int) $r['ativo'];
         $r['cliques'] = (int) $r['cliques'];
+        $r['bloqueados'] = (int) ($r['bloqueados'] ?? 0);
         $r['starts'] = (int) $r['starts'];
         $r['leads'] = (int) $r['leads'];
         $r['qtd_destinos'] = (int) $r['qtd_destinos'];
@@ -280,6 +328,13 @@ function obterRedirecionador(int $usuario_id, int $id): array|false
     $stmt_d->execute([$id]);
     $r['id'] = (int) $r['id'];
     $r['ativo'] = (int) $r['ativo'];
+    foreach (['bloquear_bots', 'anti_compartilhamento', 'filtrar_pais', 'validar_idioma', 'bloqueados'] as $c) {
+        $r[$c] = (int) ($r[$c] ?? 0);
+    }
+    if ($r['protecao'] === 'filtrar_robos') {
+        $r['protecao'] = 'cloaker';
+    }
+    $r['paises'] = normalizarPaisesRedirecionamento((string) ($r['paises'] ?? ''));
     $r['bots'] = array_map('intval', $stmt_d->fetchAll(PDO::FETCH_COLUMN));
     $r['url'] = urlPublicaRedirecionador($r, contextoUrlRedirecionamento());
     return $r;
@@ -307,6 +362,45 @@ function salvarRedirecionador(int $usuario_id, array $d): array
     if (!isset(REDIRECIONADOR_PLATAFORMAS[$plataforma]) || !in_array($protecao, REDIRECIONADOR_PROTECOES, true) || !in_array($modo, REDIRECIONADOR_MODOS, true)) {
         return ['sucesso' => false, 'mensagem' => 'Configuração inválida.'];
     }
+    if ($protecao === 'filtrar_robos') {
+        $protecao = 'cloaker';
+    }
+
+    $com_cloaker = $protecao !== 'nenhuma';
+    $bloquear_bots = $com_cloaker && (!array_key_exists('bloquear_bots', $d) || !empty($d['bloquear_bots'])) ? 1 : 0;
+    $anti_compartilhamento = $com_cloaker && !empty($d['anti_compartilhamento']) && $plataforma !== 'outra' ? 1 : 0;
+
+    $bloqueio_tipo = (string) ($d['bloqueio_tipo'] ?? 'pagina_segura');
+    $bloqueio_url = trim((string) ($d['bloqueio_url'] ?? ''));
+    if (!in_array($bloqueio_tipo, REDIRECIONADOR_BLOQUEIOS, true)) {
+        return ['sucesso' => false, 'mensagem' => 'Resposta para tráfego bloqueado inválida.'];
+    }
+
+    $filtrar_pais = !empty($d['filtrar_pais']) ? 1 : 0;
+    $paises_pedidos = is_array($d['paises'] ?? null) ? $d['paises'] : [];
+    if (paisesDesconhecidosRedirecionamento($paises_pedidos)) {
+        return ['sucesso' => false, 'mensagem' => 'País inválido na segmentação.'];
+    }
+    $paises = normalizarPaisesRedirecionamento($paises_pedidos);
+    if ($filtrar_pais && !$paises) {
+        return ['sucesso' => false, 'mensagem' => 'Escolha ao menos um país permitido ou desligue o filtro por localização.'];
+    }
+    $validar_idioma = $filtrar_pais && !empty($d['validar_idioma']) ? 1 : 0;
+
+    $bloqueia_algo = $com_cloaker || $filtrar_pais;
+    if ($bloqueio_tipo === 'redirecionar') {
+        if ($bloqueia_algo && !urlBloqueioRedirecionamentoValida($bloqueio_url)) {
+            return ['sucesso' => false, 'mensagem' => 'Informe uma URL válida (http ou https) para onde mandar o tráfego bloqueado.'];
+        }
+        if (!urlBloqueioRedirecionamentoValida($bloqueio_url)) {
+            $bloqueio_tipo = 'pagina_segura';
+            $bloqueio_url = '';
+        }
+    } else {
+        $bloqueio_url = '';
+    }
+    $bloqueio_url_banco = $bloqueio_url !== '' ? $bloqueio_url : null;
+    $paises_banco = implode(',', $paises);
 
     $dominio = strtolower(trim((string) ($d['dominio'] ?? '')));
     if ($dominio !== '' && !in_array($dominio, dominiosRedirecionamento(), true)) {
@@ -341,10 +435,14 @@ function salvarRedirecionador(int $usuario_id, array $d): array
         if ($id > 0) {
             $stmt = $pdo->prepare("
                 UPDATE redirecionadores
-                SET titulo = ?, dominio = ?, ativo = ?, plataforma = ?, protecao = ?, modo = ?
+                SET titulo = ?, dominio = ?, ativo = ?, plataforma = ?, protecao = ?, modo = ?,
+                    bloqueio_tipo = ?, bloqueio_url = ?, bloquear_bots = ?, anti_compartilhamento = ?,
+                    filtrar_pais = ?, paises = ?, validar_idioma = ?
                 WHERE id = ? AND id_usuario = ?
             ");
-            $stmt->execute([$titulo, $dominio !== '' ? $dominio : null, $ativo, $plataforma, $protecao, $modo, $id, $usuario_id]);
+            $stmt->execute([$titulo, $dominio !== '' ? $dominio : null, $ativo, $plataforma, $protecao, $modo,
+                $bloqueio_tipo, $bloqueio_url_banco, $bloquear_bots, $anti_compartilhamento, $filtrar_pais, $paises_banco, $validar_idioma,
+                $id, $usuario_id]);
             $stmt_existe = $pdo->prepare("SELECT 1 FROM redirecionadores WHERE id = ? AND id_usuario = ?");
             $stmt_existe->execute([$id, $usuario_id]);
             if (!$stmt_existe->fetchColumn()) {
@@ -380,10 +478,12 @@ function salvarRedirecionador(int $usuario_id, array $d): array
             }
 
             $stmt = $pdo->prepare("
-                INSERT INTO redirecionadores (id_usuario, titulo, slug, dominio, ativo, plataforma, protecao, modo)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO redirecionadores (id_usuario, titulo, slug, dominio, ativo, plataforma, protecao, modo,
+                    bloqueio_tipo, bloqueio_url, bloquear_bots, anti_compartilhamento, filtrar_pais, paises, validar_idioma)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
-            $stmt->execute([$usuario_id, $titulo, $slug, $dominio !== '' ? $dominio : null, $ativo, $plataforma, $protecao, $modo]);
+            $stmt->execute([$usuario_id, $titulo, $slug, $dominio !== '' ? $dominio : null, $ativo, $plataforma, $protecao, $modo,
+                $bloqueio_tipo, $bloqueio_url_banco, $bloquear_bots, $anti_compartilhamento, $filtrar_pais, $paises_banco, $validar_idioma]);
             $id = (int) $pdo->lastInsertId();
         }
 
@@ -476,3 +576,5 @@ function ehRoboRedirecionamento(string $user_agent, string $metodo): bool
         $user_agent
     ) === 1;
 }
+
+require_once __DIR__ . '/protecao_redirecionamento.php';

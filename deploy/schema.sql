@@ -655,6 +655,14 @@ CREATE TABLE IF NOT EXISTS `redirecionadores` (
   `plataforma` varchar(20) NOT NULL DEFAULT 'meta',
   `protecao` varchar(20) NOT NULL DEFAULT 'nenhuma',
   `modo` varchar(20) NOT NULL DEFAULT 'aleatorio',
+  `bloqueio_tipo` varchar(20) NOT NULL DEFAULT 'pagina_segura',
+  `bloqueio_url` varchar(500) DEFAULT NULL,
+  `bloquear_bots` tinyint(1) NOT NULL DEFAULT 1,
+  `anti_compartilhamento` tinyint(1) NOT NULL DEFAULT 0,
+  `filtrar_pais` tinyint(1) NOT NULL DEFAULT 0,
+  `paises` varchar(200) NOT NULL DEFAULT '',
+  `validar_idioma` tinyint(1) NOT NULL DEFAULT 0,
+  `bloqueados` int(11) NOT NULL DEFAULT 0,
   `cliques` int(11) NOT NULL DEFAULT 0,
   `starts` int(11) NOT NULL DEFAULT 0,
   `leads` int(11) NOT NULL DEFAULT 0,
@@ -684,6 +692,14 @@ CREATE TABLE IF NOT EXISTS `redirecionador_cliques_dia` (
   `cliques` int(11) NOT NULL DEFAULT 0,
   PRIMARY KEY (`redirecionador_id`,`dia`,`campanha`),
   CONSTRAINT `redirecionador_cliques_dia_ibfk_1` FOREIGN KEY (`redirecionador_id`) REFERENCES `redirecionadores` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `geo_ip_cache` (
+  `ip` varchar(45) NOT NULL,
+  `pais` char(2) NOT NULL,
+  `consultado_em` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`ip`),
+  KEY `idx_geo_ip_consultado` (`consultado_em`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Avisos push (Web Push) de Pix gerado e Pix pago — plano em deploy/PLANO-PUSH-NOTIFICACOES.md

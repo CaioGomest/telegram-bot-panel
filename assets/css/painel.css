@@ -2473,7 +2473,23 @@ html[data-theme] .rd-sec h3 { margin: 0 0 14px; font-size: 19px; }
 .rd-dica { font-size: 12.5px; margin: 10px 0 0; }
 .rd-cartoes { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
 .rd-cartoes-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rd-cartoes-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .rd-cartoes-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.rd-subtitulo { margin: 22px 0 10px; font: 700 13.5px 'Manrope', sans-serif; color: var(--t); }
+.rd-selo { font-style: normal; margin-left: 6px; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--bd2); background: var(--p3); color: var(--m); font: 700 9.5px 'Manrope', sans-serif; letter-spacing: .06em; text-transform: uppercase; vertical-align: middle; }
+.rd-linhas { display: flex; flex-direction: column; gap: 8px; margin-top: 18px; }
+.rd-linha-opcao { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 14px; border: 1px solid var(--bd); border-radius: 12px; background: var(--p2); cursor: pointer; }
+.rd-linha-opcao.desligada { opacity: .5; cursor: not-allowed; }
+.rd-linha-texto { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rd-linha-texto strong { font: 700 13.5px 'Manrope', sans-serif; }
+.rd-linha-texto span { color: var(--m); font-size: 12px; font-weight: 500; }
+.rd-linha-opcao .basico-interruptor { flex: none; margin: 0; }
+.rd-paises { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.rd-pais { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--bd); border-radius: 10px; background: var(--p2); cursor: pointer; min-width: 0; }
+.rd-pais.ativo { border-color: var(--or); background: var(--orsoft); }
+.rd-pais input { flex: none; width: 15px; height: 15px; accent-color: var(--or); }
+.rd-pais strong { flex: 1; min-width: 0; font: 600 13px 'Manrope', sans-serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rd-pais em { flex: none; font-style: normal; color: var(--m); font: 600 10px 'Manrope', sans-serif; }
 .rd-cartao {
     display: flex; flex-direction: column; gap: 3px; text-align: left; cursor: pointer;
     padding: 12px 14px; border-radius: 12px; border: 1px solid var(--bd); background: var(--p2); color: var(--t);
@@ -2531,6 +2547,8 @@ html[data-theme] .rd-sec h3 { margin: 0 0 14px; font-size: 19px; }
     .rd-editor.ver-jornada .rd-form { display: none; }
     .rd-editor.ver-jornada .rd-previa { display: block; }
     .rd-cartoes-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rd-cartoes-3 { grid-template-columns: minmax(0, 1fr); }
+    .rd-paises { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .rd-prep-linha { grid-template-columns: 1fr; }
     .rd-copia { flex-wrap: wrap; }
     .rd-copia-rotulo { width: 100%; }

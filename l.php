@@ -6,6 +6,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/conexao.php';
 require_once __DIR__ . '/funcoes/redirecionadores.php';
+require_once __DIR__ . '/funcoes/protecao_redirecionamento.php';
 
 function paginaLinkIndisponivel(int $status, string $mensagem): void
 {
@@ -27,7 +28,16 @@ if (!slugRedirecionadorValido($slug)) {
 }
 
 try {
-    $stmt = $pdo->prepare("SELECT id, ativo, protecao, modo FROM redirecionadores WHERE slug = ?");
+    $sql_busca = "SELECT id, ativo, plataforma, protecao, modo, bloqueio_tipo, bloqueio_url, bloquear_bots,
+                         anti_compartilhamento, filtrar_pais, paises, validar_idioma
+                  FROM redirecionadores WHERE slug = ?";
+    try {
+        $stmt = $pdo->prepare($sql_busca);
+    } catch (PDOException $e) {
+        // Banco anterior à proteção/segmentação: cria as colunas na hora e tenta de novo.
+        garantirTabelasRedirecionamento();
+        $stmt = $pdo->prepare($sql_busca);
+    }
     $stmt->execute([$slug]);
     $r = $stmt->fetch();
 } catch (\Throwable $e) {
@@ -57,8 +67,50 @@ if (!$destinos) {
 }
 
 $metodo = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
-$eh_robo = ehRoboRedirecionamento((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), $metodo);
-$contar = !($r['protecao'] === 'filtrar_robos' && $eh_robo) && $metodo !== 'HEAD';
+$ip = preg_replace('/[^0-9a-fA-F:.]/', '', (string) ($_SERVER['REMOTE_ADDR'] ?? '')) ?? '';
+
+// Proteção + segmentação: quem não passa vê a resposta de bloqueio e não conta como clique.
+$motivo = $metodo === 'HEAD' ? null : avaliarAcessoRedirecionador($r, [
+    'ua' => (string) ($_SERVER['HTTP_USER_AGENT'] ?? ''),
+    'metodo' => $metodo,
+    'idioma' => (string) ($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? ''),
+    'query' => $_GET,
+    'pais' => fn() => paisDoIpRedirecionamento($ip),
+]);
+if ($motivo !== null) {
+    contarBloqueioRedirecionamento($id);
+    responderBloqueioRedirecionamento($r);
+}
+
+// Cloaker V2: o navegador precisa resolver um desafio em JavaScript antes de seguir.
+if ($r['protecao'] === 'cloaker_v2' && $metodo !== 'HEAD') {
+    if ($metodo === 'POST') {
+        $corpo = json_decode((string) file_get_contents('php://input', false, null, 0, 4096), true);
+        $passe_ok = is_array($corpo) && passeDesafioRedirecionamentoValido((string) ($corpo['p'] ?? ''), $slug, $ip)
+            && sinaisDesafioRedirecionamentoOk((array) ($corpo['s'] ?? []), (string) ($_SERVER['HTTP_USER_AGENT'] ?? ''));
+        header('Content-Type: application/json; charset=UTF-8');
+        header('Cache-Control: no-store');
+        if (!$passe_ok) {
+            contarBloqueioRedirecionamento($id);
+            if ($r['bloqueio_tipo'] === 'redirecionar' && urlBloqueioRedirecionamentoValida((string) $r['bloqueio_url'])) {
+                echo json_encode(['u' => $r['bloqueio_url']]);
+            } else {
+                echo json_encode(['h' => paginaSeguraRedirecionamento()]);
+            }
+            exit;
+        }
+        $v2_aprovado = true;
+    } else {
+        header('Cache-Control: no-store, no-cache, must-revalidate');
+        header('X-Robots-Tag: noindex, nofollow');
+        header('Content-Type: text/html; charset=UTF-8');
+        echo paginaDesafioRedirecionamento($r, emitirPasseDesafioRedirecionamento($slug, $ip));
+        exit;
+    }
+}
+$v2_aprovado = $v2_aprovado ?? false;
+
+$contar = $metodo !== 'HEAD';
 
 $posicao = null;
 if ($contar) {
@@ -73,7 +125,7 @@ if ($contar) {
             VALUES (?, CURDATE(), ?, 1)
             ON DUPLICATE KEY UPDATE cliques = cliques + 1
         ")->execute([$id, $campanha]);
-    } catch (\Throwable $e) {
+    } catch (Throwable $e) {
         error_log('[redirecionamento] l.php contagem: ' . $e->getMessage());
     }
 }
@@ -91,5 +143,10 @@ $url = 'https://t.me/' . $escolhido . '?start=' . REDIRECIONADOR_PREFIXO_START .
 header('Cache-Control: no-store, no-cache, must-revalidate');
 header('Referrer-Policy: no-referrer');
 header('X-Robots-Tag: noindex, nofollow');
+if ($v2_aprovado) {
+    header('Content-Type: application/json; charset=UTF-8');
+    echo json_encode(['u' => $url]);
+    exit;
+}
 header('Location: ' . $url, true, 302);
 exit;
