@@ -63,9 +63,9 @@ As páginas que exigem `verificarAdmin()`/`verificarAdminOuInstalacao()` moraram
 
 `atualizacao_seguranca.php`, `debug_colunas_vendas.php` e `setup_menus.php` foram removidos (não renomeados) por ficarem redundantes/inúteis: as duas primeiras faziam exatamente o que `atualiza_banco.php` já faz (mesmas colunas), e a terceira recriava a tabela `menus`, que não é mais lida por nenhum código (a sidebar usa array fixo em PHP). `debug_colunas_grupos.php` também saiu por baixo uso. Ficaram no menu Debug só `atualiza_banco.php` (migração real, idempotente) e `debug_ultima_venda.php` (inspeciona a última venda, útil pra conferir status de gateway/split).
 
-## Pasta `/seeds`
+## Pasta `/seeds` (removida em 03/11/2026)
 
-Scripts que só populam o banco com **dado fake/de teste** (nunca dado de produção, nunca chamado por webhook/cron/fluxo real) ficam em `seeds/`, separado de `admin/` (que é rotina de manutenção real, tipo migração de schema). Hoje só tem `seeds/popular_banco.php` (cria usuários/bots/leads/vendas fictícios pra testar paginação e dashboards). Mesma proteção do `admin/`: `.htaccess` com `Options -Indexes` e a própria página exige `verificarAdminOuInstalacao()`. Como `seeds/` fica na mesma profundidade de `admin/` (um nível abaixo da raiz), os `require_once __DIR__ . '/../funcoes/...'` continuam funcionando sem ajuste — só os links relativos *dentro* da página (ex.: link de volta pra uma página de `admin/`) precisam do prefixo `../admin/`.
+A pasta `seeds/` (só tinha `popular_banco.php`, que criava 50 usuários fictícios com senha `123456` e era liberado a "admin ou instalação") foi apagada: ninguém a chamava e o repositório é público. Carga de dado fake para teste fica em `tests/` (nunca em arquivo acessível pela web). Se algum dia voltar, não pode ser executável por visitante sem login.
 
 Pontos que **têm que** ser respeitados em qualquer página nova dentro de `admin/`:
 - `require_once __DIR__ . '/../funcoes/...'` (não `/funcoes/...`) pra tudo que a página precisa de `funcoes/`.

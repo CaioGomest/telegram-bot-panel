@@ -557,5 +557,10 @@ Repositório: `telegram-bot-panel` (branch `new`). Situação de publicação de
 - **Causa:** `admin/usuarios.php` desenhava só a inicial; a consulta `listarUsuariosFiltrados` nem trazia `foto_perfil`. **Correção:** consulta traz a foto (NULL se a coluna não existir), lista usa `htmlAvatarUsuario`, CSS recorta a imagem. Outras telas com avatar (barra lateral, Minha Conta, ranking, mini-ranking, stories) já usavam a foto; admin/ranking_classificacao, transações e modal de detalhes não têm avatar.
 - **VPS:** 3 arquivos (md5 igual ao PC), backup em `/var/backups/painel/deploy-antes/foto-lista-usuarios-20261103/`; render como admin: página 1 com 2 fotos (13997, 6068), página 2 com 2 (6058, #1); arquivos de imagem respondem 200 image/jpeg. Homologação/GitHub: não.
 
+### 60. Cron de métricas do admin de 5 min para 1 min + "Atualizado às" na Visão Geral (03/11/2026) — ✅ na VPS e no GitHub (cf9f226)
+- **Motivo:** o dono fez uma venda real e o painel ficou zerado até o próximo cron (cache de 5 min). Recomendado o cron de 1 min (cálculo só dos últimos 7 dias, barato com pouco volume) + texto "Atualizado às". Alternativa que escala melhor (gravar na hora da venda paga) fica para quando o volume crescer.
+- **Feito:** `/etc/cron.d/painel` na VPS (cópia antiga em `/var/backups/painel/deploy-antes/foto-lista-usuarios-20261103/cron.d-painel`), `deploy/vps/instalar.sh`, `admin/dashboard.php`. Tabela de crons (OBSERVACOES.md, seção 6) atualizada com a frequência nova, onde fica a agenda e a regra "mudou horário? altere VPS + instalar.sh + tabela".
+- **Removido a pedido do dono (03/11/2026):** `seeds/popular_banco.php` e `seeds/.htaccess` (criava 50 usuários com senha 123456; liberado a "admin ou instalação"; nada o chamava). O Git guarda o histórico (`git log -- seeds`). `CLAUDE.md` atualizado. As exclusões de `seeds/` no instalar.sh/atualizar.sh e no .htaccess da raiz ficam (inofensivas).
+
 ## Próximos pedidos
 _(a lista abaixo é preenchida conforme o dono for pedindo)_
