@@ -695,6 +695,8 @@ html[data-theme] input[type="color"]::-moz-color-swatch { border: none; border-r
 .cartao-bot-item:hover { border-color: var(--bd2); }
 .cartao-cabecalho { display: flex; align-items: center; gap: 11px; margin-bottom: 12px; }
 html[data-theme] .cartao-cabecalho h3 { font-family: 'Manrope', sans-serif; font-weight: 800; text-transform: none; letter-spacing: normal; font-size: 15px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.avatar-item img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: inherit; }
+.avatar-item:has(> img) { overflow: hidden; background: var(--p3); }
 .avatar-item {
     width: 44px;
     height: 44px;

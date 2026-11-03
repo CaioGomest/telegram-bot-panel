@@ -587,7 +587,7 @@ MAILTO=""
 * * * * *    www-data /usr/bin/php ${SITE_DIR}/cron/cron_aviso_vencimento.php   >/dev/null 2>&1
 * * * * *    www-data /usr/bin/php ${SITE_DIR}/cron/cron_ranking.php            >/dev/null 2>&1
 * * * * *    www-data /usr/bin/php ${SITE_DIR}/cron/cron_remarketing.php        >/dev/null 2>&1
-*/5 * * * *  www-data /usr/bin/php ${SITE_DIR}/cron/cron_metricas_admin.php     >/dev/null 2>&1
+* * * * *    www-data /usr/bin/php ${SITE_DIR}/cron/cron_metricas_admin.php     >/dev/null 2>&1
 0 * * * *    www-data /usr/bin/php ${SITE_DIR}/cron/cron_renovacao.php          >/dev/null 2>&1
 30 3 * * *   www-data /usr/bin/php ${SITE_DIR}/cron/cron_limpar_stories.php     >/dev/null 2>&1
 45 3 * * *   www-data /usr/bin/php ${SITE_DIR}/cron/cron_limpar_remarketing_envios.php >/dev/null 2>&1

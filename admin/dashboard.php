@@ -311,7 +311,10 @@ if ($periodo === 'personalizado') {
         <div class="cabecalho-pagina">
             <div>
                 <h1>Visão Geral</h1>
-                <p>Volume, receita e atividade de toda a plataforma.</p>
+                <p>Volume, receita e atividade de toda a plataforma.<?php
+                    $ult_metricas = @filemtime(__DIR__ . '/../logs/cron_metricas_admin.log');
+                    if ($ult_metricas) { echo ' Atualizado às ' . date('H:i', $ult_metricas) . '.'; }
+                ?></p>
             </div>
             <div class="acoes-cabecalho">
                 <div class="seletor-periodo">

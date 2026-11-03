@@ -89,7 +89,7 @@ $usuarios = listarUsuariosFiltrados($filtros, $por_pagina, $offset);
                             <td class="mono texto-suave">#<?php echo $u['id']; ?></td>
                             <td>
                                 <div class="celula-principal">
-                                    <span class="avatar-item"><?php echo strtoupper(substr($u['nome'], 0, 1)); ?></span>
+                                    <?php echo htmlAvatarUsuario(mb_strtoupper(mb_substr((string) $u['nome'], 0, 1, 'UTF-8'), 'UTF-8'), (string) ($u['foto_perfil'] ?? ''), 'avatar-item', $caminho_base); ?>
                                     <span><?php echo htmlspecialchars($u['nome']); ?></span>
                                 </div>
                             </td>

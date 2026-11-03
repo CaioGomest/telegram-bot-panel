@@ -611,7 +611,7 @@ function listarUsuariosFiltrados(array $f, int $limite, int $offset): array {
     $offset = max(0, $offset);
     try {
         $stmt = $pdo->prepare("
-            SELECT u.id, u.nome, u.email, u.perfil, u.criado_em, u.email_verificado_em, (u.google_id IS NOT NULL) AS tem_google,
+            SELECT u.id, u.nome, u.email, u.perfil, u.criado_em, u.email_verificado_em, (u.google_id IS NOT NULL) AS tem_google, " . (colunaFotoPerfilDisponivel() ? "u.foto_perfil" : "NULL AS foto_perfil") . ",
             (SELECT COUNT(*) FROM bots b WHERE b.id_usuario = u.id) AS total_bots,
             (SELECT COALESCE(SUM(v.valor), 0) FROM vendas v
              JOIN bots b ON v.bot_id = b.id
