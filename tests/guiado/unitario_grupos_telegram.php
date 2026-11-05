@@ -204,5 +204,52 @@ confere('conta com 14 bots: consulta no máximo ' . GRUPO_BOTS_CONSULTADOS_MAX .
 // prioridade das mensagens de falha
 confere('mensagemFalhaGrupo: sem convite vence sem admin, que vence fora', str_contains(mensagemFalhaGrupo(['@a' => 'fora', '@b' => 'sem_admin', '@c' => 'sem_convite']), '@c') && str_contains(mensagemFalhaGrupo(['@a' => 'fora', '@b' => 'sem_admin']), '@b') && str_contains(mensagemFalhaGrupo(['@a' => 'fora']), '@a'));
 
+// ===== registrarGrupoPelaMensagem (bot já era administrador antes do webhook: a 1ª mensagem do grupo o registra, 04/11/2026) =====
+$pasta = sys_get_temp_dir() . '/grupos_conferidos_teste_' . getmypid();
+$limpar_travas = function () use ($pasta): void { foreach (glob($pasta . '/*') ?: [] as $f) { @unlink($f); } };
+$msg = fn(array $chat): array => ['message' => ['message_id' => 1, 'chat' => $chat, 'text' => 'oi']];
+$grupo_chat = ['id' => -1001234567890, 'title' => 'VIP do Lima', 'type' => 'supergroup'];
+
+$pdo = novoBanco();
+$token = bot($pdo, 1, 10, 'meubot');
+$bot1 = ['id' => 1, 'token' => $token];
+$chamadas = [];
+$limpar_travas();
+$r = registrarGrupoPelaMensagem($pdo, $bot1, $msg($grupo_chat), telegramFalso(['1|getChatMember' => $admin], $chamadas), $pasta);
+confere('"oi" num grupo novo, bot administrador com convite: registra com o título do grupo', $r === true && linhas($pdo) === [['bot_id' => 1, 'id_telegram' => '-1001234567890', 'titulo' => 'VIP do Lima', 'tipo' => 'supergroup']], json_encode(linhas($pdo)));
+confere('pergunta ao Telegram só o getChatMember do próprio bot', count($chamadas) === 1 && $chamadas[0]['metodo'] === 'getChatMember' && $chamadas[0]['parametros']['user_id'] === 9001, json_encode($chamadas));
+$chamadas = [];
+$r = registrarGrupoPelaMensagem($pdo, $bot1, $msg($grupo_chat), telegramFalso(['1|getChatMember' => $admin], $chamadas), $pasta);
+confere('mensagem seguinte do grupo já registrado: não pergunta nada ao Telegram nem duplica', $r === false && !$chamadas && count(linhas($pdo)) === 1);
+
+$pdo = novoBanco();
+bot($pdo, 1, 10, 'meubot');
+$chamadas = [];
+$limpar_travas();
+$r = registrarGrupoPelaMensagem($pdo, $bot1, ['channel_post' => ['message_id' => 3, 'chat' => ['id' => -1009876543210, 'title' => 'Canal VIP', 'type' => 'channel'], 'text' => 'post']], telegramFalso(['1|getChatMember' => ['ok' => true, 'result' => ['status' => 'administrator', 'can_invite_users' => true]]], $chamadas), $pasta);
+confere('post num canal onde o bot é administrador: registra com tipo channel', $r === true && linhas($pdo) === [['bot_id' => 1, 'id_telegram' => '-1009876543210', 'titulo' => 'Canal VIP', 'tipo' => 'channel']], json_encode(linhas($pdo)));
+
+$pdo = novoBanco();
+bot($pdo, 1, 10, 'meubot');
+$chamadas = [];
+$limpar_travas();
+$r = registrarGrupoPelaMensagem($pdo, $bot1, $msg(['id' => 555, 'first_name' => 'Ana', 'type' => 'private']), telegramFalso(['1|getChatMember' => $admin], $chamadas), $pasta);
+confere('mensagem de lead na conversa privada: ignora, sem perguntar ao Telegram', $r === false && !$chamadas && !linhas($pdo));
+
+$pdo = novoBanco();
+bot($pdo, 1, 10, 'meubot');
+$chamadas = [];
+$limpar_travas();
+$r = registrarGrupoPelaMensagem($pdo, $bot1, $msg($grupo_chat), telegramFalso(['1|getChatMember' => ['ok' => true, 'result' => ['status' => 'member']]], $chamadas), $pasta);
+confere('bot só membro do grupo: não registra', $r === false && !linhas($pdo) && count($chamadas) === 1);
+$r = registrarGrupoPelaMensagem($pdo, $bot1, $msg($grupo_chat), telegramFalso(['1|getChatMember' => $admin], $chamadas), $pasta);
+confere('o mesmo grupo de novo antes de 10 minutos: não pergunta outra vez ao Telegram', $r === false && count($chamadas) === 1 && !linhas($pdo), json_encode($chamadas));
+touch($pasta . '/' . md5('1|-1001234567890'), time() - GRUPO_RECONFERIR_SEGUNDOS - 1);
+$r = registrarGrupoPelaMensagem($pdo, $bot1, $msg($grupo_chat), telegramFalso(['1|getChatMember' => $admin], $chamadas), $pasta);
+confere('passados os 10 minutos (bot já promovido a administrador): confere de novo e registra', $r === true && count($chamadas) === 2 && count(linhas($pdo)) === 1, json_encode($chamadas));
+confere('atualização sem mensagem (clique de botão) não faz nada', registrarGrupoPelaMensagem($pdo, $bot1, ['callback_query' => ['id' => 'x']], telegramFalso([], $chamadas), $pasta) === false);
+$limpar_travas();
+@rmdir($pasta);
+
 echo PHP_EOL . $ok . ' ok, ' . $falhas . ' falha(s)' . PHP_EOL;
 exit($falhas ? 1 : 0);

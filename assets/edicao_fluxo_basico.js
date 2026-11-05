@@ -15,7 +15,7 @@
     let bump_extras = [];
     const bump_max = 5;
     let downsell_extras = [];   // Downsell 2 a 5 (cartões); o Downsell 1 é o painel fixo da seção
-    const downsell_max = 5;     // o mesmo limite do servidor (DOWNSELL_MAXIMO_SEQUENCIAS em funcoes/entrega.php)
+    const downsell_max = 50;    // o mesmo limite do servidor (DOWNSELL_MAXIMO_SEQUENCIAS em funcoes/entrega.php); era 5, hoje só trava o absurdo
     const downsell_proprios_max = 10;   // planos criados por downsell (DOWNSELL_PLANOS_PROPRIOS_MAXIMO)
     const downsell_midias_max = 10;     // fotos/vídeos por downsell: viram um álbum no Telegram (o mesmo limite do Downsell 1)
     let downsell_uid = 0;               // identifica cada cartão enquanto sobe arquivos (o número da posição muda ao remover um cartão)
@@ -77,18 +77,19 @@
                     ids.forEach(function (id) {
                         let destino = d.planos.filter(function (p) { return String(p.id) === String(id); })[0];
                         if (tipo === 'upsell' && id === ID_UPSELL_PROPRIO && s.plano_proprio) destino = { valor: s.plano_proprio.valor };   // plano só do Upsell: preço digitado, sem desconto
-                        if (destino) destinos.push({ valor: destino.valor, desconto: s.desconto_percentual || 0 });
+                        if (destino) destinos.push({ valor: destino.valor, desconto: s.desconto_percentual || 0, fixo: s.desconto_tipo === 'fixo' ? (Number(s.desconto_valor) || 0) : 0 });
                     });
                 }
                 destinos.forEach(function (destino) {
                     if (!o.ativo) return;
-                    const final = Math.round(destino.valor * (1 - destino.desconto / 100) * 100) / 100;
-                    if (final > 0 && final < preco_minimo) {
+                    const final = destino.fixo > 0 ? Math.max(0, Math.round((destino.valor - destino.fixo) * 100) / 100) : Math.round(destino.valor * (1 - destino.desconto / 100) * 100) / 100;
+                    if ((final > 0 || destino.fixo > 0) && final < preco_minimo) {
                         problemas.push('o ' + rotulo + ' (' + reais(final) + ' após o desconto)');
                         // Só o desconto é o culpado (o plano sozinho passa): aí a frase curta confunde, então diz qual oferta e quanto ela sai.
-                        if (destino.desconto > 0 && destino.valor >= preco_minimo) {
+                        if ((destino.desconto > 0 || destino.fixo > 0) && destino.valor >= preco_minimo) {
                             const atual = derivados.filter(function (x) { return x.rotulo === rotulo; })[0];
-                            if (!atual) derivados.push({ rotulo: rotulo, desconto: destino.desconto, final: final });
+                            const texto_desconto = destino.fixo > 0 ? reais(destino.fixo) : String(destino.desconto).replace('.', ',') + '%';
+                            if (!atual) derivados.push({ rotulo: rotulo, desconto: texto_desconto, final: final });
                             else if (final < atual.final) { atual.final = final; }
                         }
                     }
@@ -96,7 +97,7 @@
             });
         });
         // Só o valor (sem comissão da plataforma nem a lista do que está abaixo); a frase extra só aparece quando o culpado é o desconto de uma oferta.
-        const extra = derivados.map(function (x) { return ' O ' + x.rotulo + ', com ' + String(x.desconto).replace('.', ',') + '% de desconto, sai por ' + reais(x.final) + '.'; }).join('');
+        const extra = derivados.map(function (x) { return ' O ' + x.rotulo + ', com ' + x.desconto + ' de desconto, sai por ' + reais(x.final) + '.'; }).join('');
         return problemas.length ? 'Para a Omega, o valor mínimo é ' + reais(preco_minimo) + '.' + extra : '';
     }
 
@@ -170,6 +171,7 @@
             '<div class="entrega-grupo-seletor"><select class="entrega-grupo-select" aria-label="Grupo para acesso">' + optsGrupos(valor === ENTREGA_GRUPO ? String(item.id_grupo || '') : '') + '</select>' +
             '<button type="button" class="editor-fluxo-icone-btn quadrado entrega-grupo-atualizar" title="Atualizar a lista de grupos" aria-label="Atualizar a lista de grupos">' + ICONE_ATUALIZAR + '</button></div>' +
             '<small class="texto-ajuda">O bot precisa ser administrador do grupo, com a permissão de convidar usuários, para gerar o link de entrada e remover quem vence.</small>' +
+            '<small class="texto-ajuda dica-grupo-nao-aparece">O grupo não aparece? Com o bot já administrador, mande qualquer mensagem no grupo (no canal, faça uma postagem) e clique em ↻.</small>' +
             '</div>' +
             '<input type="text" inputmode="url" autocomplete="off" class="entrega-link" maxlength="500" placeholder="https://..." value="' + escaparHtml(item.link_entrega || '') + '"' + (valor === ENTREGA_LINK ? '' : ' hidden') + '>' +
             '<small class="texto-ajuda dica-entrega-link"' + (valor === ENTREGA_LINK ? '' : ' hidden') + '>O cliente recebe este link na mensagem de pagamento aprovado, só depois de pagar.</small>' +
@@ -231,7 +233,7 @@
             recarregarGruposNosCampos();
             $botao.prop('disabled', false);
             if (lista_grupos_usuario.length) exibirAviso('Lista de grupos atualizada.');
-            else exibirAviso('Nenhum grupo encontrado ainda: adicione o bot ao grupo como administrador e atualize de novo.', 'erro');
+            else exibirAviso('Nenhum grupo encontrado ainda: com o bot administrador do grupo, mande qualquer mensagem lá (no canal, uma postagem) e atualize de novo.', 'erro');
         });
     });
 
@@ -390,6 +392,7 @@
     // com_audio: só as Prévias aceitam áudio além de foto e vídeo.
     function enviarMidiaBasico(arquivo, aoTerminar, com_audio) {
         const campo = arquivo.type.indexOf('video') === 0 ? 'video' : (com_audio && arquivo.type.indexOf('audio') === 0 ? 'audio' : 'image');
+        if (campo === 'image' && arquivo.size > 10 * 1024 * 1024) { aoTerminar(null, 'A foto passa de 10 MB. Reduza o tamanho e tente de novo.'); return; }
         const fd = new FormData();
         fd.append(campo, arquivo);
         $.ajax({
@@ -998,7 +1001,7 @@
     }
 
     function itemDownsellVazio() {
-        return { uid: ++downsell_uid, mensagem: '', midias: [], espera_minutos: 30, desconto_percentual: 0, planos_oferecidos: [], criar_planos: false, planos_proprios: [],
+        return { uid: ++downsell_uid, mensagem: '', midias: [], espera_minutos: 30, desconto_tipo: 'percentual', desconto_percentual: 0, desconto_valor: 0, planos_oferecidos: [], criar_planos: false, planos_proprios: [],
             entrega_tipo: 'plano', id_grupo: '', link_entrega: '', mensagem_entrega: '' };
     }
 
@@ -1006,9 +1009,9 @@
         return '<div class="bp-item dn-seq dn-extra" data-i="' + i + '">' +
             '<div class="bp-item-cabecalho"><h3 class="bp-item-titulo">Downsell ' + (i + 2) + '</h3>' +
             '<button type="button" class="btn-icon excluir dn-remover" title="Remover downsell" aria-label="Remover downsell">' + ACAO_SVG.excluir + '</button></div>' +
-            '<div class="campo"><label>Enviar quantos minutos depois do anterior</label><input type="number" min="1" max="1440" step="1" class="dn-espera" value="' + (it.espera_minutos || 30) + '"></div>' +
+            '<div class="campo"><label>Enviar quanto tempo depois do anterior</label><select class="dn-espera">' + htmlOpcoesEspera(it.espera_minutos, 30) + '</select></div>' +
             '<div class="dn-planos">' + htmlBlocoPlanosDownsell('dn-planos-lista') + '</div>' +
-            '<div class="campo dn-desconto-campo"><label>Desconto (%)</label><input type="number" min="0" max="100" step="1" class="dn-desconto" value="' + (it.desconto_percentual != null ? it.desconto_percentual : 0) + '"></div>' +
+            '<div class="campo dn-desconto-campo">' + htmlCampoDesconto(it, 'dn-desconto') + '</div>' +
             '<div class="dn-entrega dn-entrega-campo">' + htmlCampoEntrega(it, { rotulo: 'Entrega', quem: 'desta oferta', classe: 'dn-entrega-select', oferta: true }) + '</div>' +
             '<div class="campo"><label>Mensagem da oferta</label><textarea class="dn-mensagem" rows="3" placeholder="Última chance! Esta condição vale só por hoje.">' + escaparHtml(it.mensagem) + '</textarea></div>' +
             '<div class="campo"><label>Mídia (opcional)</label><div class="area-previa-basico dn-midia" data-estado="vazio" data-tipo="none">Sem mídia</div>' +
@@ -1068,13 +1071,12 @@
             if (!downsell_extras[i]) return;
             const $c = $(this);
             Object.assign(downsell_extras[i], {
-                espera_minutos: numeroNoIntervalo($c.find('.dn-espera').val(), 1, 1440, 30),
+                espera_minutos: numeroNoIntervalo($c.find('.dn-espera').val(), 1, ESPERA_MAXIMA, 30),
                 mensagem: $c.find('.dn-mensagem').val().trim(),
-                desconto_percentual: Math.min(100, Math.max(0, parseFloat($c.find('.dn-desconto').val()) || 0)),
                 planos_oferecidos: $c.find('.dn-planos-lista input:checked').map(function () { return String(this.value); }).get(),
                 criar_planos: $c.find('.dn-criar').is(':checked'),
                 planos_proprios: coletarPlanosProprios($c.find('.dn-planos'))
-            }, coletarEntrega($c.find('.dn-entrega .campo-entrega')));
+            }, coletarDesconto($c.find('.dn-desconto-campo')), coletarEntrega($c.find('.dn-entrega .campo-entrega')));
         });
     }
 
@@ -1082,7 +1084,7 @@
     function saidaSequenciaDownsell(e) {
         const s = {
             mensagem: e.mensagem, midias: e.midias.map(function (m) { return { tipo: m.tipo, path: m.path }; }), midia_tipo: e.midias.length ? e.midias[0].tipo : 'none', midia_path: e.midias.length ? e.midias[0].path : '',
-            espera_minutos: e.espera_minutos, desconto_percentual: e.desconto_percentual,
+            espera_minutos: e.espera_minutos, desconto_tipo: e.desconto_tipo || 'percentual', desconto_percentual: e.desconto_percentual, desconto_valor: e.desconto_valor || 0,
             planos_oferecidos: e.planos_oferecidos.slice(), criar_planos: !!e.criar_planos, planos_proprios: e.planos_proprios.map(function (p) { return Object.assign({}, p); }),
             entrega_tipo: e.entrega_tipo, id_grupo: e.id_grupo, link_entrega: e.link_entrega, mensagem_entrega: e.mensagem_entrega
         };
@@ -1121,6 +1123,67 @@
         const n = parseInt(valor, 10);
         return isNaN(n) ? padrao : Math.min(maximo, Math.max(minimo, n));
     }
+
+    // Tempos do Downsell numa lista pronta (no jeito da SharkBot), em vez de digitar minutos: o valor guardado continua sendo minutos.
+    // Um tempo já salvo que não está na lista (ex.: 90 min) entra como opção extra, para abrir e salvar sem mudar sozinho.
+    const ESPERA_OPCOES = [5, 10, 15, 20, 25, 30, 45, 60, 120, 180, 240, 300, 360, 720, 1080, 1440, 2880, 4320, 5760, 7200, 10080];
+    const ESPERA_MAXIMA = 10080;   // 7 dias; o mesmo limite do servidor (DOWNSELL_MAXIMO_MINUTOS em funcoes/guiado_ofertas.php)
+
+    function textoEspera(min) {
+        if (min < 60) return min + (min === 1 ? ' minuto' : ' minutos');
+        if (min % 1440 === 0) { const d = min / 1440; return d + (d === 1 ? ' dia' : ' dias'); }
+        if (min % 60 === 0) { const h = min / 60; return h + (h === 1 ? ' hora' : ' horas'); }
+        return Math.floor(min / 60) + ' h ' + (min % 60) + ' min';
+    }
+
+    function htmlOpcoesEspera(minutos, padrao) {
+        const atual = numeroNoIntervalo(parseInt(minutos, 10) || padrao, 1, ESPERA_MAXIMA, padrao);
+        const valores = ESPERA_OPCOES.indexOf(atual) === -1 ? ESPERA_OPCOES.concat(atual).sort(function (a, b) { return a - b; }) : ESPERA_OPCOES;
+        return valores.map(function (v) { return '<option value="' + v + '"' + (v === atual ? ' selected' : '') + '>' + textoEspera(v) + '</option>'; }).join('');
+    }
+
+    function definirEspera($select, minutos, padrao) {
+        $select.html(htmlOpcoesEspera(minutos, padrao));
+    }
+
+    // Desconto do Downsell, no jeito da SharkBot: "% (Porcentagem)" com uma lista de 5 em 5, ou "Valor fixo (R$)" com o valor digitado.
+    // No JSON: desconto_tipo ('percentual' | 'fixo'), desconto_percentual e desconto_valor (R$); só um dos dois vale, o outro fica 0 (fluxo antigo, sem tipo, é em %).
+    const DESCONTO_PERCENTUAIS = (function () { const l = [0]; for (let p = 5; p <= 95; p += 5) l.push(p); return l; })();
+
+    function htmlOpcoesDesconto(valor) {
+        const atual = Math.min(100, Math.max(0, parseFloat(valor) || 0));
+        const lista = DESCONTO_PERCENTUAIS.indexOf(atual) === -1 ? DESCONTO_PERCENTUAIS.concat(atual).sort(function (a, b) { return a - b; }) : DESCONTO_PERCENTUAIS;
+        return lista.map(function (v) { return '<option value="' + v + '"' + (v === atual ? ' selected' : '') + '>' + (v === 0 ? 'Sem desconto' : String(v).replace('.', ',') + '%') + '</option>'; }).join('');
+    }
+
+    // classe_pct: a classe própria da lista de % (of-desconto no Downsell 1, dn-desconto nos cartões): o salvar, o abrir e os testes a usam.
+    function htmlCampoDesconto(oferta, classe_pct) {
+        const fixo = oferta.desconto_tipo === 'fixo';
+        return '<label>Desconto</label><div class="grade grade-2 grade-compacta">' +
+            '<select class="desc-tipo" aria-label="Tipo de desconto"><option value="percentual"' + (fixo ? '' : ' selected') + '>% (Porcentagem)</option><option value="fixo"' + (fixo ? ' selected' : '') + '>Valor fixo (R$)</option></select>' +
+            '<select class="desc-pct ' + classe_pct + '" aria-label="Desconto em porcentagem"' + (fixo ? ' hidden' : '') + '>' + htmlOpcoesDesconto(oferta.desconto_percentual) + '</select>' +
+            '<input type="number" min="0" step="0.01" class="desc-fixo" aria-label="Desconto em reais" placeholder="Ex.: 5,00" value="' + (fixo && Number(oferta.desconto_valor) > 0 ? Number(oferta.desconto_valor) : '') + '"' + (fixo ? '' : ' hidden') + '>' +
+            '</div>';
+    }
+
+    function coletarDesconto($campo) {
+        if ($campo.find('.desc-tipo').val() === 'fixo') {
+            return { desconto_tipo: 'fixo', desconto_percentual: 0, desconto_valor: Math.max(0, Math.round((parseFloat($campo.find('.desc-fixo').val()) || 0) * 100) / 100) };
+        }
+        return { desconto_tipo: 'percentual', desconto_percentual: Math.min(100, Math.max(0, parseFloat($campo.find('.desc-pct').val()) || 0)), desconto_valor: 0 };
+    }
+
+    // O Downsell 1 é o campo fixo da seção (.dn-desconto-campo dentro de #dn-seq-1): desenhado aqui, na abertura e ao abrir um fluxo salvo.
+    function definirDescontoDownsell1(oferta) {
+        $('#dn-seq-1 .dn-desconto-campo').html(htmlCampoDesconto(oferta || {}, 'of-desconto'));
+    }
+
+    $(document).on('change', '.desc-tipo', function () {
+        const fixo = this.value === 'fixo', $campo = $(this).closest('.dn-desconto-campo');
+        $campo.find('.desc-pct').prop('hidden', fixo);
+        $campo.find('.desc-fixo').prop('hidden', !fixo);
+        if (fixo) $campo.find('.desc-fixo').trigger('focus');
+    });
 
     // ===== Order Bump em sequência =====
     // O painel fixo da seção é o Order Bump 1; os bumps 2 a 5 são cartões desenhados aqui (lista bump_extras). No modo "depois do pagamento" só vale o 1º.
@@ -1221,11 +1284,11 @@
         } else if (tipo === 'downsell') {
             oferta.planos_oferecidos = $p.find('.of-planos-lista input:checked').map(function () { return String(this.value); }).get();
             oferta.id_plano_destino = oferta.planos_oferecidos[0] || '';   // 1º marcado: mantém compatível com quem lê o formato antigo
-            oferta.desconto_percentual = Math.min(100, Math.max(0, parseFloat($p.find('.of-desconto').val()) || 0));
+            Object.assign(oferta, coletarDesconto($('#dn-seq-1 .dn-desconto-campo')));
             oferta.quando = $p.find('.of-quando').val() === 'antes_pix' ? 'antes_pix' : 'depois_pix';
-            oferta.espera_minutos = numeroNoIntervalo($p.find('.of-espera').val(), 1, 1440, 10);
+            oferta.espera_minutos = numeroNoIntervalo($p.find('.of-espera').val(), 1, ESPERA_MAXIMA, 10);
             oferta.envios = numeroNoIntervalo($p.find('.of-envios').val(), 1, 5, 1);
-            oferta.intervalo_minutos = numeroNoIntervalo($p.find('.of-intervalo').val(), 1, 1440, 30);
+            oferta.intervalo_minutos = numeroNoIntervalo($p.find('.of-intervalo').val(), 1, ESPERA_MAXIMA, 30);
             const $seq1 = $('#dn-seq-1');
             oferta.criar_planos = $seq1.find('.dn-criar').is(':checked');
             oferta.planos_proprios = coletarPlanosProprios($seq1.find('.dn-planos'));
@@ -1294,12 +1357,12 @@
             // formato novo: planos_oferecidos; fluxo antigo: só id_plano_destino (vira 1 plano marcado)
             const ids = Array.isArray(oferta.planos_oferecidos) ? oferta.planos_oferecidos : (oferta.id_plano_destino ? [oferta.id_plano_destino] : []);
             $p.find('.of-planos-lista').data('valor', ids.map(String));
-            $p.find('.of-desconto').val(oferta.desconto_percentual != null ? oferta.desconto_percentual : 0);
+            definirDescontoDownsell1(oferta);
             // Downsell já salvo sem "quando" é do tempo em que só existia "antes do Pix": mantém assim. Downsell novo começa em "depois do Pix".
             $p.find('.of-quando').val(oferta.quando || (Array.isArray(oferta.planos_oferecidos) ? 'antes_pix' : 'depois_pix'));
-            $p.find('.of-espera').val(oferta.espera_minutos || 10);
+            definirEspera($p.find('.of-espera'), oferta.espera_minutos, 10);
             $p.find('.of-envios').val(oferta.envios || 1);
-            $p.find('.of-intervalo').val(oferta.intervalo_minutos || 30);
+            definirEspera($p.find('.of-intervalo'), oferta.intervalo_minutos, 30);
             mostrarTemporizadorDownsell($p);
             const $seq1 = $('#dn-seq-1');
             $seq1.find('.dn-criar').prop('checked', !!oferta.criar_planos);
@@ -1703,6 +1766,9 @@
 
     $(function () {
         $('#dn-planos-1').html(htmlBlocoPlanosDownsell('of-planos-lista'));
+        definirEspera($('#dn-seq-1 .of-espera'), 10, 10);
+        definirEspera($('#dn-seq-1 .of-intervalo'), 30, 30);
+        definirDescontoDownsell1({});
         PagamentosGuiado.iniciar({ marcarSujo: marcarSujo, exibirAviso: exibirAviso, enviarMidia: enviarMidiaBasico, enviarMidias: enviarMidiasEmSequencia, avisarLote: avisarResultadoLote, escaparHtml: escaparHtml });
         carregarLimitesPagamento();
         carregarGruposUsuario().always(function () {

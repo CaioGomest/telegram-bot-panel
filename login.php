@@ -16,11 +16,15 @@ if (usuarioLogado()) {
 
 $erro_login = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'login') {
-    verificarCsrf();
     $email = $_POST['email'] ?? '';
     $senha = $_POST['senha'] ?? '';
     $lembrar = !empty($_POST['lembrar']);
-    if (loginEstaBloqueado($email)) {
+    // Token velho (página de login aberta enquanto a sessão mudou, ex.: saiu da conta em outra aba): em vez da tela de texto do verificarCsrf(),
+    // volta para o login com aviso e um token novo. O login continua recusado sem o token certo.
+    $token_recebido = $_POST['csrf_token'] ?? '';
+    if (!is_string($token_recebido) || $token_recebido === '' || !hash_equals(csrfToken(), $token_recebido)) {
+        $erro_login = 'sessao';
+    } elseif (loginEstaBloqueado($email)) {
         $erro_login = 'bloqueado';
     } elseif (fazerLogin($email, $senha, $lembrar)) {
         if (ehAdmin()) {
@@ -86,6 +90,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'login')
                     switch ($erro_code) {
                         case 'credenciais':
                             echo 'Email ou senha incorretos.';
+                            break;
+                        case 'sessao':
+                            echo 'A página ficou desatualizada. Digite a senha e clique em Entrar de novo.';
                             break;
                         case 'bloqueado':
                             echo 'Muitas tentativas de login. Aguarde alguns minutos e tente novamente.';

@@ -224,7 +224,7 @@ $eh_edicao = isset($_GET['id']) && $_GET['id'] !== '';
                         </button>
                         <button type="button" class="botao" id="btn-exportar-fluxo-bot">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"></path></svg>
-                            Exportar Fluxo (JSON)
+                            Exportar Fluxo (código)
                         </button>
                     </div>
                 </div>
@@ -243,6 +243,7 @@ $eh_edicao = isset($_GET['id']) && $_GET['id'] !== '';
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script>if (window.CSRF_TOKEN) { $.ajaxSetup({ headers: { 'X-CSRF-Token': window.CSRF_TOKEN } }); }</script>
 <script src="assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/tema.js'); ?>"></script>
+<script src="assets/js/fluxo_codigo.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/fluxo_codigo.js'); ?>"></script>
 <script src="assets/edicao_bot.js?v=<?php echo @filemtime(__DIR__ . '/assets/edicao_bot.js'); ?>"></script>
 </body>
 </html>

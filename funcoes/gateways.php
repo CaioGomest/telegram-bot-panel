@@ -311,32 +311,33 @@ function validarPrecosFluxoGuiado(array $dados, float $minimo): ?string {
     foreach (['upsell' => 'Upsell', 'downsell' => 'Downsell'] as $tipo => $rotulo) {
         $oferta = $dados['ofertas'][$tipo] ?? [];
         $pior = null;
-        $desc_pior = 0.0;
+        $texto_pior = '';
         // Downsell novo: vários planos (planos_oferecidos); Upsell e Downsell antigo: um (id_plano_destino).
         $ids_destino = ($tipo === 'downsell' && !empty($oferta['criar_planos'])) ? [] : (($tipo === 'downsell' && is_array($oferta['planos_oferecidos'] ?? null)) ? $oferta['planos_oferecidos'] : [$oferta['id_plano_destino'] ?? '']);
         foreach ($ids_destino as $id_destino) {
             $destino = $planos_por_id[(string)$id_destino] ?? null;
-            $desconto_oferta = (float)($oferta['desconto_percentual'] ?? 0);
+            $oferta_do_preco = $oferta;   // o desconto vale em % ou em R$ fixo (ofertas.downsell.desconto_tipo)
             // Upsell com plano próprio (ofertas.upsell.plano_proprio, id 'up_exclusivo'): o preço é o digitado, sem desconto.
             if ($tipo === 'upsell' && (string)$id_destino === 'up_exclusivo' && is_array($oferta['plano_proprio'] ?? null)) {
                 $destino = ['nome' => $oferta['plano_proprio']['nome'] ?? '', 'valor' => $oferta['plano_proprio']['valor'] ?? 0];
-                $desconto_oferta = 0.0;
+                $oferta_do_preco = [];
             }
             if (!empty($oferta['ativo']) && $destino) {
-                $desconto = max(0.0, min(100.0, $desconto_oferta));
-                $final = round((float)($destino['valor'] ?? 0) * (1 - $desconto / 100), 2);
-                if ($final > 0 && $final < $minimo) {
-                    $problemas[] = 'o ' . $rotulo . ' (plano "' . trim((string)($destino['nome'] ?? '')) . '" com ' . rtrim(rtrim(number_format($desconto, 2, ',', ''), '0'), ',') . '% sai por ' . $reais($final) . ')';
+                $texto_desconto = textoDescontoDaOfertaBasico($oferta_do_preco);
+                $fixo_ativo = descontoFixoDaOfertaBasico($oferta_do_preco) > 0;   // desconto em R$ maior que o plano zera o valor: tambem e problema
+                $final = valorComDescontoDaOfertaBasico($oferta_do_preco, (float)($destino['valor'] ?? 0));
+                if (($final > 0 || $fixo_ativo) && $final < $minimo) {
+                    $problemas[] = 'o ' . $rotulo . ' (plano "' . trim((string)($destino['nome'] ?? '')) . '" com ' . ($texto_desconto !== '' ? $texto_desconto : '0%') . ' sai por ' . $reais($final) . ')';
                     // Só o desconto é o culpado (o plano sozinho passa): é o único caso em que os valores digitados parecem certos e a frase curta confunde.
-                    if ($desconto > 0 && (float)($destino['valor'] ?? 0) >= $minimo && ($pior === null || $final < $pior)) {
+                    if ($texto_desconto !== '' && (float)($destino['valor'] ?? 0) >= $minimo && ($pior === null || $final < $pior)) {
                         $pior = $final;
-                        $desc_pior = $desconto;
+                        $texto_pior = $texto_desconto;
                     }
                 }
             }
         }
         if ($pior !== null) {
-            $derivados[] = 'O ' . $rotulo . ', com ' . rtrim(rtrim(number_format($desc_pior, 2, ',', ''), '0'), ',') . '% de desconto, sai por ' . $reais($pior) . '.';
+            $derivados[] = 'O ' . $rotulo . ', com ' . $texto_pior . ' de desconto, sai por ' . $reais($pior) . '.';
         }
     }
     // Downsell em sequência (27/10/2026): os planos criados no Downsell (valem pelo valor digitado, sem desconto) e as sequências 2 a 5 (planos marcados, com o desconto de cada uma).
@@ -344,7 +345,7 @@ function validarPrecosFluxoGuiado(array $dados, float $minimo): ?string {
     $downsell = $dados['ofertas']['downsell'] ?? [];
     if (!empty($downsell['ativo'])) {
         $pior_sequencia = null;
-        $desc_sequencia = 0.0;
+        $texto_sequencia = '';
         foreach (sequenciasDownsellBasico($dados) as $indice_sequencia => $sequencia) {
             foreach (planosProprioDoDownsellBasico($sequencia, $indice_sequencia) as $proprio) {
                 if ((float)$proprio['valor'] < $minimo) {
@@ -354,24 +355,25 @@ function validarPrecosFluxoGuiado(array $dados, float $minimo): ?string {
             if ($indice_sequencia === 0 || !empty($sequencia['criar_planos'])) {
                 continue;
             }
-            $desconto = max(0.0, min(100.0, (float)($sequencia['desconto_percentual'] ?? 0)));
+            $texto_desconto = textoDescontoDaOfertaBasico($sequencia);
+            $fixo_ativo = descontoFixoDaOfertaBasico($sequencia) > 0;
             foreach ((array)($sequencia['planos_oferecidos'] ?? []) as $id_destino) {
                 $destino = $planos_por_id[(string)$id_destino] ?? null;
                 if (!$destino) {
                     continue;
                 }
-                $final = round((float)($destino['valor'] ?? 0) * (1 - $desconto / 100), 2);
-                if ($final > 0 && $final < $minimo) {
+                $final = valorComDescontoDaOfertaBasico($sequencia, (float)($destino['valor'] ?? 0));
+                if (($final > 0 || $fixo_ativo) && $final < $minimo) {
                     $problemas[] = 'o Downsell ' . ($indice_sequencia + 1) . ' (plano "' . trim((string)($destino['nome'] ?? '')) . '" sai por ' . $reais($final) . ')';
-                    if ($desconto > 0 && (float)($destino['valor'] ?? 0) >= $minimo && ($pior_sequencia === null || $final < $pior_sequencia)) {
+                    if ($texto_desconto !== '' && (float)($destino['valor'] ?? 0) >= $minimo && ($pior_sequencia === null || $final < $pior_sequencia)) {
                         $pior_sequencia = $final;
-                        $desc_sequencia = $desconto;
+                        $texto_sequencia = $texto_desconto;
                     }
                 }
             }
         }
         if ($pior_sequencia !== null) {
-            $derivados[] = 'Uma sequência do Downsell, com ' . rtrim(rtrim(number_format($desc_sequencia, 2, ',', ''), '0'), ',') . '% de desconto, sai por ' . $reais($pior_sequencia) . '.';
+            $derivados[] = 'Uma sequência do Downsell, com ' . $texto_sequencia . ' de desconto, sai por ' . $reais($pior_sequencia) . '.';
         }
     }
     if (!$problemas) {

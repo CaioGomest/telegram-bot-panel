@@ -21,11 +21,10 @@ bloquearAdmin();
                 <p class="a-sub">Crie e edite os fluxos de conversa dos seus bots.</p>
             </div>
             <div class="a-acts">
-                <button type="button" class="a-btn" id="btn-importar-fluxo-lista" title="Importar um fluxo exportado (.json)">
+                <button type="button" class="a-btn" id="btn-importar-fluxo-lista" title="Importar um fluxo pelo código de exportação">
                     <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                     Importar Fluxo
                 </button>
-                <input type="file" id="arquivo-importar-fluxo-lista" accept="application/json,.json" hidden>
                 <button type="button" class="a-btn pri" id="btn-abrir-escolha-modo">+ Novo Fluxo</button>
             </div>
         </header>
@@ -62,6 +61,7 @@ bloquearAdmin();
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script>if (window.CSRF_TOKEN) { $.ajaxSetup({ headers: { 'X-CSRF-Token': window.CSRF_TOKEN } }); }</script>
 <script src="assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/tema.js'); ?>"></script>
+<script src="assets/js/fluxo_codigo.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/fluxo_codigo.js'); ?>"></script>
 <script src="assets/lista_fluxos.js?v=<?php echo @filemtime(__DIR__ . '/assets/lista_fluxos.js'); ?>"></script>
 </body>
 </html>

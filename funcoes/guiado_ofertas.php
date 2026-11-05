@@ -18,21 +18,79 @@ require_once __DIR__ . '/remarketing_ofertas.php';   // venda que veio de campan
  * mídia gera um file_id novo) e os envios seguintes pros leads usam só o file_id.
  */
 function obterFileIdCacheMidia(string $token, string $id_cache, string $metodo, string $campo, string $caminho): ?string {
-    $arquivo_cache = dirname(__DIR__) . '/storage/cache_midia.json';
-    $chave = sha1($token . '|' . $id_cache . '|' . $caminho . '|' . (string) @filemtime($caminho));
-    $mapa = is_file($arquivo_cache) ? (json_decode((string) file_get_contents($arquivo_cache), true) ?: []) : [];
-    if (!empty($mapa[$chave])) {
-        return (string) $mapa[$chave];
+    $guardado = lerFileIdCacheMidia($token, $id_cache, $caminho);
+    if ($guardado !== null) {
+        return $guardado;
     }
     $resposta = requisicaoTelegram($token, $metodo, ['chat_id' => $id_cache], [$campo => $caminho]);
-    $resultado = $resposta['result'] ?? [];
-    $file_id = $campo === 'photo' ? (end($resultado['photo'])['file_id'] ?? null) : ($resultado['video']['file_id'] ?? null);
-    if (!$file_id) {
-        return null;
-    }
-    $mapa[$chave] = $file_id;
-    @file_put_contents($arquivo_cache, json_encode($mapa), LOCK_EX);
+    $file_id = fileIdDeMensagemTelegram(is_array($resposta['result'] ?? null) ? $resposta['result'] : [], $campo);
+    guardarFileIdCacheMidia($token, $id_cache, $caminho, $file_id);
     return $file_id;
+}
+
+/**
+ * Cache SEM canal (05/11/2026, o bot demorava para mandar o "front": sem canal de cache o vídeo das boas-vindas, de 3 a 9 MB, subia inteiro do servidor para o
+ * Telegram a CADA /start, e o lead só recebia a mensagem depois do upload; um upload lento chegou a 17 s). Agora o 1º envio de uma mídia a um lead guarda o
+ * file_id que o Telegram devolve, e os seguintes mandam só o file_id (sem upload). O file_id é do bot, vale para qualquer chat dele; a chave tem bot + arquivo +
+ * data de modificação, então trocar a mídia sobe de novo. Se o Telegram recusar o file_id guardado, o envio cai no upload de sempre.
+ */
+function arquivoCacheMidia(): string {
+    return defined('CACHE_MIDIA_ARQUIVO') ? (string) CACHE_MIDIA_ARQUIVO : dirname(__DIR__) . '/storage/cache_midia.json';
+}
+function chaveCacheMidia(string $token, string $id_cache, string $caminho): string {
+    return sha1($token . '|' . $id_cache . '|' . $caminho . '|' . (string) @filemtime($caminho));
+}
+function lerFileIdCacheMidia(string $token, string $id_cache, string $caminho): ?string {
+    $arquivo = arquivoCacheMidia();
+    $mapa = is_file($arquivo) ? json_decode((string) @file_get_contents($arquivo), true) : [];
+    $file_id = is_array($mapa) ? ($mapa[chaveCacheMidia($token, $id_cache, $caminho)] ?? '') : '';
+    return is_string($file_id) && $file_id !== '' ? $file_id : null;
+}
+function guardarFileIdCacheMidia(string $token, string $id_cache, string $caminho, ?string $file_id): void {
+    if ($file_id === null || $file_id === '') {
+        return;
+    }
+    $arquivo = arquivoCacheMidia();
+    $f = @fopen($arquivo, 'c+');   // lê e grava sob a mesma trava: dois envios ao mesmo tempo não apagam a entrada um do outro
+    if ($f === false) {
+        return;
+    }
+    if (flock($f, LOCK_EX)) {
+        $mapa = json_decode((string) stream_get_contents($f), true);
+        $mapa = is_array($mapa) ? $mapa : [];
+        $mapa[chaveCacheMidia($token, $id_cache, $caminho)] = $file_id;
+        if (count($mapa) > 5000) {
+            $mapa = array_slice($mapa, -2500, null, true);   // arquivo que só cresce: guarda as 2.500 entradas mais recentes
+        }
+        ftruncate($f, 0);
+        rewind($f);
+        fwrite($f, (string) json_encode($mapa));
+        fflush($f);
+        flock($f, LOCK_UN);
+    }
+    fclose($f);
+}
+/** file_id da foto (a maior versão) ou do vídeo de uma mensagem devolvida pelo Telegram; null se a mensagem não traz. */
+function fileIdDeMensagemTelegram(array $mensagem, string $campo): ?string {
+    if ($campo === 'photo') {
+        $fotos = is_array($mensagem['photo'] ?? null) ? $mensagem['photo'] : [];
+        $maior = $fotos ? end($fotos) : null;
+        $file_id = is_array($maior) ? ($maior['file_id'] ?? null) : null;
+    } else {
+        $file_id = is_array($mensagem['video'] ?? null) ? ($mensagem['video']['file_id'] ?? null) : null;
+    }
+    return is_string($file_id) && $file_id !== '' ? $file_id : null;
+}
+/** Depois de um envio com upload que o Telegram aceitou: guarda o file_id da resposta (sendPhoto/sendVideo trazem a mensagem em "result"). */
+function guardarFileIdDoEnvioBasico(string $token, string $id_cache, string $caminho, string $campo, array $resposta): void {
+    if (!($resposta['ok'] ?? false) || !is_array($resposta['result'] ?? null)) {
+        return;
+    }
+    guardarFileIdCacheMidia($token, $id_cache, $caminho, fileIdDeMensagemTelegram($resposta['result'], $campo));
+}
+/** O file_id para mandar a mídia sem upload: com canal de cache, sobe para o canal na 1ª vez; sem canal, só usa o que um envio anterior guardou. */
+function fileIdDaMidiaBasico(string $token, string $id_cache, string $metodo, string $campo, string $caminho): ?string {
+    return $id_cache !== '' ? obterFileIdCacheMidia($token, $id_cache, $metodo, $campo, $caminho) : lerFileIdCacheMidia($token, '', $caminho);
 }
 /**
  * Mensagem do modo Guiado (boas-vindas e ofertas) com foto ou vídeo opcional. Com mídia, o texto vai na legenda junto com o teclado; legenda
@@ -47,7 +105,7 @@ function enviarMensagemComMidiaBasico(string $token, $id_chat, string $mensagem,
         $campo = $midia_tipo === 'image' ? 'photo' : 'video';
         $legenda_cabe = mb_strlen($mensagem) <= 1024;
         $parametros = $legenda_cabe ? ['chat_id' => $id_chat, 'caption' => $mensagem] + $botoes : ['chat_id' => $id_chat];
-        $file_id = $id_cache !== '' ? obterFileIdCacheMidia($token, $id_cache, $metodo, $campo, $midia_path) : null;
+        $file_id = fileIdDaMidiaBasico($token, $id_cache, $metodo, $campo, $midia_path);
         $enviou = false;
         if ($file_id) {
             $resposta = requisicaoTelegram($token, $metodo, $parametros + [$campo => $file_id]);
@@ -56,6 +114,7 @@ function enviarMensagemComMidiaBasico(string $token, $id_chat, string $mensagem,
         if (!$enviou) {
             $resposta_envio = requisicaoTelegram($token, $metodo, $parametros, [$campo => $midia_path]);
             $enviou = (bool) ($resposta_envio['ok'] ?? false);
+            guardarFileIdDoEnvioBasico($token, $id_cache, $midia_path, $campo, $resposta_envio);   // o próximo /start manda só o file_id, sem subir o arquivo de novo
         }
         if (!$enviou) {
             requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => mb_substr($mensagem, 0, 4096)] + $botoes);
@@ -124,7 +183,7 @@ function midiasBoasVindasBasico(array $boas_vindas): array {
 function enviarMidiaSoltaBasico(string $token, $id_chat, string $tipo, string $caminho, string $id_cache = ''): bool {
     $metodo = $tipo === 'image' ? 'sendPhoto' : 'sendVideo';
     $campo = $tipo === 'image' ? 'photo' : 'video';
-    $file_id = $id_cache !== '' ? obterFileIdCacheMidia($token, $id_cache, $metodo, $campo, $caminho) : null;
+    $file_id = fileIdDaMidiaBasico($token, $id_cache, $metodo, $campo, $caminho);
     if ($file_id) {
         $resposta = requisicaoTelegram($token, $metodo, ['chat_id' => $id_chat, $campo => $file_id]);
         if ($resposta['ok'] ?? false) {
@@ -132,6 +191,7 @@ function enviarMidiaSoltaBasico(string $token, $id_chat, string $tipo, string $c
         }
     }
     $resposta = requisicaoTelegram($token, $metodo, ['chat_id' => $id_chat], [$campo => $caminho]);
+    guardarFileIdDoEnvioBasico($token, $id_cache, $caminho, $campo, $resposta);
     return (bool) ($resposta['ok'] ?? false);
 }
 /**
@@ -155,12 +215,14 @@ function enviarAlbumBasico(string $token, $id_chat, array $midias, string $id_ca
     }
     $media = [];
     $arquivos = [];
+    $subiram = [];   // posições do álbum que subiram como arquivo (o file_id delas é guardado depois)
     foreach ($itens as $i => $it) {
         $eh_video = $it['tipo'] === 'video';
-        $file_id = $id_cache !== '' ? obterFileIdCacheMidia($token, $id_cache, $eh_video ? 'sendVideo' : 'sendPhoto', $eh_video ? 'video' : 'photo', $it['caminho']) : null;
+        $file_id = fileIdDaMidiaBasico($token, $id_cache, $eh_video ? 'sendVideo' : 'sendPhoto', $eh_video ? 'video' : 'photo', $it['caminho']);
         $entrada = ['type' => $eh_video ? 'video' : 'photo', 'media' => $file_id ?: 'attach://midia' . $i];
         if (!$file_id) {
             $arquivos['midia' . $i] = $it['caminho'];
+            $subiram[$i] = true;
         }
         if ($eh_video) {
             $entrada['supports_streaming'] = true;
@@ -168,7 +230,16 @@ function enviarAlbumBasico(string $token, $id_chat, array $midias, string $id_ca
         $media[] = $entrada;
     }
     $resposta = requisicaoTelegram($token, 'sendMediaGroup', ['chat_id' => $id_chat, 'media' => json_encode($media)], $arquivos);
-    if (($resposta['ok'] ?? false) || ($resposta['description'] ?? '') === 'resposta inválida') {
+    if ($resposta['ok'] ?? false) {
+        // sendMediaGroup devolve a lista das mensagens, na ordem do álbum
+        foreach (array_keys($subiram) as $i) {
+            $mensagem = $resposta['result'][$i] ?? null;
+            $campo_item = $itens[$i]['tipo'] === 'video' ? 'video' : 'photo';
+            guardarFileIdCacheMidia($token, $id_cache, $itens[$i]['caminho'], is_array($mensagem) ? fileIdDeMensagemTelegram($mensagem, $campo_item) : null);
+        }
+        return;
+    }
+    if (($resposta['description'] ?? '') === 'resposta inválida') {
         return;
     }
     foreach ($itens as $it) {
@@ -187,12 +258,13 @@ function enviarMensagemComMidiasBasico(string $token, $id_chat, string $mensagem
     }
     enviarMensagemComMidiaBasico($token, $id_chat, $mensagem, $teclado, $midias[0]['tipo'] ?? 'none', $midias[0]['path'] ?? '', $id_cache);
 }
-function enviarBoasVindasBasico(string $token, $id_chat, array $boas_vindas, string $id_cache = ''): void {
+/** $teclado_planos: com o CTA desligado, os botões dos planos vão na própria mensagem de boas-vindas (vazio = sem botão). */
+function enviarBoasVindasBasico(string $token, $id_chat, array $boas_vindas, string $id_cache = '', string $teclado_planos = ''): void {
     $mensagem = trim((string) ($boas_vindas['mensagem'] ?? '')) ?: 'Bem-vindo(a)!';
     $texto_cta = trim((string) ($boas_vindas['texto_cta'] ?? '')) ?: 'Ver Planos';
     $teclado = boasVindasMostraCtaBasico($boas_vindas)
         ? json_encode(['inline_keyboard' => [[['text' => $texto_cta, 'callback_data' => 'basico::ver_planos'] + estiloBotaoBasicoValor((string) ($boas_vindas['cor_cta'] ?? ''))]]])
-        : '';
+        : $teclado_planos;
     enviarMensagemComMidiasBasico($token, $id_chat, $mensagem, $teclado, midiasBoasVindasBasico($boas_vindas), $id_cache);
 }
 /**
@@ -313,14 +385,14 @@ function planosDoDownsellSemOEscolhidoBasico(array $dados_basico, string $id_pla
 }
 function enviarDownsellBasico(string $token, $id_chat, array $dados_basico, array $planos, string $id_plano_original, string $id_cache = '', int $indice = 0): void {
     $oferta = sequenciasDownsellBasico($dados_basico)[$indice] ?? ($dados_basico['ofertas']['downsell'] ?? []);
-    $desconto_oferta = max(0.0, min(100.0, (float) ($oferta['desconto_percentual'] ?? 0)));
     $mensagem = trim((string) ($oferta['mensagem'] ?? '')) ?: (count($planos) > 1 ? 'Que tal uma destas opções?' : 'Que tal esta opção?');
     $botoes = [];
     foreach ($planos as $posicao => $plano) {
-        $desconto = !empty($plano['exclusivo_oferta']) ? 0.0 : $desconto_oferta;   // plano criado no Downsell vale pelo valor digitado
-        $valor = round((float) ($plano['valor'] ?? 0) * (1 - $desconto / 100), 2);
+        $oferta_do_plano = !empty($plano['exclusivo_oferta']) ? [] : $oferta;   // plano criado no Downsell vale pelo valor digitado
+        $valor = valorComDescontoDaOfertaBasico($oferta_do_plano, (float) ($plano['valor'] ?? 0));
+        $texto_desconto = textoDescontoDaOfertaBasico($oferta_do_plano);   // "30%" ou "R$ 5,00"
         $rotulo = trim((string) ($plano['nome'] ?? 'Plano')) . ' — R$ ' . number_format($valor, 2, ',', '.') . (planoRecorrenteBasico($plano) ? PERIODICIDADES_BASICO[periodicidadePlanoBasico($plano)] : '')
-            . ($desconto > 0 ? ' (-' . rtrim(rtrim(number_format($desconto, 2, ',', ''), '0'), ',') . '%)' : '');
+            . ($texto_desconto !== '' ? ' (-' . $texto_desconto . ')' : '');
         $botoes[] = [['text' => $rotulo, 'callback_data' => 'basico::of::dn::' . $id_plano_original . '::p' . $posicao] + estiloBotaoBasicoValor((string) ($plano['cor'] ?? ''))];
     }
     enviarMensagemComMidiasBasico($token, $id_chat, $mensagem, json_encode(['inline_keyboard' => $botoes]), midiasDoItemBasico($oferta), $id_cache);
@@ -335,7 +407,7 @@ function enviarDownsellBasico(string $token, $id_chat, array $dados_basico, arra
 
 const DOWNSELL_ESPERA_MINUTOS_PADRAO = 10;
 const DOWNSELL_INTERVALO_MINUTOS_PADRAO = 30;
-const DOWNSELL_MAXIMO_MINUTOS = 1440;
+const DOWNSELL_MAXIMO_MINUTOS = 10080;   // 7 dias: o maior tempo da lista da tela (assets/edicao_fluxo_basico.js, ESPERA_OPCOES)
 const DOWNSELL_MAXIMO_ENVIOS = 5;
 
 function downsellDepoisDoPixBasico(array $dados_basico): bool {
@@ -367,7 +439,11 @@ function cancelarDownsellsDoLeadBasico(PDO $pdo, int $bot_id, string $id_telegra
 
 /** Chamada logo depois de gerar o Pix do plano escolhido. Nunca lança: falhar aqui não pode atrapalhar a entrega do Pix. */
 function agendarDownsellBasico(PDO $pdo, int $bot_id, string $id_telegram, int $id_venda, string $id_plano, array $dados_basico): void {
-    if ($id_venda <= 0 || !downsellDepoisDoPixBasico($dados_basico) || !planosDoDownsellSemOEscolhidoBasico($dados_basico, $id_plano)) {
+    if ($id_venda <= 0 || !downsellDepoisDoPixBasico($dados_basico)) {
+        return;
+    }
+    if (!planosDoDownsellSemOEscolhidoBasico($dados_basico, $id_plano)) {
+        cancelarDownsellsDoLeadBasico($pdo, $bot_id, $id_telegram);   // a contagem do /start (agendarDownsellSemCliqueBasico) não vale mais: ele já escolheu
         return;
     }
     try {
@@ -381,12 +457,50 @@ function agendarDownsellBasico(PDO $pdo, int $bot_id, string $id_telegram, int $
 }
 
 /**
+ * Downsell para quem não toca em nada (04/11/2026, pedido do dono): no /start a contagem já começa, com o tempo da 1ª sequência. Se o lead gerar um Pix,
+ * agendarDownsellBasico cancela esta linha e a contagem recomeça do Pix; tocar num plano do downsell também encerra. Sem plano escolhido, id_plano = ''
+ * (a oferta mostra todos os planos do Downsell) e venda_id = -id do lead (único por lead, cabe no UNIQUE(venda_id) sem mudar a tabela). Quem já comprou
+ * neste bot não entra. Nunca lança: falhar aqui não pode atrapalhar as boas-vindas.
+ */
+function agendarDownsellSemCliqueBasico(PDO $pdo, int $bot_id, string $id_telegram, array $dados_basico): void {
+    if (!downsellDepoisDoPixBasico($dados_basico) || !planosDoDownsellSemOEscolhidoBasico($dados_basico, '')) {
+        return;
+    }
+    try {
+        $lead = $pdo->prepare("SELECT id FROM leads WHERE bot_id = ? AND id_telegram = ? ORDER BY id LIMIT 1");
+        $lead->execute([$bot_id, $id_telegram]);
+        $id_lead = (int) $lead->fetchColumn();
+        if ($id_lead <= 0) {
+            return;
+        }
+        $comprou = $pdo->prepare("SELECT 1 FROM vendas WHERE bot_id = ? AND id_telegram = ? AND status = 'pago' LIMIT 1");
+        $comprou->execute([$bot_id, $id_telegram]);
+        if ($comprou->fetchColumn()) {
+            return;
+        }
+        $espera = temporizadorDownsellBasico(sequenciasDownsellBasico($dados_basico)[0] ?? $dados_basico['ofertas']['downsell'])['espera'];
+        cancelarDownsellsDoLeadBasico($pdo, $bot_id, $id_telegram);   // novo /start recomeça a contagem
+        $pdo->prepare("DELETE FROM downsell_agenda WHERE venda_id = ?")->execute([-$id_lead]);
+        $pdo->prepare("INSERT INTO downsell_agenda (bot_id, id_telegram, venda_id, id_plano, proximo_em) VALUES (?, ?, ?, '', NOW() + INTERVAL ? MINUTE)")
+            ->execute([$bot_id, $id_telegram, -$id_lead, $espera]);
+    } catch (\Throwable $e) {
+        error_log('[downsell] agendar sem clique: ' . $e->getMessage());
+    }
+}
+
+/**
  * Resolve uma linha vencida da agenda. Devolve [enviou, minutos até o próximo envio]: minutos null = a sequência acabou (lead já pagou, downsell
  * desligado ou sem plano sobrando, fluxo trocado, ou foi o último envio).
  */
 function enviarDownsellAgendadoBasico(PDO $pdo, array $linha): array {
-    $pagou = $pdo->prepare("SELECT 1 FROM vendas WHERE bot_id = ? AND id_telegram = ? AND status = 'pago' AND id >= ? LIMIT 1");
-    $pagou->execute([$linha['bot_id'], $linha['id_telegram'], $linha['venda_id']]);
+    if ((int) $linha['venda_id'] > 0) {
+        $pagou = $pdo->prepare("SELECT 1 FROM vendas WHERE bot_id = ? AND id_telegram = ? AND status = 'pago' AND id >= ? LIMIT 1");
+        $pagou->execute([$linha['bot_id'], $linha['id_telegram'], $linha['venda_id']]);
+    } else {
+        // Agendado no /start (sem Pix): vale qualquer compra feita depois do /start.
+        $pagou = $pdo->prepare("SELECT 1 FROM vendas WHERE bot_id = ? AND id_telegram = ? AND status = 'pago' AND criado_em >= ? LIMIT 1");
+        $pagou->execute([$linha['bot_id'], $linha['id_telegram'], $linha['criado_em']]);
+    }
     if ($pagou->fetchColumn()) {
         return [false, null];
     }

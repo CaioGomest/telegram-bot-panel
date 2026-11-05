@@ -121,7 +121,7 @@ function reiniciar(PDO $pdo): void
 // ---------- configuração ----------
 confere('temporizador: padrões quando o dono não preenche (10 min, 1 envio, repete a cada 30)', temporizadorDownsellBasico([]) === ['espera' => 10, 'envios' => 1, 'intervalo' => 30], json_encode(temporizadorDownsellBasico([])));
 confere('temporizador: valores respeitados', temporizadorDownsellBasico(['espera_minutos' => 5, 'envios' => 3, 'intervalo_minutos' => 60]) === ['espera' => 5, 'envios' => 3, 'intervalo' => 60]);
-confere('temporizador: limites (24 h, 5 envios) e valor inválido/negativo volta ao padrão', temporizadorDownsellBasico(['espera_minutos' => 99999, 'envios' => 99, 'intervalo_minutos' => -4]) === ['espera' => 1440, 'envios' => 5, 'intervalo' => 30]);
+confere('temporizador: limites (7 dias, 5 envios) e valor inválido/negativo volta ao padrão', temporizadorDownsellBasico(['espera_minutos' => 99999, 'envios' => 99, 'intervalo_minutos' => -4]) === ['espera' => 10080, 'envios' => 5, 'intervalo' => 30]);
 
 confere('modo "depois do Pix" só com downsell ativo, formato novo e quando=depois_pix', downsellDepoisDoPixBasico(dadosFluxo(downsell())));
 confere('downsell antigo (sem "quando") continua antes do Pix', !downsellDepoisDoPixBasico(dadosFluxo(['quando' => null] + downsell())) && !downsellDepoisDoPixBasico(dadosFluxo(array_diff_key(downsell(), ['quando' => 1]))));
@@ -239,12 +239,82 @@ $pdo->exec("INSERT INTO downsell_agenda (bot_id, id_telegram, venda_id, id_plano
 processarDownsellsAgendados($pdo);
 confere('linhas encerradas há mais de 7 dias são apagadas; as recentes ficam', count(agenda($pdo)) === 1 && agenda($pdo)[0]['id_telegram'] === '2');
 
+// ---------- sem clique (04/11/2026): a contagem começa no /start, mesmo que o lead não toque em nada ----------
+$pdo->exec('CREATE TABLE leads (id INTEGER PRIMARY KEY, bot_id INTEGER, id_telegram TEXT)');
+$pdo->exec('ALTER TABLE vendas ADD COLUMN criado_em TEXT');
+$pdo->exec("INSERT INTO leads (id, bot_id, id_telegram) VALUES (41, 1, '777'), (42, 1, '888')");
+reiniciar($pdo);
+ligarBot($pdo, downsell());
+agendarDownsellSemCliqueBasico($pdo, 1, '777', dadosFluxo(downsell()));
+$linhas = agenda($pdo);
+confere('sem clique: o /start agenda uma linha pendente sem plano escolhido (venda_id = -id do lead)', count($linhas) === 1 && $linhas[0]['status'] === 'pendente' && (int) $linhas[0]['venda_id'] === -41 && $linhas[0]['id_plano'] === '', json_encode($linhas));
+$segundos_ate = strtotime($linhas[0]['proximo_em'] . ' UTC') - time();
+confere('sem clique: o 1º envio vem no tempo da 1ª sequência (~10 min do /start)', $segundos_ate > 9 * 60 && $segundos_ate <= 10 * 60 + 5, (string) $segundos_ate);
+vencer($pdo);
+confere('sem clique: venceu sem tocar em nada, a oferta sai', processarDownsellsAgendados($pdo) === 1);
+$botoes = botoesEnviados();
+confere('sem clique: a oferta mostra TODOS os planos do Downsell (nenhum foi escolhido) e o toque gera o Pix do downsell',
+    $botoes === [['text' => 'Mensal — R$ 16,00 (-20%)', 'cb' => 'basico::of::dn::::p0'], ['text' => 'Trimestral — R$ 40,00 (-20%)', 'cb' => 'basico::of::dn::::p1'], ['text' => 'Vitalício — R$ 80,00 (-20%)', 'cb' => 'basico::of::dn::::p2']], json_encode($botoes, JSON_UNESCAPED_UNICODE));
+confere('sem clique: termina depois do envio (1 envio configurado)', agenda($pdo)[0]['status'] === 'concluido');
+
+reiniciar($pdo);
+agendarDownsellSemCliqueBasico($pdo, 1, '777', dadosFluxo(downsell()));
+agendarDownsellSemCliqueBasico($pdo, 1, '777', dadosFluxo(downsell()));
+$linhas = agenda($pdo);
+confere('sem clique: /start de novo recomeça a contagem sem duplicar (uma linha só, pendente)', count($linhas) === 1 && $linhas[0]['status'] === 'pendente', json_encode($linhas));
+
+reiniciar($pdo);
+agendarDownsellSemCliqueBasico($pdo, 1, '777', dadosFluxo(downsell()));
+agendarDownsellBasico($pdo, 1, '777', 801, 'p1', dadosFluxo(downsell()));
+$pendentes = array_values(array_filter(agenda($pdo), fn($l) => $l['status'] === 'pendente'));
+confere('sem clique: se ele gerar um Pix, a contagem do /start é cancelada e passa a valer a do Pix', count($pendentes) === 1 && (int) $pendentes[0]['venda_id'] === 801, json_encode(agenda($pdo)));
+
+reiniciar($pdo);
+agendarDownsellSemCliqueBasico($pdo, 1, '777', dadosFluxo(downsell(['planos_oferecidos' => ['p1']])));
+agendarDownsellBasico($pdo, 1, '777', 802, 'p1', dadosFluxo(downsell(['planos_oferecidos' => ['p1']])));
+confere('sem clique: escolheu o único plano do Downsell e gerou Pix: a contagem do /start é cancelada (não oferece o mesmo plano)', array_filter(agenda($pdo), fn($l) => $l['status'] === 'pendente') === [], json_encode(agenda($pdo)));
+
+reiniciar($pdo);
+agendarDownsellSemCliqueBasico($pdo, 1, '777', dadosFluxo(downsell()));
+cancelarDownsellsDoLeadBasico($pdo, 1, '777');
+vencer($pdo);
+confere('sem clique: tocou num plano da oferta, nada mais é enviado', processarDownsellsAgendados($pdo) === 0);
+
+reiniciar($pdo);
+agendarDownsellSemCliqueBasico($pdo, 1, '777', dadosFluxo(downsell()));
+$pdo->exec("INSERT INTO vendas (id, bot_id, id_telegram, status, criado_em) VALUES (900, 1, '777', 'pago', datetime('now', '+1 minutes'))");
+vencer($pdo);
+confere('sem clique: pagou depois do /start (por qualquer caminho), não recebe', processarDownsellsAgendados($pdo) === 0 && $GLOBALS['enviados'] === []);
+
+reiniciar($pdo);
+$pdo->exec("INSERT INTO vendas (id, bot_id, id_telegram, status, criado_em) VALUES (901, 1, '777', 'pago', datetime('now', '-30 days'))");
+agendarDownsellSemCliqueBasico($pdo, 1, '777', dadosFluxo(downsell()));
+confere('sem clique: quem já comprou neste bot não entra', agenda($pdo) === []);
+
+reiniciar($pdo);
+agendarDownsellSemCliqueBasico($pdo, 1, '999', dadosFluxo(downsell()));
+agendarDownsellSemCliqueBasico($pdo, 1, '888', dadosFluxo(downsell(['quando' => 'antes_pix'])));
+agendarDownsellSemCliqueBasico($pdo, 1, '888', dadosFluxo(downsell(['ativo' => false])));
+confere('sem clique: não agenda sem lead registrado, no modo "antes do Pix" ou com o Downsell desligado', agenda($pdo) === []);
+
+reiniciar($pdo);
+$seq = downsell(['espera_minutos' => 5, 'sequencias_extras' => [['espera_minutos' => 60, 'planos_oferecidos' => ['p3']]]]);
+ligarBot($pdo, $seq);
+agendarDownsellSemCliqueBasico($pdo, 1, '888', dadosFluxo($seq));
+$l = agenda($pdo)[0] ?? [];
+$segundos_ate = isset($l['proximo_em']) ? strtotime($l['proximo_em'] . ' UTC') - time() : -1;
+vencer($pdo);
+processarDownsellsAgendados($pdo);
+$l2 = agenda($pdo)[0] ?? [];
+confere('sem clique com várias sequências: 1ª no tempo dela (~5 min); depois segue para a 2ª', $segundos_ate > 4 * 60 && $segundos_ate <= 5 * 60 + 5 && count($GLOBALS['enviados']) === 1 && ($l2['status'] ?? '') === 'pendente' && (int) ($l2['enviados'] ?? 0) === 1, json_encode([$segundos_ate, $l, $l2, sequenciasDownsellBasico(dadosFluxo($seq))]));
+
 // tabela ainda não criada (código publicado antes do "Atualizar Banco"): o Guiado não pode quebrar
 $pdo->exec('DROP TABLE downsell_agenda');
 $sem_erro = true;
 try {
     agendarDownsellBasico($pdo, 1, '777', 700, 'p1', dadosFluxo(downsell()));
     cancelarDownsellsDoLeadBasico($pdo, 1, '777');
+    agendarDownsellSemCliqueBasico($pdo, 1, '777', dadosFluxo(downsell()));
 } catch (Throwable $e) {
     $sem_erro = false;
 }

@@ -29,6 +29,7 @@
 
     const icons = {
         edit: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>',
+        exportar: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>',
         trash: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>'
     };
 
@@ -46,54 +47,6 @@
         const aviso = 'Limite de ' + limite_fluxos + ' fluxos atingido. Exclua um para criar ou importar outro.';
         $('#btn-abrir-escolha-modo').text('+ Novo Fluxo (' + total + '/' + limite_fluxos + ')');
         $('#btn-abrir-escolha-modo, #btn-importar-fluxo-lista').prop('disabled', no_limite).attr('title', no_limite ? aviso : null);
-    }
-
-    function base64Utf8(obj) {
-        const bytes = new TextEncoder().encode(JSON.stringify(obj));
-        let bin = '';
-        for (let i = 0; i < bytes.length; i++) {
-            bin += String.fromCharCode(bytes[i]);
-        }
-        return btoa(bin);
-    }
-
-    function importarFluxoDeArquivo(arquivo) {
-        const leitor = new FileReader();
-        leitor.onload = function (ev) {
-            let json;
-            try {
-                json = JSON.parse(ev.target.result);
-            } catch (err) {
-                exibirAviso('Arquivo JSON inválido.', 'erro');
-                return;
-            }
-            if (!json || typeof json !== 'object' || !json.dados_fluxograma) {
-                exibirAviso('Esse arquivo não é um fluxo exportado.', 'erro');
-                return;
-            }
-            $.ajax({
-                url: url_api + '?action=importar_fluxo',
-                method: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify({
-                    nome: json.nome,
-                    descricao: json.descricao,
-                    link_suporte: json.link_suporte || '',
-                    modo: json.modo || '',
-                    dados_fluxograma_b64: base64Utf8(json.dados_fluxograma)
-                })
-            }).done(function (resp) {
-                if (!resp.sucesso) {
-                    exibirAviso(resp.mensagem || 'Erro ao importar fluxo.', 'erro');
-                    return;
-                }
-                exibirAviso('Fluxo importado com sucesso.');
-                carregarFluxos();
-            }).fail(function (xhr) {
-                exibirAviso((xhr.responseJSON && xhr.responseJSON.mensagem) || 'Falha ao importar fluxo.', 'erro');
-            });
-        };
-        leitor.readAsText(arquivo);
     }
 
     function carregarFluxos() {
@@ -134,6 +87,7 @@
                             <div class="a-fx-foot">
                                 <span></span>
                                 <div class="a-acts">
+                                    <button type="button" class="a-ib btn-exportar-fluxo" data-id="${escaparHtml(flow.id)}" data-nome="${escaparHtml(nome)}" title="Exportar (código)" aria-label="Exportar o fluxo ${escaparHtml(nome)}">${icons.exportar}</button>
                                     <a href="${pagina_editar}?id=${encodeURIComponent(flow.id)}" class="a-ib" title="Editar fluxo" aria-label="Editar o fluxo ${escaparHtml(nome)}">${icons.edit}</a>
                                     <button type="button" class="a-ib btn-excluir-fluxo" data-id="${escaparHtml(flow.id)}" title="Excluir" aria-label="Excluir o fluxo ${escaparHtml(nome)}">${icons.trash}</button>
                                 </div>
@@ -177,14 +131,18 @@
             excluirFluxo(id);
         });
 
+        // Importar e exportar por código (assets/js/fluxo_codigo.js): o fluxo não sai mais como arquivo .json.
         $('#btn-importar-fluxo-lista').on('click', function () {
-            $('#arquivo-importar-fluxo-lista').click();
+            FluxoCodigo.abrirImportar({ aoImportar: function (r) { exibirAviso(r.mensagem || 'Fluxo importado com sucesso.'); carregarFluxos(); } });
         });
-        $('#arquivo-importar-fluxo-lista').on('change', function (e) {
-            const arquivo = e.target.files && e.target.files[0];
-            if (arquivo) importarFluxoDeArquivo(arquivo);
-            $(this).val('');
+        $(document).on('click', '.btn-exportar-fluxo', function () {
+            FluxoCodigo.abrirExportar($(this).data('id'), $(this).data('nome'));
         });
+        // Fluxo.php (Editor Visual) manda para cá com ?importar=1: abre a janela de importar direto.
+        if (/[?&]importar=1/.test(location.search)) {
+            history.replaceState(null, '', location.pathname);
+            $('#btn-importar-fluxo-lista').trigger('click');
+        }
 
         // Modal "Como deseja criar?": abre pelo botão, fecha pelo ✕, clicando fora ou com Esc (o foco volta ao botão que abriu).
         const $modal_modo = $('#modal-escolha-modo');

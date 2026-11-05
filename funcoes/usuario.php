@@ -389,13 +389,21 @@ function fazerLogout(): void {
     exit;
 }
 
-function criarUsuario(string $nome, string $email, string $senha): array {
+/** $apelido_publico: nome que aparece no Ranking (pedido no cadastro desde 04/11/2026); null = quem chama não pede (admin criando conta), fica sem apelido. */
+function criarUsuario(string $nome, string $email, string $senha, ?string $apelido_publico = null): array {
     global $pdo;
-    
+
     if (empty($nome) || empty($email) || empty($senha)) {
         return ['sucesso' => false, 'erro' => 'Preencha todos os campos.'];
     }
-    
+    if ($apelido_publico !== null) {
+        $apelido_publico = trim($apelido_publico);
+        if ($apelido_publico === '') {
+            return ['sucesso' => false, 'erro' => 'Escolha um apelido para o Ranking.'];
+        }
+        $apelido_publico = mb_substr($apelido_publico, 0, 40);
+    }
+
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         return ['sucesso' => false, 'erro' => 'Email inválido.'];
     }
@@ -412,9 +420,9 @@ function criarUsuario(string $nome, string $email, string $senha): array {
         }
 
         $senha_hash = password_hash($senha, PASSWORD_DEFAULT);
-        $stmt = $pdo->prepare("INSERT INTO usuarios (nome, email, senha, perfil) VALUES (?, ?, ?, 'usuario')");
-        
-        if ($stmt->execute([$nome, $email, $senha_hash])) {
+        $stmt = $pdo->prepare("INSERT INTO usuarios (nome, email, senha, perfil, apelido_publico) VALUES (?, ?, ?, 'usuario', ?)");
+
+        if ($stmt->execute([$nome, $email, $senha_hash, $apelido_publico])) {
             $id_novo_usuario = (int)$pdo->lastInsertId();
             registrarAtividade($id_novo_usuario, 'sistema', 'Cadastro', 'Novo usuário cadastrado.');
             // E-mail de boas-vindas com o link de confirmação (vai pela fila): falha aqui nunca derruba o cadastro.

@@ -13,6 +13,7 @@ declare(strict_types=1);
 
 const GRUPO_TIPOS_ACEITOS = ['group', 'supergroup', 'channel'];
 const GRUPO_BOTS_CONSULTADOS_MAX = 10;
+const GRUPO_RECONFERIR_SEGUNDOS = 600;   // grupo onde o bot não é administrador: volta a perguntar ao Telegram depois de 10 minutos
 
 /**
  * O que o dono digitou -> o que o Telegram aceita em chat_id, ou '' se não der para usar.
@@ -143,6 +144,52 @@ function registrarGrupoPorIdentificador(PDO $pdo, int $id_usuario, string $texto
     }
 
     return ['sucesso' => false, 'mensagem' => mensagemFalhaGrupo($motivos)];
+}
+
+/**
+ * Mensagem (ou post de canal) vinda de um grupo que ainda não está em bot_grupos para este bot: o bot já era administrador antes de o webhook
+ * apontar para o painel e o aviso de "entrou no grupo" nunca chegou. Confere no Telegram (getChatMember) e registra se ele é dono ou administrador
+ * com permissão de convidar. Cada grupo é conferido no máximo 1 vez a cada 10 minutos (arquivo em $pasta_travas), para não perguntar ao Telegram a cada
+ * mensagem de um grupo onde o bot não é administrador. Devolve true quando registrou.
+ */
+function registrarGrupoPelaMensagem(PDO $pdo, array $bot, array $atualizacao, callable $telegram, string $pasta_travas): bool
+{
+    $chat = $atualizacao['message']['chat'] ?? $atualizacao['channel_post']['chat'] ?? null;
+    if (!is_array($chat) || !in_array((string) ($chat['type'] ?? ''), GRUPO_TIPOS_ACEITOS, true)) {
+        return false;
+    }
+    $id_chat = (string) ($chat['id'] ?? '');
+    if ($id_chat === '') {
+        return false;
+    }
+    $existe = $pdo->prepare('SELECT 1 FROM bot_grupos WHERE bot_id = ? AND id_telegram = ?');
+    $existe->execute([$bot['id'], $id_chat]);
+    if ($existe->fetchColumn()) {
+        return false;
+    }
+
+    if (!is_dir($pasta_travas)) {
+        @mkdir($pasta_travas, 0755, true);
+    }
+    $trava = $pasta_travas . '/' . md5($bot['id'] . '|' . $id_chat);
+    if (is_file($trava) && time() - (int) filemtime($trava) < GRUPO_RECONFERIR_SEGUNDOS) {
+        return false;
+    }
+    @touch($trava);
+
+    $token = (string) $bot['token'];
+    $membro = $telegram($token, 'getChatMember', ['chat_id' => $id_chat, 'user_id' => (int) strtok($token, ':')]);
+    if (!($membro['ok'] ?? false) || !avaliarBotNoGrupo($membro['result'] ?? [])['ok']) {
+        return false;
+    }
+    try {
+        $pdo->prepare('INSERT INTO bot_grupos (bot_id, id_telegram, titulo, tipo) VALUES (?, ?, ?, ?)')
+            ->execute([$bot['id'], $id_chat, mb_substr((string) ($chat['title'] ?? $id_chat), 0, 255), (string) $chat['type']]);
+    } catch (PDOException $e) {
+        return false;   // duas mensagens do mesmo grupo ao mesmo tempo: a outra já gravou
+    }
+    @unlink($trava);
+    return true;
 }
 
 /** Texto para o dono quando nenhum bot conseguiu registrar o grupo: aponta o bot e o passo que falta, do mais perto de dar certo ao mais longe. */

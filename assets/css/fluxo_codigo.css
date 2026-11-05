@@ -1,0 +1,47 @@
+/*
+ * Janelas de Exportar/Importar fluxo por código (assets/js/fluxo_codigo.js). Autossuficiente de propósito: o JS carrega este arquivo sozinho e as classes
+ * (.fc-*) não dependem do Layout A nem do CSS antigo, porque a janela abre tanto em Meus Fluxos (casca nova) quanto no Editor Visual e na página do bot
+ * (casca antiga). Só usa as variáveis de cor que as duas já têm (--p, --p2, --bd, --bd2, --t, --m, --or, --orsoft, --da).
+ */
+.fc-over { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 24px; background: rgba(3, 4, 6, .66); font-family: 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif; }
+.fc-over *, .fc-over *::before, .fc-over *::after { box-sizing: border-box; }
+.fc-janela { width: min(540px, 100%); max-height: calc(100% - 8px); overflow: auto; padding: 24px; border-radius: 26px; background: var(--p, #0e0e0f); color: var(--t, #f3f2f0); border: 1px solid var(--bd2, rgba(255, 255, 255, .16)); box-shadow: 0 40px 80px -30px #000; }
+.fc-mh { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.fc-tit { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.fc-tit h2 { margin: 0; font: 700 26px/1 'Barlow Condensed', 'Arial Narrow', sans-serif; text-transform: uppercase; color: var(--t, #f3f2f0); }
+.fc-tit-ic { display: grid; place-items: center; flex: none; width: 42px; height: 42px; border-radius: 13px; background: var(--orsoft, rgba(255, 106, 26, .14)); color: var(--or, #ff6a1a); }
+.fc-ic { display: block; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.fc-btn .fc-ic { width: 17px; height: 17px; }
+.fc-x { display: grid; place-items: center; flex: none; width: 40px; height: 40px; padding: 0; border-radius: 12px; border: 1px solid var(--bd, rgba(255, 255, 255, .09)); background: transparent; color: var(--m, #9a9aa0); cursor: pointer; }
+.fc-x:hover { color: var(--t, #f3f2f0); border-color: var(--bd2, rgba(255, 255, 255, .16)); }
+.fc-x .fc-ic { width: 18px; height: 18px; }
+.fc-txt { margin: 0 0 16px; color: var(--m, #9a9aa0); font-size: 13.5px; line-height: 1.5; }
+.fc-txt b { color: var(--t, #f3f2f0); }
+.fc-form { display: grid; gap: 6px; margin: 0; }
+.fc-rot { display: block; margin: 10px 0 2px; color: var(--m, #9a9aa0); font: 800 11.5px 'Manrope', system-ui, sans-serif; letter-spacing: .06em; text-transform: uppercase; }
+.fc-form .fc-rot:first-child { margin-top: 0; }
+.fc-rot span { text-transform: none; letter-spacing: 0; font-weight: 600; }
+.fc-campo { display: block; width: 100%; min-height: 46px; padding: 0 14px; border-radius: 14px; border: 1px solid var(--bd, rgba(255, 255, 255, .09)); background: var(--p2, #151516); color: var(--t, #f3f2f0); font: 600 14px 'Manrope', system-ui, sans-serif; outline: none; }
+.fc-campo::placeholder { color: var(--m, #9a9aa0); opacity: .8; }
+.fc-campo:focus { border-color: var(--or, #ff6a1a); box-shadow: 0 0 0 3px var(--orsoft, rgba(255, 106, 26, .14)); }
+select.fc-campo { appearance: auto; }
+input.fc-campo.fc-campo-codigo { font: 700 16px 'JetBrains Mono', ui-monospace, Menlo, monospace; letter-spacing: .06em; text-transform: uppercase; }
+input.fc-campo.fc-campo-codigo::placeholder { text-transform: none; letter-spacing: .04em; }
+.fc-codigo-caixa { display: flex; align-items: center; gap: 12px; padding: 14px 14px 14px 18px; border: 1px solid var(--bd2, rgba(255, 255, 255, .16)); border-radius: 16px; background: var(--p2, #151516); }
+.fc-codigo { flex: 1; min-width: 0; font: 800 22px 'JetBrains Mono', ui-monospace, Menlo, monospace; letter-spacing: .08em; color: var(--t, #f3f2f0); overflow-wrap: anywhere; user-select: all; }
+.fc-dica { display: block; margin: 8px 0 0; color: var(--m, #9a9aa0); font-size: 12.5px; line-height: 1.45; }
+.fc-dica:empty { display: none; }
+.fc-erro { margin: 12px 0 0; color: var(--da, #ff5257); font-weight: 700; font-size: 13px; }
+.fc-erro[hidden] { display: none; }
+.fc-pe { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.fc-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: none; min-height: 44px; padding: 0 18px; border-radius: 14px; border: 1px solid var(--bd2, rgba(255, 255, 255, .16)); background: var(--p2, #151516); color: var(--t, #f3f2f0); font: 700 14px 'Manrope', system-ui, sans-serif; cursor: pointer; white-space: nowrap; }
+.fc-btn:hover:not(:disabled) { border-color: var(--or, #ff6a1a); }
+.fc-btn:disabled { opacity: .55; cursor: default; }
+.fc-btn-pri { background: var(--or, #ff6a1a); border-color: transparent; color: #140a02; }
+.fc-btn-pri:hover:not(:disabled) { filter: brightness(1.08); border-color: transparent; }
+@media (max-width: 700px) {
+    .fc-over { place-items: end center; padding: 0; }
+    .fc-janela { border-radius: 26px 26px 0 0; padding: 20px 18px calc(24px + env(safe-area-inset-bottom, 0px)); max-height: 92%; }
+    .fc-codigo { font-size: 18px; }
+    .fc-codigo-caixa { flex-wrap: wrap; }
+}

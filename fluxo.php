@@ -43,13 +43,12 @@ bloquearAdmin();
                     <svg class="chevron-flow-meta" id="chevron-flow-meta" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"></path></svg>
                 </button>
                 <div class="acoes-flow-meta">
-                    <button class="botao" id="btn-importar-fluxo" title="Importar">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"></path></svg>
+                    <button class="botao" id="btn-importar-fluxo" title="Importar por código">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"></path></svg>
                         Importar
                     </button>
-                    <input type="file" id="arquivo-importar-fluxo" accept="application/json" style="display:none">
-                    <button class="botao" id="btn-exportar-fluxo" title="Exportar">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"></path></svg>
+                    <button class="botao" id="btn-exportar-fluxo" title="Exportar (código)">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"></path></svg>
                         Exportar
                     </button>
                     <button class="btn-icon excluir" id="btn-excluir-fluxo" title="Excluir fluxo">
@@ -105,6 +104,7 @@ bloquearAdmin();
 <script src="https://code.jquery.com/ui/1.13.3/jquery-ui.min.js"></script>
 <script src="assets/vendor/jquery.flowchart.js?v=<?php echo @filemtime(__DIR__ . '/assets/vendor/jquery.flowchart.js'); ?>"></script>
 <script src="assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/tema.js'); ?>"></script>
+<script src="assets/js/fluxo_codigo.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/fluxo_codigo.js'); ?>"></script>
 <script src="assets/edicao_fluxo.js?v=<?= (int) filemtime(__DIR__ . '/assets/edicao_fluxo.js') ?>"></script>
 </body>
 </html>

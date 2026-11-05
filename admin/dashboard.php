@@ -23,7 +23,8 @@ if (pedidoDeBloco('atividade')) {
     exit;
 }
 
-$periodo = $_GET['periodo'] ?? '7dias';
+// Abre em "Hoje" (05/11/2026, igual ao painel dos clientes). Quem escolhe outro período pelos botões continua com o que escolheu (?periodo=).
+$periodo = $_GET['periodo'] ?? 'hoje';
 $where_data_vendas = '';
 // Visão do admin é sempre "todos os bots" (removido o filtro por bot da UI) -- ver
 // anotacoes/OBSERVACOES.md. $where_bot_vendas fica vazio de propósito,
@@ -90,17 +91,17 @@ switch ($periodo) {
             $where_data_metricas = "";
         }
         break;
-    default:
-        $where_data_vendas = "AND v.criado_em >= CURDATE() - INTERVAL 7 DAY";
-        $where_data_metricas = "AND data >= CURDATE() - INTERVAL 7 DAY";
-        $periodo = '7dias';
+    default:   // ?periodo= com valor que não existe: volta para o padrão (Hoje)
+        $where_data_vendas = "AND DATE(v.criado_em) = CURDATE()";
+        $where_data_metricas = "AND data = CURDATE()";
+        $periodo = 'hoje';
         break;
 }
 
 function montarUrlFiltroAdminDashboard(array $overrides = []): string
 {
     $params = [
-        'periodo' => $_GET['periodo'] ?? '7dias',
+        'periodo' => $_GET['periodo'] ?? 'hoje',
         'data_inicio' => $_GET['data_inicio'] ?? '',
         'data_fim' => $_GET['data_fim'] ?? '',
     ];

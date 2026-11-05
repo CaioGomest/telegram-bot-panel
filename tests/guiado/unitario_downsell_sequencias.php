@@ -149,7 +149,8 @@ confere('sequências: a 1ª é o próprio ofertas.downsell (sem as extras dentro
     && sequenciasDownsellBasico($dados)[0]['mensagem'] === 'Oferta A' && !isset(sequenciasDownsellBasico($dados)[0]['sequencias_extras']) && sequenciasDownsellBasico($dados)[2]['mensagem'] === 'Oferta C');
 confere('sequências: em "Antes do Pix" só vale a 1ª (a sequência é disparada pelo Pix não pago)', count(sequenciasDownsellBasico(dadosFluxo(downsell([seqB()], ['quando' => 'antes_pix'])))) === 1);
 confere('sequências: fluxo salvo antes (sem extras) é uma sequência só; sem downsell, nenhuma', count(sequenciasDownsellBasico(dadosFluxo(downsell()))) === 1 && sequenciasDownsellBasico(['ofertas' => []]) === []);
-confere('sequências: no máximo 5 no total (a 1ª + 4 extras) e item que não é lista é ignorado', count(sequenciasDownsellBasico(dadosFluxo(downsell(array_merge(array_fill(0, 7, seqB()), ['lixo']))))) === 5);
+confere('sequências: sem o limite antigo de 5 (7 extras viram 8 no total) e item que não é lista é ignorado', count(sequenciasDownsellBasico(dadosFluxo(downsell(array_merge(array_fill(0, 7, seqB()), ['lixo']))))) === 8);
+confere('sequências: o teto agora é 50 no total (a 1ª + 49 extras), só para travar um JSON absurdo', count(sequenciasDownsellBasico(dadosFluxo(downsell(array_fill(0, 80, seqB()))))) === 50 && DOWNSELL_MAXIMO_SEQUENCIAS === 50);
 
 // ---------- planos criados no Downsell ----------
 $criados = planosProprioDoDownsellBasico(seqC(), 2);
@@ -192,6 +193,19 @@ $mensagem_padrao = dadosFluxo(downsell([seqC(['mensagem' => ''])]));
 $GLOBALS['enviados'] = [];
 enviarDownsellBasico('T', 777, $mensagem_padrao, planosDaSequenciaDownsellBasico($mensagem_padrao, 1), 'p1', '', 1);
 confere('envio: sequência sem mensagem usa o texto padrão ("Que tal uma destas opções?" com mais de um botão)', mensagens() === ['Que tal uma destas opções?'], json_encode(mensagens()));
+
+// ---------- desconto em valor fixo (04/11/2026) ----------
+$com_fixo = dadosFluxo(downsell([seqB(['desconto_tipo' => 'fixo', 'desconto_valor' => 15, 'desconto_percentual' => 0])]));
+$GLOBALS['enviados'] = [];
+enviarDownsellBasico('T', 777, $com_fixo, planosDaSequenciaDownsellBasico($com_fixo, 1), 'p1', '', 1);
+confere('desconto fixo: o botão mostra o preço menos R$ 15,00 e o sufixo "(-R$ 15,00)", na mesma posição de sempre', botoesEnviados() === [['Vitalício — R$ 85,00 (-R$ 15,00)', 'basico::of::dn::p1::p100']], json_encode(botoesEnviados(), JSON_UNESCAPED_UNICODE));
+$fixo_5 = ['desconto_tipo' => 'fixo', 'desconto_valor' => 5];
+confere('desconto fixo: valorComDescontoDaOfertaBasico tira os reais do preço e nunca passa de zero; em % segue igual; oferta vazia = sem desconto',
+    valorComDescontoDaOfertaBasico($fixo_5, 29.9) === 24.9 && valorComDescontoDaOfertaBasico(['desconto_tipo' => 'fixo', 'desconto_valor' => 50], 29.9) === 0.0
+    && valorComDescontoDaOfertaBasico(['desconto_percentual' => 20], 50.0) === 40.0 && valorComDescontoDaOfertaBasico([], 12.0) === 12.0);
+confere('desconto fixo: fluxo antigo (sem desconto_tipo) segue em %, mesmo com um desconto_valor solto; o texto do desconto é "R$ 5,00", "12,5%" ou vazio',
+    descontoFixoDaOfertaBasico(['desconto_valor' => 5, 'desconto_percentual' => 10]) === 0.0 && valorComDescontoDaOfertaBasico(['desconto_valor' => 5, 'desconto_percentual' => 10], 100.0) === 90.0
+    && textoDescontoDaOfertaBasico($fixo_5) === 'R$ 5,00' && textoDescontoDaOfertaBasico(['desconto_percentual' => 12.5]) === '12,5%' && textoDescontoDaOfertaBasico([]) === '');
 
 // ---------- agenda e cron ----------
 ligarBot($pdo, downsell([seqB(), seqC()]));

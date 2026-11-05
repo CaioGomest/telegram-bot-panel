@@ -19,7 +19,7 @@ if (!usuarioLogado()) {
 header('Content-Type: application/json; charset=utf-8');
 
 // Toda ação que muda estado (salvar fluxo/bot, upload, excluir, etc.) passa por aqui como
-// POST -- as únicas chamadas GET a este arquivo são leituras (listar_*/obter_*/exportar_fluxo),
+// POST -- as únicas chamadas GET a este arquivo são leituras (listar_*/obter_*),
 // que não precisam de proteção CSRF. Token vem do header X-CSRF-Token, setado globalmente
 // via $.ajaxSetup() nas páginas que usam este endpoint (ver barra_lateral.php).
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -393,7 +393,7 @@ try {
                 SELECT bg.*, b.nome_usuario as nome_bot
                 FROM bot_grupos bg
                 JOIN bots b ON bg.bot_id = b.id
-                WHERE b.id_usuario = ?
+                WHERE b.id_usuario = ? AND COALESCE(bg.tipo, '') <> 'private'
                 ORDER BY bg.titulo ASC
             ");
             $stmt->execute([$usuario_id]);
@@ -448,53 +448,48 @@ try {
             responder(true, ['fluxo' => $fluxo]);
             break;
 
-        case 'exportar_fluxo':
-            $id = (int) ($_GET['id'] ?? 0);
+        case 'gerar_codigo_fluxo':
+            // Exportar = um código para colar em "Importar Fluxo" (funcoes/fluxo_codigo.php). O fluxo em si nunca sai como arquivo.
+            require_once __DIR__ . '/funcoes/fluxo_codigo.php';
+            $id = (int) ($entrada['id'] ?? 0);
             if ($id <= 0) {
                 responder(false, ['mensagem' => 'ID do fluxo inválido.'], 422);
             }
-            $stmt = $pdo->prepare("SELECT id, nome, descricao, link_suporte, modo, dados_fluxograma, atualizado_em FROM fluxos WHERE id = ? AND id_usuario = ?");
-            $stmt->execute([$id, $usuario_id]);
-            $fluxo = $stmt->fetch();
-            if (!$fluxo) {
+            $codigo = gerarCodigoFluxo($pdo, $usuario_id, $id);
+            if ($codigo === null) {
                 responder(false, ['mensagem' => 'Fluxo não encontrado.'], 404);
             }
-            $exportado = [
-                'versao' => 1,
-                'modo' => ($fluxo['modo'] ?? 'avancado') === 'basico' ? 'basico' : 'avancado',
-                'id_origem' => (int)($fluxo['id'] ?? 0),
-                'nome' => (string)($fluxo['nome'] ?? ''),
-                'descricao' => (string)($fluxo['descricao'] ?? ''),
-                'link_suporte' => (string)($fluxo['link_suporte'] ?? ''),
-                'dados_fluxograma' => json_decode($fluxo['dados_fluxograma'] ?? '{}', true),
-                'atualizado_em' => $fluxo['atualizado_em'] ?? null,
-            ];
-            header('Content-Disposition: attachment; filename="fluxo_' . ($fluxo['id'] ?? $id) . '.json"');
-            responder(true, ['fluxo' => $exportado]);
+            responder(true, ['codigo' => $codigo]);
             break;
 
-        case 'importar_fluxo':
-            $json = $entrada;
-            if (!is_array($json)) {
-                responder(false, ['mensagem' => 'JSON inválido.'], 422);
+        case 'importar_fluxo_codigo':
+            require_once __DIR__ . '/funcoes/fluxo_codigo.php';
+            // Sem limite, dava para sair testando códigos até achar o fluxo de alguém.
+            [$permitido, $espera] = limiteTaxaConsumir('fluxo_codigo:' . $usuario_id, 30, 3600);
+            if (!$permitido) {
+                responder(false, ['mensagem' => 'Muitas tentativas de importar. Tente de novo em ' . limiteTaxaTextoEspera($espera) . '.'], 429);
             }
-            $nome = sanitizarTexto($json['nome'] ?? 'Fluxo importado', 120);
-            $descricao = sanitizarTexto($json['descricao'] ?? '', 500);
-            $link_suporte = sanitizarTexto($json['link_suporte'] ?? '', 255);
-
-            // Aceita dados_fluxograma_b64 para contornar WAF/ModSecurity que bloqueiam o JSON do diagrama (403).
-            if (!empty($json['dados_fluxograma_b64']) && is_string($json['dados_fluxograma_b64'])) {
-                $bruto_b64 = base64_decode($json['dados_fluxograma_b64'], true);
-                if ($bruto_b64 === false || $bruto_b64 === '') {
-                    responder(false, ['mensagem' => 'dados_fluxograma (codificação) inválidos.'], 422);
+            $copia = localizarCodigoFluxo($pdo, (string) ($entrada['codigo'] ?? ''));
+            if ($copia === null) {
+                responder(false, ['mensagem' => 'Código não encontrado. Confira se copiou o código inteiro (começa com ' . FLUXO_CODIGO_PREFIXO . ').'], 404);
+            }
+            $id_bot_importar = (int) ($entrada['id_bot'] ?? 0);
+            if ($id_bot_importar > 0) {
+                $stmt = $pdo->prepare("SELECT id FROM bots WHERE id = ? AND id_usuario = ?");
+                $stmt->execute([$id_bot_importar, $usuario_id]);
+                if (!$stmt->fetchColumn()) {
+                    responder(false, ['mensagem' => 'Bot não encontrado.'], 404);
                 }
-                $dados = json_decode($bruto_b64, true);
-            } else {
-                $dados = $json['dados_fluxograma'] ?? null;
             }
+            $nome_digitado = trim((string) ($entrada['nome'] ?? ''));
+            $nome = sanitizarTexto($nome_digitado !== '' ? $nome_digitado : (trim((string) $copia['nome']) ?: 'Fluxo') . ' (Importado)', 120);
+            $descricao = sanitizarTexto((string) $copia['descricao'], 500);
+            $de_outra_conta = (int) $copia['id_usuario'] !== $usuario_id;
+            $link_suporte = $de_outra_conta ? '' : sanitizarTexto((string) $copia['link_suporte'], 255);
+            $dados = dadosFluxoParaImportar($copia['dados_fluxograma'], $de_outra_conta);
 
             // Fluxo Guiado (modo basico) tem outro formato: seções/planos em vez de nós e links.
-            $modo = (($json['modo'] ?? '') === 'basico' || (is_array($dados) && isset($dados['planos']))) ? 'basico' : 'avancado';
+            $modo = (($copia['modo'] ?? '') === 'basico' || (is_array($dados) && isset($dados['planos']))) ? 'basico' : 'avancado';
             $estrutura_valida = is_array($dados) && ($modo === 'basico' ? isset($dados['planos']) : (isset($dados['operators']) && isset($dados['links'])));
             if (!$estrutura_valida) {
                 responder(false, ['mensagem' => 'Estrutura do fluxo inválida.'], 422);
@@ -514,12 +509,16 @@ try {
             $stmt = $pdo->prepare("INSERT INTO fluxos (id_usuario, nome, descricao, link_suporte, modo, dados_fluxograma) VALUES (?, ?, ?, ?, ?, ?)");
             $stmt->execute([$usuario_id, $nome, $descricao, $link_suporte, $modo, json_encode($dados, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]);
             $novo_id = (int)$pdo->lastInsertId();
+            registrarUsoCodigoFluxo($pdo, (string) $copia['codigo']);
             registrarAtividade($usuario_id, 'sistema', 'Fluxo', "Importou o fluxo: $nome");
-            $stmt = $pdo->prepare("SELECT * FROM fluxos WHERE id = ? AND id_usuario = ?");
-            $stmt->execute([$novo_id, $usuario_id]);
-            $fluxo = $stmt->fetch();
-            $fluxo['dados_fluxograma'] = json_decode($fluxo['dados_fluxograma'] ?? '{}', true);
-            responder(true, ['mensagem' => 'Fluxo importado com sucesso.', 'fluxo' => $fluxo]);
+            if ($id_bot_importar > 0) {
+                $pdo->prepare("UPDATE bots SET id_fluxo_conectado = ? WHERE id = ? AND id_usuario = ?")->execute([$novo_id, $id_bot_importar, $usuario_id]);
+            }
+            responder(true, [
+                'mensagem' => ($id_bot_importar > 0 ? 'Fluxo importado e vinculado ao bot.' : 'Fluxo importado com sucesso.') . ' Grupos, links e mensagens de entrega e o suporte não vêm junto: configure os seus.',
+                'id' => $novo_id,
+                'modo' => $modo,
+            ]);
             break;
 
         case 'salvar_fluxo':
@@ -1083,6 +1082,10 @@ try {
             }
             $tmp = $_FILES['image']['tmp_name'];
             $tamanho = (int)($_FILES['image']['size'] ?? 0);
+            // O Telegram recusa foto acima de 10 MB; barrar aqui evita que passe no upload e falhe só na hora de enviar ao cliente.
+            if ($tamanho > 10 * 1024 * 1024) {
+                responder(false, ['mensagem' => 'A foto passa de 10 MB. Reduza o tamanho e tente de novo.'], 422);
+            }
             // getimagesize() sozinho aceita um "GIF89a<?php ...": exige que o TIPO real seja JPEG, PNG ou WebP.
             $info_imagem = @getimagesize($tmp);
             if ($tamanho <= 0 || !$info_imagem || !in_array($info_imagem[2] ?? 0, [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP], true)) {

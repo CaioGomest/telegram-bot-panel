@@ -95,7 +95,7 @@ $usuarios = listarUsuariosFiltrados($filtros, $por_pagina, $offset);
                             </td>
                             <td class="texto-suave">
                                 <?php echo htmlspecialchars($u['email']); ?>
-                                <div class="celula-sub"><?php echo !empty($u['email_verificado_em']) ? '✓ E-mail confirmado' : 'E-mail não confirmado'; ?><?php echo !empty($u['tem_google']) ? ' · Google' : ''; ?></div>
+                                <div class="celula-sub"><?php echo !empty($u['email_verificado_em']) ? '<span class="email-status email-ok">✓ E-mail confirmado</span>' : '<span class="email-status email-pendente">✕ E-mail não confirmado</span>'; ?><?php echo !empty($u['tem_google']) ? ' · Google' : ''; ?></div>
                             </td>
                             <td>
                                 <span class="badge <?php echo $u['perfil'] === 'admin' ? 'badge-sucesso' : 'badge-neutro'; ?>">

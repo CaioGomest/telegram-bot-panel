@@ -12,6 +12,7 @@ require_once __DIR__ . '/funcoes/assinatura.php';
 require_once __DIR__ . '/funcoes/guiado_ofertas.php';
 require_once __DIR__ . '/funcoes/chat.php';
 require_once __DIR__ . '/funcoes/remarketing_ofertas.php';
+require_once __DIR__ . '/funcoes/grupos_telegram.php';
 function buscarProximoDoInicio(array $dados): ?string
 {
     $operadores = $dados['operators'] ?? [];
@@ -113,6 +114,11 @@ $atualizacao = json_decode($entrada ?: '{}', true);
 if (isset($atualizacao['my_chat_member'])) {
     $chat = $atualizacao['my_chat_member']['chat'];
     $novo_status = $atualizacao['my_chat_member']['new_chat_member']['status'] ?? '';
+    // Conversa privada (lead que bloqueou ou desbloqueou o bot) chega pelo mesmo evento, mas não é grupo: gravava "Sem Título" na lista de grupos.
+    if (($chat['type'] ?? '') === 'private') {
+        echo 'ok status';
+        exit;
+    }
     if (in_array($novo_status, ['member', 'administrator', 'creator'])) {
         $stmt = $pdo->prepare("
             INSERT INTO bot_grupos (bot_id, id_telegram, titulo, tipo) 
@@ -134,6 +140,11 @@ if (isset($atualizacao['my_chat_member'])) {
     }
     echo 'ok status';
     exit;
+}
+// Grupo onde o bot já era administrador antes de o webhook apontar para o painel: a primeira mensagem (ou post do canal) que chega dele o registra.
+try {
+    registrarGrupoPelaMensagem($pdo, $bot, is_array($atualizacao) ? $atualizacao : [], 'requisicaoTelegram', __DIR__ . '/storage/grupos_conferidos');
+} catch (Throwable $e) {
 }
 // Histórico do chat (botão "Abrir Chat" em Leads): o que o lead mandou entra na fila e vai ao banco num INSERT só, no fim da requisição.
 chatRegistrarBot($token, (int) $bot['id']);
@@ -550,6 +561,14 @@ function enviarListaPlanosBasico(string $token, $id_chat, array $planos, string 
         requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Nenhum plano disponível no momento.']);
         return;
     }
+    requisicaoTelegram($token, 'sendMessage', [
+        'chat_id' => $id_chat,
+        'text' => 'Escolha um plano:',
+        'reply_markup' => tecladoListaPlanosBasico($planos, $suporte, $cor_suporte, $previas, $dados_packs)
+    ]);
+}
+/** Botões da lista de planos (planos, prévias, packs e suporte), em JSON para o reply_markup. */
+function tecladoListaPlanosBasico(array $planos, string $suporte = '', string $cor_suporte = '', array $previas = [], array $dados_packs = []): string {
     $botoes = [];
     foreach ($planos as $p) {
         $rotulo = trim((string) ($p['nome'] ?? 'Plano')) . ' — R$ ' . number_format((float) ($p['valor'] ?? 0), 2, ',', '.') . (planoRecorrenteBasico($p) ? PERIODICIDADES_BASICO[periodicidadePlanoBasico($p)] : '');
@@ -565,11 +584,7 @@ function enviarListaPlanosBasico(string $token, $id_chat, array $planos, string 
     if ($url_suporte !== '') {
         $botoes[] = [['text' => '💬 Falar com o suporte', 'url' => $url_suporte] + estiloBotaoBasicoValor($cor_suporte)];
     }
-    requisicaoTelegram($token, 'sendMessage', [
-        'chat_id' => $id_chat,
-        'text' => 'Escolha um plano:',
-        'reply_markup' => json_encode(['inline_keyboard' => $botoes])
-    ]);
+    return json_encode(['inline_keyboard' => $botoes]);
 }
 /**
  * Ofertas do modo guiado, sem estado no banco: a etapa e as escolhas já feitas viajam no
@@ -595,7 +610,7 @@ function planoDoDownsellPorVariante(array $dados_basico, string $variante): ?arr
 function gerarPixBasico(string $token, $id_chat, array $dados_basico, string $id_plano, string $variante, bool $com_bump, ?array $item_order_bump = null, bool $agendar_ofertas = true): void {
     $pagamentos = $dados_basico['pagamentos'] ?? [];
     $plano = localizarPlanoBasico($dados_basico['planos'] ?? [], $id_plano);
-    $desconto = 0.0;
+    $oferta_com_desconto = [];   // oferta cujo desconto vale (em % ou em R$ fixo); vazia = sem desconto
     $tipo_oferta = '';   // 'upsell' / 'downsell' quando o cliente aceitou uma oferta (a entrega pode ser da oferta); '' = plano escolhido direto
     $oferta_aceita = [];   // a oferta aceita: no Downsell em sequência, a sequência a que o botão tocado pertence
     if ($variante === 'u' || preg_match('/^d\d*$/', $variante)) {
@@ -605,14 +620,14 @@ function gerarPixBasico(string $token, $id_chat, array $dados_basico, string $id
             $plano = $destino;
             $tipo_oferta = $tipo;
             $oferta_aceita = ($tipo === 'downsell' && preg_match('/^d(\d+)$/', $variante, $m_posicao)) ? ofertaDaPosicaoDownsellBasico($dados_basico, (int) $m_posicao[1]) : ($dados_basico['ofertas'][$tipo] ?? []);
-            $desconto = !empty($destino['exclusivo_oferta']) ? 0.0 : descontoDaOfertaBasico($oferta_aceita);   // plano criado no Downsell vale pelo valor digitado
+            $oferta_com_desconto = !empty($destino['exclusivo_oferta']) ? [] : $oferta_aceita;   // plano criado no Downsell vale pelo valor digitado
         }
     }
     if (!$plano) {
         requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Esse plano não existe mais. Toque em "Ver Planos" de novo.']);
         return;
     }
-    $valor = round((float) ($plano['valor'] ?? 0) * (1 - $desconto / 100), 2);
+    $valor = valorComDescontoDaOfertaBasico($oferta_com_desconto, (float) ($plano['valor'] ?? 0));
     if ($valor <= 0) {
         requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Não foi possível gerar o pagamento deste plano. Fale com o suporte.']);
         return;
@@ -701,11 +716,16 @@ function executarFluxoBasico(string $token, $id_chat, array $dados_basico, strin
         return;
     }
     if ($texto === '/start') {
-        enviarBoasVindasBasico($token, $id_chat, $boas_vindas, (string) ($dados_basico['cache_chat_id'] ?? ''));
-        if (!boasVindasMostraCtaBasico($boas_vindas)) {
-            // Sem o botão CTA o cliente não teria como ver os planos: a lista vai logo depois da mensagem.
+        // Sem o botão CTA o cliente não teria como ver os planos: eles vão como botões da própria mensagem de boas-vindas (sem a mensagem "Escolha um plano:").
+        $sem_cta = !boasVindasMostraCtaBasico($boas_vindas);
+        $teclado_planos = $sem_cta && !empty($planos) ? tecladoListaPlanosBasico($planos, (string) ($dados_basico['suporte'] ?? ''), (string) ($dados_basico['suporte_cor'] ?? ''), $dados_basico['previas'] ?? [], $dados_basico['packs'] ?? []) : '';
+        enviarBoasVindasBasico($token, $id_chat, $boas_vindas, (string) ($dados_basico['cache_chat_id'] ?? ''), $teclado_planos);
+        if ($sem_cta && empty($planos)) {
             enviarListaPlanosBasico($token, $id_chat, $planos, (string) ($dados_basico['suporte'] ?? ''), (string) ($dados_basico['suporte_cor'] ?? ''), $dados_basico['previas'] ?? [], $dados_basico['packs'] ?? []);
         }
+        // Downsell com temporizador também para quem não toca em nada: a contagem começa agora (funcoes/guiado_ofertas.php).
+        garantirConexaoBanco();
+        agendarDownsellSemCliqueBasico($GLOBALS['pdo'], (int) $GLOBALS['bot']['id'], (string) $id_chat, $dados_basico);
         return;
     }
     if ($texto === 'basico::ver_planos') {

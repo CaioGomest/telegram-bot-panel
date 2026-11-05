@@ -26,6 +26,13 @@ confere('o mesmo Upsell sem desconto passa', v15(dono) === '');
 // Downsell com vários planos: mostra o pior (menor preço) uma vez só
 const dn = base([{ id: 'a', nome: 'Mensal', valor: 20 }, { id: 'b', nome: 'Semanal', valor: 3 }], { upsell: {}, downsell: { ativo: true, planos_oferecidos: ['a', 'b'], desconto_percentual: 50 } });
 confere('Downsell com 2 planos: só o Semanal com 50% (R$ 1,50) fica abaixo; frase extra com o desconto e o valor', v21(dn) === 'Para a Omega, o valor mínimo é R$ 2,10. O Downsell, com 50% de desconto, sai por R$ 1,50.', v21(dn));
+// desconto em valor fixo (04/11/2026): a frase extra diz o desconto em reais; fixo maior que o plano zera o valor e também recusa
+const dnf = base([{ id: 'a', nome: 'Mensal', valor: 20 }, { id: 'b', nome: 'Semanal', valor: 3 }], { upsell: {}, downsell: { ativo: true, planos_oferecidos: ['a', 'b'], desconto_tipo: 'fixo', desconto_valor: 1.5, desconto_percentual: 0 } });
+confere('Downsell com desconto fixo de R$ 1,50: o Semanal (R$ 3,00) sai por R$ 1,50; a frase diz o desconto em reais', v21(dnf) === 'Para a Omega, o valor mínimo é R$ 2,10. O Downsell, com R$ 1,50 de desconto, sai por R$ 1,50.', v21(dnf));
+dnf.ofertas.downsell.planos_oferecidos = ['a'];
+confere('desconto fixo de R$ 1,50 só no Mensal (R$ 20,00 vira R$ 18,50) passa', v21(dnf) === '');
+dnf.ofertas.downsell.desconto_valor = 25;
+confere('desconto fixo maior que o plano (R$ 25,00 num plano de R$ 20,00) zera o valor e recusa', v21(dnf) !== '', v21(dnf));
 // plano já abaixo + desconto: só a frase curta (o desconto não é o culpado)
 const baixo = base([{ id: 'p', nome: 'x', valor: 1 }], { upsell: { ativo: true, id_plano_destino: 'p', desconto_percentual: 10 }, downsell: {} });
 confere('plano já abaixo do mínimo + Upsell com desconto: só a frase curta', v15(baixo) === 'Para a Omega, o valor mínimo é R$ 1,50.', v15(baixo));

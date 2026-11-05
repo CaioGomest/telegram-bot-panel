@@ -259,6 +259,37 @@ const GRUPOS = [
         await js(`${q('#dn-extras')}.get(0).scrollIntoView({block:'start'})`);
         await esp(200);
         await c.captura(SAIDA + '/2_sequencia.png');
+        const lista_tempos = JSON.parse(await js(`JSON.stringify(${q(X(0) + ' .dn-espera option')}.map(function(){ return $(this).text(); }).get())`));
+        chk('o tempo é uma lista pronta (sem digitar minutos): de 5 minutos a 7 dias, com 1 hora, 12 horas, 1 dia e 2 dias, no cartão e no Downsell 1',
+            (await js(`${q(X(0) + ' .dn-espera')}.is('select') && ${q(D + ' .of-espera')}.is('select') && ${q(D + ' .of-intervalo')}.is('select')`)) === true
+            && lista_tempos[0] === '5 minutos' && lista_tempos[lista_tempos.length - 1] === '7 dias' && ['1 hora', '12 horas', '1 dia', '2 dias'].every(function (t) { return lista_tempos.indexOf(t) !== -1; }), lista_tempos);
+        // ---- desconto: 2 modos, "% (Porcentagem)" (lista de 5 em 5) ou "Valor fixo (R$)" (campo numérico)
+        const lista_desc = JSON.parse(await js(`JSON.stringify(${q(X(0) + ' .dn-desconto option')}.map(function(){ return $(this).text(); }).get())`));
+        const tipos_desc = JSON.parse(await js(`JSON.stringify(${q(X(0) + ' .desc-tipo option')}.map(function(){ return $(this).text(); }).get())`));
+        chk('o desconto tem 2 modos ("% (Porcentagem)" e "Valor fixo (R$)") no cartão e no Downsell 1; em % é uma lista de 5 em 5 (de "Sem desconto" a 95%) e o campo de reais fica escondido',
+            JSON.stringify(tipos_desc) === JSON.stringify(['% (Porcentagem)', 'Valor fixo (R$)']) && (await qtd(D + ' .desc-tipo')) >= 1 && (await qtd(S1 + ' .desc-tipo')) === 1
+            && lista_desc[0] === 'Sem desconto' && lista_desc[1] === '5%' && lista_desc[lista_desc.length - 1] === '95%' && lista_desc.length === 20
+            && (await visivel(X(0) + ' .dn-desconto')) && !(await visivel(X(0) + ' .desc-fixo')), { tipos_desc, lista_desc });
+        await escolher(X(0) + ' .desc-tipo', 'fixo');
+        chk('"Valor fixo (R$)": aparece o campo de reais e some a lista de %', (await visivel(X(0) + ' .desc-fixo')) && !(await visivel(X(0) + ' .dn-desconto')));
+        await digitar(X(0) + ' .desc-fixo', 7.5);
+        await escolher(S1 + ' .desc-tipo', 'fixo');
+        await digitar(S1 + ' .desc-fixo', 12);
+        const dfx = await salvar();
+        const dfd = dfx && dfx.dados_fluxograma.ofertas.downsell;
+        chk('salvar com valor fixo: desconto_tipo "fixo", o valor em reais e o % zerado — no Downsell 1 (R$ 12) e no cartão (R$ 7,50)',
+            !!dfd && dfd.desconto_tipo === 'fixo' && dfd.desconto_valor === 12 && dfd.desconto_percentual === 0
+            && dfd.sequencias_extras[0].desconto_tipo === 'fixo' && dfd.sequencias_extras[0].desconto_valor === 7.5 && dfd.sequencias_extras[0].desconto_percentual === 0, dfd);
+        await escolher(X(0) + ' .desc-tipo', 'percentual');
+        await escolher(S1 + ' .desc-tipo', 'percentual');
+        const dpc = await salvar();
+        const dpd = dpc && dpc.dados_fluxograma.ofertas.downsell;
+        chk('voltando para "% (Porcentagem)": desconto_tipo "percentual", o % escolhido antes (25%) continua e o valor em reais é zerado',
+            !!dpd && dpd.sequencias_extras[0].desconto_tipo === 'percentual' && dpd.sequencias_extras[0].desconto_percentual === 25 && dpd.sequencias_extras[0].desconto_valor === 0 && dpd.desconto_tipo === 'percentual' && dpd.desconto_valor === 0, dpd);
+        await escolher(X(0) + ' .dn-espera', '10080');
+        const d7 = await salvar();
+        chk('escolher "7 dias" no Downsell 2 salva 10080 minutos', !!d7 && d7.dados_fluxograma.ofertas.downsell.sequencias_extras[0].espera_minutos === 10080, d7 && d7.dados_fluxograma.ofertas.downsell.sequencias_extras[0].espera_minutos);
+        await escolher(X(0) + ' .dn-espera', '45');
         dados = await salvar();
         const dn = dados && dados.dados_fluxograma.ofertas.downsell;
         chk('salvar: o Downsell 1 leva a mensagem e os planos marcados; as sequências extras vão em sequencias_extras, na ordem da tela, com o que foi digitado em cada uma',
@@ -276,11 +307,15 @@ const GRUPOS = [
         await clicar(X(0) + ' .dn-remover');
         chk('remover o Downsell 2: o 3º vira o "Downsell 2" e guarda o que tinha (60 minutos, "Só hoje", o plano criado)', (await qtd('#dn-extras .dn-extra')) === 1 && (await texto(X(0) + ' .bp-item-titulo')) === 'Downsell 2'
             && (await valor(X(0) + ' .dn-espera')) === '60' && (await valor(X(0) + ' .dn-mensagem')) === 'Só hoje' && (await js(`${q(X(0) + ' .dn-midia')}.attr('data-estado')`)) === 'anexada' && (await valor(X(0) + ' .dn-proprio:eq(0) .dn-p-nome')) === 'Último plano');
-        // limite de 5
+        // sem o limite antigo de 5: o teto agora é 50
         for (let i = 0; i < 3; i++) await clicar('#dn-adicionar');
-        chk('limite: com 5 downsells no total o botão fica desabilitado e avisa "Limite de 5 downsells"', (await qtd('#dn-extras .dn-extra')) === 4 && (await js(`${q('#dn-adicionar')}.prop('disabled')`)) && (await texto('#dn-adicionar')) === 'Limite de 5 downsells');
-        await clicar(X(3) + ' .dn-remover');
-        chk('tirando um, o botão volta a "+ Adicionar downsell"', !(await js(`${q('#dn-adicionar')}.prop('disabled')`)) && (await texto('#dn-adicionar')) === '+ Adicionar downsell');
+        chk('sem o limite antigo: com 5 downsells no total o botão continua habilitado ("+ Adicionar downsell")', (await qtd('#dn-extras .dn-extra')) === 4 && !(await js(`${q('#dn-adicionar')}.prop('disabled')`)) && (await texto('#dn-adicionar')) === '+ Adicionar downsell');
+        await js(`for (var i = 0; i < 45; i++) { jQuery('#dn-adicionar').get(0).click(); }`);
+        await esp(300);
+        chk('teto de 50 downsells no total (o Downsell 1 + 49 cartões): o botão fica desabilitado e avisa "Limite de 50 downsells"', (await qtd('#dn-extras .dn-extra')) === 49 && (await js(`${q('#dn-adicionar')}.prop('disabled')`)) && (await texto('#dn-adicionar')) === 'Limite de 50 downsells');
+        await js(`for (var i = 0; i < 46; i++) { jQuery('#dn-extras .dn-extra:last .dn-remover').get(0).click(); }`);
+        await esp(300);
+        chk('tirando cartões, o botão volta a "+ Adicionar downsell" e sobram os 3 primeiros intactos', (await qtd('#dn-extras .dn-extra')) === 3 && !(await js(`${q('#dn-adicionar')}.prop('disabled')`)) && (await texto('#dn-adicionar')) === '+ Adicionar downsell');
 
         // validações por cartão
         dados = await salvar();
@@ -326,6 +361,7 @@ const GRUPOS = [
         chk('fluxo salvo: abre com o Downsell 1 e os 2 cartões extras, cada um com o seu tempo, mensagem, desconto e planos', (await qtd('#dn-extras .dn-extra')) === 2 && (await valor(D + ' .of-espera')) === '15' && (await valor(D + ' .of-mensagem')) === 'A'
             && (await valor(X(0) + ' .dn-espera')) === '20' && (await valor(X(0) + ' .dn-mensagem')) === 'B' && (await valor(X(0) + ' .dn-desconto')) === '30' && (await js(`${q(X(0) + ' .dn-planos-lista input:eq(1)')}.is(':checked')`)) && !(await js(`${q(X(0) + ' .dn-planos-lista input:eq(0)')}.is(':checked')`))
             && (await valor(X(1) + ' .dn-espera')) === '40');
+        chk('tempo salvo que não está na lista (40 minutos) abre como opção extra, já escolhida, e salvar não o troca', (await texto(X(1) + ' .dn-espera option:selected')) === '40 minutos');
         chk('fluxo salvo: a entrega por link do Downsell 2 e a mídia (vídeo anexado) voltam', (await valor(X(0) + ' .entrega-select')) === '__link__' && (await valor(X(0) + ' .entrega-link')) === 'https://promo.exemplo.com/b' && (await js(`${q(X(0) + ' .dn-midia')}.attr('data-estado')`)) === 'anexada' && (await js(`${q(X(0) + ' .dn-midia')}.attr('data-tipo')`)) === 'video');
         chk('fluxo salvo: o Downsell 3 abre com "Criar planos" ligado, o plano criado (Relâmpago, 9,90, entrega por mensagem) e sem desconto nem entrega da oferta', (await js(`${q(X(1) + ' .dn-criar')}.is(':checked')`)) && (await qtd(X(1) + ' .dn-proprio')) === 1
             && (await valor(X(1) + ' .dn-proprio:eq(0) .dn-p-nome')) === 'Relâmpago' && (await valor(X(1) + ' .dn-proprio:eq(0) .dn-p-valor')) === '9.9' && (await valor(X(1) + ' .dn-proprio:eq(0) .entrega-select')) === '__mensagem__'
@@ -358,6 +394,25 @@ const GRUPOS = [
         dados = await salvar();
         const ant = dados && dados.dados_fluxograma.ofertas.downsell;
         chk('salvar o fluxo antigo: continua com envios 3 e intervalo 40 (sem sequências extras, o repetir de sempre vale) e leva criar_planos falso', !!ant && ant.envios === 3 && ant.intervalo_minutos === 40 && ant.sequencias_extras.length === 0 && ant.criar_planos === false && ant.planos_oferecidos.length === 2, ant);
+
+        // fluxo salvo com desconto em valor fixo (Downsell 1 e um cartão) e um desconto em % fora da lista (12,5%)
+        const salvoFixo = { ativo: true, quando: 'depois_pix', espera_minutos: 10, envios: 1, intervalo_minutos: 30, mensagem: 'A', planos_oferecidos: ['p1'], id_plano_destino: 'p1', desconto_tipo: 'fixo', desconto_valor: 9.9, desconto_percentual: 0,
+            entrega_tipo: 'plano', id_grupo: '', link_entrega: '', mensagem_entrega: '', criar_planos: false, planos_proprios: [],
+            sequencias_extras: [
+                { mensagem: 'B', espera_minutos: 20, planos_oferecidos: ['p2'], desconto_tipo: 'fixo', desconto_valor: 4, desconto_percentual: 0, criar_planos: false, planos_proprios: [], entrega_tipo: 'plano', id_grupo: '', link_entrega: '', mensagem_entrega: '' },
+                { mensagem: 'C', espera_minutos: 30, planos_oferecidos: ['p2'], desconto_percentual: 12.5, criar_planos: false, planos_proprios: [], entrega_tipo: 'plano', id_grupo: '', link_entrega: '', mensagem_entrega: '' }
+            ] };
+        await abrir({ id: 5, nome: 'Com fixo', modo: 'basico', dados_fluxograma: Object.assign({}, base, { ofertas: { downsell: salvoFixo } }) }, GRUPOS);
+        await secao('downsell');
+        chk('fluxo salvo com valor fixo: o Downsell 1 abre em "Valor fixo (R$)" com 9.9 e o cartão 2 com 4; o cartão 3 (sem desconto_tipo, 12,5%) abre em % com a opção "12,5%" já escolhida',
+            (await valor(S1 + ' .desc-tipo')) === 'fixo' && (await valor(S1 + ' .desc-fixo')) === '9.9' && (await visivel(S1 + ' .desc-fixo')) && !(await visivel(S1 + ' .of-desconto'))
+            && (await valor(X(0) + ' .desc-tipo')) === 'fixo' && (await valor(X(0) + ' .desc-fixo')) === '4'
+            && (await valor(X(1) + ' .desc-tipo')) === 'percentual' && (await texto(X(1) + ' .dn-desconto option:selected')) === '12,5%');
+        dados = await salvar();
+        const rf = dados && dados.dados_fluxograma.ofertas.downsell;
+        chk('salvar sem mexer em nada devolve o mesmo desconto (round-trip): fixo 9,9 e 4, e o 12,5% do fluxo antigo sem mudar',
+            !!rf && rf.desconto_tipo === 'fixo' && rf.desconto_valor === 9.9 && rf.sequencias_extras[0].desconto_tipo === 'fixo' && rf.sequencias_extras[0].desconto_valor === 4
+            && rf.sequencias_extras[1].desconto_tipo === 'percentual' && rf.sequencias_extras[1].desconto_percentual === 12.5, rf);
 
         // ============ celular ============
         await abrir({ id: 5, nome: 'Com sequência', modo: 'basico', dados_fluxograma: Object.assign({}, base, { ofertas: { downsell: salvoDown } }) }, GRUPOS, 390);

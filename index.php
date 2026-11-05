@@ -65,7 +65,9 @@ try {
     error_log('[dashboard] mini-ranking indisponível: ' . $e->getMessage());
 }
 
-$periodo = $_GET['periodo'] ?? '7dias';
+// Ao abrir o painel o período é "Hoje" (05/11/2026, pedido dos clientes: "a dashboard já fica em 8 dias, deixar pra quando abrir ficar em 1 dia").
+// Quem escolhe outro período pelos botões continua com o que escolheu (vem em ?periodo=).
+$periodo = $_GET['periodo'] ?? 'hoje';
 $where_data_vendas = '';
 $where_data_leads = '';
 // Filtro de data equivalente, mas pra ler de metricas_horarias_usuario (cache) em vez
@@ -131,18 +133,18 @@ switch ($periodo) {
             $where_data_metricas = "";
         }
         break;
-    default:
-        $where_data_vendas = "AND v.criado_em >= CURDATE() - INTERVAL 7 DAY";
-        $where_data_leads = "AND l.criado_em >= CURDATE() - INTERVAL 7 DAY";
-        $where_data_metricas = "AND data >= CURDATE() - INTERVAL 7 DAY";
-        $periodo = '7dias';
+    default:   // ?periodo= com valor que não existe: volta para o padrão (Hoje)
+        $where_data_vendas = "AND DATE(v.criado_em) = CURDATE()";
+        $where_data_leads = "AND DATE(l.criado_em) = CURDATE()";
+        $where_data_metricas = "AND data = CURDATE()";
+        $periodo = 'hoje';
         break;
 }
 
 function montarUrlFiltroDashboard(array $overrides = []): string
 {
     $params = [
-        'periodo' => $_GET['periodo'] ?? '7dias',
+        'periodo' => $_GET['periodo'] ?? 'hoje',
         'data_inicio' => $_GET['data_inicio'] ?? '',
         'data_fim' => $_GET['data_fim'] ?? '',
         'bot_id' => $_GET['bot_id'] ?? 'todos',

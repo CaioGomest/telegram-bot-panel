@@ -1094,6 +1094,9 @@ html[data-theme] .barra-filtros select {
 .tabela-dados .col-acoes { display: flex; gap: 6px; align-items: center; }
 .tabela-dados .celula-principal { display: flex; align-items: center; gap: 11px; }
 .tabela-dados .celula-sub { font-size: 11px; color: var(--m); margin-top: 2px; }
+.tabela-dados .email-status { font-weight: 600; }
+.tabela-dados .email-ok { color: #34d399; }
+.tabela-dados .email-pendente { color: #f87171; }
 
 /* ===== Grid de fluxos ===== */
 .miniatura-fluxo {

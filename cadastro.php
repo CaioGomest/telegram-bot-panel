@@ -16,6 +16,7 @@ $sucesso = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verificarCsrf();
     $nome = $_POST['nome'] ?? '';
+    $apelido = (string) ($_POST['apelido_publico'] ?? '');
     $email = $_POST['email'] ?? '';
     $senha = $_POST['senha'] ?? '';
     $confirma_senha = $_POST['confirma_senha'] ?? '';
@@ -29,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$permitido) {
             $erro = 'Muitos cadastros deste endereço. Tente de novo em ' . limiteTaxaTextoEspera($espera) . '.';
         } else {
-            $resultado = criarUsuario($nome, $email, $senha);
+            $resultado = criarUsuario($nome, $email, $senha, $apelido);
             if ($resultado['sucesso']) {
                 header('Location: login?sucesso=cadastro');
                 exit;
@@ -106,6 +107,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <input type="text" id="nome" name="nome" required placeholder="Seu nome completo" autocomplete="name"
                                value="<?php echo htmlspecialchars($_POST['nome'] ?? ''); ?>">
                     </div>
+                </div>
+
+                <div class="campo" style="margin-top:16px;">
+                    <label for="apelido_publico">Apelido no Ranking</label>
+                    <div class="campo-icone">
+                        <span class="campo-icone-simbolo" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z"></path><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"></path></svg></span>
+                        <input type="text" id="apelido_publico" name="apelido_publico" required maxlength="40" placeholder="Ex: @seuapelido" autocomplete="nickname"
+                               value="<?php echo htmlspecialchars($_POST['apelido_publico'] ?? ''); ?>">
+                    </div>
+                    <small class="texto-suave" style="display:block;margin-top:6px;font-size:12px;">Nome que os outros usuários veem no Ranking. Dá para trocar depois em Configurações.</small>
                 </div>
 
                 <div class="campo" style="margin-top:16px;">

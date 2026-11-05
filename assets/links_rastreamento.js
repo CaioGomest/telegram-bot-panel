@@ -31,6 +31,7 @@
 
     function carregarLinks() {
         const $corpo = $('#corpo-tabela');
+        const $caixa = $('#tabela-container').addClass('tabela-sem-linhas');
         $corpo.html('<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--muted);">Carregando...</td></tr>');
 
         $.getJSON(url_api + '?action=listar_links_rastreamento')
@@ -49,19 +50,20 @@
                     return;
                 }
 
+                $caixa.removeClass('tabela-sem-linhas');
                 links.forEach(function (link) {
                     const url_gerada = escaparHtml(link.link_gerado || '');
                     $corpo.append(`
                         <tr>
-                            <td>${escaparHtml(link.titulo)}</td>
-                            <td>${escaparHtml(link.bot_nome || link.bot_username || '—')}</td>
-                            <td>${parseInt(link.vendas_qtd || 0)} Vendas</td>
-                            <td>${formatarMoeda(link.vendas_valor)}</td>
-                            <td>${parseInt(link.starts || 0)} Starts</td>
-                            <td>${parseInt(link.leads || 0)} Leads</td>
-                            <td><code style="font-size:12px;color:var(--muted);">${escaparHtml(link.identificador)}</code></td>
-                            <td class="col-link" title="${url_gerada}">${url_gerada}</td>
-                            <td>
+                            <td class="link-titulo" data-rotulo="Título">${escaparHtml(link.titulo)}</td>
+                            <td data-rotulo="Bot">${escaparHtml(link.bot_nome || link.bot_username || '—')}</td>
+                            <td data-rotulo="Vendas">${parseInt(link.vendas_qtd || 0)} Vendas</td>
+                            <td data-rotulo="Valor">${formatarMoeda(link.vendas_valor)}</td>
+                            <td data-rotulo="Starts">${parseInt(link.starts || 0)} Starts</td>
+                            <td data-rotulo="Leads">${parseInt(link.leads || 0)} Leads</td>
+                            <td data-rotulo="Identificador"><code style="font-size:12px;color:var(--muted);">${escaparHtml(link.identificador)}</code></td>
+                            <td class="col-link" data-rotulo="Link" title="${url_gerada}">${url_gerada}</td>
+                            <td class="link-acoes">
                                 <div class="col-acoes">
                                     <button class="btn-icon editar btn-editar-link" data-id="${escaparHtml(link.id)}" title="Editar">${icons.edit}</button>
                                     <button class="btn-icon btn-copiar-link" data-url="${url_gerada}" title="Copiar link">${icons.copy}</button>

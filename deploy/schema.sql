@@ -286,6 +286,24 @@ CREATE TABLE IF NOT EXISTS `downsell_agenda` (
   CONSTRAINT `downsell_agenda_ibfk_1` FOREIGN KEY (`bot_id`) REFERENCES `bots` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `fluxos_codigos` (
+  `codigo` varchar(16) NOT NULL,
+  `id_usuario` int(11) NOT NULL,
+  `id_fluxo` int(11) DEFAULT NULL,
+  `modo` varchar(16) NOT NULL DEFAULT 'avancado',
+  `nome` varchar(120) NOT NULL DEFAULT '',
+  `descricao` varchar(500) NOT NULL DEFAULT '',
+  `link_suporte` varchar(255) NOT NULL DEFAULT '',
+  `dados_fluxograma` longtext NOT NULL,
+  `hash_dados` char(32) NOT NULL,
+  `usos` int(11) NOT NULL DEFAULT 0,
+  `criado_em` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`codigo`),
+  KEY `idx_codigos_fluxo` (`id_fluxo`,`hash_dados`),
+  KEY `id_usuario` (`id_usuario`),
+  CONSTRAINT `fluxos_codigos_ibfk_1` FOREIGN KEY (`id_usuario`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `order_bump_agenda` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `bot_id` int(11) NOT NULL,

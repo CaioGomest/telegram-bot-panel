@@ -79,6 +79,23 @@ function obterFileIdCacheMidia(string $token, string $id_cache, string $metodo, 
     $GLOBALS['cache_chamadas'][] = [$id_cache, $metodo, $caminho];
     return 'FILEID_' . $campo;
 }
+// Cache sem canal (a lógica de verdade é testada em unitario_cache_midia_envio.php): aqui o cache nunca tem nada guardado e só se registra o que seria guardado.
+$GLOBALS['guardados'] = [];
+function lerFileIdCacheMidia(string $token, string $id_cache, string $caminho): ?string
+{
+    return null;
+}
+function guardarFileIdDoEnvioBasico(string $token, string $id_cache, string $caminho, string $campo, array $resposta): void
+{
+    $GLOBALS['guardados'][] = [$campo, $caminho];
+}
+function guardarFileIdCacheMidia(string $token, string $id_cache, string $caminho, ?string $file_id): void
+{
+}
+function fileIdDeMensagemTelegram(array $mensagem, string $campo): ?string
+{
+    return null;
+}
 /** Fim do gerarPixBasico de verdade: registra as propriedades do Pix que seriam geradas (valor, nome, plano). */
 function processarEEnviarBloco(string $token, $id_chat, array $bloco, string $x): void
 {
@@ -107,6 +124,11 @@ function agendarDownsellBasico($pdo, int $bot_id, string $id_telegram, int $id_v
 {
     $GLOBALS['downsell_agendados'][] = [$bot_id, $id_telegram, $id_venda, $id_plano];
 }
+$GLOBALS['downsell_sem_clique'] = [];
+function agendarDownsellSemCliqueBasico($pdo, int $bot_id, string $id_telegram, array $dados_basico): void
+{
+    $GLOBALS['downsell_sem_clique'][] = [$bot_id, $id_telegram];
+}
 function garantirConexaoBanco(): void
 {
 }
@@ -126,8 +148,8 @@ const ORDER_BUMP_MAXIMO = 5;
 require_once dirname(__DIR__, 2) . '/funcoes/entrega.php';   // entregaDoItemBasico(), usada por gerarPixBasico
 require_once dirname(__DIR__, 2) . '/funcoes/pagamentos_guiado.php';   // propriedadesPagamentoBasico(), usada por gerarPixBasico
 
-foreach (['estiloBotaoBasicoValor', 'enviarMensagemComMidiaBasico', 'enviarBoasVindasBasico', 'enviarOfertaBasico', 'avancarOfertasBasico', 'planoDaOfertaBasico', 'localizarPlanoBasico', 'planoRecorrenteBasico', 'periodicidadePlanoBasico',
-    'boasVindasMostraCtaBasico', 'enviarListaPlanosBasico', 'urlSuporteBasico', 'downsellNovoFormatoBasico', 'planosDoDownsellBasico', 'planosDaSequenciaDownsellBasico', 'ofertaDaPosicaoDownsellBasico', 'planosDoDownsellSemOEscolhidoBasico', 'downsellDepoisDoPixBasico',
+foreach (['estiloBotaoBasicoValor', 'fileIdDaMidiaBasico', 'enviarMensagemComMidiaBasico', 'enviarBoasVindasBasico', 'enviarOfertaBasico', 'avancarOfertasBasico', 'planoDaOfertaBasico', 'localizarPlanoBasico', 'planoRecorrenteBasico', 'periodicidadePlanoBasico',
+    'boasVindasMostraCtaBasico', 'enviarListaPlanosBasico', 'tecladoListaPlanosBasico', 'urlSuporteBasico', 'downsellNovoFormatoBasico', 'planosDoDownsellBasico', 'planosDaSequenciaDownsellBasico', 'ofertaDaPosicaoDownsellBasico', 'planosDoDownsellSemOEscolhidoBasico', 'downsellDepoisDoPixBasico',
     'planoDoDownsellPorVariante', 'enviarDownsellBasico', 'gerarPixBasico', 'executarFluxoBasico',
     'midiasDoItemBasico', 'midiasBoasVindasBasico', 'enviarMidiaSoltaBasico', 'enviarAlbumBasico', 'enviarMensagemComMidiasBasico', 'itensOrderBumpBasico', 'orderBumpDepoisDoPixBasico'] as $f) {
     eval(extrairFuncao($fonte, $f));
@@ -337,6 +359,10 @@ $c = $GLOBALS['chamadas'][0] ?? [];
 $b = tecladoDe($c)[0] ?? [];
 chk('tocou no plano "Semanal" (p1) do downsell: segue direto ao Pix (sem Order Bump antes)', metodos() === 'PIX', metodos());
 zerar();
+executarFluxoBasico('T', 123, $dados_novo, 'basico::of::dn::::p1');
+$pix = $GLOBALS['chamadas'][0]['p'] ?? [];
+chk('downsell enviado a quem não tocou em nada (sem plano no botão): o toque gera o Pix do Semanal com 20% (R$ 6,40)', metodos() === 'PIX' && abs(($pix['valor'] ?? 0) - 6.40) < 0.001 && ($pix['id_produto'] ?? '') === 'plano_p3', metodos() . ' ' . json_encode($pix));
+zerar();
 executarFluxoBasico('T', 123, $dados_novo, 'basico::of::bp::p2::d1::0');
 $pix = $GLOBALS['chamadas'][0]['p'] ?? [];
 chk('recusou o Order Bump: Pix do Semanal com 20%: R$ 6,40, produto "Semanal"', abs(($pix['valor'] ?? 0) - 6.40) < 0.001 && ($pix['nome'] ?? '') === 'Semanal' && ($pix['id_produto'] ?? '') === 'plano_p3', json_encode($pix));
@@ -442,6 +468,13 @@ chk('plano criado no Downsell: vale o valor digitado (R$ 9,90, sem os 90% da seq
 chk('plano criado: entrega pela própria entrega (link dele, sem grupo)', ($px['link_entrega'] ?? '') === 'https://x.exemplo.com/a' && ($px['id_grupo'] ?? '?') === '' && ($px['mensagem_entrega'] ?? '?') === '');
 $px = pixDoDownsell($dados_seq, 'p1', 'd251');
 chk('outro plano criado, com entrega por mensagem: R$ 5,00, o texto vai na venda e não há grupo nem link', ($px['valor'] ?? 0) == 5.0 && ($px['mensagem_entrega'] ?? '') === 'Oi {nome}' && ($px['link_entrega'] ?? '?') === '' && ($px['id_grupo'] ?? '?') === '', json_encode($px));
+$dados_fixo = $dados_seq;
+$dados_fixo['ofertas']['downsell']['sequencias_extras'][0] = ['planos_oferecidos' => ['p2'], 'desconto_tipo' => 'fixo', 'desconto_valor' => 30, 'desconto_percentual' => 0, 'entrega_tipo' => 'link', 'link_entrega' => 'https://promo.exemplo.com/seq2'];
+$px = pixDoDownsell($dados_fixo, 'p1', 'd100');
+chk('desconto em valor fixo (R$ 30,00) na 2ª sequência: o VIP de R$ 100,00 sai por R$ 70,00 no Pix, e a 1ª sequência (em %) segue igual (R$ 90,00)', ($px['valor'] ?? 0) == 70.0 && ($px['link_entrega'] ?? '') === 'https://promo.exemplo.com/seq2' && (pixDoDownsell($dados_fixo, 'p1', 'd1')['valor'] ?? 0) == 90.0, json_encode($px));
+$dados_fixo['ofertas']['downsell']['sequencias_extras'][0]['desconto_valor'] = 500;
+pixDoDownsell($dados_fixo, 'p1', 'd100');
+chk('desconto fixo maior que o plano: o valor zera e o Pix não é gerado (só avisa o cliente para falar com o suporte)', metodos() === 'sendMessage' && strpos((string) ($GLOBALS['chamadas'][0]['p']['text'] ?? ''), 'Não foi possível gerar o pagamento') !== false, metodos());
 $px = pixDoDownsell($dados_seq, 'p1', 'd7');
 chk('posição que não existe mais: cai no plano que o cliente escolheu, sem desconto nenhum (R$ 20,00)', ($px['valor'] ?? 0) == 20.0 && ($px['id_grupo'] ?? '') === '-100111', json_encode($px));
 zerar();
@@ -489,9 +522,21 @@ $dados_cta = $dados;
 $dados_cta['boas_vindas'] = ['mensagem' => 'Bem-vindo', 'mostrar_cta' => false];
 zerar();
 executarFluxoBasico('T', 123, $dados_cta, '/start');
-$b = array_map(fn($l) => $l[0]['text'] ?? '', tecladoDe($GLOBALS['chamadas'][1] ?? []));
-chk('CTA desligado: o /start manda a mensagem (sem botão) e em seguida a lista "Escolha um plano:" com os 3 planos', metodos() === 'sendMessage,sendMessage' && !isset($GLOBALS['chamadas'][0]['p']['reply_markup']) && ($GLOBALS['chamadas'][1]['p']['text'] ?? '') === 'Escolha um plano:' && count($b) === 3 && strpos($b[0], 'Mensal') === 0, metodos() . ' ' . json_encode($b, JSON_UNESCAPED_UNICODE));
-chk('os botões da lista levam ao plano certo (basico::plano::<id>)', (tecladoDe($GLOBALS['chamadas'][1] ?? [])[0][0]['callback_data'] ?? '') === 'basico::plano::p1');
+$b = array_map(fn($l) => $l[0]['text'] ?? '', tecladoDe($GLOBALS['chamadas'][0] ?? []));
+chk('CTA desligado: o /start manda só a mensagem de boas-vindas, com os 3 planos como botões dela (sem "Escolha um plano:")', metodos() === 'sendMessage' && ($GLOBALS['chamadas'][0]['p']['text'] ?? '') === 'Bem-vindo' && count($b) === 3 && strpos($b[0], 'Mensal') === 0, metodos() . ' ' . json_encode($b, JSON_UNESCAPED_UNICODE));
+chk('os botões levam ao plano certo (basico::plano::<id>)', (tecladoDe($GLOBALS['chamadas'][0] ?? [])[0][0]['callback_data'] ?? '') === 'basico::plano::p1');
+$GLOBALS['downsell_sem_clique'] = [];
+executarFluxoBasico('T', 123, $dados_cta, '/start');
+chk('o /start já começa a contagem do Downsell para quem não tocar em nada (bot e lead certos)', $GLOBALS['downsell_sem_clique'] === [[1, '123']], json_encode($GLOBALS['downsell_sem_clique']));
+$dados_foto = $dados_cta;
+$dados_foto['boas_vindas'] += ['midia_tipo' => 'image', 'midia_path' => 'uploads/foto.jpg'];
+zerar();
+executarFluxoBasico('T', 123, $dados_foto, '/start');
+chk('CTA desligado com foto: sendPhoto com a legenda e os planos na própria foto', metodos() === 'sendPhoto' && ($GLOBALS['chamadas'][0]['p']['caption'] ?? '') === 'Bem-vindo' && count(tecladoDe($GLOBALS['chamadas'][0])) === 3, metodos());
+$dados_foto['boas_vindas']['mensagem'] = str_repeat('a', 1100);
+zerar();
+executarFluxoBasico('T', 123, $dados_foto, '/start');
+chk('CTA desligado, texto > 1024: foto sem legenda e o texto com os planos logo abaixo (nada de "Escolha um plano:")', metodos() === 'sendPhoto,sendMessage' && !isset($GLOBALS['chamadas'][0]['p']['reply_markup']) && count(tecladoDe($GLOBALS['chamadas'][1])) === 3 && strlen($GLOBALS['chamadas'][1]['p']['text'] ?? '') === 1100, metodos());
 $dados_cta['boas_vindas']['mostrar_cta'] = true;
 zerar();
 executarFluxoBasico('T', 123, $dados_cta, '/start');

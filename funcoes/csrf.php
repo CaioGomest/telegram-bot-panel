@@ -34,9 +34,33 @@ function verificarCsrf(): void {
         if ($eh_json) {
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode(['sucesso' => false, 'erro' => 'Sessão expirada ou requisição inválida. Recarregue a página e tente novamente.']);
+        } elseif (!headers_sent()) {
+            // Formulário comum com o código vencido (página aberta de antes, sessão trocada em outra aba): nada de tela morta com texto.
+            // Volta para a página de onde veio, recarregada (com o código novo); o login mostra o aviso de página desatualizada.
+            http_response_code(303);
+            header('Location: ' . destinoAposCsrfInvalido((string) ($_SERVER['HTTP_REFERER'] ?? ''), (string) ($_SERVER['HTTP_HOST'] ?? ''), !empty($_SESSION['usuario_id'])));
         } else {
-            echo 'Sessão expirada ou requisição inválida (token de segurança ausente/incorreto). Recarregue a página e tente novamente.';
+            echo 'A página ficou desatualizada. Recarregue e tente novamente.';
         }
         exit;
     }
+}
+
+/**
+ * Para onde mandar quem enviou um formulário com o código de segurança vencido. Só volta para uma página DO PRÓPRIO SITE (o Referer vem do navegador, então
+ * outro domínio não vale: seria um redirecionamento aberto); sem Referer válido, vai ao login (sem sessão) ou ao início (logado).
+ */
+function destinoAposCsrfInvalido(string $referer, string $host_atual, bool $logado): string {
+    $partes = $referer !== '' ? parse_url($referer) : false;
+    if (is_array($partes) && isset($partes['host'], $partes['path']) && $host_atual !== '' && strcasecmp((string) $partes['host'] . (isset($partes['port']) ? ':' . $partes['port'] : ''), $host_atual) === 0
+        && strpos($partes['path'], '//') !== 0 && strpos($partes['path'], '/') === 0) {
+        $destino = $partes['path'];
+        $consulta = [];
+        parse_str((string) ($partes['query'] ?? ''), $consulta);
+        if (preg_match('#(^|/)login(\.php)?$#', $destino)) {
+            $consulta['erro'] = 'sessao';   // login.php explica que a página estava desatualizada
+        }
+        return $destino . ($consulta ? '?' . http_build_query($consulta) : '');
+    }
+    return $logado ? '/index' : '/login?erro=sessao';
 }

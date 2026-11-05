@@ -982,81 +982,18 @@
 
     $('#btn-salvar-fluxo').on('click', function () { atualizaFluxo(false); });
     $('#btn-excluir-fluxo').on('click', deleteFlow);
+    // Exportar e importar por código (assets/js/fluxo_codigo.js): o fluxo não sai mais como arquivo .json.
     $('#btn-exportar-fluxo').on('click', function () {
         const id = $('#id-fluxo').val();
         if (!id) {
             showToast('Salve o fluxo antes de exportar.', 'erro');
             return;
         }
-        $.getJSON(api_url + '?action=exportar_fluxo&id=' + encodeURIComponent(id))
-            .done(function(resp) {
-                if (!resp.sucesso || !resp.fluxo) {
-                    showToast(resp.mensagem || 'Erro ao exportar fluxo.', 'erro');
-                    return;
-                }
-                const conteudo = JSON.stringify(resp.fluxo, null, 2);
-                const blob = new Blob([conteudo], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'fluxo_' + id + '.json';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                showToast('Fluxo exportado.');
-            })
-            .fail(function() {
-                showToast('Falha ao exportar fluxo.', 'erro');
-            });
+        FluxoCodigo.abrirExportar(id, $('#nome-fluxo').val().trim());
     });
     $('#btn-importar-fluxo').on('click', function () {
-        $('#arquivo-importar-fluxo').click();
-    });
-    $('#arquivo-importar-fluxo').on('change', function (e) {
-        const arquivo = e.target.files && e.target.files[0];
-        if (!arquivo) return;
-        const leitor = new FileReader();
-        leitor.onload = function (ev) {
-            let json;
-            try {
-                json = JSON.parse(ev.target.result);
-            } catch (err) {
-                showToast('Arquivo JSON inválido.', 'erro');
-                return;
-            }
-            $.ajax({
-                url: api_url + '?action=importar_fluxo',
-                method: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify({
-                    nome: json.nome,
-                    descricao: json.descricao,
-                    link_suporte: json.link_suporte || '',
-                    dados_fluxograma_b64: fluxogramaJsonParaBase64Utf8(json.dados_fluxograma)
-                })
-            }).done(function (resp) {
-                if (!resp.sucesso || !resp.fluxo) {
-                    showToast(resp.mensagem || 'Erro ao importar fluxo.', 'erro');
-                    return;
-                }
-                current_flow = resp.fluxo;
-                $('#id-fluxo').val(current_flow.id || '');
-                $('#nome-fluxo').val(current_flow.nome || '');
-                $('#descricao-fluxo').val(current_flow.descricao || '');
-                $('#link-suporte-fluxo').val(current_flow.link_suporte || '');
-                setChartData(current_flow.dados_fluxograma || defaultChartData(), false);
-                showToast('Fluxo importado com sucesso.');
-                if (window.history.pushState && current_flow.id) {
-                    const new_url = window.location.pathname + '?id=' + current_flow.id;
-                    window.history.pushState({path:new_url},'',new_url);
-                }
-            }).fail(function (xhr) {
-                showToast((xhr.responseJSON && xhr.responseJSON.mensagem) || 'Falha ao importar fluxo.', 'erro');
-            });
-        };
-        leitor.readAsText(arquivo);
-        $(this).val('');
+        // O importado vira um fluxo novo na conta: abre o editor dele (Guiado ou Visual, conforme o código).
+        FluxoCodigo.abrirImportar({ aoImportar: function (r) { window.location.href = (r.modo === 'basico' ? 'fluxo_basico' : 'fluxo') + '?id=' + encodeURIComponent(r.id); } });
     });
 
     $flowchart.on('change', '.campo-conteudo', function () {

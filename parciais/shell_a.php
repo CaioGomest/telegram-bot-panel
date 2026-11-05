@@ -246,4 +246,44 @@ $a_icone_sol = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable
         if (e.matches && !folha.hidden) { folha.classList.remove('aberta'); folha.hidden = true; document.body.style.overflow = ''; botao.setAttribute('aria-expanded', 'false'); }
     });
 })();
+// Safari do iPhone: o toque na aba de baixo abre a página nova e o mesmo toque chega a ela no mesmo ponto da tela (em Vendas, bem
+// em cima da busca, que ganhava foco e abria o teclado sozinha). Logo depois de abrir a página, um clique ou foco sem nenhum
+// toque começado nesta página é esse "toque fantasma": é ignorado.
+(function () {
+    if (!window.matchMedia || !matchMedia('(pointer: coarse)').matches) return;
+    var tocou = false, inicio = Date.now();
+    function fantasma() { return !tocou && Date.now() - inicio < 1500; }
+    document.addEventListener('touchstart', function () { tocou = true; }, { capture: true, passive: true });
+    window.addEventListener('pageshow', function (e) { if (e.persisted) { tocou = false; inicio = Date.now(); } });
+    ['mousedown', 'click'].forEach(function (tipo) {
+        document.addEventListener(tipo, function (e) { if (fantasma() && e.isTrusted) { e.preventDefault(); e.stopPropagation(); } }, true);
+    });
+    document.addEventListener('focusin', function (e) {
+        var el = e.target;
+        if (fantasma() && el && el.matches && el.matches('input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]), textarea, select')) { el.blur(); }
+    }, true);
+})();
+// Safari do iPhone: depois do "elástico" do topo ou da barra de endereço encolher, a barra de baixo (position: fixed; bottom: 0)
+// às vezes fica parada no meio da tela. Ao parar de rolar, confere onde ela está e, se saiu do rodapé, força o Safari a recalcular.
+(function () {
+    var barra = document.querySelector('.a-tabbar');
+    if (!barra || !window.getComputedStyle) return;
+    var espera = null;
+    function conferir() {
+        espera = null;
+        if (getComputedStyle(barra).position !== 'fixed') return;
+        var vv = window.visualViewport;
+        // Teclado aberto ou tela ampliada: o rodapé "certo" muda de lugar; não mexe.
+        if (vv && (vv.scale > 1.01 || vv.height < window.innerHeight - 80)) return;
+        if (Math.abs(barra.getBoundingClientRect().bottom - window.innerHeight) <= 2) return;
+        barra.style.display = 'none';
+        void barra.offsetHeight;
+        barra.style.display = '';
+    }
+    function agendar() { if (espera) clearTimeout(espera); espera = setTimeout(conferir, 150); }
+    window.addEventListener('scroll', agendar, { passive: true });
+    window.addEventListener('resize', agendar);
+    window.addEventListener('pageshow', agendar);
+    if (window.visualViewport) { visualViewport.addEventListener('resize', agendar); visualViewport.addEventListener('scroll', agendar); }
+})();
 </script>

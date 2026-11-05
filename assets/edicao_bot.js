@@ -410,33 +410,14 @@
         if (bot_atual) preencherFormularioBot(bot_atual);
     });
 
+    // Exportar por código (assets/js/fluxo_codigo.js): o fluxo não sai mais como arquivo .json.
     $('#btn-exportar-fluxo-bot').on('click', function () {
         const id_fluxo = $('#id-fluxo-conectado').val();
         if (!id_fluxo) {
             exibirAviso('Selecione um fluxo antes de exportar.', 'erro');
             return;
         }
-        $.getJSON(url_api + '?action=exportar_fluxo&id=' + encodeURIComponent(id_fluxo))
-            .done(function (resp) {
-                if (!resp.sucesso || !resp.fluxo) {
-                    exibirAviso(resp.mensagem || 'Erro ao exportar fluxo.', 'erro');
-                    return;
-                }
-                const conteudo = JSON.stringify(resp.fluxo, null, 2);
-                const blob = new Blob([conteudo], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'fluxo_' + id_fluxo + '.json';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                exibirAviso('Fluxo exportado.');
-            })
-            .fail(function () {
-                exibirAviso('Falha ao exportar fluxo.', 'erro');
-            });
+        FluxoCodigo.abrirExportar(id_fluxo, $('#id-fluxo-conectado option:selected').text().trim());
     });
 
     $(document).on('click', '.btn-copiar-chip', function () {

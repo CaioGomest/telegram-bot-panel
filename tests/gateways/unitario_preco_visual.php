@@ -70,6 +70,17 @@ confere('Guiado: Downsell desligado não é conferido', validarPrecosFluxoGuiado
 $antigo = $guiado;
 $antigo['ofertas']['downsell'] = ['ativo' => true, 'id_plano_destino' => 'b', 'desconto_percentual' => 50];
 confere('Guiado: Downsell no formato antigo (id_plano_destino) continua sendo conferido', validarPrecosFluxoGuiado($antigo, $min) === $msg_omega . ' O Downsell, com 50% de desconto, sai por R$ 1,50.');
+// Desconto em valor fixo (04/11/2026): o R$ sai do preço do plano; abaixo do mínimo recusa dizendo "com R$ X de desconto"; maior que o plano zera o valor e também recusa.
+$fixo_dn = $guiado;
+$fixo_dn['ofertas']['downsell'] = ['ativo' => true, 'planos_oferecidos' => ['a', 'b'], 'desconto_tipo' => 'fixo', 'desconto_valor' => 1.5, 'desconto_percentual' => 0];
+confere('Guiado: Downsell com desconto fixo de R$ 1,50 — o Semanal (R$ 3,00) sai por R$ 1,50, abaixo do mínimo, e a frase diz o desconto em reais', validarPrecosFluxoGuiado($fixo_dn, $min) === $msg_omega . ' O Downsell, com R$ 1,50 de desconto, sai por R$ 1,50.', var_export(validarPrecosFluxoGuiado($fixo_dn, $min), true));
+$fixo_dn['ofertas']['downsell']['planos_oferecidos'] = ['a'];
+confere('Guiado: desconto fixo de R$ 1,50 só no Mensal (R$ 20,00 vira R$ 18,50) passa', validarPrecosFluxoGuiado($fixo_dn, $min) === null);
+$fixo_dn['ofertas']['downsell']['desconto_valor'] = 25;
+confere('Guiado: desconto fixo maior que o plano (R$ 25,00 num plano de R$ 20,00) zera o valor e recusa', validarPrecosFluxoGuiado($fixo_dn, $min) !== null, var_export(validarPrecosFluxoGuiado($fixo_dn, $min), true));
+$fixo_seq = $guiado;
+$fixo_seq['ofertas']['downsell'] = ['ativo' => true, 'quando' => 'depois_pix', 'planos_oferecidos' => ['a'], 'desconto_percentual' => 0, 'sequencias_extras' => [['planos_oferecidos' => ['b'], 'desconto_tipo' => 'fixo', 'desconto_valor' => 1.5]]];
+confere('Guiado: desconto fixo numa sequência extra também é conferido (frase com o valor em reais)', validarPrecosFluxoGuiado($fixo_seq, $min) === $msg_omega . ' Uma sequência do Downsell, com R$ 1,50 de desconto, sai por R$ 1,50.', var_export(validarPrecosFluxoGuiado($fixo_seq, $min), true));
 $pack = $guiado;
 $pack['packs'] = ['ativo' => true, 'itens' => [['nome' => 'P', 'preco' => 1.0, 'ativo' => true]]];
 confere('Guiado: pack de R$ 1,00 recusa', validarPrecosFluxoGuiado($pack, $min) === $msg_omega);

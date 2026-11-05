@@ -74,7 +74,7 @@ function remarketingContexto(PDO $pdo, int $id_usuario): array
         }
     }
     if ($fluxo_do_bot) {
-        $stmt = $pdo->query('SELECT bot_id, id_telegram, titulo FROM bot_grupos WHERE bot_id IN (' . implode(',', array_keys($fluxo_do_bot)) . ') ORDER BY titulo');
+        $stmt = $pdo->query('SELECT bot_id, id_telegram, titulo FROM bot_grupos WHERE bot_id IN (' . implode(',', array_keys($fluxo_do_bot)) . ") AND COALESCE(tipo, '') <> 'private' ORDER BY titulo");
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $g) {
             $fluxos[$fluxo_do_bot[(int) $g['bot_id']]]['grupos'][(string) $g['id_telegram']] = ['id' => (string) $g['id_telegram'], 'titulo' => (string) ($g['titulo'] ?: $g['id_telegram'])];
         }
@@ -139,7 +139,7 @@ function remarketingSalvar(PDO $pdo, int $id_usuario, array $in, int $id = 0): a
     }
 
     // O grupo de entrega de cada plano tem que ser de um dos bots do fluxo (senão o bot nem consegue convidar).
-    $stmt = $pdo->query('SELECT DISTINCT id_telegram FROM bot_grupos WHERE bot_id IN (' . implode(',', array_column($bots, 'id')) . ')');
+    $stmt = $pdo->query('SELECT DISTINCT id_telegram FROM bot_grupos WHERE bot_id IN (' . implode(',', array_column($bots, 'id')) . ") AND COALESCE(tipo, '') <> 'private'");
     $grupos = array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN));
     foreach ($d['ofertas']['planos'] as $p) {
         if ($p['entrega_tipo'] === 'grupo' && !in_array($p['id_grupo'], $grupos, true)) {

@@ -1067,6 +1067,10 @@ try {
         FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
     echo "Tabela 'order_bump_agenda' OK.<br>";
+    // Exportar/importar fluxo por código (funcoes/fluxo_codigo.php): cópia do fluxo no momento da exportação, achada pelo código.
+    require_once __DIR__ . '/../funcoes/fluxo_codigo.php';
+    garantirTabelaCodigosFluxo($pdo);
+    echo "Tabela 'fluxos_codigos' OK.<br>";
     $pdo->exec("CREATE TABLE IF NOT EXISTS avisos_assinatura_enviados (
         id INT AUTO_INCREMENT PRIMARY KEY,
         membro_id INT NOT NULL,

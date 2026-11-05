@@ -192,6 +192,36 @@ function descontoDaOfertaBasico(array $oferta): float
     return max(0.0, min(100.0, (float) ($oferta['desconto_percentual'] ?? 0)));
 }
 
+/** Desconto em R$ (ofertas.downsell.desconto_tipo = 'fixo' + desconto_valor); 0 quando o desconto é em %, que é o padrão e o jeito de todo fluxo antigo. */
+function descontoFixoDaOfertaBasico(array $oferta): float
+{
+    if (($oferta['desconto_tipo'] ?? '') !== 'fixo') {
+        return 0.0;
+    }
+    return max(0.0, round((float) ($oferta['desconto_valor'] ?? 0), 2));
+}
+
+/** Preço de um plano com o desconto da oferta, em % ou em R$ fixo, nunca abaixo de zero. Oferta vazia (ex.: plano criado no Downsell) = sem desconto. */
+function valorComDescontoDaOfertaBasico(array $oferta, float $valor): float
+{
+    $fixo = descontoFixoDaOfertaBasico($oferta);
+    if ($fixo > 0) {
+        return max(0.0, round($valor - $fixo, 2));
+    }
+    return round($valor * (1 - descontoDaOfertaBasico($oferta) / 100), 2);
+}
+
+/** Como o desconto aparece nas mensagens: "30%" ou "R$ 5,00"; vazio sem desconto. */
+function textoDescontoDaOfertaBasico(array $oferta): string
+{
+    $fixo = descontoFixoDaOfertaBasico($oferta);
+    if ($fixo > 0) {
+        return 'R$ ' . number_format($fixo, 2, ',', '.');
+    }
+    $percentual = descontoDaOfertaBasico($oferta);
+    return $percentual > 0 ? rtrim(rtrim(number_format($percentual, 2, ',', ''), '0'), ',') . '%' : '';
+}
+
 /**
  * Confere, antes de salvar, o plano próprio de um Upsell ligado: nome e valor maiores que zero e um tempo de acesso válido.
  * Retorna a mensagem de erro (pronta para mostrar) ou null se está tudo certo (ou se o Upsell usa um plano que já existe).
@@ -218,12 +248,12 @@ function validarPlanoProprioUpsellBasico(array $dados): ?string
 /**
  * Downsell em sequência (27/10/2026, pedido do dono, no jeito das "Sequências de Downsell" da SharkBot): várias ofertas de downsell, cada uma com o próprio tempo, mensagem,
  * mídia, desconto, planos e entrega. A 1ª sequência é o próprio ofertas.downsell (todo fluxo salvo antes disso é uma sequência só); as outras ficam em
- * ofertas.downsell.sequencias_extras (até DOWNSELL_MAXIMO_SEQUENCIAS no total), no mesmo formato de uma oferta, e só valem com quando = 'depois_pix' (o Pix
+ * ofertas.downsell.sequencias_extras (até DOWNSELL_MAXIMO_SEQUENCIAS no total; o desconto de cada sequência é em % ou em R$ fixo), no mesmo formato de uma oferta, e só valem com quando = 'depois_pix' (o Pix
  * não pago é que dispara a sequência). Cada sequência escolhe os planos de duas maneiras: marcando os que já existem na aba Planos (planos_oferecidos, com o desconto
  * da sequência) ou, com criar_planos ligado, só com planos criados ali mesmo (planos_proprios, que não aparecem em "Ver Planos", valem pelo valor digitado, sem
  * desconto, e cada um tem a própria entrega).
  */
-const DOWNSELL_MAXIMO_SEQUENCIAS = 5;
+const DOWNSELL_MAXIMO_SEQUENCIAS = 50;   // sem limite prático (era 5): só trava um JSON absurdo; o callback_data cabe até a posição 4950
 const DOWNSELL_PLANOS_PROPRIOS_MAXIMO = 10;
 /** Posição do botão no callback_data ("p<posição>"): sequência * 100 + posição na sequência; os planos criados começam em +50 (os marcados usam 0 a 49). */
 const DOWNSELL_POSICAO_SEQUENCIA = 100;

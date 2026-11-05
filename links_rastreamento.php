@@ -29,10 +29,10 @@ bloquearAdmin();
             </div>
         </div>
 
-        <div class="painel">
+        <div class="painel painel-links">
             <div class="painel-cabecalho">
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <h2>Todos os links cadastrados</h2>
+                <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+                    <h2><span class="links-tit-longo">Todos os links cadastrados</span><span class="links-tit-curto">Seus links</span></h2>
                     <span class="badge badge-neutro" id="contador-links">0</span>
                 </div>
                 <button class="botao botao-primario" id="btn-novo-link">+ Gerar novo link</button>

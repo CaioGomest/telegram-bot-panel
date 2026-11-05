@@ -400,6 +400,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ja_instalado) {
             FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
+        // Exportar/importar fluxo por código (a definição da tabela fica em funcoes/fluxo_codigo.php).
+        require_once __DIR__ . '/funcoes/fluxo_codigo.php';
+        garantirTabelaCodigosFluxo($pdo);
+
         $pdo->exec("CREATE TABLE IF NOT EXISTS gateways (
             id INT AUTO_INCREMENT PRIMARY KEY,
             nome VARCHAR(50) NOT NULL,
