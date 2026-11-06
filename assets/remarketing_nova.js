@@ -96,7 +96,11 @@
         const valor = parseFloat(p.valor);
         if (!(valor >= ctx.minimo_pix)) return 'O preço do plano "' + nome + '" precisa ser pelo menos ' + brl(ctx.minimo_pix) + '.';
         if (p.acesso === 'dias' && !(Number(p.dias) >= 1 && Number(p.dias) <= 3650)) return 'Os dias de acesso do plano "' + nome + '" precisam ficar entre 1 e 3650.';
-        if (p.entrega_tipo === 'grupo') {
+        if (p.entrega_tipo === 'grupo_temp') {
+            const maximos = { minutos: 525600, horas: 8760, dias: 3650 }, tv = Number(p.tempo_valor), tu = p.tempo_unidade || 'dias';
+            if (!(tv >= 1 && tv <= maximos[tu])) return 'Informe quanto tempo o cliente fica no grupo temporário do plano "' + nome + '".';
+        }
+        if (p.entrega_tipo === 'grupo' || p.entrega_tipo === 'grupo_temp') {
             const f = fluxoAtual();
             if (!f || !f.grupos.some(function (g) { return g.id === p.id_grupo; })) return 'Escolha o grupo de entrega do plano "' + nome + '".';
         }
@@ -362,9 +366,18 @@
             if (p.entrega_tipo === 'grupo' && !achou) h += '<option value="g:' + esc(p.id_grupo) + '" selected>(grupo indisponível neste fluxo)</option>';
             h += '</optgroup>';
         }
+        if (grupos.length || p.entrega_tipo === 'grupo_temp') h += '<option value="temp"' + (p.entrega_tipo === 'grupo_temp' ? ' selected' : '') + '>Grupo temporário</option>';
         h += '<option value="link"' + (p.entrega_tipo === 'link' ? ' selected' : '') + '>Link externo</option>';
+        h += '<option value="upsell"' + (p.entrega_tipo === 'upsell' ? ' selected' : '') + '>Apenas upsell</option>';
         h += '<option value="mensagem"' + (p.entrega_tipo === 'mensagem' ? ' selected' : '') + '>Mensagem de entrega (texto)</option>';
         return h;
+    }
+    function htmlGrupoTemporario(p) {
+        const f = fluxoAtual(), grupos = f ? f.grupos : [], un = p.tempo_unidade || 'dias';
+        const opcoes = '<option value="">Escolha o grupo</option>' + grupos.map(function (g) { return '<option value="' + esc(g.id) + '"' + (p.id_grupo === g.id ? ' selected' : '') + '>' + esc(g.titulo) + '</option>'; }).join('');
+        return '<label class="a-fld"><span>Grupo temporário</span><select class="a-in pl-grupo-temp">' + opcoes + '</select></label>' +
+            '<label class="a-fld"><span>Tempo no grupo</span><span style="display:flex;gap:6px"><input type="number" class="a-in pl-temp-valor" min="1" value="' + esc(p.tempo_valor || '') + '" placeholder="Ex.: 7">' +
+            '<select class="a-in pl-temp-unidade">' + [['minutos', 'Minutos'], ['horas', 'Horas'], ['dias', 'Dias']].map(function (u) { return '<option value="' + u[0] + '"' + (un === u[0] ? ' selected' : '') + '>' + u[1] + '</option>'; }).join('') + '</select></span></label>';
     }
     function htmlPlano(p, i) {
         return '<div class="rmw-plano" data-idx="' + i + '">' +
@@ -376,6 +389,8 @@
             '</div>' +
             '<div class="rmw-plano-entrega">' +
               '<label class="a-fld"><span>Entrega</span><select class="a-in pl-entrega">' + opcoesEntrega(p) + '</select></label>' +
+              (p.entrega_tipo === 'grupo_temp' ? htmlGrupoTemporario(p) : '') +
+              (p.entrega_tipo === 'upsell' ? '<small class="a-mut rmw-plano-mensagem">O cliente paga, não recebe acesso agora e recebe a oferta de Upsell do fluxo (ative o Upsell no fluxo).</small>' : '') +
               (p.acesso === 'dias' ? '<label class="a-fld"><span>Dias de acesso</span><input type="number" class="a-in pl-dias" min="1" max="3650" value="' + esc(p.dias) + '"></label>' : '') +
               (p.entrega_tipo === 'link' ? '<label class="a-fld"><span>Link de entrega</span><input type="url" class="a-in pl-link" placeholder="https://..." value="' + esc(p.link_entrega) + '"></label>' : '') +
               (p.entrega_tipo === 'mensagem' ? '<label class="a-fld rmw-plano-mensagem"><span>Mensagem de entrega</span><textarea class="a-in pl-mensagem" rows="4" maxlength="3000" placeholder="Ex.: Seu acesso: https://...">' + esc(p.mensagem_entrega || '') + '</textarea><small>O cliente recebe este texto numa mensagem própria, logo depois do aviso de pagamento aprovado.</small></label>' : '') +
@@ -415,7 +430,7 @@
     function planoPadrao() {
         const f = fluxoAtual();
         const g = f && f.grupos.length ? f.grupos[0] : null;
-        return { id: novoIdPlano(), nome: '', valor: '', acesso: 'mensal', dias: 30, entrega_tipo: g ? 'grupo' : 'nenhuma', id_grupo: g ? g.id : '', link_entrega: '', mensagem_entrega: '' };
+        return { id: novoIdPlano(), nome: '', valor: '', acesso: 'mensal', dias: 30, entrega_tipo: g ? 'grupo' : 'nenhuma', id_grupo: g ? g.id : '', link_entrega: '', mensagem_entrega: '', tempo_valor: '', tempo_unidade: 'dias' };
     }
     function adicionarPlano(p) {
         if (E.ofertas.planos.length >= PLANOS_MAX) {
@@ -474,7 +489,7 @@
             variantes: E.variantes.map(function (v) { return { mensagem: v.mensagem.trim(), midia_caminho: v.midia_caminho, midia_tipo: v.midia_tipo }; }),
             ofertas: {
                 planos: o.planos.map(function (p) {
-                    return { id: p.id, nome: p.nome.trim(), valor: parseFloat(p.valor), acesso: p.acesso, dias: p.acesso === 'dias' ? Number(p.dias) : (DIAS_DO_ACESSO[p.acesso] || 30), entrega_tipo: p.entrega_tipo, id_grupo: p.entrega_tipo === 'grupo' ? p.id_grupo : '', link_entrega: p.entrega_tipo === 'link' ? p.link_entrega.trim() : '', mensagem_entrega: p.entrega_tipo === 'mensagem' ? (p.mensagem_entrega || '').trim() : '' };
+                    return { id: p.id, nome: p.nome.trim(), valor: parseFloat(p.valor), acesso: p.acesso, dias: p.acesso === 'dias' ? Number(p.dias) : (DIAS_DO_ACESSO[p.acesso] || 30), entrega_tipo: p.entrega_tipo, id_grupo: (p.entrega_tipo === 'grupo' || p.entrega_tipo === 'grupo_temp') ? p.id_grupo : '', tempo_valor: p.entrega_tipo === 'grupo_temp' ? Number(p.tempo_valor) : 0, tempo_unidade: p.tempo_unidade || 'dias', link_entrega: p.entrega_tipo === 'link' ? p.link_entrega.trim() : '', mensagem_entrega: p.entrega_tipo === 'mensagem' ? (p.mensagem_entrega || '').trim() : '' };
                 }),
                 redirect: { ativo: o.redirect.ativo, texto: o.redirect.texto.trim() || 'Ver Prévias', url: o.redirect.url.trim() },
                 order_bump: { ativo: o.order_bump.ativo, nome: o.order_bump.nome.trim(), valor: parseFloat(o.order_bump.valor) || 0, descricao: o.order_bump.descricao.trim(), midia_caminho: o.order_bump.midia_caminho, midia_tipo: o.order_bump.midia_tipo }
@@ -508,7 +523,7 @@
         E.periodo_de = c.periodo_de || '';
         E.periodo_ate = c.periodo_ate || '';
         E.variantes = c.variantes.map(function (v) { return { mensagem: v.mensagem, midia_caminho: v.midia_caminho || '', midia_tipo: v.midia_tipo || '', _previa: '' }; });
-        E.ofertas.planos = c.ofertas.planos.map(function (p) { return $.extend({ dias: DIAS_DO_ACESSO[p.acesso] || 30, link_entrega: '', id_grupo: '', mensagem_entrega: '' }, p, { valor: String(p.valor) }); });
+        E.ofertas.planos = c.ofertas.planos.map(function (p) { return $.extend({ dias: DIAS_DO_ACESSO[p.acesso] || 30, link_entrega: '', id_grupo: '', mensagem_entrega: '', tempo_valor: '', tempo_unidade: 'dias' }, p, { valor: String(p.valor) }); });
         E.ofertas.redirect = c.ofertas.redirect;
         E.ofertas.order_bump = $.extend({ _previa: '' }, c.ofertas.order_bump, { valor: c.ofertas.order_bump.valor ? String(c.ofertas.order_bump.valor) : '' });
     }
@@ -573,7 +588,7 @@
                 // Os grupos de entrega pertencem aos bots do fluxo: ao trocar de fluxo, plano que apontava para um grupo do outro volta a "apenas mensagem".
                 const f = fluxoAtual();
                 E.ofertas.planos.forEach(function (p) {
-                    if (p.entrega_tipo === 'grupo' && !(f && f.grupos.some(function (g) { return g.id === p.id_grupo; }))) {
+                    if ((p.entrega_tipo === 'grupo' || p.entrega_tipo === 'grupo_temp') && !(f && f.grupos.some(function (g) { return g.id === p.id_grupo; }))) {
                         p.entrega_tipo = 'nenhuma';
                         p.id_grupo = '';
                     }
@@ -694,10 +709,15 @@
         $('#rm-planos').on('change', '.pl-entrega', function () {
             const p = planoDe(this);
             const v = String($(this).val());
-            p.entrega_tipo = v === 'link' ? 'link' : (v === 'mensagem' ? 'mensagem' : (v.indexOf('g:') === 0 ? 'grupo' : 'nenhuma'));
-            p.id_grupo = p.entrega_tipo === 'grupo' ? v.slice(2) : '';
+            p.entrega_tipo = v === 'link' ? 'link' : (v === 'mensagem' ? 'mensagem' : (v === 'temp' ? 'grupo_temp' : (v === 'upsell' ? 'upsell' : (v.indexOf('g:') === 0 ? 'grupo' : 'nenhuma'))));
+            if (p.entrega_tipo === 'grupo') p.id_grupo = v.slice(2);
+            else if (p.entrega_tipo !== 'grupo_temp') p.id_grupo = '';
+            else if (!p.id_grupo) { const f = fluxoAtual(); p.id_grupo = f && f.grupos.length ? f.grupos[0].id : ''; }
             desenharPlanos();
         });
+        $('#rm-planos').on('change', '.pl-grupo-temp', function () { planoDe(this).id_grupo = String($(this).val()); });
+        $('#rm-planos').on('input', '.pl-temp-valor', function () { planoDe(this).tempo_valor = $(this).val(); });
+        $('#rm-planos').on('change', '.pl-temp-unidade', function () { planoDe(this).tempo_unidade = String($(this).val()); });
         $('#rm-planos').on('click', '.pl-apagar', function () {
             E.ofertas.planos.splice(Number($(this).closest('.rmw-plano').data('idx')), 1);
             marcarSujo();

@@ -135,7 +135,7 @@ $r = sanitizarCaminhosMidiaFluxo(['ofertas' => ['downsell' => ['ativo' => true, 
 $s = $r['ofertas']['downsell']['sequencias_extras'];
 confere('downsell em sequência: a mídia válida da sequência extra fica', $s[0]['midia_path'] === 'uploads/b.mp4' && $s[0]['midia_tipo'] === 'video');
 confere('downsell em sequência: caminho fora de uploads/ numa sequência extra é zerado', $s[1]['midia_path'] === '');
-confere('downsell em sequência: só as 4 primeiras posições das extras são lidas (a 1ª sequência é o próprio downsell) e o item que não é lista é descartado', count($s) === 3 && $s[2]['mensagem'] === 'D', json_encode(array_column($s, 'mensagem')));
+confere('downsell em sequência: o limite subiu para 50 (DOWNSELL_MAXIMO_SEQUENCIAS): todas as 6 extras são lidas e só o item que não é lista é descartado', count($s) === 6 && $s[2]['mensagem'] === 'D', json_encode(array_column($s, 'mensagem')));
 confere('downsell em sequência: no máximo 10 planos criados, na sequência extra e no downsell 1', count($s[1]['planos_proprios']) === 10 && count($r['ofertas']['downsell']['planos_proprios']) === 10);
 confere('downsell em sequência: o resto não é mexido', $r['ofertas']['downsell']['mensagem'] === 'A' && $s[1]['criar_planos'] === true && $s[1]['planos_proprios'][0]['nome'] === 'X');
 // várias fotos/vídeos numa sequência extra (item 39): só as válidas ficam, na ordem, até 10, e a 1ª é copiada para o par midia_tipo/midia_path
@@ -147,6 +147,22 @@ confere('downsell em sequência: na sequência extra só as mídias válidas fic
 confere('downsell em sequência: mais de 10 mídias na sequência extra, só as 10 primeiras', count($r['ofertas']['downsell']['sequencias_extras'][1]['midias']) === 10);
 $r = sanitizarCaminhosMidiaFluxo(['ofertas' => ['downsell' => ['ativo' => true, 'mensagem' => 'A']]]);
 confere('downsell salvo antes (sem sequências nem planos criados): nada é inventado',!isset($r['ofertas']['downsell']['sequencias_extras']) && !isset($r['ofertas']['downsell']['planos_proprios']));
+
+// Upsell em sequência (06/11/2026): cada upsell extra tem a própria mídia (mesma regra) e o limite é UPSELL_MAXIMO_SEQUENCIAS no total
+$r = sanitizarCaminhosMidiaFluxo(['ofertas' => ['upsell' => ['ativo' => true, 'mensagem' => 'A', 'sequencias_extras' => [
+    ['mensagem' => 'B', 'midias' => [['tipo' => 'image', 'path' => '../config.php'], ['tipo' => 'video', 'path' => 'uploads/a.mp4'], ['tipo' => 'audio', 'path' => 'uploads/a.mp3']]],
+    'lixo',
+    ['mensagem' => 'C', 'midia_tipo' => 'image', 'midia_path' => '../config.php'],
+    ['mensagem' => 'D', 'midias' => array_fill(0, 14, ['tipo' => 'image', 'path' => 'uploads/x.jpg'])],
+]]]]);
+$u = $r['ofertas']['upsell']['sequencias_extras'];
+confere('upsell em sequência: só as mídias válidas ficam, na ordem, e a 1ª vai para midia_tipo/midia_path', $u[0]['midias'] === [['tipo' => 'video', 'path' => 'uploads/a.mp4']] && $u[0]['midia_tipo'] === 'video' && $u[0]['midia_path'] === 'uploads/a.mp4', json_encode($u[0]));
+confere('upsell em sequência: item que não é lista é descartado e caminho fora de uploads/ é zerado', count($u) === 3 && $u[1]['midia_path'] === '' && $u[2]['mensagem'] === 'D', json_encode(array_column($u, 'mensagem')));
+confere('upsell em sequência: mais de 10 mídias, só as 10 primeiras', count($u[2]['midias']) === 10);
+$r = sanitizarCaminhosMidiaFluxo(['ofertas' => ['upsell' => ['ativo' => true, 'sequencias_extras' => array_fill(0, 30, ['mensagem' => 'x'])]]]);
+confere('upsell em sequência: no máximo ' . UPSELL_MAXIMO_SEQUENCIAS . ' upsells no total (1 fixo + ' . (UPSELL_MAXIMO_SEQUENCIAS - 1) . ' extras)', count($r['ofertas']['upsell']['sequencias_extras']) === UPSELL_MAXIMO_SEQUENCIAS - 1);
+$r = sanitizarCaminhosMidiaFluxo(['ofertas' => ['upsell' => ['ativo' => true, 'mensagem' => 'A']]]);
+confere('upsell salvo antes (sem sequência): nada é inventado', !isset($r['ofertas']['upsell']['sequencias_extras']));
 
 echo PHP_EOL . "$ok ok, $falhas falha(s)" . PHP_EOL;
 exit($falhas > 0 ? 1 : 0);

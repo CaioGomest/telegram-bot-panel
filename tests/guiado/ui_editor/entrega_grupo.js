@@ -57,8 +57,9 @@ const GRUPOS = [
     const visivel = (sel) => js(`${q(sel)}.length > 0 && !${q(sel)}.prop('hidden') && ${q(sel)}.is(':visible')`);
     const novoPlano = async () => { await secao('planos'); await clicar('#btn-adicionar-plano'); };
     const P = '#lista-planos .painel-plano:first';
-    const tipos = textos(P + ' .entrega-select option');
-    const grupos = textos(P + ' .entrega-grupo-select option');
+    const PE = P + ' .plano-corpo > .grade';   // o campo Entrega do PLANO (o order bump do plano tem outro, dentro de .plano-bump)
+    const tipos = textos(PE + ' .entrega-select option');
+    const grupos = textos(PE + ' .entrega-grupo-select option');
     async function nomear() {
         await js(`${q(P + ' .campo-plano-nome')}.val('Mensal').trigger('input'); ${q(P + ' .campo-plano-valor')}.val(29.9).trigger('input');`);
     }
@@ -68,54 +69,54 @@ const GRUPOS = [
         await abrir(null, GRUPOS);
         await novoPlano();
         chk('o campo Entrega tem os 4 tipos: Nenhum, Acesso a grupo, Link e Mensagem (os grupos NÃO ficam misturados aqui)', JSON.stringify(await tipos()) === JSON.stringify(['Nenhum (apenas venda)', '👥 Acesso a grupo', '🔗 Link (enviado ao cliente)', '💬 Mensagem (texto enviado ao cliente)']), await tipos());
-        chk('começa em "Nenhum" (com o aviso de que sem entrega ninguém recebe acesso) e o select de grupos ainda não aparece', (await js(`${q(P + ' .entrega-select')}.val()`)) === '' && (await visivel(P + ' .dica-sem-grupo')) && !(await visivel(P + ' .entrega-grupo-area')));
+        chk('começa em "Nenhum" (com o aviso de que sem entrega ninguém recebe acesso) e o select de grupos ainda não aparece', (await js(`${q(PE + ' .entrega-select')}.val()`)) === '' && (await visivel(PE + ' .dica-sem-grupo')) && !(await visivel(PE + ' .entrega-grupo-area')));
 
-        await escolher(P + ' .entrega-select', '__grupo__');
-        chk('escolher "Acesso a grupo": aparece o select "Grupo para acesso" logo abaixo, e o aviso "sem entrega" some', (await visivel(P + ' .entrega-grupo-area')) && !(await visivel(P + ' .dica-sem-grupo')) && (await js(`${q(P + ' .entrega-grupo-area > label')}.text()`)) === 'Grupo para acesso');
+        await escolher(PE + ' .entrega-select', '__grupo__');
+        chk('escolher "Acesso a grupo": aparece o select "Grupo para acesso" logo abaixo, e o aviso "sem entrega" some', (await visivel(PE + ' .entrega-grupo-area')) && !(await visivel(PE + ' .dica-sem-grupo')) && (await js(`${q(PE + ' .entrega-grupo-area > label')}.text()`)) === 'Grupo para acesso');
         chk('o select lista os grupos do bot pelo nome (o mesmo grupo de 2 bots aparece uma vez só), começando por "Selecione um grupo…"', JSON.stringify(await grupos()) === JSON.stringify(['Selecione um grupo…', 'VIP A', 'VIP B']), await grupos());
-        chk('o botão de atualizar (↻) existe e o foco foi para o select', (await js(`${q(P + ' .entrega-grupo-atualizar')}.length`)) === 1 && (await js(`document.activeElement && document.activeElement.className`)) === 'entrega-grupo-select');
-        const pos = JSON.parse(await js(`JSON.stringify((function(){ var t = ${q(P + ' .entrega-select')}.get(0).getBoundingClientRect(), s = ${q(P + ' .entrega-grupo-select')}.get(0).getBoundingClientRect(), b = ${q(P + ' .entrega-grupo-atualizar')}.get(0).getBoundingClientRect(); return { t_base: t.bottom, s_topo: s.top, s_esq: s.left, t_esq: t.left, b_esq: b.left, s_dir: s.right, t_dir: t.right, b_dir: b.right }; })())`));
+        chk('o botão de atualizar (↻) existe e o foco foi para o select', (await js(`${q(PE + ' .entrega-grupo-atualizar')}.length`)) === 1 && (await js(`document.activeElement && document.activeElement.className`)) === 'entrega-grupo-select');
+        const pos = JSON.parse(await js(`JSON.stringify((function(){ var t = ${q(PE + ' .entrega-select')}.get(0).getBoundingClientRect(), s = ${q(PE + ' .entrega-grupo-select')}.get(0).getBoundingClientRect(), b = ${q(PE + ' .entrega-grupo-atualizar')}.get(0).getBoundingClientRect(); return { t_base: t.bottom, s_topo: s.top, s_esq: s.left, t_esq: t.left, b_esq: b.left, s_dir: s.right, t_dir: t.right, b_dir: b.right }; })())`));
         chk('o select de grupos fica EMBAIXO do de tipo, na mesma coluna, e o botão ↻ à direita dele (terminando na borda do campo)', pos.s_topo >= pos.t_base && Math.abs(pos.s_esq - pos.t_esq) <= 2 && pos.b_esq >= pos.s_dir && Math.abs(pos.b_dir - pos.t_dir) <= 3, pos);
         await js(`${q(P)}.get(0).scrollIntoView({block:'center'})`);
         await esp(200);
         await c.captura(SAIDA + '/1_acesso_a_grupo.png');
 
-        await escolher(P + ' .entrega-grupo-select', '-1002222222222');
+        await escolher(PE + ' .entrega-grupo-select', '-1002222222222');
         await nomear();
         let dados = await salvar();
         let plano = dados && dados.dados_fluxograma.planos[0];
         chk('salvar com "VIP B": o plano grava entrega_tipo=grupo e o id do grupo, sem link', !!plano && plano.entrega_tipo === 'grupo' && plano.id_grupo === '-1002222222222' && plano.link_entrega === '', plano);
 
         // voltar e ir: a escolha do grupo é lembrada
-        await escolher(P + ' .entrega-select', '__link__');
-        chk('trocar para Link esconde o select de grupos e mostra o campo do endereço', !(await visivel(P + ' .entrega-grupo-area')) && (await visivel(P + ' .entrega-link')));
-        await escolher(P + ' .entrega-select', '__grupo__');
-        chk('voltar para "Acesso a grupo": o grupo escolhido antes (VIP B) continua marcado', (await js(`${q(P + ' .entrega-grupo-select')}.val()`)) === '-1002222222222');
-        await escolher(P + ' .entrega-select', '');
+        await escolher(PE + ' .entrega-select', '__link__');
+        chk('trocar para Link esconde o select de grupos e mostra o campo do endereço', !(await visivel(PE + ' .entrega-grupo-area')) && (await visivel(PE + ' .entrega-link')));
+        await escolher(PE + ' .entrega-select', '__grupo__');
+        chk('voltar para "Acesso a grupo": o grupo escolhido antes (VIP B) continua marcado', (await js(`${q(PE + ' .entrega-grupo-select')}.val()`)) === '-1002222222222');
+        await escolher(PE + ' .entrega-select', '');
         dados = await salvar();
         plano = dados && dados.dados_fluxograma.planos[0];
-        chk('"Nenhum": grava entrega_tipo=nenhuma sem grupo e o aviso "sem entrega" volta', !!plano && plano.entrega_tipo === 'nenhuma' && plano.id_grupo === '' && (await visivel(P + ' .dica-sem-grupo')), plano);
+        chk('"Nenhum": grava entrega_tipo=nenhuma sem grupo e o aviso "sem entrega" volta', !!plano && plano.entrega_tipo === 'nenhuma' && plano.id_grupo === '' && (await visivel(PE + ' .dica-sem-grupo')), plano);
 
         // "Acesso a grupo" sem escolher o grupo: não salva e diz o que falta
-        await escolher(P + ' .entrega-select', '__grupo__');
-        await escolher(P + ' .entrega-grupo-select', '');
+        await escolher(PE + ' .entrega-select', '__grupo__');
+        await escolher(PE + ' .entrega-grupo-select', '');
         dados = await salvar();
         chk('"Acesso a grupo" sem grupo escolhido: não salva e avisa qual plano precisa do grupo', dados === null && /Escolha o grupo da entrega do plano "Mensal"/.test(await toast()), await toast());
 
         // ============ lista vazia + atualizar ============
         await abrir(null, []);
         await novoPlano();
-        await escolher(P + ' .entrega-select', '__grupo__');
+        await escolher(PE + ' .entrega-select', '__grupo__');
         chk('sem nenhum grupo registrado: o select só tem "Selecione um grupo…" e NÃO aparece aviso de lista vazia nem o link "Adicionar pelo ID ou @" (retirados a pedido do dono, item 32)', JSON.stringify(await grupos()) === JSON.stringify(['Selecione um grupo…']) && (await js(`${q('.dica-lista-grupos-vazia, .entrega-grupo-abrir, .entrega-grupo-novo, .entrega-grupo-id')}.length`)) === 0 && !/Nenhum grupo encontrado\. Adicione|Adicionar pelo ID/.test(await js(`document.body.innerText`)), await js(`document.body.innerText.slice(0, 80)`));
-        await clicar(P + ' .entrega-grupo-atualizar');
+        await clicar(PE + ' .entrega-grupo-atualizar');
         chk('atualizar (↻) sem grupo novo: avisa em vermelho que ainda não achou nenhum', /Nenhum grupo encontrado ainda/.test(await toast()) && (await js(`${q('#toast')}.hasClass('erro')`)) === true, await toast());
         await js(`window.__grupos = [{ id_telegram: '-1003333333333', titulo: 'VIP C', nome_bot: 'bot_um' }]`);
-        await clicar(P + ' .entrega-grupo-atualizar');
+        await clicar(PE + ' .entrega-grupo-atualizar');
         chk('depois que o bot entra num grupo, atualizar (↻) traz o grupo para o select, sem F5', JSON.stringify(await grupos()) === JSON.stringify(['Selecione um grupo…', 'VIP C']) && (await toast()) === 'Lista de grupos atualizada.', [await grupos(), await toast()]);
-        await escolher(P + ' .entrega-grupo-select', '-1003333333333');
+        await escolher(PE + ' .entrega-grupo-select', '-1003333333333');
         await js(`window.__grupos = window.__grupos.concat([{ id_telegram: '-1004444444444', titulo: 'VIP D', nome_bot: 'bot_um' }])`);
-        await clicar(P + ' .entrega-grupo-atualizar');
-        chk('atualizar de novo mantém o grupo já escolhido (VIP C) e acrescenta o novo (VIP D)', (await js(`${q(P + ' .entrega-grupo-select')}.val()`)) === '-1003333333333' && JSON.stringify(await grupos()) === JSON.stringify(['Selecione um grupo…', 'VIP C', 'VIP D']), await grupos());
+        await clicar(PE + ' .entrega-grupo-atualizar');
+        chk('atualizar de novo mantém o grupo já escolhido (VIP C) e acrescenta o novo (VIP D)', (await js(`${q(PE + ' .entrega-grupo-select')}.val()`)) === '-1003333333333' && JSON.stringify(await grupos()) === JSON.stringify(['Selecione um grupo…', 'VIP C', 'VIP D']), await grupos());
 
         // ============ Upsell, Downsell e Pack usam o mesmo campo ============
         await abrir(null, GRUPOS);
@@ -148,7 +149,7 @@ const GRUPOS = [
             { id: 'p4', nome: 'Grupo que saiu da lista', valor: 20, dias_acesso: 30, unidade_acesso: 'dias', entrega_tipo: 'grupo', id_grupo: '-1009999999999', link_entrega: '' }
         ] }) }, GRUPOS);
         await secao('planos');
-        const pl = (i, s) => `#lista-planos .painel-plano:eq(${i}) ${s}`;
+        const pl = (i, s) => `#lista-planos .painel-plano:eq(${i}) ${/^.(entrega|dica-)/.test(s) ? '.plano-corpo > .grade ' : ''}${s}`;
         chk('reaberto: plano com grupo abre em "Acesso a grupo" com o grupo VIP B marcado e o select visível', (await js(`${q(pl(0, '.entrega-select'))}.val()`)) === '__grupo__' && (await js(`${q(pl(0, '.entrega-grupo-select'))}.val()`)) === '-1002222222222' && (await visivel(pl(0, '.entrega-grupo-area'))));
         chk('reaberto: plano com link abre em Link (sem o select de grupos) e o plano sem entrega abre em Nenhum com o aviso', (await js(`${q(pl(1, '.entrega-select'))}.val()`)) === '__link__' && !(await visivel(pl(1, '.entrega-grupo-area'))) && (await js(`${q(pl(2, '.entrega-select'))}.val()`)) === '' && (await visivel(pl(2, '.dica-sem-grupo'))));
         chk('reaberto: grupo salvo que não está mais na lista continua marcado, com o id e "(grupo salvo)" (salvar não apaga a entrega)', (await js(`${q(pl(3, '.entrega-grupo-select'))}.val()`)) === '-1009999999999' && /\(grupo salvo\)/.test(await js(`${q(pl(3, '.entrega-grupo-select option:selected'))}.text()`)));

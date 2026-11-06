@@ -242,6 +242,18 @@ function sanitizarCaminhosMidiaFluxo(array $dados_grafico): array
             $dados_grafico['ofertas'][$tipo_oferta] = sanitizarMidiasDoItem($dados_grafico['ofertas'][$tipo_oferta]);
         }
     }
+    // Order Bump PRÓPRIO do plano (planos[i].order_bump): mídias com a mesma regra, no máximo 3.
+    foreach ((array) ($dados_grafico['planos'] ?? []) as $i_plano => $plano_bump) {
+        if (is_array($plano_bump) && is_array($plano_bump['order_bump'] ?? null)) {
+            $bump_plano = sanitizarMidiasDoItem($plano_bump['order_bump']);
+            if (isset($bump_plano['midias'])) {
+                $bump_plano['midias'] = array_slice($bump_plano['midias'], 0, 3);
+                $bump_plano['midia_tipo'] = $bump_plano['midias'] ? $bump_plano['midias'][0]['tipo'] : 'none';
+                $bump_plano['midia_path'] = $bump_plano['midias'] ? $bump_plano['midias'][0]['path'] : '';
+            }
+            $dados_grafico['planos'][$i_plano]['order_bump'] = $bump_plano;
+        }
+    }
     // Sequência de Order Bumps (até 5 itens): cada item tem a própria mídia opcional, com a mesma regra.
     if (isset($dados_grafico['ofertas']['order_bump']['itens'])) {
         $itens = [];
@@ -270,6 +282,16 @@ function sanitizarCaminhosMidiaFluxo(array $dados_grafico): array
             $extras[] = $extra;
         }
         $dados_grafico['ofertas']['downsell']['sequencias_extras'] = $extras;
+    }
+    // Upsell em sequência (06/11/2026): os upsells 2 em diante (até UPSELL_MAXIMO_SEQUENCIAS no total) têm a própria mídia, com a mesma regra.
+    if (isset($dados_grafico['ofertas']['upsell']['sequencias_extras'])) {
+        $extras_upsell = [];
+        foreach (array_slice(array_values((array) $dados_grafico['ofertas']['upsell']['sequencias_extras']), 0, UPSELL_MAXIMO_SEQUENCIAS - 1) as $extra_upsell) {
+            if (is_array($extra_upsell)) {
+                $extras_upsell[] = sanitizarMidiasDoItem($extra_upsell);
+            }
+        }
+        $dados_grafico['ofertas']['upsell']['sequencias_extras'] = $extras_upsell;
     }
     if (isset($dados_grafico['ofertas']['downsell']['planos_proprios'])) {
         $dados_grafico['ofertas']['downsell']['planos_proprios'] = array_slice(array_values((array) $dados_grafico['ofertas']['downsell']['planos_proprios']), 0, DOWNSELL_PLANOS_PROPRIOS_MAXIMO);

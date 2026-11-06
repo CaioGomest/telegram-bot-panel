@@ -143,6 +143,7 @@ function agendarOrderBumpsBasico($pdo, int $bot_id, string $id_telegram, int $id
 {
     $GLOBALS['bump_agendados'][] = [$bot_id, $id_telegram, $id_venda, $id_plano];
 }
+require_once dirname(__DIR__, 2) . '/funcoes/video_info.php';   // parametrosFormatoVideoTelegram(), usada no álbum
 const MIDIAS_MAXIMO_BASICO = 10;
 const ORDER_BUMP_MAXIMO = 5;
 require_once dirname(__DIR__, 2) . '/funcoes/entrega.php';   // entregaDoItemBasico(), usada por gerarPixBasico
@@ -151,7 +152,7 @@ require_once dirname(__DIR__, 2) . '/funcoes/pagamentos_guiado.php';   // propri
 foreach (['estiloBotaoBasicoValor', 'fileIdDaMidiaBasico', 'enviarMensagemComMidiaBasico', 'enviarBoasVindasBasico', 'enviarOfertaBasico', 'avancarOfertasBasico', 'planoDaOfertaBasico', 'localizarPlanoBasico', 'planoRecorrenteBasico', 'periodicidadePlanoBasico',
     'boasVindasMostraCtaBasico', 'enviarListaPlanosBasico', 'tecladoListaPlanosBasico', 'urlSuporteBasico', 'downsellNovoFormatoBasico', 'planosDoDownsellBasico', 'planosDaSequenciaDownsellBasico', 'ofertaDaPosicaoDownsellBasico', 'planosDoDownsellSemOEscolhidoBasico', 'downsellDepoisDoPixBasico',
     'planoDoDownsellPorVariante', 'enviarDownsellBasico', 'gerarPixBasico', 'executarFluxoBasico',
-    'midiasDoItemBasico', 'midiasBoasVindasBasico', 'enviarMidiaSoltaBasico', 'enviarAlbumBasico', 'enviarMensagemComMidiasBasico', 'itensOrderBumpBasico', 'orderBumpDepoisDoPixBasico'] as $f) {
+    'midiasDoItemBasico', 'midiasBoasVindasBasico', 'enviarMidiaSoltaBasico', 'enviarAlbumBasico', 'enviarMensagemComMidiasBasico', 'itensOrderBumpBasico', 'orderBumpDepoisDoPixBasico', 'planoTemBumpProprioBasico', 'configOrderBumpDoPlanoBasico', 'entregaDoPixComBumpBasico'] as $f) {
     eval(extrairFuncao($fonte, $f));
 }
 

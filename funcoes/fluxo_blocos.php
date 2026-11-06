@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/qrcode.php';
+require_once __DIR__ . '/video_info.php';   // largura/altura/duração do vídeo enviado (sem isso o Telegram mostra a prévia quadrada)
 require_once __DIR__ . '/previas.php';
 require_once __DIR__ . '/entrega.php';
 require_once __DIR__ . '/split_validacao.php';   // comissaoDoSplit(): comissão gravada na venda
@@ -21,6 +22,9 @@ function requisicaoTelegram(string $token, string $metodo, array $parametros = [
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_POST, true);
+    if ($metodo === 'sendVideo' && isset($arquivos['video'])) {
+        $parametros += parametrosFormatoVideoTelegram($arquivos['video']);   // formato 1:1 em todo vídeo era o relato do cliente
+    }
     if (!empty($arquivos)) {
         foreach ($arquivos as $campo => $caminho) {
             if (file_exists($caminho)) {

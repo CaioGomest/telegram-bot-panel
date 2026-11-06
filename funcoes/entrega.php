@@ -93,6 +93,9 @@ function validarEntregasFluxoGuiado(array $dados): ?string
     $itens = [];
     foreach ((array) ($dados['planos'] ?? []) as $p) {
         $itens[] = ['do plano', $p];
+        if (is_array($p) && is_array($p["order_bump"] ?? null) && !empty($p["order_bump"]["ativo"])) {
+            $itens[] = ['do order bump do plano' . (trim((string) ($p['nome'] ?? '')) !== '' ? ' "' . trim((string) $p['nome']) . '"' : ''), $p['order_bump'] + ['nome' => '']];
+        }
     }
     if (!empty($dados['packs']['ativo'])) {
         foreach ((array) ($dados['packs']['itens'] ?? []) as $k) {
@@ -104,6 +107,14 @@ function validarEntregasFluxoGuiado(array $dados): ?string
     foreach (['upsell' => 'do Upsell', 'downsell' => 'do Downsell'] as $tipo => $rotulo) {
         $oferta = $dados['ofertas'][$tipo] ?? null;
         if (!is_array($oferta) || empty($oferta['ativo'])) {
+            continue;
+        }
+        if ($tipo === 'upsell') {
+            // Upsell em sequência: cada upsell entrega pela própria entrega.
+            $sequencias_upsell = sequenciasUpsellBasico($dados);
+            foreach ($sequencias_upsell as $i => $sequencia_upsell) {
+                $itens[] = [$rotulo . (count($sequencias_upsell) > 1 ? ' ' . ($i + 1) : ''), $sequencia_upsell];
+            }
             continue;
         }
         if ($tipo !== 'downsell') {
@@ -155,7 +166,7 @@ function validarEntregasFluxoGuiado(array $dados): ?string
  * ou ele está incompleto (sem nome ou sem valor).
  */
 const ID_PLANO_UPSELL_PROPRIO_BASICO = 'up_exclusivo';
-function planoProprioDoUpsellBasico(array $oferta): ?array
+function planoProprioDoUpsellBasico(array $oferta, int $indice = 0): ?array
 {
     $proprio = $oferta['plano_proprio'] ?? null;
     if ((string) ($oferta['id_plano_destino'] ?? '') !== ID_PLANO_UPSELL_PROPRIO_BASICO || !is_array($proprio)) {
@@ -169,7 +180,7 @@ function planoProprioDoUpsellBasico(array $oferta): ?array
     $unidade = (string) ($proprio['unidade_acesso'] ?? 'dias');
     $tipo_entrega = (string) ($oferta['entrega_tipo'] ?? '');
     return [
-        'id' => ID_PLANO_UPSELL_PROPRIO_BASICO,
+        'id' => idPlanoProprioDoUpsellBasico($indice),
         'nome' => $nome,
         'valor' => $valor,
         'dias_acesso' => max(1, (int) ($proprio['dias_acesso'] ?? 30)),
@@ -181,6 +192,37 @@ function planoProprioDoUpsellBasico(array $oferta): ?array
         'link_entrega' => (string) ($oferta['link_entrega'] ?? ''),
         'mensagem_entrega' => (string) ($oferta['mensagem_entrega'] ?? ''),
     ];
+}
+
+/**
+ * Upsell em sequência (06/11/2026, pedido do Lima: "sequência de upsell, só está dando para colocar um; pagou um, vai pro outro"): vários upsells, um depois do outro.
+ * O 1º é o próprio ofertas.upsell (todo fluxo salvo antes disso é uma sequência só); os outros ficam em ofertas.upsell.sequencias_extras, no mesmo formato de um upsell
+ * (id_plano_destino, plano_proprio, desconto_percentual, entrega, mensagem, mídias, textos dos botões), e só valem com o 1º ligado. O cliente recebe o 1º depois de pagar
+ * o plano; ao pagar um upsell, recebe o seguinte (ofertasPosPagamentoBasico). Recusar um upsell encerra a sequência.
+ */
+const UPSELL_MAXIMO_SEQUENCIAS = 10;
+function sequenciasUpsellBasico(array $dados): array
+{
+    $oferta = $dados['ofertas']['upsell'] ?? null;
+    if (!is_array($oferta)) {
+        return [];
+    }
+    $primeira = $oferta;
+    unset($primeira['sequencias_extras']);
+    $sequencias = [$primeira];
+    if (!empty($oferta['ativo']) && is_array($oferta['sequencias_extras'] ?? null)) {
+        foreach (array_slice(array_values($oferta['sequencias_extras']), 0, UPSELL_MAXIMO_SEQUENCIAS - 1) as $extra) {
+            if (is_array($extra)) {
+                $sequencias[] = $extra;
+            }
+        }
+    }
+    return $sequencias;
+}
+/** Id do plano próprio de um upsell da sequência: o de sempre no 1º ("up_exclusivo") e "up_exclusivo_<posição + 1>" nos demais (o callback do botão leva esse id). */
+function idPlanoProprioDoUpsellBasico(int $indice): string
+{
+    return $indice <= 0 ? ID_PLANO_UPSELL_PROPRIO_BASICO : ID_PLANO_UPSELL_PROPRIO_BASICO . '_' . ($indice + 1);
 }
 
 /** Desconto (%) de uma oferta, de 0 a 100. Upsell com plano próprio não tem desconto: o valor digitado já é o preço. */
@@ -197,6 +239,9 @@ function descontoFixoDaOfertaBasico(array $oferta): float
 {
     if (($oferta['desconto_tipo'] ?? '') !== 'fixo') {
         return 0.0;
+    }
+    if ((string) ($oferta['id_plano_destino'] ?? '') === ID_PLANO_UPSELL_PROPRIO_BASICO || str_starts_with((string) ($oferta['id_plano_destino'] ?? ''), ID_PLANO_UPSELL_PROPRIO_BASICO . '_')) {
+        return 0.0;   // Upsell com plano criado só para ele: o valor digitado já é o preço
     }
     return max(0.0, round((float) ($oferta['desconto_valor'] ?? 0), 2));
 }
@@ -229,18 +274,31 @@ function textoDescontoDaOfertaBasico(array $oferta): string
 function validarPlanoProprioUpsellBasico(array $dados): ?string
 {
     $oferta = $dados['ofertas']['upsell'] ?? null;
-    if (!is_array($oferta) || empty($oferta['ativo']) || (string) ($oferta['id_plano_destino'] ?? '') !== ID_PLANO_UPSELL_PROPRIO_BASICO) {
+    if (!is_array($oferta) || empty($oferta['ativo'])) {
         return null;
     }
-    $proprio = is_array($oferta['plano_proprio'] ?? null) ? $oferta['plano_proprio'] : [];
-    if (trim((string) ($proprio['nome'] ?? '')) === '') {
-        return 'Dê um nome ao plano do Upsell (ou escolha um plano que já existe).';
+    $sequencias = sequenciasUpsellBasico($dados);
+    foreach ($sequencias as $i => $sequencia) {
+        if ((string) ($sequencia['id_plano_destino'] ?? '') !== ID_PLANO_UPSELL_PROPRIO_BASICO) {
+            continue;
+        }
+        $rotulo = 'Upsell' . (count($sequencias) > 1 ? ' ' . ($i + 1) : '');
+        $proprio = is_array($sequencia['plano_proprio'] ?? null) ? $sequencia['plano_proprio'] : [];
+        if (trim((string) ($proprio['nome'] ?? '')) === '') {
+            return 'Dê um nome ao plano do ' . $rotulo . ' (ou escolha um plano que já existe).';
+        }
+        if (!((float) ($proprio['valor'] ?? 0) > 0)) {
+            return 'O plano do ' . $rotulo . ' "' . trim((string) $proprio['nome']) . '" precisa ter valor maior que zero.';
+        }
+        if ((int) ($proprio['dias_acesso'] ?? 0) < 1) {
+            return 'O plano do ' . $rotulo . ' "' . trim((string) $proprio['nome']) . '" precisa ter um tempo de acesso de pelo menos 1.';
+        }
     }
-    if (!((float) ($proprio['valor'] ?? 0) > 0)) {
-        return 'O plano do Upsell "' . trim((string) $proprio['nome']) . '" precisa ter valor maior que zero.';
-    }
-    if ((int) ($proprio['dias_acesso'] ?? 0) < 1) {
-        return 'O plano do Upsell "' . trim((string) $proprio['nome']) . '" precisa ter um tempo de acesso de pelo menos 1.';
+    // Upsell 2 em diante que escolhe um plano da lista: o plano precisa estar escolhido.
+    foreach ($sequencias as $i => $sequencia) {
+        if ($i > 0 && trim((string) ($sequencia['id_plano_destino'] ?? '')) === '') {
+            return 'Escolha o plano oferecido no Upsell ' . ($i + 1) . ' (ou crie um plano só para ele).';
+        }
     }
     return null;
 }

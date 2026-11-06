@@ -120,5 +120,20 @@ confere('Guiado: plano criado na 2ª sequência de R$ 1,00 recusa', validarPreco
 $seq2['ofertas']['downsell']['quando'] = 'antes_pix';
 confere('Guiado: sequências extras só valem com "Depois do Pix": em "Antes do Pix" a 2ª sequência é ignorada', validarPrecosFluxoGuiado($seq2, $min) === null);
 
+// Upsell em sequência (06/11/2026): do 2º upsell em diante o plano (próprio ou da lista, com o desconto do upsell) também não pode sair abaixo do mínimo
+$up_base = $dn_base + ['ofertas' => ['upsell' => ['ativo' => true, 'id_plano_destino' => 'a', 'desconto_percentual' => 0, 'sequencias_extras' => []]]];
+$up = $up_base;
+$up['ofertas']['upsell']['sequencias_extras'] = [['id_plano_destino' => 'up_exclusivo', 'plano_proprio' => ['nome' => 'Barato', 'valor' => 1.0, 'dias_acesso' => 3, 'unidade_acesso' => 'dias']]];
+confere('Guiado: plano criado no Upsell 2 de R$ 1,00 recusa', str_starts_with((string) validarPrecosFluxoGuiado($up, $min), $msg_omega), var_export(validarPrecosFluxoGuiado($up, $min), true));
+$up['ofertas']['upsell']['sequencias_extras'][0]['plano_proprio']['valor'] = 5.0;
+confere('Guiado: plano criado no Upsell 2 de R$ 5,00 passa', validarPrecosFluxoGuiado($up, $min) === null);
+$up['ofertas']['upsell']['sequencias_extras'] = [['id_plano_destino' => 'b', 'desconto_percentual' => 50]];
+confere('Guiado: Semanal (R$ 3,00) no Upsell 2 com 50% (R$ 1,50) recusa', str_starts_with((string) validarPrecosFluxoGuiado($up, $min), $msg_omega));
+$up['ofertas']['upsell']['sequencias_extras'][0]['desconto_percentual'] = 0;
+confere('Guiado: o mesmo Upsell 2 sem desconto passa', validarPrecosFluxoGuiado($up, $min) === null);
+$up['ofertas']['upsell']['sequencias_extras'] = [['id_plano_destino' => 'up_exclusivo', 'plano_proprio' => ['nome' => 'Barato', 'valor' => 1.0, 'dias_acesso' => 3, 'unidade_acesso' => 'dias']]];
+$up['ofertas']['upsell']['ativo'] = false;
+confere('Guiado: com o Upsell 1 desligado, os extras não são conferidos', validarPrecosFluxoGuiado($up, $min) === null);
+
 echo PHP_EOL . "$ok ok, $falhas falha(s)" . PHP_EOL;
 exit($falhas > 0 ? 1 : 0);

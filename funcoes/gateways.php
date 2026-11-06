@@ -340,6 +340,27 @@ function validarPrecosFluxoGuiado(array $dados, float $minimo): ?string {
             $derivados[] = 'O ' . $rotulo . ', com ' . $texto_pior . ' de desconto, sai por ' . $reais($pior) . '.';
         }
     }
+    // Upsell em sequência (06/11/2026): do 2º upsell em diante, o plano (próprio ou da lista, com o desconto do upsell) também não pode sair abaixo do mínimo.
+    foreach (sequenciasUpsellBasico($dados) as $indice_up => $sequencia_up) {
+        if ($indice_up === 0 || empty($dados['ofertas']['upsell']['ativo'])) {
+            continue;
+        }
+        $id_up = (string)($sequencia_up['id_plano_destino'] ?? '');
+        if ($id_up === 'up_exclusivo' && is_array($sequencia_up['plano_proprio'] ?? null)) {
+            $destino_up = ['nome' => $sequencia_up['plano_proprio']['nome'] ?? '', 'valor' => $sequencia_up['plano_proprio']['valor'] ?? 0];
+            $oferta_up = [];
+        } else {
+            $destino_up = $planos_por_id[$id_up] ?? null;
+            $oferta_up = $sequencia_up;
+        }
+        if (!$destino_up) {
+            continue;
+        }
+        $final_up = valorComDescontoDaOfertaBasico($oferta_up, (float)($destino_up['valor'] ?? 0));
+        if ($final_up > 0 && $final_up < $minimo) {
+            $problemas[] = 'o Upsell ' . ($indice_up + 1) . ' (plano "' . trim((string)($destino_up['nome'] ?? '')) . '" sai por ' . $reais($final_up) . ')';
+        }
+    }
     // Downsell em sequência (27/10/2026): os planos criados no Downsell (valem pelo valor digitado, sem desconto) e as sequências 2 a 5 (planos marcados, com o desconto de cada uma).
     // A 1ª sequência, com planos marcados, já foi conferida no laço acima.
     $downsell = $dados['ofertas']['downsell'] ?? [];

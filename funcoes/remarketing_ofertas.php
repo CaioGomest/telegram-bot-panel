@@ -74,9 +74,9 @@ function gerarPixRemarketing(string $token, $id_chat, array $bot, array $campanh
         'periodicidade' => null,
         'id_produto' => 'rmk_' . (int) $campanha['id'] . '_' . $plano['id'],
         'expiracao_minutos' => 15,
-        'dias_acesso' => (int) ($plano['dias'] ?? 30),
-        'unidade_acesso' => 'dias',
-        'id_grupo' => $plano['entrega_tipo'] === 'grupo' ? (string) $plano['id_grupo'] : '',
+        'dias_acesso' => $plano['entrega_tipo'] === 'grupo_temp' ? max(1, (int) ($plano['tempo_valor'] ?? 1)) : (int) ($plano['dias'] ?? 30),
+        'unidade_acesso' => $plano['entrega_tipo'] === 'grupo_temp' ? (string) ($plano['tempo_unidade'] ?? 'dias') : 'dias',
+        'id_grupo' => in_array($plano['entrega_tipo'], ['grupo', 'grupo_temp'], true) ? (string) $plano['id_grupo'] : '',
         'link_entrega' => $plano['entrega_tipo'] === 'link' ? (string) $plano['link_entrega'] : '',
         'mensagem_entrega' => $plano['entrega_tipo'] === 'mensagem' ? (string) ($plano['mensagem_entrega'] ?? '') : '',
     ] + propriedadesPagamentoBasico(remarketingPagamentosDoBot($pdo, (int) $bot['id']))], '');

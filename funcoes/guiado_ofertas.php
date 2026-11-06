@@ -9,6 +9,7 @@ declare(strict_types=1);
  */
 
 require_once __DIR__ . '/entrega.php';
+require_once __DIR__ . '/video_info.php';   // parametrosFormatoVideoTelegram(): width/height/duration do vídeo no álbum
 require_once __DIR__ . '/remarketing_ofertas.php';   // venda que veio de campanha de remarketing com order bump próprio (ver ofertasPosPagamentoBasico)
 
 /**
@@ -38,7 +39,9 @@ function arquivoCacheMidia(): string {
     return defined('CACHE_MIDIA_ARQUIVO') ? (string) CACHE_MIDIA_ARQUIVO : dirname(__DIR__) . '/storage/cache_midia.json';
 }
 function chaveCacheMidia(string $token, string $id_cache, string $caminho): string {
-    return sha1($token . '|' . $id_cache . '|' . $caminho . '|' . (string) @filemtime($caminho));
+    // Vídeo: sufixo '|v2' (06/11/2026) descarta os file_id guardados antes de o envio levar width/height/duration, que o Telegram mostra em 1:1.
+    $versao = preg_match('/\.(mp4|mov|m4v|webm)$/i', $caminho) ? '|v2' : '';
+    return sha1($token . '|' . $id_cache . '|' . $caminho . '|' . (string) @filemtime($caminho) . $versao);
 }
 function lerFileIdCacheMidia(string $token, string $id_cache, string $caminho): ?string {
     $arquivo = arquivoCacheMidia();
@@ -225,7 +228,7 @@ function enviarAlbumBasico(string $token, $id_chat, array $midias, string $id_ca
             $subiram[$i] = true;
         }
         if ($eh_video) {
-            $entrada['supports_streaming'] = true;
+            $entrada += parametrosFormatoVideoTelegram($it['caminho']);   // width/height/duration: sem eles o álbum mostra o vídeo quadrado
         }
         $media[] = $entrada;
     }
@@ -308,6 +311,63 @@ function planoDaOfertaBasico(array $dados_basico, string $tipo): ?array {
         return planoProprioDoUpsellBasico($oferta);
     }
     return localizarPlanoBasico($dados_basico['planos'] ?? [], (string) ($oferta['id_plano_destino'] ?? ''));
+}
+
+/**
+ * Plano do upsell da posição $indice da sequência (0 = o próprio ofertas.upsell). Do 2º em diante vale se o 1º upsell está ligado; o plano é o da lista ou o próprio
+ * (id "up_exclusivo_<posição + 1>"). Null se o plano sumiu ou está incompleto.
+ */
+function planoDaSequenciaUpsellBasico(array $dados_basico, int $indice): ?array {
+    if ($indice <= 0) {
+        return planoDaOfertaBasico($dados_basico, 'upsell');
+    }
+    $oferta = sequenciasUpsellBasico($dados_basico)[$indice] ?? null;
+    if (!is_array($oferta)) {
+        return null;
+    }
+    if ((string) ($oferta['id_plano_destino'] ?? '') === ID_PLANO_UPSELL_PROPRIO_BASICO) {
+        return planoProprioDoUpsellBasico($oferta, $indice);
+    }
+    return localizarPlanoBasico($dados_basico['planos'] ?? [], (string) ($oferta['id_plano_destino'] ?? ''));
+}
+/** Parte do callback_data do botão do upsell: "up" no 1º (como sempre) e "u2", "u3"... nos seguintes. */
+function tipoCallbackUpsellBasico(int $indice): string {
+    return $indice <= 0 ? 'up' : 'u' . ($indice + 1);
+}
+/**
+ * Próximo upsell que dá para oferecer, a partir da posição $desde: plano que existe, que não é recorrente, de valor maior que zero e diferente do que o cliente
+ * acabou de pagar (pelo nome). Devolve [posição, plano, valor com desconto] ou null.
+ */
+function proximoUpsellOferecivelBasico(array $dados_basico, int $desde, string $nome_pago): ?array {
+    $sequencias = sequenciasUpsellBasico($dados_basico);
+    foreach (array_keys($sequencias) as $i) {
+        if ($i < $desde) {
+            continue;
+        }
+        $plano = planoDaSequenciaUpsellBasico($dados_basico, $i);
+        if (!$plano || planoRecorrenteBasico($plano) || mb_strtolower($nome_pago, 'UTF-8') === mb_strtolower(trim((string) ($plano['nome'] ?? '')), 'UTF-8')) {
+            continue;
+        }
+        $valor = valorComDescontoDaOfertaBasico($sequencias[$i], (float) ($plano['valor'] ?? 0));
+        if ($valor > 0) {
+            return [$i, $plano, $valor];
+        }
+    }
+    return null;
+}
+/**
+ * Posição do upsell cuja venda "Upgrade: <nome>" acabou de ser paga: o ÚLTIMO da sequência com esse nome de plano (se dois repetem o plano, a oferta não volta ao
+ * anterior). -1 se nenhum bate (upsell apagado ou renomeado depois da oferta: a sequência para).
+ */
+function indiceUpsellPagoBasico(array $dados_basico, string $nome_pago): int {
+    $achou = -1;
+    foreach (array_keys(sequenciasUpsellBasico($dados_basico)) as $i) {
+        $plano = planoDaSequenciaUpsellBasico($dados_basico, $i);
+        if ($plano && mb_strtolower($nome_pago, 'UTF-8') === mb_strtolower(trim((string) ($plano['nome'] ?? '')), 'UTF-8')) {
+            $achou = $i;
+        }
+    }
+    return $achou;
 }
 
 function enviarOfertaBasico(string $token, $id_chat, array $oferta, string $prefixo_callback, string $texto_padrao, string $id_cache = '', bool $permite_esconder_recusar = false): void {
@@ -583,19 +643,76 @@ const ORDER_BUMP_MAXIMO = 5;
 const ORDER_BUMP_ESPERA_PADRAO_MINUTOS = 10;
 const ORDER_BUMP_MAXIMO_MINUTOS = 1440;
 
-/** Itens do Order Bump com valor extra maior que zero (no máximo 5), na ordem da tela. Fluxo salvo antes da sequência (sem `itens`): o próprio order_bump é o único item. */
-function itensOrderBumpBasico(array $dados_basico): array {
-    $bump = $dados_basico['ofertas']['order_bump'] ?? [];
-    $bruto = is_array($bump['itens'] ?? null) && $bump['itens'] ? array_values($bump['itens']) : [$bump];
+/**
+ * Order Bump PRÓPRIO do plano (05/11/2026, pedido do dono, igual ao da Shark): planos[i].order_bump = {ativo, nome, valor_extra, mensagem, cta, texto_aceitar, texto_recusar,
+ * cor_aceitar, cor_recusar, midias (até 3), entrega_tipo ('plano' | 'nenhuma' | 'link' | 'mensagem'), link_entrega, mensagem_entrega}. Ligado, SUBSTITUI o order bump do
+ * fluxo para aquele plano (um só item, sem sequência). Desligado ou ausente: vale o do fluxo, como sempre.
+ */
+function planoTemBumpProprioBasico(?array $plano): bool {
+    return is_array($plano) && is_array($plano['order_bump'] ?? null) && !empty($plano['order_bump']['ativo']);
+}
+/**
+ * Como o order bump se comporta para UM plano: ['proprio' => bool, 'quando' => 'depois_pix'|'depois_pagamento'|'', 'itens' => [...]].
+ * Do plano: o "quando enviar" e a espera seguem os do fluxo (se o order bump do fluxo estiver ligado); sem isso, depois do Pix, em 10 minutos.
+ * Do fluxo: o que sempre valeu (itens com valor extra maior que zero, no máximo 5; fluxo antigo sem `itens`: o próprio order_bump é o único item).
+ */
+function configOrderBumpDoPlanoBasico(array $dados_basico, ?array $plano = null): array {
+    $fluxo = $dados_basico['ofertas']['order_bump'] ?? [];
+    if (planoTemBumpProprioBasico($plano)) {
+        $b = $plano['order_bump'];
+        $fluxo_ligado = !empty($fluxo['ativo']);
+        $quando = $fluxo_ligado ? (string) ($fluxo['quando'] ?? '') : 'depois_pix';
+        $quando = $quando === 'depois_pix' ? 'depois_pix' : 'depois_pagamento';
+        if ((int) ($b['espera_minutos'] ?? 0) < 1) {
+            $b['espera_minutos'] = $fluxo_ligado ? (int) ($fluxo['espera_minutos'] ?? 0) : 0;   // 0 = padrão (esperaOrderBumpBasico)
+        }
+        $itens = (float) ($b['valor_extra'] ?? 0) > 0 ? [$b + ['ativo' => true, 'do_plano' => true]] : [];
+        return ['proprio' => true, 'quando' => $quando, 'itens' => $itens];
+    }
+    $bruto = is_array($fluxo['itens'] ?? null) && $fluxo['itens'] ? array_values($fluxo['itens']) : [$fluxo];
     $itens = [];
-    foreach (array_slice($bruto, 0, ORDER_BUMP_MAXIMO) as $item) {
-        if (is_array($item) && (float) ($item['valor_extra'] ?? 0) > 0) {
-            $itens[] = $item + ['ativo' => true];
+    if (!empty($fluxo['ativo'])) {
+        foreach (array_slice($bruto, 0, ORDER_BUMP_MAXIMO) as $item) {
+            if (is_array($item) && (float) ($item['valor_extra'] ?? 0) > 0) {
+                $itens[] = $item + ['ativo' => true];
+            }
         }
     }
-    return $itens;
+    return ['proprio' => false, 'quando' => (string) ($fluxo['quando'] ?? ''), 'itens' => $itens];
 }
-function orderBumpDepoisDoPixBasico(array $dados_basico): bool {
+/** O plano que o cliente pagou, pelo nome da venda (a venda de order bump junto vem como "Plano + Extra"). */
+function planoPagoDaVendaBasico(array $dados_basico, string $nome_pago): ?array {
+    $nome_pago = mb_strtolower(trim($nome_pago), 'UTF-8');
+    foreach ((array) ($dados_basico['planos'] ?? []) as $p) {
+        $nome = mb_strtolower(trim((string) ($p['nome'] ?? '')), 'UTF-8');
+        if ($nome !== '' && ($nome_pago === $nome || strpos($nome_pago, $nome . ' + ') === 0)) {
+            return $p;
+        }
+    }
+    return null;
+}
+
+/** Itens do Order Bump com valor extra maior que zero (no máximo 5), na ordem da tela. Com $plano: o order bump próprio dele (se ligado) ou o do fluxo. */
+function itensOrderBumpBasico(array $dados_basico, ?array $plano = null): array {
+    $bump = $dados_basico['ofertas']['order_bump'] ?? [];
+    if (!planoTemBumpProprioBasico($plano)) {
+        // Sem plano próprio: sempre foi assim (não olha se está ligado; quem chama confere `ativo`).
+        $bruto = is_array($bump['itens'] ?? null) && $bump['itens'] ? array_values($bump['itens']) : [$bump];
+        $itens = [];
+        foreach (array_slice($bruto, 0, ORDER_BUMP_MAXIMO) as $item) {
+            if (is_array($item) && (float) ($item['valor_extra'] ?? 0) > 0) {
+                $itens[] = $item + ['ativo' => true];
+            }
+        }
+        return $itens;
+    }
+    return configOrderBumpDoPlanoBasico($dados_basico, $plano)['itens'];
+}
+function orderBumpDepoisDoPixBasico(array $dados_basico, ?array $plano = null): bool {
+    if (planoTemBumpProprioBasico($plano)) {
+        $cfg = configOrderBumpDoPlanoBasico($dados_basico, $plano);
+        return $cfg['quando'] === 'depois_pix' && $cfg['itens'] !== [];
+    }
     $bump = $dados_basico['ofertas']['order_bump'] ?? [];
     return !empty($bump['ativo']) && ($bump['quando'] ?? '') === 'depois_pix' && itensOrderBumpBasico($dados_basico) !== [];
 }
@@ -609,6 +726,41 @@ function textoPadraoOrderBumpBasico(array $item): string {
     return 'Adicione ' . ($nome !== '' ? $nome : 'um extra') . ' ao seu pedido por mais R$ ' . number_format((float) ($item['valor_extra'] ?? 0), 2, ',', '.') . '.';
 }
 
+/** Order bump do plano: a "Mensagem CTA" (opcional) vai numa linha própria no fim do texto da oferta. Sem CTA, o item segue igual. */
+function comCtaOrderBumpBasico(array $item): array {
+    if (!empty($item['do_plano'])) {   // order bump do plano: botões padrão da Shark quando o dono não escreveu os dele
+        $item['texto_aceitar'] = trim((string) ($item['texto_aceitar'] ?? '')) ?: "✅ ADICIONAR";
+        $item['texto_recusar'] = trim((string) ($item['texto_recusar'] ?? '')) ?: "❌ NÃO QUERO";
+    }
+    $cta = trim((string) ($item['cta'] ?? ''));
+    if ($cta === '') {
+        return $item;
+    }
+    $item['mensagem'] = (trim((string) ($item['mensagem'] ?? '')) ?: textoPadraoOrderBumpBasico($item)) . "
+
+" . $cta;
+    return $item;
+}
+/**
+ * Entrega do order bump do plano quando o extra vai NO MESMO Pix do plano (uma venda só, uma entrega só): vale a do plano e, se o bump tem a própria entrega por
+ * mensagem ou link, o texto/endereço segue na mensagem de entrega. Grupo próprio não existe aqui (o editor não oferece). Item do fluxo (sem entrega_tipo) não muda nada.
+ */
+function entregaDoPixComBumpBasico(array $entrega, array $item): array {
+    $tipo = (string) ($item['entrega_tipo'] ?? '');
+    $extra = '';
+    if ($tipo === 'mensagem') {
+        $extra = mensagemEntregaValida($item['mensagem_entrega'] ?? '');
+    } elseif ($tipo === 'link') {
+        $extra = linkEntregaValido($item['link_entrega'] ?? '');
+    }
+    if ($extra !== '') {
+        $entrega['mensagem_entrega'] = mb_substr(trim(trim((string) ($entrega['mensagem_entrega'] ?? '')) . "
+
+" . $extra), 0, ENTREGA_MENSAGEM_MAX);
+    }
+    return $entrega;
+}
+
 /** Encerra a sequência pendente do lead (aceitou um bump, ou gerou um Pix novo e a contagem recomeça). */
 function cancelarOrderBumpsDoLeadBasico(PDO $pdo, int $bot_id, string $id_telegram): void {
     try {
@@ -620,15 +772,15 @@ function cancelarOrderBumpsDoLeadBasico(PDO $pdo, int $bot_id, string $id_telegr
 
 /** Chamada logo depois de gerar o Pix do plano escolhido. Nunca lança: falhar aqui não pode atrapalhar a entrega do Pix. */
 function agendarOrderBumpsBasico(PDO $pdo, int $bot_id, string $id_telegram, int $id_venda, string $id_plano, array $dados_basico): void {
-    if ($id_venda <= 0 || !orderBumpDepoisDoPixBasico($dados_basico)) {
+    $plano = localizarPlanoBasico($dados_basico['planos'] ?? [], $id_plano);
+    if ($id_venda <= 0 || !$plano || !orderBumpDepoisDoPixBasico($dados_basico, $plano)) {
         return;
     }
-    $plano = localizarPlanoBasico($dados_basico['planos'] ?? [], $id_plano);
-    if (!$plano || planoRecorrenteBasico($plano)) {
+    if (planoRecorrenteBasico($plano)) {
         return;   // assinatura recorrente não recebe order bump: o extra seria cobrado em todo ciclo
     }
     try {
-        $espera = esperaOrderBumpBasico(itensOrderBumpBasico($dados_basico)[0]);
+        $espera = esperaOrderBumpBasico(itensOrderBumpBasico($dados_basico, $plano)[0]);
         cancelarOrderBumpsDoLeadBasico($pdo, $bot_id, $id_telegram);   // novo Pix recomeça a contagem
         $pdo->prepare("INSERT INTO order_bump_agenda (bot_id, id_telegram, venda_id, id_plano, proximo_em) VALUES (?, ?, ?, ?, NOW() + INTERVAL ? MINUTE)")
             ->execute([$bot_id, $id_telegram, $id_venda, $id_plano, $espera]);
@@ -651,17 +803,20 @@ function enviarOrderBumpAgendadoBasico(PDO $pdo, array $linha): array {
     $fluxo->execute([$linha['bot_id']]);
     $fluxo = $fluxo->fetch(PDO::FETCH_ASSOC);
     $dados = $fluxo && ($fluxo['modo'] ?? '') === 'basico' ? json_decode((string) $fluxo['dados_fluxograma'], true) : null;
-    if (!is_array($dados) || ($dados['ativo'] ?? true) === false || !orderBumpDepoisDoPixBasico($dados)) {
+    if (!is_array($dados) || ($dados['ativo'] ?? true) === false) {
         return [false, null];
     }
     $plano = localizarPlanoBasico($dados['planos'] ?? [], (string) $linha['id_plano']);
-    $itens = itensOrderBumpBasico($dados);
+    if (!$plano || !orderBumpDepoisDoPixBasico($dados, $plano)) {
+        return [false, null];
+    }
+    $itens = itensOrderBumpBasico($dados, $plano);
     $posicao = (int) $linha['enviados'];
     if (!$plano || planoRecorrenteBasico($plano) || !isset($itens[$posicao])) {
         return [false, null];
     }
     $item = $itens[$posicao];
-    enviarOfertaBasico((string) $linha['token'], $linha['id_telegram'], $item, 'basico::bs::' . (string) $linha['id_plano'] . '::' . $posicao,
+    enviarOfertaBasico((string) $linha['token'], $linha['id_telegram'], comCtaOrderBumpBasico($item), 'basico::bs::' . (string) $linha['id_plano'] . '::' . $posicao,
         textoPadraoOrderBumpBasico($item), (string) ($dados['cache_chat_id'] ?? ''));
     return [true, isset($itens[$posicao + 1]) ? esperaOrderBumpBasico($itens[$posicao + 1]) : null];
 }
@@ -723,7 +878,8 @@ function ofertasPosPagamentoBasico(PDO $pdo, string $token, array $venda): void
             return;
         }
         $nome_pago = trim((string) ($venda['nome_produto'] ?? ''));
-        if (strpos($nome_pago, PREFIXO_VENDA_UPGRADE_BASICO) === 0 || strpos($nome_pago, PREFIXO_VENDA_EXTRA_BASICO) === 0) {
+        $pagou_upgrade = strpos($nome_pago, PREFIXO_VENDA_UPGRADE_BASICO) === 0;
+        if (!$pagou_upgrade && strpos($nome_pago, PREFIXO_VENDA_EXTRA_BASICO) === 0) {
             return;
         }
         $id_fluxo = (int) ($venda['id_fluxo'] ?? 0);
@@ -745,28 +901,42 @@ function ofertasPosPagamentoBasico(PDO $pdo, string $token, array $venda): void
         $id_chat = (string) ($venda['id_telegram'] ?? '');
         $id_cache = (string) ($dados['cache_chat_id'] ?? '');
         $ofertas = $dados['ofertas'] ?? [];
-        if ($id_chat === '' || !$ofertas) {
+        $algum_plano_com_bump = false;
+        foreach ((array) ($dados['planos'] ?? []) as $p_bump) {
+            $algum_plano_com_bump = $algum_plano_com_bump || planoTemBumpProprioBasico(is_array($p_bump) ? $p_bump : null);
+        }
+        if ($id_chat === '' || (!$ofertas && !$algum_plano_com_bump)) {
             return;
         }
 
-        // Upsell: só se o plano de destino existe e não é o que o cliente acabou de pagar.
-        $destino = planoDaOfertaBasico($dados, 'upsell');
-        if ($destino && !planoRecorrenteBasico($destino) && mb_strtolower($nome_pago, 'UTF-8') !== mb_strtolower(trim((string) ($destino['nome'] ?? '')), 'UTF-8')) {
-            $desconto = descontoDaOfertaBasico($ofertas['upsell']);
-            $valor = round((float) ($destino['valor'] ?? 0) * (1 - $desconto / 100), 2);
-            if ($valor > 0) {
-                enviarOfertaBasico($token, $id_chat, $ofertas['upsell'], 'basico::pos::up::' . (string) ($destino['id'] ?? ''),
+        // Upsell em sequência: depois de pagar o PLANO vem o 1º upsell que dá para oferecer; depois de pagar um UPSELL ("Upgrade: <plano>"), o seguinte da sequência.
+        // Sem seguinte, acabou (e um Upgrade pago nunca gera Order Bump: o extra é do plano).
+        $pago_do_upsell = $pagou_upgrade ? trim(mb_substr($nome_pago, mb_strlen(PREFIXO_VENDA_UPGRADE_BASICO))) : $nome_pago;
+        $desde_upsell = $pagou_upgrade ? indiceUpsellPagoBasico($dados, $pago_do_upsell) + 1 : 0;
+        if (!$pagou_upgrade || $desde_upsell > 0) {
+            $proximo_upsell = proximoUpsellOferecivelBasico($dados, $desde_upsell, $pago_do_upsell);
+            if ($proximo_upsell) {
+                [$posicao_upsell, $destino, $valor] = $proximo_upsell;
+                enviarOfertaBasico($token, $id_chat, sequenciasUpsellBasico($dados)[$posicao_upsell], 'basico::pos::' . tipoCallbackUpsellBasico($posicao_upsell) . '::' . (string) ($destino['id'] ?? ''),
                     'Quer fazer um upgrade para ' . ($destino['nome'] ?? 'outro plano') . ' por R$ ' . number_format($valor, 2, ',', '.') . '?', $id_cache, true);
             }
         }
+        if ($pagou_upgrade) {
+            return;
+        }
         // Order Bump: extra avulso (novo Pix só do extra). Assinatura recorrente não recebe (o extra seria cobrado todo ciclo).
         // Em "depois do Pix" (sequência de vários bumps) ele já foi oferecido enquanto o Pix estava em aberto, então não repete depois de pagar.
-        $bump = $ofertas['order_bump'] ?? [];
+        // Plano com order bump PRÓPRIO: ele substitui o do fluxo (o callback leva o id do plano; "0" é o do fluxo, como antes).
+        $plano_pago = planoPagoDaVendaBasico($dados, $nome_pago);
+        $bump_do_plano = planoTemBumpProprioBasico($plano_pago) && !planoRecorrenteBasico($plano_pago) ? (itensOrderBumpBasico($dados, $plano_pago)[0] ?? null) : null;
+        $bump = $bump_do_plano ?? ($ofertas['order_bump'] ?? []);
+        $bump_ligado = $bump_do_plano !== null || (!empty($bump['ativo']) && !planoTemBumpProprioBasico($plano_pago));
+        $depois_do_pix = orderBumpDepoisDoPixBasico($dados, $plano_pago);
         $extra = max(0.0, (float) ($bump['valor_extra'] ?? 0));
         // Venda de campanha de remarketing com order bump próprio: o extra da campanha (oferecido antes do Pix) substitui o do fluxo.
-        if (!empty($bump['ativo']) && $extra > 0 && !orderBumpDepoisDoPixBasico($dados) && !remarketingVendaTemBumpProprio($pdo, (int) ($venda['id'] ?? 0))) {
-            enviarOfertaBasico($token, $id_chat, $bump, 'basico::pos::bp::0',
-                'Adicione um extra ao seu pedido por R$ ' . number_format($extra, 2, ',', '.') . '.', $id_cache);
+        if ($bump_ligado && $extra > 0 && !$depois_do_pix && !remarketingVendaTemBumpProprio($pdo, (int) ($venda['id'] ?? 0))) {
+            enviarOfertaBasico($token, $id_chat, comCtaOrderBumpBasico($bump), 'basico::pos::bp::' . ($bump_do_plano !== null ? (string) ($plano_pago['id'] ?? '0') : '0'),
+                $bump_do_plano !== null ? textoPadraoOrderBumpBasico($bump) : 'Adicione um extra ao seu pedido por R$ ' . number_format($extra, 2, ',', '.') . '.', $id_cache);
         }
     } catch (\Throwable $e) {
         error_log('[ofertas pós-pagamento] ' . $e->getMessage());
@@ -781,23 +951,42 @@ function ofertasPosPagamentoBasico(PDO $pdo, string $token, array $venda): void
 function gerarPixOfertaPosBasico(string $token, $id_chat, array $dados_basico, string $tipo, string $id_plano_destino): void {
     $pagamentos = $dados_basico['pagamentos'] ?? [];
     $ofertas = $dados_basico['ofertas'] ?? [];
+    $posicao_upsell = 0;
+    if (preg_match('/^u(\d+)$/', $tipo, $m_up) && (int) $m_up[1] >= 2) {   // "u2", "u3"...: upsell da sequência (o 1º segue como "up")
+        $posicao_upsell = (int) $m_up[1] - 1;
+        $tipo = 'up';
+    }
     if ($tipo === 'up') {
-        $plano = planoDaOfertaBasico($dados_basico, 'upsell');
+        $oferta_upsell = sequenciasUpsellBasico($dados_basico)[$posicao_upsell] ?? [];
+        $plano = planoDaSequenciaUpsellBasico($dados_basico, $posicao_upsell);
         if (!$plano || (string) ($plano['id'] ?? '') !== $id_plano_destino || planoRecorrenteBasico($plano)) {
             requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Essa oferta não está mais disponível.']);
             return;
         }
-        $desconto = descontoDaOfertaBasico($ofertas['upsell']);
-        $valor = round((float) ($plano['valor'] ?? 0) * (1 - $desconto / 100), 2);
+        $valor = valorComDescontoDaOfertaBasico($oferta_upsell, (float) ($plano['valor'] ?? 0));   // % ou R$ fixo
         $nome = PREFIXO_VENDA_UPGRADE_BASICO . (string) ($plano['nome'] ?? 'Plano');
         $id_produto = 'plano_' . (string) ($plano['id'] ?? '');
         $dias = (int) ($plano['dias_acesso'] ?? 30);
         $unidade = $plano['unidade_acesso'] ?? 'dias';
-        $entrega = entregaCompletaDoItemBasico($ofertas['upsell'] ?? [], $plano);   // entrega própria do Upsell; sem ela, a do plano de destino
+        $entrega = entregaCompletaDoItemBasico($oferta_upsell, $plano);   // entrega própria do Upsell; sem ela, a do plano de destino
     } elseif ($tipo === 'bp') {
         $bump = $ofertas['order_bump'] ?? [];
+        $entrega = ['id_grupo' => '', 'link_entrega' => '', 'mensagem_entrega' => ''];
+        // "0" = order bump do fluxo; outro valor = id do plano que tem order bump próprio.
+        $plano_do_bump = $id_plano_destino !== '0' && $id_plano_destino !== '' ? localizarPlanoBasico($dados_basico['planos'] ?? [], $id_plano_destino) : null;
+        if ($plano_do_bump !== null && planoTemBumpProprioBasico($plano_do_bump) && !planoRecorrenteBasico($plano_do_bump)) {
+            $bump = itensOrderBumpBasico($dados_basico, $plano_do_bump)[0] ?? [];
+            // Venda do extra avulsa: "mesmo delivery do plano" = nada de novo (o plano já foi entregue); link e mensagem do próprio bump valem.
+            $tipo_entrega_bump = (string) ($bump['entrega_tipo'] ?? '');
+            if ($tipo_entrega_bump === 'link' || $tipo_entrega_bump === 'mensagem') {
+                $entrega = entregaCompletaDoItemBasico($bump);
+            }
+        } elseif (planoTemBumpProprioBasico($plano_do_bump)) {
+            $bump = [];
+        }
         $valor = round(max(0.0, (float) ($bump['valor_extra'] ?? 0)), 2);
-        if (empty($bump['ativo']) || $valor <= 0) {
+        $do_plano = planoTemBumpProprioBasico($plano_do_bump);   // do plano: já vem resolvido e ligado; do fluxo: precisa estar ligado
+        if ($valor <= 0 || (!$do_plano && empty($bump['ativo']))) {
             requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Essa oferta não está mais disponível.']);
             return;
         }
@@ -805,7 +994,6 @@ function gerarPixOfertaPosBasico(string $token, $id_chat, array $dados_basico, s
         $id_produto = 'extra_bump';
         $dias = 30;
         $unidade = 'dias';
-        $entrega = ['id_grupo' => '', 'link_entrega' => '', 'mensagem_entrega' => ''];
     } else {
         return;
     }

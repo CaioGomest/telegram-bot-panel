@@ -142,7 +142,7 @@ function remarketingSalvar(PDO $pdo, int $id_usuario, array $in, int $id = 0): a
     $stmt = $pdo->query('SELECT DISTINCT id_telegram FROM bot_grupos WHERE bot_id IN (' . implode(',', array_column($bots, 'id')) . ") AND COALESCE(tipo, '') <> 'private'");
     $grupos = array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN));
     foreach ($d['ofertas']['planos'] as $p) {
-        if ($p['entrega_tipo'] === 'grupo' && !in_array($p['id_grupo'], $grupos, true)) {
+        if (in_array($p['entrega_tipo'], ['grupo', 'grupo_temp'], true) && !in_array($p['id_grupo'], $grupos, true)) {
             return ['sucesso' => false, 'mensagem' => 'O grupo de entrega do plano "' . $p['nome'] . '" não pertence aos bots deste fluxo.', 'id' => 0];
         }
     }

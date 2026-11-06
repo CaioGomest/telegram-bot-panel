@@ -3282,6 +3282,12 @@ html .editor-fluxo-corpo .painel > .pg-barra + .pg-texto { margin-top: 0; }
 .dn-planos-criados > .texto-ajuda, .dn-planos-marcados > .texto-ajuda { display: block; margin-top: 8px; }
 .dn-midias-adicionar { display: flex; width: fit-content; margin: 4px 0 0 auto; }
 .dn-midias-extras { margin-top: 8px; }
+/* Upsell em sequência (06/11/2026): cartões do Upsell 2 em diante, no mesmo desenho dos do Downsell */
+#up-adicionar { display: flex; width: fit-content; margin-left: auto; margin-top: 12px; }
+.up-extra > * + * { margin-top: 14px; }
+.up-extra > .bp-item-cabecalho { margin-bottom: 0; }
+.up-midias-adicionar { display: flex; width: fit-content; margin: 4px 0 0 auto; }
+.up-midias-extras { margin-top: 8px; }
 
 /* Cor do sistema (Minha Conta): bolinhas de cor sugerida */
 .cor-opcoes { display: flex; flex-wrap: wrap; gap: 10px; margin: 4px 0 14px; }

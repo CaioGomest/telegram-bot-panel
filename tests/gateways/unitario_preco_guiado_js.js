@@ -50,5 +50,13 @@ confere('a mesma 2ª sequência sem desconto (Semanal R$ 3,00) passa', v21(seq2)
 seq2.ofertas.downsell.sequencias_extras[0] = { criar_planos: true, planos_proprios: [{ nome: 'Última chance', valor: 1 }] };
 confere('plano criado na 2ª sequência de R$ 1,00 recusa', v21(seq2) === MSG21);
 
+// Upsell em sequência (06/11/2026): os upsells extras também entram na conta (plano da lista com desconto, ou plano criado só para ele)
+const upx = (extras, ativo) => base([{ id: 'a', nome: 'Mensal', valor: 20 }, { id: 'b', nome: 'Semanal', valor: 3 }], { upsell: { ativo: ativo !== false, id_plano_destino: 'a', desconto_percentual: 0, sequencias_extras: extras }, downsell: {} });
+confere('Upsell 2 com plano criado de R$ 1,00 e mínimo de R$ 2,10: recusa', v21(upx([{ id_plano_destino: 'up_exclusivo', plano_proprio: { nome: 'X', valor: 1 } }])) === 'Para a Omega, o valor mínimo é R$ 2,10.');
+confere('Upsell 2 com plano criado de R$ 5,00 passa', v21(upx([{ id_plano_destino: 'up_exclusivo', plano_proprio: { nome: 'X', valor: 5 } }])) === '');
+confere('Upsell 2 com o Semanal (R$ 3,00) e 50% de desconto sai por R$ 1,50 e recusa', v21(upx([{ id_plano_destino: 'b', desconto_percentual: 50 }])).indexOf('Para a Omega, o valor mínimo é R$ 2,10.') === 0);
+confere('Upsell 2 sem desconto passa', v21(upx([{ id_plano_destino: 'b', desconto_percentual: 0 }])) === '');
+confere('com o Upsell 1 desligado os extras não são conferidos', v21(upx([{ id_plano_destino: 'up_exclusivo', plano_proprio: { nome: 'X', valor: 1 } }], false)) === '');
+
 console.log('\n' + ok + ' ok, ' + falhas + ' falha(s)');
 process.exit(falhas ? 1 : 0);

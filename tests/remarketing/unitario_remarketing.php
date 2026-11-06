@@ -122,6 +122,15 @@ confere('preço zero/negativo/texto recusado', remarketingNormalizarOfertas(['pl
 confere('preço absurdo recusado', remarketingNormalizarOfertas(['planos' => [['valor' => 100001] + $plano]], 1.5)['erro'] !== null);
 confere('entrega por grupo sem grupo recusada', remarketingNormalizarOfertas(['planos' => [['id_grupo' => ''] + $plano]], 1.5)['erro'] !== null);
 confere('entrega por grupo com id não numérico recusada', remarketingNormalizarOfertas(['planos' => [['id_grupo' => 'abc; DROP'] + $plano]], 1.5)['erro'] !== null);
+// Entrega "Grupo temporário" e "Apenas upsell" (06/11/2026)
+$tp = remarketingNormalizarOfertas(["planos" => [["entrega_tipo" => "grupo_temp", "tempo_valor" => 12, "tempo_unidade" => "horas"] + $plano]], 1.5);
+confere("grupo temporário bom: guarda grupo, tempo e unidade", $tp["erro"] === null && ($tp["ofertas"]["planos"][0]["entrega_tipo"] ?? "") === "grupo_temp" && $tp["ofertas"]["planos"][0]["id_grupo"] === "-1001234567890" && $tp["ofertas"]["planos"][0]["tempo_valor"] === 12 && $tp["ofertas"]["planos"][0]["tempo_unidade"] === "horas", json_encode($tp));
+foreach ([["tempo_valor" => 0, "tempo_unidade" => "dias"], ["tempo_valor" => 9000, "tempo_unidade" => "horas"], ["tempo_valor" => 5, "tempo_unidade" => "dias", "id_grupo" => ""]] as $ruim_t) {
+    confere("grupo temporário recusado: " . json_encode($ruim_t), remarketingNormalizarOfertas(["planos" => [["entrega_tipo" => "grupo_temp"] + $ruim_t + $plano]], 1.5)["erro"] !== null);
+}
+$up = remarketingNormalizarOfertas(["planos" => [["entrega_tipo" => "upsell", "id_grupo" => "-100", "link_entrega" => "https://x.com"] + $plano]], 1.5);
+confere("apenas upsell: vale, sem grupo nem link", $up["erro"] === null && ($up["ofertas"]["planos"][0]["entrega_tipo"] ?? "") === "upsell" && $up["ofertas"]["planos"][0]["id_grupo"] === "" && $up["ofertas"]["planos"][0]["link_entrega"] === "", json_encode($up));
+
 confere('entrega por link bom', (remarketingNormalizarOfertas(['planos' => [['entrega_tipo' => 'link', 'link_entrega' => 'https://exemplo.com/acesso'] + $plano]], 1.5)['ofertas']['planos'][0]['link_entrega'] ?? '') === 'https://exemplo.com/acesso');
 foreach (['javascript:alert(1)', 'ftp://x.com/a', 'exemplo.com', 'https://a b.com', ''] as $ruim) {
     confere("entrega por link recusada ($ruim)", remarketingNormalizarOfertas(['planos' => [['entrega_tipo' => 'link', 'link_entrega' => $ruim] + $plano]], 1.5)['erro'] !== null);

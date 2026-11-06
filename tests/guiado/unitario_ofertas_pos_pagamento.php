@@ -240,5 +240,32 @@ ofertasPosPagamentoBasico($pdo, 'TOKEN', venda($f8));
 confere('Upsell com plano próprio desligado: nada é enviado', count(textos()) === 0);
 confere('o desconto de um Upsell com plano próprio é sempre 0 e o de um plano da lista segue valendo', descontoDaOfertaBasico($proprio) === 0.0 && descontoDaOfertaBasico($upsell) === 10.0);
 
+// ---------- Order Bump PRÓPRIO do plano (05/11/2026) ----------
+$bump_plano = ['ativo' => true, 'nome' => 'Pack extra', 'valor_extra' => 12.5, 'mensagem' => 'Leve o pack extra', 'cta' => 'CLIQUE JÁ', 'entrega_tipo' => 'plano'];
+$planos_bump = [
+    ['id' => 'p1', 'nome' => 'Mensal', 'valor' => 19.9, 'id_grupo' => '-100111', 'order_bump' => $bump_plano],
+    ['id' => 'p2', 'nome' => 'Vitalício', 'valor' => 97.0, 'id_grupo' => '-100222'],
+    ['id' => 'p3', 'nome' => 'Assinatura', 'valor' => 29.9, 'cobranca' => 'recorrente', 'periodicidade' => 'mensal', 'order_bump' => $bump_plano],
+];
+$fb = fluxo($pdo, ['order_bump' => ['ativo' => true, 'quando' => 'depois_pagamento', 'nome' => 'Guia VIP', 'valor_extra' => 9.9, 'mensagem' => '']], ['planos' => $planos_bump]);
+limpar();
+ofertasPosPagamentoBasico($pdo, 'TOKEN', venda($fb, ['nome_produto' => 'Mensal']));
+confere('plano com order bump próprio (depois de pagar): oferece o DO PLANO, com o id do plano no botão', str_contains(textos()[0] ?? '', 'Leve o pack extra') && str_contains(textos()[0] ?? '', 'CLIQUE JÁ') && botoes(0) === ['basico::pos::bp::p1::1', 'basico::pos::bp::p1::0'], json_encode([textos(), botoes(0)], JSON_UNESCAPED_UNICODE));
+confere('... com os botões padrão do plano', str_contains(json_encode($GLOBALS['enviados'][0]['reply_markup'] ?? ''), 'ADICIONAR'), json_encode($GLOBALS['enviados'][0] ?? [], JSON_UNESCAPED_UNICODE));
+limpar();
+ofertasPosPagamentoBasico($pdo, 'TOKEN', venda($fb, ['nome_produto' => 'Vitalício']));
+confere('plano sem bump próprio: oferece o do fluxo (botão "0")', str_contains(textos()[0] ?? '', 'extra') && botoes(0) === ['basico::pos::bp::0::1', 'basico::pos::bp::0::0'], json_encode([textos(), botoes(0)], JSON_UNESCAPED_UNICODE));
+$fb2 = fluxo($pdo, [], ['planos' => $planos_bump]);
+limpar();
+ofertasPosPagamentoBasico($pdo, 'TOKEN', venda($fb2, ['nome_produto' => 'Mensal']));
+confere('fluxo SEM nenhuma oferta, mas o plano tem bump próprio: o bump do plano chega (depois do Pix, como padrão, o aviso fica por conta da sequência)', count(textos()) === 0 || str_contains(textos()[0] ?? '', 'Leve o pack extra'), json_encode(textos(), JSON_UNESCAPED_UNICODE));
+$fb3 = fluxo($pdo, ['order_bump' => ['ativo' => true, 'quando' => 'depois_pix', 'nome' => 'Guia VIP', 'valor_extra' => 9.9]], ['planos' => $planos_bump]);
+limpar();
+ofertasPosPagamentoBasico($pdo, 'TOKEN', venda($fb3, ['nome_produto' => 'Mensal']));
+confere('bump "depois do Pix": já foi oferecido antes de pagar, não repete depois', count(textos()) === 0, json_encode(textos(), JSON_UNESCAPED_UNICODE));
+limpar();
+ofertasPosPagamentoBasico($pdo, 'TOKEN', venda($fb, ['nome_produto' => 'Assinatura', 'tipo_cobranca' => 'assinatura']));
+confere('assinatura recorrente não recebe order bump nem o do plano', count(textos()) === 0);
+
 echo PHP_EOL . "RESUMO: $ok ok, $falhas falhas" . PHP_EOL;
 exit($falhas > 0 ? 1 : 0);

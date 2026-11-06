@@ -58,6 +58,7 @@ const OPCAO_MENSAGEM = '💬 Mensagem (texto enviado ao cliente)';
     const textos = (sel) => async () => JSON.parse(await js(`JSON.stringify(${q(sel)}.map(function(){ return this.textContent.trim(); }).get())`));
     const visivel = (sel) => js(`${q(sel)}.length > 0 && !${q(sel)}.prop('hidden') && ${q(sel)}.is(':visible')`);
     const P = '#lista-planos .painel-plano:first';
+    const PE = P + ' .plano-corpo > .grade';   // o campo Entrega do PLANO (o order bump do plano tem outro, dentro de .plano-bump)
     async function novoPlano(nome) {
         await secao('planos');
         await clicar('#btn-adicionar-plano');
@@ -69,36 +70,36 @@ const OPCAO_MENSAGEM = '💬 Mensagem (texto enviado ao cliente)';
         // ============ plano ============
         await abrir(null);
         await novoPlano('Mensal');
-        chk('o campo Entrega do plano tem Nenhum, Acesso a grupo, Link e Mensagem (nessa ordem)', JSON.stringify(await textos(P + ' .entrega-select option')()) === JSON.stringify(['Nenhum (apenas venda)', '👥 Acesso a grupo', '🔗 Link (enviado ao cliente)', OPCAO_MENSAGEM]), await textos(P + ' .entrega-select option')());
-        chk('antes de escolher, a caixa da mensagem não aparece', !(await visivel(P + ' .entrega-mensagem')));
-        await escolher(P + ' .entrega-select', '__mensagem__');
+        chk('o campo Entrega do plano tem Nenhum, Acesso a grupo, Link e Mensagem (nessa ordem)', JSON.stringify(await textos(PE + ' .entrega-select option')()) === JSON.stringify(['Nenhum (apenas venda)', '👥 Acesso a grupo', '🔗 Link (enviado ao cliente)', OPCAO_MENSAGEM]), await textos(PE + ' .entrega-select option')());
+        chk('antes de escolher, a caixa da mensagem não aparece', !(await visivel(PE + ' .entrega-mensagem')));
+        await escolher(PE + ' .entrega-select', '__mensagem__');
         chk('escolher "Mensagem": aparece a caixa "Mensagem de entrega" (com limite de 3000 caracteres), o foco vai para ela e o aviso de "sem entrega" some',
-            (await visivel(P + ' .entrega-mensagem')) && (await js(`${q(P + ' .entrega-mensagem-area > label')}.text()`)) === 'Mensagem de entrega' && (await js(`${q(P + ' .entrega-mensagem')}.attr('maxlength')`)) === '3000'
-            && (await js(`document.activeElement && document.activeElement.className`)) === 'entrega-mensagem' && !(await visivel(P + ' .dica-sem-grupo')) && !(await visivel(P + ' .entrega-grupo-area')) && !(await visivel(P + ' .entrega-link')));
+            (await visivel(PE + ' .entrega-mensagem')) && (await js(`${q(PE + ' .entrega-mensagem-area > label')}.text()`)) === 'Mensagem de entrega' && (await js(`${q(PE + ' .entrega-mensagem')}.attr('maxlength')`)) === '3000'
+            && (await js(`document.activeElement && document.activeElement.className`)) === 'entrega-mensagem' && !(await visivel(PE + ' .dica-sem-grupo')) && !(await visivel(PE + ' .entrega-grupo-area')) && !(await visivel(PE + ' .entrega-link')));
         await js(`${q(P)}.get(0).scrollIntoView({block:'center'})`);
         await esp(200);
         await c.captura(SAIDA + '/1_mensagem.png');
 
         let dados = await salvar();
         chk('mensagem escolhida mas vazia: não salva e diz qual plano precisa do texto', dados === null && /Escreva a mensagem da entrega do plano "Mensal"/.test(await toast()), await toast());
-        await digitar(P + ' .entrega-mensagem', '   ' + TEXTO + '  ');
+        await digitar(PE + ' .entrega-mensagem', '   ' + TEXTO + '  ');
         dados = await salvar();
         let plano = dados && dados.dados_fluxograma.planos[0];
         chk('salvar: o plano grava entrega_tipo=mensagem e o texto sem as pontas (com <b>, & e {nome} intactos), sem grupo e sem link', !!plano && plano.entrega_tipo === 'mensagem' && plano.mensagem_entrega === TEXTO && plano.id_grupo === '' && plano.link_entrega === '', plano);
 
-        await escolher(P + ' .entrega-select', '__link__');
-        chk('trocar para Link esconde a caixa da mensagem', !(await visivel(P + ' .entrega-mensagem')) && (await visivel(P + ' .entrega-link')));
-        await escolher(P + ' .entrega-select', '__mensagem__');
-        chk('voltar para Mensagem (sem salvar entre as trocas): o texto digitado antes continua na caixa', (await js(`${q(P + ' .entrega-mensagem')}.val().trim()`)) === TEXTO);
-        await escolher(P + ' .entrega-select', '__link__');
-        await digitar(P + ' .entrega-link', 'https://exemplo.com/acesso');
+        await escolher(PE + ' .entrega-select', '__link__');
+        chk('trocar para Link esconde a caixa da mensagem', !(await visivel(PE + ' .entrega-mensagem')) && (await visivel(PE + ' .entrega-link')));
+        await escolher(PE + ' .entrega-select', '__mensagem__');
+        chk('voltar para Mensagem (sem salvar entre as trocas): o texto digitado antes continua na caixa', (await js(`${q(PE + ' .entrega-mensagem')}.val().trim()`)) === TEXTO);
+        await escolher(PE + ' .entrega-select', '__link__');
+        await digitar(PE + ' .entrega-link', 'https://exemplo.com/acesso');
         dados = await salvar();
         plano = dados && dados.dados_fluxograma.planos[0];
         chk('com Link escolhido, o texto da mensagem NÃO vai no JSON (mensagem_entrega vazia)', !!plano && plano.entrega_tipo === 'link' && plano.mensagem_entrega === '' && plano.link_entrega === 'https://exemplo.com/acesso', plano);
-        await escolher(P + ' .entrega-select', '');
+        await escolher(PE + ' .entrega-select', '');
         dados = await salvar();
         plano = dados && dados.dados_fluxograma.planos[0];
-        chk('"Nenhum": grava nenhuma e mensagem vazia, e o aviso "sem entrega" volta', !!plano && plano.entrega_tipo === 'nenhuma' && plano.mensagem_entrega === '' && (await visivel(P + ' .dica-sem-grupo')), plano);
+        chk('"Nenhum": grava nenhuma e mensagem vazia, e o aviso "sem entrega" volta', !!plano && plano.entrega_tipo === 'nenhuma' && plano.mensagem_entrega === '' && (await visivel(PE + ' .dica-sem-grupo')), plano);
 
         // ============ Upsell, Downsell e Pack ============
         await abrir(null);
@@ -161,7 +162,7 @@ const OPCAO_MENSAGEM = '💬 Mensagem (texto enviado ao cliente)';
             { id: 'p2', nome: 'Com grupo', valor: 20, dias_acesso: 30, unidade_acesso: 'dias', entrega_tipo: 'grupo', id_grupo: '-1001111111111', link_entrega: '' }
         ] }) });
         await secao('planos');
-        const pl = (i, s) => `#lista-planos .painel-plano:eq(${i}) ${s}`;
+        const pl = (i, s) => `#lista-planos .painel-plano:eq(${i}) ${/^.(entrega|dica-)/.test(s) ? '.plano-corpo > .grade ' : ''}${s}`;
         chk('reaberto: o plano com mensagem abre em "Mensagem", com a caixa visível e o texto exato (<b>, & e {nome} sem se perderem)', (await js(`${q(pl(0, '.entrega-select'))}.val()`)) === '__mensagem__' && (await visivel(pl(0, '.entrega-mensagem'))) && (await js(`${q(pl(0, '.entrega-mensagem'))}.val()`)) === TEXTO);
         chk('reaberto: o plano com grupo continua abrindo em "Acesso a grupo", sem a caixa de mensagem', (await js(`${q(pl(1, '.entrega-select'))}.val()`)) === '__grupo__' && !(await visivel(pl(1, '.entrega-mensagem'))));
         dados = await salvar();

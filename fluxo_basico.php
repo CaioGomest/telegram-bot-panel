@@ -158,12 +158,13 @@ bloquearAdmin();
                 <section class="basico-secao" data-secao="upsell">
                     <div class="painel" data-oferta="upsell">
                         <div class="painel-cabecalho"><h2>Upsell</h2></div>
-                        <p class="texto-ajuda">Depois que o cliente PAGA, oferece um plano melhor. Se ele aceitar, recebe um Pix novo só desse plano (com o desconto abaixo, se houver) e o acesso do novo plano é liberado quando pagar.</p>
+                        <p class="texto-ajuda">Depois que o cliente PAGA, oferece um plano melhor. Se ele aceitar, recebe um Pix novo só desse plano (com o desconto abaixo, se houver) e o acesso do novo plano é liberado quando pagar. Dá para encadear vários upsells: quem paga um recebe o próximo (quem recusar encerra a sequência).</p>
                         <label class="basico-interruptor sem-caixa"><input type="checkbox" class="of-ativo"> <span>Ativar upsell</span></label>
                         <div class="of-detalhes" hidden>
+                        <h3 class="bp-item-titulo up-titulo-1" hidden>Upsell 1</h3>
                         <div class="grade grade-2 grade-compacta">
                             <div class="campo"><label>Plano oferecido</label><select class="of-plano"></select></div>
-                            <div class="campo of-desconto-campo"><label>Desconto (%)</label><input type="number" min="0" max="100" step="1" class="of-desconto" value="0"></div>
+                            <div class="campo of-desconto-campo"></div>
                         </div>
                         <!-- Plano só do Upsell (item 33): cartão igual ao da aba Planos (cabeçalho com o resumo e a seta de recolher; Nome, Valor, Tempo de acesso e Entrega dentro).
                              O campo Entrega (.of-entrega, logo abaixo) é levado para dentro do cartão pelo JS enquanto o plano próprio está escolhido. -->
@@ -223,6 +224,8 @@ bloquearAdmin();
                                 </select>
                             </div>
                         </div>
+                        <div id="up-extras"></div>
+                        <button type="button" class="botao botao-claro" id="up-adicionar">+ Adicionar upsell</button>
                     </div>
                     </div>
                 </section>

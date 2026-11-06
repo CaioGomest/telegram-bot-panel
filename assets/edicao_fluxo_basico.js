@@ -14,6 +14,13 @@
     // Order Bumps 2 a 5 (o 1º é o painel fixo da seção): cada um é { nome, valor_extra, espera_minutos, mensagem, texto_aceitar, cor_aceitar, texto_recusar, cor_recusar, midia_tipo, midia_path }.
     let bump_extras = [];
     const bump_max = 5;
+    // Upsell 2 em diante (cartões; o Upsell 1 é o painel fixo da seção): cada um é { uid, id_plano_destino, plano_proprio, desconto_percentual, mensagem, midias, texto_aceitar, texto_recusar, entrega_* }
+    let upsell_extras = [];
+    const upsell_max = 10;              // o mesmo limite do servidor (UPSELL_MAXIMO_SEQUENCIAS em funcoes/entrega.php)
+    const upsell_midias_max = 10;       // fotos/vídeos por upsell: viram um álbum no Telegram (o mesmo limite do Upsell 1)
+    let upsell_uid = 0;                 // identifica cada cartão enquanto sobe arquivos (a posição muda ao remover um cartão)
+    const upsell_lotes = {};            // uid -> { n, total } enquanto sobe arquivos escolhidos juntos
+    const upsell_destino_upload = {};   // uid -> posição que o próximo arquivo ocupa (0 = caixa grande, comprimento da lista = no fim)
     let downsell_extras = [];   // Downsell 2 a 5 (cartões); o Downsell 1 é o painel fixo da seção
     const downsell_max = 50;    // o mesmo limite do servidor (DOWNSELL_MAXIMO_SEQUENCIAS em funcoes/entrega.php); era 5, hoje só trava o absurdo
     const downsell_proprios_max = 10;   // planos criados por downsell (DOWNSELL_PLANOS_PROPRIOS_MAXIMO)
@@ -67,7 +74,7 @@
             const o = d.ofertas[tipo];
             const rotulo = tipo === 'upsell' ? 'Upsell' : 'Downsell';
             // Downsell em sequência: cada sequência tem os próprios planos e desconto; com "Criar planos", valem os planos criados (valor digitado, sem desconto).
-            const sequencias = tipo === 'downsell' ? [o].concat(o.sequencias_extras || []) : [o];
+            const sequencias = [o].concat(o.sequencias_extras || []);
             sequencias.forEach(function (s) {
                 const destinos = [];   // { valor, desconto }
                 if (tipo === 'downsell' && s.criar_planos) {
@@ -148,10 +155,10 @@
         return (tipo === 'grupo' || item.id_grupo) ? ENTREGA_GRUPO : '';   // item antigo, sem entrega_tipo, só tem o id_grupo
     }
 
-    function optsEntrega(valor, eh_oferta) {
-        return (eh_oferta ? '<option value="' + ENTREGA_PLANO + '"' + (valor === ENTREGA_PLANO ? ' selected' : '') + '>Igual à do plano oferecido</option>' : '') +
+    function optsEntrega(valor, eh_oferta, sem_grupo, rotulo_igual) {
+        return (eh_oferta ? '<option value="' + ENTREGA_PLANO + '"' + (valor === ENTREGA_PLANO ? ' selected' : '') + '>' + (rotulo_igual || 'Igual à do plano oferecido') + '</option>' : '') +
             '<option value=""' + (valor === '' ? ' selected' : '') + '>Nenhum (apenas venda)</option>' +
-            '<option value="' + ENTREGA_GRUPO + '"' + (valor === ENTREGA_GRUPO ? ' selected' : '') + '>👥 Acesso a grupo</option>' +
+            (sem_grupo ? '' : '<option value="' + ENTREGA_GRUPO + '"' + (valor === ENTREGA_GRUPO ? ' selected' : '') + '>👥 Acesso a grupo</option>') +
             '<option value="' + ENTREGA_LINK + '"' + (valor === ENTREGA_LINK ? ' selected' : '') + '>🔗 Link (enviado ao cliente)</option>' +
             '<option value="' + ENTREGA_MENSAGEM + '"' + (valor === ENTREGA_MENSAGEM ? ' selected' : '') + '>💬 Mensagem (texto enviado ao cliente)</option>';
     }
@@ -163,9 +170,9 @@
     function htmlCampoEntrega(item, o) {
         const igual_ao_plano = !!o.oferta && !o.sem_igual;   // a opção "Igual à do plano oferecido"
         const valor = valorEntregaDoItem(item, igual_ao_plano);
-        return '<div class="campo campo-entrega">' +
+        return '<div class="campo campo-entrega' + (o.sem_aviso_vazio ? ' sem-aviso-vazio' : '') + '">' +
             '<label>' + o.rotulo + '</label>' +
-            '<select class="entrega-select' + (o.classe ? ' ' + o.classe : '') + '">' + optsEntrega(valor, igual_ao_plano) + '</select>' +
+            '<select class="entrega-select' + (o.classe ? ' ' + o.classe : '') + '">' + optsEntrega(valor, igual_ao_plano, !!o.sem_grupo, o.rotulo_igual) + '</select>' +
             '<div class="entrega-grupo-area"' + (valor === ENTREGA_GRUPO ? '' : ' hidden') + '>' +
             '<label>Grupo para acesso</label>' +
             '<div class="entrega-grupo-seletor"><select class="entrega-grupo-select" aria-label="Grupo para acesso">' + optsGrupos(valor === ENTREGA_GRUPO ? String(item.id_grupo || '') : '') + '</select>' +
@@ -180,8 +187,8 @@
             '<textarea class="entrega-mensagem" rows="4" maxlength="' + ENTREGA_MENSAGEM_MAX + '" placeholder="Ex.: Seu acesso: https://... Qualquer dúvida, responda aqui.">' + escaparHtml(item.mensagem_entrega || '') + '</textarea>' +
             '<small class="texto-ajuda">O cliente recebe este texto numa mensagem própria, logo depois do aviso de pagamento aprovado. Aceita as mesmas formatações e variáveis da mensagem de aprovação (como {nome}, {plano} e {valor}).</small>' +
             '</div>' +
-            (igual_ao_plano ? '<small class="texto-ajuda dica-entrega-plano"' + (valor === ENTREGA_PLANO ? '' : ' hidden') + '>Quem aceitar recebe o mesmo acesso do plano oferecido.</small>' : '') +
-            '<small class="dica-sem-grupo"' + (valor === '' ? '' : ' hidden') + '>⚠ Sem entrega: quem pagar ' + o.quem +
+            (igual_ao_plano ? '<small class="texto-ajuda dica-entrega-plano"' + (valor === ENTREGA_PLANO ? '' : ' hidden') + '>' + (o.dica_igual || 'Quem aceitar recebe o mesmo acesso do plano oferecido.') + '</small>' : '') +
+            '<small class="dica-sem-grupo"' + (valor === '' && !o.sem_aviso_vazio ? '' : ' hidden') + '>⚠ Sem entrega: quem pagar ' + o.quem +
             ' só recebe a mensagem de pagamento aprovado, sem nenhum acesso automático. Escolha um grupo ou um link, ou entregue o conteúdo nessa mensagem.</small>' +
             '</div>';
     }
@@ -192,7 +199,7 @@
         $campo.find('.entrega-link, .dica-entrega-link').prop('hidden', v !== ENTREGA_LINK);
         $campo.find('.entrega-mensagem-area').prop('hidden', v !== ENTREGA_MENSAGEM);
         $campo.find('.dica-entrega-plano').prop('hidden', v !== ENTREGA_PLANO);
-        $campo.find('.dica-sem-grupo').prop('hidden', v !== '');
+        $campo.find('.dica-sem-grupo').prop('hidden', v !== '' || $campo.hasClass('sem-aviso-vazio'));
     }
 
     // Lê o campo de entrega e devolve os 4 campos que vão no JSON do plano/pack/oferta.
@@ -241,6 +248,52 @@
         const rec = this.value === 'recorrente', $p = $(this).closest('.painel-plano');
         $p.find('.campo-tempo-unico').prop('hidden', rec);
         $p.find('.campo-plano-periodo, .campo-plano-rec-dica').prop('hidden', !rec);
+        $p.find('.plano-bump').prop('hidden', rec);
+    });
+
+    // Order bump do plano: liga/desliga, adiciona e tira mídias (a lista mora em planos[i].order_bump.midias e vai junto no salvar).
+    $(document).on('change', '.pb-ativo', function () {
+        const $b = $(this).closest('.plano-bump'), ligado = this.checked;
+        $b.find('.pb-detalhes').prop('hidden', !ligado);
+        $b.find('.pb-dica').text(ligado ? 'Este order bump substitui o do fluxo para este plano.' : 'Usando o order bump do fluxo (se estiver ligado).');
+    });
+    function bumpDoPlanoNaLista($el) {
+        const i = parseInt($el.closest('.painel-plano').data('index'), 10);
+        planos[i].order_bump = planos[i].order_bump || { ativo: true, midias: [] };
+        planos[i].order_bump.midias = Array.isArray(planos[i].order_bump.midias) ? planos[i].order_bump.midias : [];
+        return planos[i].order_bump;
+    }
+    function redesenharMidiasBumpPlano($el, enviando) {
+        const lista = bumpDoPlanoNaLista($el).midias, $b = $el.closest('.plano-bump');
+        $b.find('.pb-midias').html(htmlMidiasBumpPlano(lista) + (enviando ? '<small class="texto-ajuda">Enviando mídia…</small>' : ''));
+        $b.find('.pb-midia-adicionar').prop('disabled', lista.length >= BUMP_PLANO_MIDIAS_MAX || !!enviando);
+    }
+    $(document).on('click', '.pb-midia-adicionar', function () {
+        sincronizarPlanosDoDom();
+        $(this).closest('.plano-bump').find('.pb-midia-arquivo').trigger('click');
+    }).on('click', '.pb-midia-remover', function () {
+        const $el = $(this);
+        sincronizarPlanosDoDom();
+        bumpDoPlanoNaLista($el).midias.splice(parseInt($el.closest('[data-m]').data('m'), 10), 1);
+        redesenharMidiasBumpPlano($el);
+        marcarSujo();
+    }).on('change', '.pb-midia-arquivo', function () {
+        const input = this, $el = $(input);
+        const arquivos = Array.prototype.slice.call(input.files || []);   // copiar antes de limpar: limpar o campo esvazia a lista
+        input.value = '';
+        if (!arquivos.length) return;
+        sincronizarPlanosDoDom();
+        const b = bumpDoPlanoNaLista($el);
+        enviarMidiasEmSequencia(arquivos, {
+            vagas: BUMP_PLANO_MIDIAS_MAX - b.midias.length,
+            enviar: enviarMidiaBasico,
+            aoProgredir: function () { redesenharMidiasBumpPlano($el, true); },
+            aoSubir: function (midia) { b.midias.push({ tipo: midia.tipo, path: midia.caminho }); redesenharMidiasBumpPlano($el, true); marcarSujo(); },
+            aoFim: function (r) {
+                redesenharMidiasBumpPlano($el);
+                avisarResultadoLote(r, 'Mídia anexada ao order bump. Clique em Salvar alterações para aplicar.', BUMP_PLANO_MIDIAS_MAX);
+            }
+        });
     });
 
     // Cada plano pode ser recolhido (some o formulário, fica só o cabeçalho com nome, valor e tempo). É só da tela: não vai no salvar
@@ -275,6 +328,61 @@
         if (recolhido) planos_recolhidos[id] = true; else delete planos_recolhidos[id];
         $p.toggleClass('recolhido', recolhido);
         $p.find('.plano-alternar').attr({ 'aria-expanded': String(!recolhido), title: recolhido ? 'Expandir plano' : 'Recolher plano', 'aria-label': recolhido ? 'Expandir plano' : 'Recolher plano' });
+    }
+
+    // ===== Order Bump personalizado do plano (05/11/2026, igual ao da Shark) =====
+    // planos[i].order_bump = { ativo, nome, valor_extra, mensagem, cta, texto_aceitar, texto_recusar, midias (até 3), entrega_tipo ('plano'|'nenhuma'|'link'|'mensagem'), ... }.
+    // Ligado, SUBSTITUI o order bump do fluxo para esse plano (um só, sem sequência). Desligado: vale o do fluxo. Plano de assinatura recorrente não tem.
+    const BUMP_PLANO_MIDIAS_MAX = 3;
+    function htmlMidiasBumpPlano(lista) {
+        return lista.map(function (m, k) {
+            return '<div class="basico-bot" data-m="' + k + '"><span>' + (k + 1) + '. ' + (m.tipo === 'video' ? 'Vídeo' : 'Foto') + ' <small>' + escaparHtml(String(m.path || '').replace('uploads/', '')) + '</small></span>' +
+                '<span class="col-acoes"><button type="button" class="btn-icon excluir pb-midia-remover" title="Remover mídia" aria-label="Remover mídia">' + ACAO_SVG.excluir + '</button></span></div>';
+        }).join('');
+    }
+    function htmlBumpDoPlano(p, rec) {
+        const b = p.order_bump || {};
+        const ligado = !!b.ativo;
+        const midias = Array.isArray(b.midias) ? b.midias : [];
+        return '<div class="plano-bump"' + (rec ? ' hidden' : '') + ' style="border-top:1px solid var(--bd); margin-top:10px; padding-top:10px;">' +
+            '<label class="basico-interruptor sem-caixa"><input type="checkbox" class="pb-ativo"' + (ligado ? ' checked' : '') + '> <span>Order Bump personalizado</span></label>' +
+            '<small class="texto-ajuda pb-dica">' + (ligado ? 'Este order bump substitui o do fluxo para este plano.' : 'Usando o order bump do fluxo (se estiver ligado).') + '</small>' +
+            '<div class="pb-detalhes"' + (ligado ? '' : ' hidden') + '>' +
+            '  <div class="grade grade-2 grade-compacta" style="margin-top:8px;">' +
+            '    <div class="campo"><label>Nome</label><input type="text" class="pb-nome" maxlength="80" value="' + escaparHtml(b.nome || '') + '" placeholder="Ex.: Pack extra"></div>' +
+            '    <div class="campo"><label>Preço (R$)</label><input type="number" min="0" step="0.01" class="pb-valor" value="' + (b.valor_extra != null ? b.valor_extra : 0) + '"></div>' +
+            '  </div>' +
+            '  <div class="campo"><label>Descrição</label><textarea class="pb-mensagem" rows="3" placeholder="Descreva a oferta do order bump...">' + escaparHtml(b.mensagem || '') + '</textarea></div>' +
+            '  <div class="grade grade-2 grade-compacta">' +
+            '    <div class="campo"><label>Botão aceitar</label><input type="text" class="pb-aceitar" maxlength="60" value="' + escaparHtml(b.texto_aceitar || '') + '" placeholder="✅ ADICIONAR"></div>' +
+            '    <div class="campo"><label>Botão recusar</label><input type="text" class="pb-recusar" maxlength="60" value="' + escaparHtml(b.texto_recusar || '') + '" placeholder="❌ NÃO QUERO"></div>' +
+            '  </div>' +
+            '  <div class="campo"><label>Mensagem CTA (opcional)</label><input type="text" class="pb-cta" maxlength="200" value="' + escaparHtml(b.cta || '') + '" placeholder="Ex.: 👆 CLIQUE EM ADICIONAR ANTES QUE TIREM DO AR"></div>' +
+            '  ' + htmlCampoEntrega(b, { rotulo: 'Entrega do order bump', quem: 'do extra', classe: 'pb-entrega-select', oferta: true, sem_grupo: true, sem_aviso_vazio: true, rotulo_igual: 'Mesmo delivery do plano',
+                dica_igual: 'Quem aceitar recebe o mesmo acesso do plano (o extra não cria uma entrega nova).' }) +
+            '  <div class="campo"><label>Mídias (até ' + BUMP_PLANO_MIDIAS_MAX + ')</label>' +
+            '    <div class="pb-midias">' + htmlMidiasBumpPlano(midias) + '</div>' +
+            '    <button type="button" class="botao botao-claro pb-midia-adicionar"' + (midias.length >= BUMP_PLANO_MIDIAS_MAX ? ' disabled' : '') + '>+ Adicionar mídia</button>' +
+            '    <input type="file" class="pb-midia-arquivo" accept="image/*,video/*" multiple style="display:none">' +
+            '  </div>' +
+            '</div>' +
+            '</div>';
+    }
+    // O que está na tela do order bump de UM plano (o resto, como as mídias, vem do que já estava guardado no plano).
+    function coletarBumpDoPlano($p, atual) {
+        const $b = $p.find('.plano-bump');
+        if (!$b.length) return atual;
+        const base = Object.assign({}, atual || {});
+        return Object.assign(base, {
+            ativo: $b.find('.pb-ativo').is(':checked'),
+            nome: $b.find('.pb-nome').val().trim(),
+            valor_extra: parseFloat($b.find('.pb-valor').val()) || 0,
+            mensagem: $b.find('.pb-mensagem').val().trim(),
+            texto_aceitar: $b.find('.pb-aceitar').val().trim(),
+            texto_recusar: $b.find('.pb-recusar').val().trim(),
+            cta: $b.find('.pb-cta').val().trim(),
+            midias: Array.isArray(base.midias) ? base.midias : []
+        }, coletarEntrega($b.find('.campo-entrega')));
     }
 
     function renderPlanos() {
@@ -333,6 +441,7 @@
                 '      <small class="texto-ajuda campo-plano-rec-dica"' + (rec ? '' : ' hidden') + '>O cliente paga o 1º Pix agora e o gateway gera a próxima cobrança a cada período. O acesso dura o período e é renovado a cada pagamento. O order bump não vale para assinatura.</small>' +
                 '    </div>' : '') +
                 '  </div>' +
+                htmlBumpDoPlano(p, rec) +
                 '  <div style="display:flex; justify-content:flex-end; margin-top:8px;"><button type="button" class="btn-icon excluir remover-plano" title="Remover plano" aria-label="Remover plano">' + ACAO_SVG.excluir + '</button></div>' +
                 '  </div>' +
                 '</div>';
@@ -352,8 +461,11 @@
                 unidade_acesso: $p.find('.campo-plano-unidade').val(),
                 cor: $p.find('.campo-plano-cor').val() || '',
                 cobranca: $p.find('.campo-plano-cobranca').val() || 'unica',
-                periodicidade: $p.find('.campo-plano-periodo').val() || 'mensal'
-            }, coletarEntrega($p.find('.campo-entrega')));
+                periodicidade: $p.find('.campo-plano-periodo').val() || 'mensal',
+                order_bump: coletarBumpDoPlano($p, planos[i].order_bump)
+            }, coletarEntrega($p.find('.campo-entrega').not($p.find('.plano-bump .campo-entrega'))));
+            if (planos[i].order_bump === undefined) delete planos[i].order_bump;
+            if (planos[i].cobranca === 'recorrente' && planos[i].order_bump) planos[i].order_bump.ativo = false;   // assinatura não tem order bump
         });
     }
 
@@ -816,17 +928,28 @@
         return $('.painel[data-oferta="' + tipo + '"]');
     }
 
-    function atualizarSelectsOfertas() {
-        // Upsell: um plano só (lista suspensa): um dos planos da seção Planos ou um plano criado só para o Upsell (ID_UPSELL_PROPRIO).
-        const $sel = $painelOferta('upsell').find('.of-plano');
-        const atual = $sel.data('valor') != null ? String($sel.data('valor')) : String($sel.val() || '');
+    // Opções do seletor "Plano oferecido" do Upsell: nenhum, "criar um plano só para o Upsell" e os planos da seção Planos.
+    function htmlOpcoesPlanoUpsell(atual, quem) {
+        atual = String(atual || '');
         let html = '<option value="">Escolha um plano</option>' +
-            '<option value="' + ID_UPSELL_PROPRIO + '"' + (atual === ID_UPSELL_PROPRIO ? ' selected' : '') + '>＋ Criar um plano só para o Upsell</option>';
+            '<option value="' + ID_UPSELL_PROPRIO + '"' + (atual === ID_UPSELL_PROPRIO ? ' selected' : '') + '>＋ Criar um plano só para ' + (quem || 'o Upsell') + '</option>';
         planos.forEach(function (p) {
             html += '<option value="' + escaparHtml(p.id) + '"' + (String(p.id) === atual ? ' selected' : '') + '>' +
                 escaparHtml((p.nome || 'Plano sem nome') + ' — R$ ' + (Number(p.valor) || 0).toFixed(2).replace('.', ',')) + '</option>';
         });
-        $sel.html(html).removeData('valor');
+        return html;
+    }
+
+    function atualizarSelectsOfertas() {
+        // Upsell: um plano só (lista suspensa): um dos planos da seção Planos ou um plano criado só para o Upsell (ID_UPSELL_PROPRIO).
+        const $sel = $painelOferta('upsell').find('.of-plano');
+        const atual = $sel.data('valor') != null ? String($sel.data('valor')) : String($sel.val() || '');
+        $sel.html(htmlOpcoesPlanoUpsell(atual)).removeData('valor');
+        // Upsell 2 em diante: a mesma lista, mantendo o plano que cada um já tinha escolhido.
+        $('#up-extras .up-extra').each(function (i) {
+            const $s = $(this).find('.up-plano');
+            $s.html(htmlOpcoesPlanoUpsell($s.val() || (upsell_extras[i] && upsell_extras[i].id_plano_destino) || '', 'este upsell'));
+        });
         // Downsell: vários planos (caixa de marcar); cada plano marcado vira um botão no bot. Mantém o que já estava marcado.
         const $lista = $painelOferta('downsell').find('.of-planos-lista');
         const marcados = $lista.data('valor') != null ? $lista.data('valor') : $lista.find('input:checked').map(function () { return String(this.value); }).get();
@@ -893,6 +1016,114 @@
         atualizarPlanoProprioUpsell(true);
         if ($(this).val() === ID_UPSELL_PROPRIO) $painelOferta('upsell').find('.of-proprio-nome').trigger('focus');
     });
+
+    // ===== Upsell em sequência (06/11/2026, pedido do Lima: "sequência de upsell, só está dando para colocar um … pagou um, vai pro outro") =====
+    // O Upsell 1 é o painel fixo da seção; os 2 em diante são cartões (upsell_extras), como os Downsells 2 em diante. Quem PAGA o plano recebe o Upsell 1; quem paga um
+    // upsell recebe o seguinte; recusar encerra a sequência. Cada upsell escolhe um plano da lista (com desconto %) ou um plano criado só para ele (valor digitado, sem
+    // desconto) e tem a própria entrega, mensagem, mídia e botões. Ver funcoes/entrega.php (sequenciasUpsellBasico) e funcoes/guiado_ofertas.php.
+    function itemUpsellVazio() {
+        return { uid: ++upsell_uid, id_plano_destino: '', plano_proprio: { nome: '', valor: 0, dias_acesso: 30, unidade_acesso: 'dias' }, desconto_tipo: 'percentual', desconto_percentual: 0, desconto_valor: 0,
+            mensagem: '', midias: [], texto_aceitar: '', texto_recusar: '', entrega_tipo: 'plano', id_grupo: '', link_entrega: '', mensagem_entrega: '' };
+    }
+
+    function htmlUpsellExtra(it, i) {
+        const proprio = it.id_plano_destino === ID_UPSELL_PROPRIO, p = it.plano_proprio || {};
+        const un = ['dias', 'horas', 'minutos'].indexOf(p.unidade_acesso) !== -1 ? p.unidade_acesso : 'dias';
+        return '<div class="bp-item up-extra" data-i="' + i + '">' +
+            '<div class="bp-item-cabecalho"><h3 class="bp-item-titulo">Upsell ' + (i + 2) + '</h3>' +
+            '<button type="button" class="btn-icon excluir up-remover" title="Remover upsell" aria-label="Remover upsell">' + ACAO_SVG.excluir + '</button></div>' +
+            '<small class="texto-ajuda">Oferecido a quem pagar o upsell anterior. Quem recusar encerra a sequência.</small>' +
+            '<div class="grade grade-2 grade-compacta">' +
+            '<div class="campo"><label>Plano oferecido</label><select class="up-plano">' + htmlOpcoesPlanoUpsell(it.id_plano_destino, 'este upsell') + '</select></div>' +
+            '<div class="campo up-desconto-campo"' + (proprio ? ' hidden' : '') + '>' + htmlCampoDesconto(it, 'up-desconto') + '</div>' +
+            '</div>' +
+            '<div class="up-proprio-bloco"' + (proprio ? '' : ' hidden') + '>' +
+            '<div class="grade grade-2 grade-compacta">' +
+            '<div class="campo"><label>Nome do plano</label><input type="text" class="up-proprio-nome" maxlength="80" placeholder="Ex.: Pacote completo" value="' + escaparHtml(p.nome || '') + '"></div>' +
+            '<div class="campo"><label>Valor (R$)</label><input type="number" step="0.01" min="0" class="up-proprio-valor" value="' + (Number(p.valor) || 0) + '"></div>' +
+            '</div>' +
+            '<div class="campo" style="margin-top:8px;"><label>Tempo de acesso</label><div style="display:flex; gap:6px;">' +
+            '<input type="number" min="1" class="up-proprio-dias" value="' + (parseInt(p.dias_acesso, 10) || 30) + '" style="max-width:80px;">' +
+            '<select class="up-proprio-unidade"><option value="dias"' + (un === 'dias' ? ' selected' : '') + '>Dias</option><option value="horas"' + (un === 'horas' ? ' selected' : '') + '>Horas</option><option value="minutos"' + (un === 'minutos' ? ' selected' : '') + '>Minutos</option></select></div></div>' +
+            '<small class="texto-ajuda">Este plano existe só neste upsell: não aparece em "Ver Planos". Só é oferecido a quem acabou de pagar, e o valor digitado é o preço.</small>' +
+            '</div>' +
+            '<div class="up-entrega">' + htmlCampoEntrega(it, { rotulo: 'Entrega', quem: 'desta oferta', classe: 'up-entrega-select', oferta: true, sem_igual: proprio }) + '</div>' +
+            '<div class="campo"><label>Mensagem da oferta</label><textarea class="up-mensagem" rows="3" placeholder="Que tal levar mais este pacote com desconto?">' + escaparHtml(it.mensagem) + '</textarea></div>' +
+            '<div class="campo"><label>Mídia (opcional)</label><div class="area-previa-basico up-midia" data-estado="vazio" data-tipo="none">Sem mídia</div>' +
+            '<input type="file" class="up-midia-arquivo" accept="image/*,video/*" style="display:none">' +
+            '<div class="up-midias-extras"></div>' +
+            '<button type="button" class="botao botao-claro up-midias-adicionar" style="display:none">+ Adicionar outra foto ou vídeo</button>' +
+            '<small class="texto-ajuda up-midias-dica" style="display:none">Com mais de uma foto/vídeo (até 10), elas vão juntas num álbum, na ordem da lista, e o texto com os botões chega logo depois.</small></div>' +
+            '<div class="grade grade-2 grade-compacta">' +
+            '<div class="campo"><label>Botão aceitar</label><input type="text" class="up-aceitar" placeholder="Sim, quero!" value="' + escaparHtml(it.texto_aceitar) + '"></div>' +
+            '<div class="campo"><label>Botão recusar</label><input type="text" class="up-recusar" placeholder="Não, obrigado" value="' + escaparHtml(it.texto_recusar) + '"></div>' +
+            '</div>' +
+            '</div>';
+    }
+
+    function atualizarMidiasDoUpsell($c, it, enviando) {
+        const lista = it.midias, primeira = lista[0] || { tipo: 'none', path: '' };
+        desenharMidia($c.find('.up-midia'), primeira.tipo, primeira.path, enviando, 'a mensagem da oferta');
+        $c.find('.up-midias-extras').html(lista.slice(1).map(function (m, k) {
+            const j = k + 1;
+            return '<div class="basico-bot" data-i="' + j + '"><span>' + (j + 1) + '. ' + (m.tipo === 'video' ? 'Vídeo' : 'Foto') + ' <small>' + escaparHtml(m.path.replace('uploads/', '')) + '</small></span>' +
+                '<span class="col-acoes"><button type="button" class="btn-icon up-midia-subir" title="Subir" aria-label="Subir">' + ACAO_SVG.subir + '</button> ' +
+                '<button type="button" class="btn-icon excluir up-midia-remover" title="Remover mídia" aria-label="Remover mídia">' + ACAO_SVG.excluir + '</button></span></div>';
+        }).join(''));
+        const lote = upsell_lotes[it.uid] || null;
+        $c.find('.up-midias-adicionar').toggle(lista.length > 0).prop('disabled', lista.length >= upsell_midias_max || !!lote).text(textoBotaoMidia(lista.length >= upsell_midias_max, lote, upsell_midias_max));
+        $c.find('.up-midias-dica').toggle(lista.length > 0);
+    }
+
+    function atualizarMidiasDoUpsellPorUid(uid, enviando) {
+        const i = upsell_extras.findIndex(function (e) { return e.uid === uid; });
+        if (i >= 0) atualizarMidiasDoUpsell($('#up-extras .up-extra').eq(i), upsell_extras[i], enviando);
+    }
+
+    function renderUpsellExtras() {
+        $('#up-extras').html(upsell_extras.map(function (it, i) { return htmlUpsellExtra(it, i); }).join(''));
+        $('#up-extras .up-extra').each(function (i) { atualizarMidiasDoUpsell($(this), upsell_extras[i]); });
+        const cheio = upsell_extras.length + 1 >= upsell_max;
+        $('#up-adicionar').prop('disabled', cheio).text(cheio ? 'Limite de ' + upsell_max + ' upsells' : '+ Adicionar upsell');
+        $('.up-titulo-1').prop('hidden', upsell_extras.length === 0);   // "Upsell 1" só aparece quando há mais de um
+    }
+
+    // Copia o que está digitado nos cartões para upsell_extras (antes de redesenhar a lista e na hora de salvar).
+    function sincronizarUpsellExtrasDoDom() {
+        $('#up-extras .up-extra').each(function (i) {
+            const it = upsell_extras[i];
+            if (!it) return;
+            const $c = $(this);
+            Object.assign(it, {
+                id_plano_destino: $c.find('.up-plano').val() || '',
+                desconto_tipo: coletarDesconto($c.find('.up-desconto-campo')).desconto_tipo,
+                desconto_percentual: coletarDesconto($c.find('.up-desconto-campo')).desconto_percentual,
+                desconto_valor: coletarDesconto($c.find('.up-desconto-campo')).desconto_valor,
+                plano_proprio: {
+                    nome: $c.find('.up-proprio-nome').val().trim(),
+                    valor: parseFloat($c.find('.up-proprio-valor').val()) || 0,
+                    dias_acesso: parseInt($c.find('.up-proprio-dias').val(), 10) || 30,
+                    unidade_acesso: $c.find('.up-proprio-unidade').val() || 'dias'
+                },
+                mensagem: $c.find('.up-mensagem').val().trim(),
+                texto_aceitar: $c.find('.up-aceitar').val().trim(),
+                texto_recusar: $c.find('.up-recusar').val().trim()
+            }, coletarEntrega($c.find('.up-entrega .campo-entrega')));
+        });
+    }
+
+    // O que vai no JSON de um upsell extra. Com plano próprio, o desconto não vale (o preço é o digitado) e o plano vai junto.
+    function saidaUpsellExtra(e) {
+        const proprio = e.id_plano_destino === ID_UPSELL_PROPRIO;
+        const s = {
+            id_plano_destino: e.id_plano_destino, desconto_tipo: proprio ? 'percentual' : (e.desconto_tipo || 'percentual'), desconto_percentual: proprio ? 0 : e.desconto_percentual, desconto_valor: proprio ? 0 : (e.desconto_valor || 0),
+            mensagem: e.mensagem, midias: e.midias.map(function (m) { return { tipo: m.tipo, path: m.path }; }), midia_tipo: e.midias.length ? e.midias[0].tipo : 'none', midia_path: e.midias.length ? e.midias[0].path : '',
+            texto_aceitar: e.texto_aceitar, texto_recusar: e.texto_recusar,
+            entrega_tipo: e.entrega_tipo, id_grupo: e.id_grupo, link_entrega: e.link_entrega, mensagem_entrega: e.mensagem_entrega
+        };
+        if (proprio) s.plano_proprio = Object.assign({}, e.plano_proprio);
+        return s;
+    }
 
     // ===== Downsell em sequência e planos criados dentro do Downsell (item 38, 27/10/2026) =====
     // Pedido do dono, no jeito das "Sequências de Downsell" da SharkBot: dá para ter vários downsells, cada um com o próprio tempo, mensagem, mídia, desconto, planos e entrega.
@@ -1179,7 +1410,7 @@
     }
 
     $(document).on('change', '.desc-tipo', function () {
-        const fixo = this.value === 'fixo', $campo = $(this).closest('.dn-desconto-campo');
+        const fixo = this.value === 'fixo', $campo = $(this).closest('.dn-desconto-campo, .up-desconto-campo, .of-desconto-campo');
         $campo.find('.desc-pct').prop('hidden', fixo);
         $campo.find('.desc-fixo').prop('hidden', !fixo);
         if (fixo) $campo.find('.desc-fixo').trigger('focus');
@@ -1296,6 +1527,8 @@
             oferta.sequencias_extras = oferta.quando === 'depois_pix' ? downsell_extras.map(saidaSequenciaDownsell) : [];
             if (oferta.sequencias_extras.length) oferta.envios = 1;   // com mais de um downsell, cada um sai uma vez
         } else {
+            sincronizarUpsellExtrasDoDom();
+            oferta.sequencias_extras = upsell_extras.map(saidaUpsellExtra);
             oferta.id_plano_destino = $p.find('.of-plano').val() || '';
             if (oferta.id_plano_destino === ID_UPSELL_PROPRIO) {
                 oferta.plano_proprio = {
@@ -1305,8 +1538,10 @@
                     unidade_acesso: $p.find('.of-proprio-unidade').val() || 'dias'
                 };
                 oferta.desconto_percentual = 0;   // o preço é o digitado
+                oferta.desconto_tipo = 'percentual';
+                oferta.desconto_valor = 0;
             } else {
-                oferta.desconto_percentual = Math.min(100, Math.max(0, parseFloat($p.find('.of-desconto').val()) || 0));
+                Object.assign(oferta, coletarDesconto($p.find('.of-desconto-campo')));
             }
         }
         // Upsell e Downsell escolhem como entregar (por padrão, igual ao plano oferecido). O Order Bump segue sem entrega própria.
@@ -1379,7 +1614,7 @@
             atualizarModoDownsell();
         } else {
             $p.find('.of-plano').data('valor', oferta.id_plano_destino || '');
-            $p.find('.of-desconto').val(oferta.desconto_percentual != null ? oferta.desconto_percentual : 0);
+            $p.find('.of-desconto-campo').html(htmlCampoDesconto(oferta, 'of-desconto'));
             const proprio = oferta.plano_proprio || {};
             $p.find('.of-proprio-nome').val(proprio.nome || '');
             $p.find('.of-proprio-valor').val(proprio.valor != null ? proprio.valor : 0);
@@ -1392,14 +1627,29 @@
             $p.find('.of-desconto-campo').prop('hidden', eh_proprio);
             levarEntregaDoUpsell(eh_proprio);
             atualizarResumoPlanoProprio();
+            upsell_extras = (Array.isArray(oferta.sequencias_extras) ? oferta.sequencias_extras : []).slice(0, upsell_max - 1).map(function (it) {
+                return Object.assign(itemUpsellVazio(), it, {
+                    midias: midiasSalvasDoItem(it),
+                    plano_proprio: Object.assign({ nome: '', valor: 0, dias_acesso: 30, unidade_acesso: 'dias' }, it.plano_proprio || {}),
+                    id_plano_destino: String(it.id_plano_destino || '')
+                });
+            });
+            renderUpsellExtras();
         }
     }
 
     // Entrega por link precisa de um endereço válido, por grupo de um grupo escolhido e por mensagem de um texto (mesma regra do servidor). Pack desligado e oferta desligada não entram: não vendem nada.
     function validarEntregaPorLink(d) {
-        const itens = d.planos.map(function (p) { return ['do plano', p]; });
+        const itens = [];
+        d.planos.forEach(function (p) {
+            itens.push(['do plano', p]);
+            if (p.order_bump && p.order_bump.ativo) itens.push(['do order bump do plano' + (p.nome ? ' "' + p.nome + '"' : ''), Object.assign({}, p.order_bump, { nome: '' })]);
+        });
         if (d.packs.ativo) d.packs.itens.forEach(function (k) { if (k.ativo !== false) itens.push(['do pack', k]); });
-        if (d.ofertas.upsell.ativo) itens.push(['do Upsell', d.ofertas.upsell]);
+        if (d.ofertas.upsell.ativo) {
+            const sequencias_up = [d.ofertas.upsell].concat(d.ofertas.upsell.sequencias_extras || []);
+            sequencias_up.forEach(function (s, k) { itens.push(['do Upsell' + (sequencias_up.length > 1 ? ' ' + (k + 1) : ''), s]); });
+        }
         if (d.ofertas.downsell.ativo) {
             const sequencias = [d.ofertas.downsell].concat(d.ofertas.downsell.sequencias_extras || []);
             sequencias.forEach(function (s, k) {
@@ -1428,6 +1678,8 @@
         for (let i = 0; i < d.planos.length; i++) {
             if (!d.planos[i].nome) return 'O plano ' + (i + 1) + ' está sem nome.';
             if (!(d.planos[i].valor > 0)) return 'O plano "' + d.planos[i].nome + '" precisa ter valor maior que zero.';
+            const bump_plano = d.planos[i].order_bump;
+            if (bump_plano && bump_plano.ativo && d.planos[i].cobranca !== 'recorrente' && !(bump_plano.valor_extra > 0)) return 'Informe o preço do order bump do plano "' + d.planos[i].nome + '" ou desligue o order bump personalizado dele.';
         }
         const usuario_suporte = d.suporte.replace(/^@/, '').replace(/^(https?:\/\/)?(t\.me|telegram\.me)\//i, '');
         if (d.suporte && !/^[A-Za-z0-9_]{4,32}$/.test(usuario_suporte)) {
@@ -1440,6 +1692,17 @@
             const proprio = d.ofertas.upsell.plano_proprio;
             if (!proprio.nome) return 'Dê um nome ao plano do Upsell (ou escolha um plano que já existe).';
             if (!(proprio.valor > 0)) return 'O plano do Upsell "' + proprio.nome + '" precisa ter valor maior que zero.';
+        }
+        if (d.ofertas.upsell.ativo) {
+            const extras_up = d.ofertas.upsell.sequencias_extras || [];
+            for (let i = 0; i < extras_up.length; i++) {
+                const s = extras_up[i], rotulo = 'Upsell ' + (i + 2);
+                if (!s.id_plano_destino) return 'Escolha o plano oferecido no ' + rotulo + ' (ou crie um plano só para ele, ou remova esse upsell).';
+                if (s.id_plano_destino === ID_UPSELL_PROPRIO) {
+                    if (!s.plano_proprio.nome) return 'Dê um nome ao plano do ' + rotulo + ' (ou escolha um plano que já existe).';
+                    if (!(s.plano_proprio.valor > 0)) return 'O plano do ' + rotulo + ' "' + s.plano_proprio.nome + '" precisa ter valor maior que zero.';
+                }
+            }
         }
         if (d.ofertas.downsell.ativo) {
             const sequencias = [d.ofertas.downsell].concat(d.ofertas.downsell.sequencias_extras || []);
@@ -1769,6 +2032,7 @@
         definirEspera($('#dn-seq-1 .of-espera'), 10, 10);
         definirEspera($('#dn-seq-1 .of-intervalo'), 30, 30);
         definirDescontoDownsell1({});
+        $('[data-oferta="upsell"] .of-desconto-campo').html(htmlCampoDesconto({}, 'of-desconto'));
         PagamentosGuiado.iniciar({ marcarSujo: marcarSujo, exibirAviso: exibirAviso, enviarMidia: enviarMidiaBasico, enviarMidias: enviarMidiasEmSequencia, avisarLote: avisarResultadoLote, escaparHtml: escaparHtml });
         carregarLimitesPagamento();
         carregarGruposUsuario().always(function () {
@@ -1998,6 +2262,85 @@
         }).on('change', '.painel[data-oferta="order_bump"] .of-quando', atualizarModoBump)
           .on('change', '.painel[data-oferta="downsell"] .of-quando', atualizarModoDownsell);
 
+        // Upsell 2 em diante: adicionar, remover, trocar o plano e a mídia de cada um.
+        $('#up-adicionar').on('click', function () {
+            sincronizarUpsellExtrasDoDom();
+            if (upsell_extras.length + 1 >= upsell_max) return;
+            upsell_extras.push(itemUpsellVazio());
+            renderUpsellExtras();
+            marcarSujo();
+        });
+        $('#up-extras').on('click', '.up-remover', function () {
+            sincronizarUpsellExtrasDoDom();
+            upsell_extras.splice(parseInt($(this).closest('.up-extra').data('i'), 10), 1);
+            renderUpsellExtras();
+            marcarSujo();
+        }).on('change', '.up-plano', function () {
+            // Plano da lista <-> plano criado só para este upsell: o campo Entrega é refeito ("Igual à do plano oferecido" vira "Nenhum" e na volta o contrário).
+            const i = parseInt($(this).closest('.up-extra').data('i'), 10), it = upsell_extras[i];
+            if (!it) return;
+            const era_proprio = it.id_plano_destino === ID_UPSELL_PROPRIO;
+            sincronizarUpsellExtrasDoDom();
+            const proprio = it.id_plano_destino === ID_UPSELL_PROPRIO;
+            if (proprio && it.entrega_tipo === 'plano') it.entrega_tipo = 'nenhuma';
+            if (!proprio && era_proprio && it.entrega_tipo === 'nenhuma') it.entrega_tipo = 'plano';
+            renderUpsellExtras();
+            if (proprio) $('#up-extras .up-extra').eq(i).find('.up-proprio-nome').trigger('focus');
+            marcarSujo();
+        }).on('click', '.up-midia .midia-escolher, .up-midia .midia-trocar', function () {
+            const $c = $(this).closest('.up-extra'), it = upsell_extras[parseInt($c.data('i'), 10)];
+            if (!it || upsell_lotes[it.uid]) return;
+            upsell_destino_upload[it.uid] = 0;
+            $c.find('.up-midia-arquivo').prop('multiple', it.midias.length === 0).trigger('click');   // trocar a 1ª é 1 arquivo só; com a caixa vazia pode marcar vários
+        }).on('click', '.up-midia .midia-tirar', function () {
+            const $c = $(this).closest('.up-extra'), it = upsell_extras[parseInt($c.data('i'), 10)];
+            if (!it) return;
+            it.midias.shift();   // a seguinte (se houver) passa a ser a 1ª
+            atualizarMidiasDoUpsell($c, it);
+            marcarSujo();
+            exibirAviso('Mídia tirada da oferta. Clique em Salvar alterações para aplicar.');
+        }).on('click', '.up-midias-adicionar', function () {
+            const $c = $(this).closest('.up-extra'), it = upsell_extras[parseInt($c.data('i'), 10)];
+            if (!it || it.midias.length >= upsell_midias_max || upsell_lotes[it.uid]) return;
+            upsell_destino_upload[it.uid] = it.midias.length;
+            $c.find('.up-midia-arquivo').prop('multiple', true).trigger('click');
+        }).on('click', '.up-midias-extras .up-midia-remover', function () {
+            const $c = $(this).closest('.up-extra'), it = upsell_extras[parseInt($c.data('i'), 10)];
+            if (!it) return;
+            it.midias.splice(parseInt($(this).closest('[data-i]').data('i'), 10), 1);
+            atualizarMidiasDoUpsell($c, it);
+            marcarSujo();
+        }).on('click', '.up-midias-extras .up-midia-subir', function () {
+            const $c = $(this).closest('.up-extra'), it = upsell_extras[parseInt($c.data('i'), 10)];
+            const j = parseInt($(this).closest('[data-i]').data('i'), 10);
+            if (it && j > 0) { it.midias.splice(j - 1, 0, it.midias.splice(j, 1)[0]); atualizarMidiasDoUpsell($c, it); marcarSujo(); }
+        }).on('change', '.up-midia-arquivo', function () {
+            const input = this;
+            const arquivos = Array.prototype.slice.call(input.files || []);   // copiar antes de limpar: limpar o campo esvazia a lista
+            input.value = '';
+            const it = upsell_extras[parseInt($(input).closest('.up-extra').data('i'), 10)];
+            if (!arquivos.length || !it || upsell_lotes[it.uid]) return;
+            const uid = it.uid;
+            const na_caixa_grande = Math.min(upsell_destino_upload[uid] || 0, it.midias.length) === 0;
+            enviarMidiasEmSequencia(arquivos, {
+                vagas: na_caixa_grande ? (it.midias.length ? 1 : upsell_midias_max) : upsell_midias_max - it.midias.length,
+                enviar: enviarMidiaBasico,
+                aoProgredir: function (n, total) { upsell_lotes[uid] = { n: n, total: total }; atualizarMidiasDoUpsellPorUid(uid, na_caixa_grande && n === 1); },
+                aoSubir: function (midia, k) {
+                    const alvo = upsell_extras.filter(function (e) { return e.uid === uid; })[0];
+                    if (!alvo) return;   // o cartão foi removido enquanto o arquivo subia
+                    const nova = { tipo: midia.tipo, path: midia.caminho };
+                    if (na_caixa_grande && k === 0) alvo.midias[0] = nova; else alvo.midias.push(nova);
+                    atualizarMidiasDoUpsellPorUid(uid);
+                    marcarSujo();
+                },
+                aoFim: function (r) {
+                    delete upsell_lotes[uid];
+                    atualizarMidiasDoUpsellPorUid(uid);
+                    avisarResultadoLote(r, 'Mídia anexada à oferta. Clique em Salvar alterações para aplicar.', upsell_midias_max);
+                }
+            });
+        });
         // Downsell 2 a 5: adicionar, remover e a mídia de cada um.
         $('#dn-adicionar').on('click', function () {
             sincronizarDownsellExtrasDoDom();

@@ -323,11 +323,27 @@ function remarketingNormalizarOfertas($o, float $minimo_pix): array
         $id_grupo = '';
         $link = '';
         $mensagem_entrega = '';
-        if ($entrega_tipo === 'grupo') {
+        $tempo_valor = 0;
+        $tempo_unidade = 'dias';
+        if ($entrega_tipo === 'grupo' || $entrega_tipo === 'grupo_temp') {
             $id_grupo = trim(remarketingTxt($p['id_grupo'] ?? ''));
             if ($id_grupo === '' || !preg_match('/^-?\d{1,20}$/', $id_grupo)) {
                 return ['ofertas' => [], 'erro' => 'Escolha o grupo de entrega do plano "' . $nome . '".'];
             }
+            if ($entrega_tipo === 'grupo_temp') {
+                // Grupo temporário: o cliente entra e é removido depois de X minutos, horas ou dias (vale no lugar do período de acesso do plano).
+                $tempo_unidade = remarketingTxt($p['tempo_unidade'] ?? 'dias');
+                $maximos = ['minutos' => 525600, 'horas' => 8760, 'dias' => 3650];
+                if (!isset($maximos[$tempo_unidade])) {
+                    $tempo_unidade = 'dias';
+                }
+                $tempo_valor = (int) ($p['tempo_valor'] ?? 0);
+                if ($tempo_valor < 1 || $tempo_valor > $maximos[$tempo_unidade]) {
+                    return ['ofertas' => [], 'erro' => 'Informe quanto tempo o cliente fica no grupo temporário do plano "' . $nome . '" (de 1 a ' . $maximos[$tempo_unidade] . ' ' . $tempo_unidade . ').'];
+                }
+            }
+        } elseif ($entrega_tipo === 'upsell') {
+            // "Apenas Upsell": o plano não entrega nada; depois de pagar, o cliente recebe a oferta de Upsell do fluxo.
         } elseif ($entrega_tipo === 'link') {
             $link = linkEntregaValido($p['link_entrega'] ?? '');
             if ($link === '') {
@@ -350,6 +366,7 @@ function remarketingNormalizarOfertas($o, float $minimo_pix): array
         $planos[] = [
             'id' => $id, 'nome' => $nome, 'valor' => $valor, 'acesso' => $acesso, 'dias' => $dias,
             'entrega_tipo' => $entrega_tipo, 'id_grupo' => $id_grupo, 'link_entrega' => $link, 'mensagem_entrega' => $mensagem_entrega,
+            'tempo_valor' => $tempo_valor, 'tempo_unidade' => $tempo_unidade,
         ];
     }
 

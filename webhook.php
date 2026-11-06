@@ -643,6 +643,10 @@ function gerarPixBasico(string $token, $id_chat, array $dados_basico, string $id
     // Upsell/Downsell aceitos podem ter entrega própria; sem ela (ou "igual ao plano") vale a entrega do plano.
     // Plano criado dentro do Downsell entrega pela própria entrega, não pela da sequência.
     $entrega = !empty($plano['exclusivo_oferta']) ? entregaCompletaDoItemBasico($plano) : entregaCompletaDoItemBasico($tipo_oferta !== '' ? $oferta_aceita : $plano, $tipo_oferta !== '' ? $plano : null);
+    // Order bump do plano junto do Pix: a entrega por mensagem/link do próprio bump segue na mensagem de entrega (uma venda só, uma entrega só).
+    if ($com_bump && !$recorrente && $item_order_bump !== null) {
+        $entrega = entregaDoPixComBumpBasico($entrega, $item_order_bump);
+    }
     $propriedades_sinteticas = [
         'type' => 'pix',
         'nome' => $nome,
@@ -785,7 +789,7 @@ function executarFluxoBasico(string $token, $id_chat, array $dados_basico, strin
         }
         $id_plano_bump = (string) ($partes[0] ?? '');
         $plano_bump = localizarPlanoBasico($planos, $id_plano_bump);
-        $item_bump = orderBumpDepoisDoPixBasico($dados_basico) ? (itensOrderBumpBasico($dados_basico)[(int) ($partes[1] ?? -1)] ?? null) : null;
+        $item_bump = ($plano_bump && orderBumpDepoisDoPixBasico($dados_basico, $plano_bump)) ? (itensOrderBumpBasico($dados_basico, $plano_bump)[(int) ($partes[1] ?? -1)] ?? null) : null;
         if (!$plano_bump || !$item_bump || planoRecorrenteBasico($plano_bump)) {
             requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Essa oferta não está mais disponível.']);
             return;
