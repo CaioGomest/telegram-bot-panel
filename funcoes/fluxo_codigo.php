@@ -63,6 +63,8 @@ function sortearCodigoFluxo(): string
 
 /** Campos que nunca viajam no código: identificam o grupo/canal do dono, dão acesso ao produto dele ou apontam para o contato dele. */
 const FLUXO_CODIGO_CAMPOS_SENSIVEIS = ['id_grupo', 'link_entrega', 'mensagem_entrega', 'suporte', 'cache_chat_id', 'chat_id', 'id_chat'];
+/** Entreg�veis de cada plano e Downsell: v�o no c�digo (08/11/2026, item 95); s� o dono os importa de volta, outra conta recebe sem eles. */
+const FLUXO_CODIGO_CAMPOS_ENTREGA = ['id_grupo', 'link_entrega', 'mensagem_entrega', 'entrega_tipo'];
 /** Convite de grupo/canal privado do Telegram escrito em qualquer texto ou botão (t.me/+..., t.me/joinchat/..., t.me/c/...). */
 const FLUXO_CODIGO_REGEX_CONVITE = '#(?:https?://)?(?:t|telegram)\.me/(?:\+|joinchat/|c/)[^\s"\'<>)]*[^\s"\'<>).,;:!?]#i';   // o ponto ou a vírgula que fecham a frase ficam
 
@@ -73,14 +75,16 @@ const FLUXO_CODIGO_REGEX_CONVITE = '#(?:https?://)?(?:t|telegram)\.me/(?:\+|join
  * Onde a entrega era grupo, link ou mensagem, vira "nenhuma" (sem isso o fluxo importado seria recusado por "grupo sem id"); "igual ao plano" fica.
  * Fica o resto: mensagens, planos, preços, ofertas, mídias (arquivos do servidor) e a estrutura. Funciona no Guiado e no Editor Visual, em qualquer profundidade.
  */
-function removerDadosSensiveisFluxo(array $dados): array
+function removerDadosSensiveisFluxo(array $dados, bool $manter_entregas = false): array
 {
     foreach ($dados as $chave => $valor) {
         if (is_array($valor)) {
-            $dados[$chave] = removerDadosSensiveisFluxo($valor);
+            $dados[$chave] = removerDadosSensiveisFluxo($valor, $manter_entregas);
+        } elseif ($manter_entregas && is_string($chave) && in_array($chave, FLUXO_CODIGO_CAMPOS_ENTREGA, true)) {
+            continue;   // entrega do plano/Downsell fica na c�pia; quem importa de OUTRA conta ainda passa pelo filtro completo
         } elseif (is_string($chave) && in_array($chave, FLUXO_CODIGO_CAMPOS_SENSIVEIS, true)) {
             $dados[$chave] = is_string($valor) ? '' : null;
-        } elseif ($chave === 'entrega_tipo' && in_array($valor, ['grupo', 'link', 'mensagem'], true)) {
+        } elseif ($chave === 'entrega_tipo' && !$manter_entregas && in_array($valor, ['grupo', 'link', 'mensagem'], true)) {
             $dados[$chave] = 'nenhuma';
         } elseif (is_string($valor) && stripos($valor, '.me/') !== false) {
             $dados[$chave] = preg_replace(FLUXO_CODIGO_REGEX_CONVITE, '', $valor) ?? $valor;
@@ -101,7 +105,7 @@ function gerarCodigoFluxo(PDO $pdo, int $id_usuario, int $id_fluxo): ?string
     garantirTabelaCodigosFluxo($pdo);
     // A cópia guardada já sai sem os dados sensíveis (o link de suporte do fluxo também): o que o código guarda é o que qualquer pessoa com ele consegue importar.
     $decodificado = json_decode((string) ($fluxo['dados_fluxograma'] ?? '{}'), true);
-    $dados = json_encode(removerDadosSensiveisFluxo(is_array($decodificado) ? $decodificado : []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $dados = json_encode(removerDadosSensiveisFluxo(is_array($decodificado) ? $decodificado : [], true), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     $fluxo['link_suporte'] = '';
     $modo = ($fluxo['modo'] ?? 'avancado') === 'basico' ? 'basico' : 'avancado';
     $hash = md5($modo . "\n" . $fluxo['nome'] . "\n" . $fluxo['descricao'] . "\n" . $dados);

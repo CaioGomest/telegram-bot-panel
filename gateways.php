@@ -38,6 +38,14 @@ function avisoLimitesOmegaPayments(bool $para_admin): string {
         . '<span style="display:block;margin-top:6px;color:var(--m);">Valores medidos em 06/10/2026; podem mudar na OmegaPayments.</span></div>';
     return $html;
 }
+/** Caixa de limites do gateway: a da Omega é calculada (tarifa + split); os demais trazem um texto curto no próprio registro (funcoes/gateways/*.meta.php). */
+function avisoLimitesGateway(string $nome, bool $para_admin): string {
+    if ($nome === 'omegapayments') {
+        return avisoLimitesOmegaPayments($para_admin);
+    }
+    $texto = registroGateway($nome)['limites'] ?? '';
+    return $texto === '' ? '' : '<div style="margin:12px 0;padding:12px 14px;border-radius:10px;background:var(--wasoft);border:1px solid var(--wa);font-size:12.5px;line-height:1.6;">' . $texto . '</div>';
+}
 $user_id = $_SESSION['usuario_id'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'reordenar_gateways') {
@@ -134,8 +142,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } elseif (isset($_POST['acao']) && $_POST['acao'] === 'ativar_user') {
         $gateway_id = (int)$_POST['gateway_id'];
-        $stmt = $pdo->prepare("UPDATE usuarios_gateways SET ativo = 1 WHERE id_usuario = ? AND id_gateway = ?");
-        if ($stmt->execute([$user_id, $gateway_id])) {
+        $stmt = $pdo->prepare("UPDATE usuarios_gateways SET ativo = 1, prioridade = ? WHERE id_usuario = ? AND id_gateway = ?");
+        if ($stmt->execute([proximaPrioridadeGateway((int) $user_id, $gateway_id), $user_id, $gateway_id])) {
             $_SESSION['gw_mensagem'] = 'Gateway ativado!';
             header('Location: ' . preg_replace('/\.php$/', '', $_SERVER['PHP_SELF']));
             exit;
@@ -144,7 +152,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } elseif (isset($_POST['acao']) && $_POST['acao'] === 'salvar_user') {
         $gateway_id = (int)$_POST['gateway_id'];
-        $client_id = $_POST['client_id'];
+        $client_id = trim($_POST['client_id'] ?? '');
         $client_secret = trim($_POST['client_secret'] ?? '');
         $chave_pix = trim($_POST['chave_pix'] ?? '');
         $ativo = isset($_POST['ativo']);
@@ -296,9 +304,10 @@ if (!$is_admin) {
                             $g_id        = (int)$g['id'];
                             $is_ativo    = (bool)$g['ativo'];
                             $nome       = $g['nome'];
-                            $icon_class  = match($nome) { 'omegapayments' => 'icone-gateway-omegapayments', default => 'icone-gateway-padrao' };
-                            $icon_letter = match($nome) { 'omegapayments' => 'O', default => '?' };
-                            $subtitle   = match($nome) { 'omegapayments' => 'Chave Pública/Secreta (API Key)', default => 'Gateway' };
+                            $meta_gw     = registroGateway($nome) ?? [];
+                            $icon_class  = $meta_gw['icone_classe'] ?? 'icone-gateway-padrao';
+                            $icon_letter = $meta_gw['letra'] ?? '?';
+                            $subtitle    = $meta_gw['subtitulo'] ?? 'Gateway';
                         ?>
                         <div class="cartao-gateway-admin <?php echo $is_ativo ? 'ativo' : ''; ?>" id="adm-card-<?php echo $g_id; ?>">
                             <input type="hidden" name="ids[]" value="<?php echo $g_id; ?>">
@@ -350,9 +359,9 @@ if (!$is_admin) {
                                     </div>
                                     <input type="text" name="chave_pix_split[<?php echo $g_id; ?>]"
                                            value="<?php echo htmlspecialchars((string) ($g['chave_pix_split'] ?? '')); ?>"
-                                           placeholder="ID do produtor que recebe (producerId da OmegaPayments)" style="margin-top:8px;" autocomplete="off">
+                                           placeholder="<?php echo htmlspecialchars((string) ($meta_gw['split_rotulo'] ?? 'ID do recebedor')); ?>" style="margin-top:8px;" autocomplete="off">
                                     <small>
-                                        Quem recebe a comissão, pelo <strong>ID do produtor</strong> na OmegaPayments (<span class="mono">producerId</span>) — não é chave Pix, CPF nem telefone.
+                                        <?php echo $meta_gw['split_ajuda'] ?? 'Quem recebe a comissão.'; ?>
                                         0 ou ID vazio = nenhum split é feito.
                                     </small>
                                     <?php if (preg_match('/^\+?[\d.\-\/\s]{10,18}$/', (string) ($g['chave_pix_split'] ?? ''))): ?>
@@ -360,7 +369,7 @@ if (!$is_admin) {
                                             O valor salvo parece um CPF/CNPJ/telefone. A OmegaPayments recusa a venda com “Produtor … não encontrado” — troque pelo producerId.
                                         </small>
                                     <?php endif; ?>
-                                    <?php if (($g['nome'] ?? '') === 'omegapayments') { echo avisoLimitesOmegaPayments(true); } ?>
+                                    <?php echo avisoLimitesGateway((string) ($g['nome'] ?? ''), true); ?>
                                 </div>
 
                                 <div class="linha-acoes" style="margin-top:12px;"><button type="submit" class="botao botao-primario">Salvar Split</button></div>
@@ -402,24 +411,20 @@ if (!$is_admin) {
                     $gw_disponiveis = array_filter($gateways, fn($g) =>  empty($g['user_config']['ativo']));
 
                     function gwIconClass(string $nome): string {
-                        return match($nome) {
-                            'omegapayments' => 'icone-gateway-omegapayments',
-                            default         => 'icone-gateway-padrao',
-                        };
+                        return registroGateway($nome)['icone_classe'] ?? 'icone-gateway-padrao';
                     }
                     function gwIconLetter(string $nome): string {
-                        return match($nome) {
-                            'omegapayments' => 'O',
-                            default         => '?',
-                        };
+                        return registroGateway($nome)['letra'] ?? '?';
                     }
 
                     function renderGwForm(array $g): void {
                         $nome           = $g['nome'];
                         $id = (int)$g['id'];
                         $cfg = $g['user_config'];
-                        if ($nome === 'omegapayments') {
-                            echo avisoLimitesOmegaPayments(false);
+                        $meta_gw = registroGateway($nome) ?? [];
+                        echo avisoLimitesGateway($nome, false);
+                        if (!empty($meta_gw['site'])) {
+                            echo '<p class="link-site-gateway" style="margin:0 0 14px;font-size:13px;">Ainda n&atilde;o tem conta? <a href="' . htmlspecialchars($meta_gw['site']) . '" target="_blank" rel="noopener noreferrer" style="color:var(--or);font-weight:700;">Acessar ' . htmlspecialchars((string) parse_url($meta_gw['site'], PHP_URL_HOST)) . ' &#8599;</a></p>';
                         }
                         ?>
                         <form method="POST" enctype="multipart/form-data">
@@ -432,26 +437,32 @@ if (!$is_admin) {
                                 <span>Habilitar este gateway nos meus bots</span>
                             </label>
 
+                            <?php foreach (($meta_gw['campos'] ?? []) as $campo):
+                                $coluna = (string) $campo['coluna'];
+                                $salvo = (string) ($cfg[$coluna] ?? '');
+                                $obrigatorio = !empty($campo['obrigatorio']);
+                            ?>
                             <div class="campo">
-                                <label>Client ID</label>
-                                <input type="text" name="client_id"
-                                       value="<?php echo htmlspecialchars($cfg['client_id'] ?? ''); ?>" required>
-                            </div>
-                            <div class="campo">
-                                <label>Client Secret</label>
-                                <?php /* Sem value: o type=password mascara na tela, mas o segredo ia inteiro
-                                     no HTML e aparecia em "ver código-fonte". Mesmo padrão que
-                                     cert_password já usava aqui embaixo. */ ?>
-                                <input type="password" name="client_secret"
-                                       autocomplete="new-password" data-lpignore="true" data-1p-ignore
-                                       placeholder="<?php echo !empty($cfg['client_secret']) ? '•••••••• (salvo)' : ''; ?>"
-                                       <?php echo empty($cfg['client_secret']) ? 'required' : ''; ?>>
-                                <?php if (!empty($cfg['client_secret'])): ?>
-                                    <small>Deixe em branco para manter o atual.</small>
+                                <label><?php echo htmlspecialchars((string) $campo['rotulo']); ?></label>
+                                <?php if (!empty($campo['segredo'])): ?>
+                                    <?php /* Sem value: o type=password mascara na tela, mas o segredo ia inteiro
+                                         no HTML e aparecia em "ver código-fonte". */ ?>
+                                    <input type="password" name="<?php echo $coluna; ?>"
+                                           autocomplete="new-password" data-lpignore="true" data-1p-ignore
+                                           placeholder="<?php echo $salvo !== '' ? '•••••••• (salvo)' : ''; ?>"
+                                           <?php echo ($obrigatorio && $salvo === '') ? 'required' : ''; ?>>
+                                    <?php if ($salvo !== ''): ?>
+                                        <small>Deixe em branco para manter o atual.</small>
+                                    <?php endif; ?>
+                                <?php else: ?>
+                                    <input type="text" name="<?php echo $coluna; ?>"
+                                           value="<?php echo htmlspecialchars($salvo); ?>" <?php echo $obrigatorio ? 'required' : ''; ?>>
                                 <?php endif; ?>
+                                <?php if (!empty($campo['ajuda'])): ?><small><?php echo $campo['ajuda']; ?></small><?php endif; ?>
                             </div>
+                            <?php endforeach; ?>
 
-                            <?php if ($nome !== 'omegapayments'): ?>
+                            <?php if (!empty($meta_gw['usa_chave_pix'])): ?>
                             <div class="campo">
                                 <label>Chave Pix (Recebedor)</label>
                                 <?php
@@ -475,7 +486,7 @@ if (!$is_admin) {
                             </div>
                             <?php endif; ?>
 
-                            <?php if ($nome === 'omegapayments'): ?>
+                            <?php if (empty($meta_gw['usa_chave_pix'])): ?>
                                 <!-- OmegaPayments não tem PIX Recorrente nem certificado mTLS (v1) --
                                      esconde os dois campos em vez de mostrar algo que não se aplica. -->
                                 <input type="hidden" name="tipo_conta" value="pj">
@@ -491,7 +502,7 @@ if (!$is_admin) {
                             <?php endif; ?>
                             <input type="hidden" name="prioridade" value="<?php echo (int)($cfg['prioridade'] ?? 100); ?>">
 
-                            <?php if ($nome !== 'omegapayments'): ?>
+                            <?php if (!empty($meta_gw['usa_chave_pix'])): ?>
                             <div class="campo">
                                 <label>Certificado (.p12, .pfx ou .pem)</label>
                                 <?php if (!empty($cfg['certificado'])): ?>
@@ -537,7 +548,7 @@ if (!$is_admin) {
                             Gateways Ativos
                             <span class="badge badge-sucesso"><?php echo count($gw_ativos); ?></span>
                         </p>
-                        <p class="texto-secao-gateway">A prioridade é definida pela ordem dos cards — arraste para reordenar.</p>
+                        <p class="texto-secao-gateway">A ordem dos cards é a fila de cobrança: o Pix sai pelo Principal e, se ele falhar, pelo próximo (Fallback 1, 2…). Use as setas ↑ ↓ (ou arraste) para reordenar.</p>
 
                         <div class="grade-gateways-ativos" id="gw-sortable">
                             <?php
@@ -555,6 +566,10 @@ if (!$is_admin) {
                                     <span class="selo-metodo">
                                         <svg width="10" height="10" viewBox="0 0 512 512" fill="currentColor"><path d="M242.4 292.5C247.8 287.1 257.1 287.1 262.5 292.5L339.5 369.5C353.7 383.7 372.6 391.5 392.6 391.5H407.7L310.6 488.6C280.3 518.1 231.1 518.1 200.8 488.6L103.3 391.2H112.6C132.6 391.2 151.5 383.4 165.7 369.2L242.4 292.5zM262.5 218.9C257.1 224.4 247.8 224.4 242.4 218.9L165.7 142.2C151.5 127.1 132.6 120.2 112.6 120.2H103.3L200.7 22.8C231.1-7.6 280.3-7.6 310.6 22.8L407.7 119.9H392.6C372.6 119.9 353.7 127.7 339.5 141.9L262.5 218.9zM444.6 181.1L505.1 241.5C514.3 250.8 514.3 261.5 505.1 270.8L444.6 331.3V319.9C444.6 299.9 436.8 281 422.6 266.8L346 190.3C343.8 188.1 343.8 184.6 346 182.3L422.6 105.7C436.8 91.5 444.6 72.6 444.6 52.6V181.1zM67.4 19.9V330.9C67.4 350.9 75.2 369.8 89.4 384L166 460.6C168.2 462.8 168.2 466.3 166 468.5L89.4 545.2C75.2 559.4 67.4 578.3 67.4 598.3V607.6L6.9 547.1C-2.3 537.8-2.3 527.1 6.9 517.8L67.4 457.3V19.9z"/></svg>
                                         PIX
+                                    </span>
+                                    <span class="ordem-gateway">
+                                        <button type="button" class="btn-icon" data-mover="-1" title="Subir na ordem" aria-label="Subir na ordem" <?php echo $idx === 1 ? 'disabled' : ''; ?>><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></button>
+                                        <button type="button" class="btn-icon" data-mover="1" title="Descer na ordem" aria-label="Descer na ordem" <?php echo $idx === count($gw_ativos) ? 'disabled' : ''; ?>><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg></button>
                                     </span>
                                 </div>
 
@@ -613,7 +628,7 @@ if (!$is_admin) {
                             ?>
                             <?php
                                 $cfg = $g['user_config'];
-                                $tem_credenciais = !empty($cfg['client_id']);
+                                $tem_credenciais = gatewayCredenciaisCompletas((string) $g['nome'], $cfg);
                             ?>
                             <div class="cartao-gateway-disponivel">
                                 <div class="mais-gateway">+</div>
@@ -628,7 +643,7 @@ if (!$is_admin) {
                                 <div class="acoes-gateway-disponivel">
                                     <button type="button" class="btn-icon editar" title="Configurar" aria-label="Configurar" onclick="openModal('<?php echo $modal_id; ?>')"><?php echo iconeAcao('config'); ?></button>
                                     <label class="chave-gateway chave-cartao" title="<?php echo $tem_credenciais ? 'Desligado — clique para ativar' : 'Configure as credenciais para ativar'; ?>">
-                                        <input type="checkbox" aria-label="Ativar gateway" onchange="<?php echo $tem_credenciais ? 'ativarGateway(' . (int) $g['id'] . ', this)' : "this.checked=false; openModal('" . $modal_id . "')"; ?>">
+                                        <input type="checkbox" aria-label="Ativar gateway" onchange="<?php echo $tem_credenciais ? 'ativarGateway(' . (int) $g['id'] . ', this)' : "this.checked=false; openModalAtivando('" . $modal_id . "')"; ?>">
                                         <span class="chave-gateway-trilho"></span>
                                     </label>
                                 </div>
@@ -677,6 +692,8 @@ if (!$is_admin) {
 <script src="assets/js/tema.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/tema.js'); ?>"></script>
 <script>
 function openModal(id)  { document.getElementById(id).classList.add('aberto');    document.body.style.overflow='hidden'; }
+// Ligou o gateway sem credenciais: abre a configura��o j� com "Habilitar este gateway nos meus bots" marcado
+function openModalAtivando(id) { var m = document.getElementById(id); var c = m.querySelector('input[name="ativo"]'); if (c) c.checked = true; openModal(id); }
 function closeModal(id) { document.getElementById(id).classList.remove('aberto'); document.body.style.overflow='';       }
 
 // Desabilita o botão assim que o clique dispara a navegação -- clicar de novo antes da
@@ -732,9 +749,27 @@ function ativarGateway(id, btn) {
         if (target) target.classList.remove('sobre-alvo');
     });
 
+    // Setas ↑/↓ de cada card: mesma ordem do arrastar (e funcionam no celular, onde arrastar não funciona)
+    grid.addEventListener('click', e => {
+        const botao = e.target.closest('[data-mover]');
+        if (!botao || botao.disabled) return;
+        const card = botao.closest('.cartao-gateway-ativo');
+        const subir = botao.dataset.mover === '-1';
+        // Entre um card e o seguinte há o modal dele (div de sobreposição): o vizinho é o card ao lado, não o irmão direto no DOM.
+        const cards = [...grid.querySelectorAll(':scope > .cartao-gateway-ativo')];
+        const vizinho = cards[cards.indexOf(card) + (subir ? -1 : 1)];
+        if (!vizinho) return;
+        if (subir) { grid.insertBefore(card, vizinho); } else { grid.insertBefore(vizinho, card); }
+        salvarOrdem();
+    });
+
     function salvarOrdem() {
         const cards = [...grid.querySelectorAll('.cartao-gateway-ativo')];
         cards.forEach((card, i) => {
+            const subir = card.querySelector('[data-mover="-1"]');
+            const descer = card.querySelector('[data-mover="1"]');
+            if (subir) subir.disabled = i === 0;
+            if (descer) descer.disabled = i === cards.length - 1;
             const badge = card.querySelector('.selo-prioridade');
             if (!badge) return;
             const is_primary = i === 0;

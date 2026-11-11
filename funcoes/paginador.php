@@ -1,20 +1,20 @@
 <?php
 declare(strict_types=1);
 
-function paginador(int $total, int $por_pagina): string {
+function paginador(int $total, int $por_pagina, string $parametro = 'pagina'): string {
     if ($total <= $por_pagina) {
         return '';
     }
 
     $paginas = (int) ceil($total / $por_pagina);
-    $atual = isset($_GET['pagina']) ? max(1, (int)$_GET['pagina']) : 1;
+    $atual = isset($_GET[$parametro]) ? max(1, (int)$_GET[$parametro]) : 1;
     $atual = min($atual, $paginas);
 
     // Preservar outros parâmetros da URL (filtros, buscas)
     $params = $_GET;
-    unset($params['pagina']);
+    unset($params[$parametro], $params['bloco']);
     $query_string = http_build_query($params);
-    $prefixo = $query_string ? "?{$query_string}&pagina=" : "?pagina=";
+    $prefixo = $query_string ? "?{$query_string}&{$parametro}=" : "?{$parametro}=";
 
     $html = '<div class="paginacao-container">';
     $html .= '<ul class="paginacao-lista">';

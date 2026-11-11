@@ -6,6 +6,7 @@
     // Para liberar de novo, troque para true. Fluxos que JÁ têm recorrência continuam mostrando a opção, para o editor não trocar o tipo sem querer.
     const RECORRENCIA_LIBERADA_NA_TELA = false;
     let lista_grupos_usuario = [];
+    let lista_fluxos_destino = [];   // fluxos da conta com o bot de cada um (entrega Bot/Taxa)
     let planos = [];
     // Mídias das boas-vindas, na ordem de envio: a 1ª aparece na caixa grande; as demais, na lista logo abaixo (até 10, viram um álbum no Telegram).
     let bv_midias = [];
@@ -105,13 +106,14 @@
         });
         // Só o valor (sem comissão da plataforma nem a lista do que está abaixo); a frase extra só aparece quando o culpado é o desconto de uma oferta.
         const extra = derivados.map(function (x) { return ' O ' + x.rotulo + ', com ' + x.desconto + ' de desconto, sai por ' + reais(x.final) + '.'; }).join('');
-        return problemas.length ? 'Para a Omega, o valor mínimo é ' + reais(preco_minimo) + '.' + extra : '';
+        return problemas.length ? 'Para os gateways ativos, o valor mínimo é ' + reais(preco_minimo) + '.' + extra : '';
     }
 
     function carregarGruposUsuario() {
         return $.getJSON(api_url + '?action=listar_grupos_usuario').done(function (resp) {
             if (resp.sucesso) {
                 lista_grupos_usuario = resp.grupos || [];
+                lista_fluxos_destino = resp.fluxos_destino || [];
             }
         });
     }
@@ -142,6 +144,7 @@
     const ENTREGA_GRUPO = '__grupo__';
     const ENTREGA_LINK = '__link__';
     const ENTREGA_MENSAGEM = '__mensagem__';
+    const ENTREGA_BOT = '__bot__';
     const ENTREGA_MENSAGEM_MAX = 3000;   // o mesmo limite do servidor (funcoes/entrega.php)
     const ENTREGA_PLANO = '__plano__';
     const ICONE_ATUALIZAR = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15 6.7L3 16M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M3 21v-5h5"/></svg>';
@@ -151,6 +154,7 @@
         if (eh_oferta && (tipo === 'plano' || tipo === '')) return ENTREGA_PLANO;   // oferta sem entrega própria usa a do plano oferecido
         if (tipo === 'link') return ENTREGA_LINK;
         if (tipo === 'mensagem') return ENTREGA_MENSAGEM;
+        if (tipo === 'bot') return ENTREGA_BOT;
         if (tipo === 'nenhuma') return '';
         return (tipo === 'grupo' || item.id_grupo) ? ENTREGA_GRUPO : '';   // item antigo, sem entrega_tipo, só tem o id_grupo
     }
@@ -160,7 +164,20 @@
             '<option value=""' + (valor === '' ? ' selected' : '') + '>Nenhum (apenas venda)</option>' +
             (sem_grupo ? '' : '<option value="' + ENTREGA_GRUPO + '"' + (valor === ENTREGA_GRUPO ? ' selected' : '') + '>👥 Acesso a grupo</option>') +
             '<option value="' + ENTREGA_LINK + '"' + (valor === ENTREGA_LINK ? ' selected' : '') + '>🔗 Link (enviado ao cliente)</option>' +
-            '<option value="' + ENTREGA_MENSAGEM + '"' + (valor === ENTREGA_MENSAGEM ? ' selected' : '') + '>💬 Mensagem (texto enviado ao cliente)</option>';
+            '<option value="' + ENTREGA_MENSAGEM + '"' + (valor === ENTREGA_MENSAGEM ? ' selected' : '') + '>💬 Mensagem (texto enviado ao cliente)</option>' +
+            '<option value="' + ENTREGA_BOT + '"' + (valor === ENTREGA_BOT ? ' selected' : '') + '>🤖 Bot/Taxa (leva o cliente para outro bot)</option>';
+    }
+
+    // Fluxos de destino da entrega Bot/Taxa: cada um mostra o bot ligado a ele; o já escolhido que sumiu da lista (fluxo apagado) continua selecionável para não perder a escolha ao salvar.
+    function optsFluxosDestino(id_selecionado) {
+        let html = '<option value="">Selecione um fluxo…</option>', achou = false;
+        lista_fluxos_destino.forEach(function (f) {
+            const sel = String(f.id) === String(id_selecionado);
+            achou = achou || sel;
+            html += '<option value="' + f.id + '"' + (sel ? ' selected' : '') + '>' + escaparHtml(f.nome) + (f.bot ? ' (@' + escaparHtml(f.bot) + ')' : ' (sem bot conectado)') + '</option>';
+        });
+        if (id_selecionado && !achou) html += '<option value="' + escaparHtml(String(id_selecionado)) + '" selected>Fluxo ' + escaparHtml(String(id_selecionado)) + ' (não encontrado)</option>';
+        return html;
     }
 
     // Item sem entrega é permitido (venda só com mensagem de confirmação), mas quase sempre é esquecimento: o cliente paga e
@@ -187,6 +204,15 @@
             '<textarea class="entrega-mensagem" rows="4" maxlength="' + ENTREGA_MENSAGEM_MAX + '" placeholder="Ex.: Seu acesso: https://... Qualquer dúvida, responda aqui.">' + escaparHtml(item.mensagem_entrega || '') + '</textarea>' +
             '<small class="texto-ajuda">O cliente recebe este texto numa mensagem própria, logo depois do aviso de pagamento aprovado. Aceita as mesmas formatações e variáveis da mensagem de aprovação (como {nome}, {plano} e {valor}).</small>' +
             '</div>' +
+            '<div class="entrega-bot-area"' + (valor === ENTREGA_BOT ? '' : ' hidden') + '>' +
+            '<small class="texto-ajuda entrega-bot-aviso">⚠ A entrega será feita por outro bot que cobra uma taxa. Depois de pagar, o lead recebe a mensagem abaixo com um botão que abre esse bot já iniciando o /start.</small>' +
+            '<label>Fluxo de destino</label>' +
+            '<select class="entrega-bot-select" aria-label="Fluxo de destino">' + optsFluxosDestino(valor === ENTREGA_BOT ? String(item.id_fluxo_destino || '') : '') + '</select>' +
+            '<small class="texto-ajuda">O botão abre o bot conectado ao fluxo escolhido (Meus Bots). Fluxo sem bot conectado não entrega nada.</small>' +
+            '<label>Mensagem para o cliente</label>' +
+            '<textarea class="entrega-bot-mensagem" rows="3" maxlength="' + ENTREGA_MENSAGEM_MAX + '" placeholder="Ex.: ✅ Pagamento aprovado! Toque no botão abaixo para fazer a verificação final.">' + escaparHtml(item.mensagem_entrega || '') + '</textarea>' +
+            '<small class="texto-ajuda">Se ficar vazio, vai: "✅ Pagamento aprovado! Toque no botão abaixo para continuar." O botão "👉 Continuar" vem junto.</small>' +
+            '</div>' +
             (igual_ao_plano ? '<small class="texto-ajuda dica-entrega-plano"' + (valor === ENTREGA_PLANO ? '' : ' hidden') + '>' + (o.dica_igual || 'Quem aceitar recebe o mesmo acesso do plano oferecido.') + '</small>' : '') +
             '<small class="dica-sem-grupo"' + (valor === '' && !o.sem_aviso_vazio ? '' : ' hidden') + '>⚠ Sem entrega: quem pagar ' + o.quem +
             ' só recebe a mensagem de pagamento aprovado, sem nenhum acesso automático. Escolha um grupo ou um link, ou entregue o conteúdo nessa mensagem.</small>' +
@@ -198,6 +224,7 @@
         $campo.find('.entrega-grupo-area').prop('hidden', v !== ENTREGA_GRUPO);
         $campo.find('.entrega-link, .dica-entrega-link').prop('hidden', v !== ENTREGA_LINK);
         $campo.find('.entrega-mensagem-area').prop('hidden', v !== ENTREGA_MENSAGEM);
+        $campo.find('.entrega-bot-area').prop('hidden', v !== ENTREGA_BOT);
         $campo.find('.dica-entrega-plano').prop('hidden', v !== ENTREGA_PLANO);
         $campo.find('.dica-sem-grupo').prop('hidden', v !== '' || $campo.hasClass('sem-aviso-vazio'));
     }
@@ -205,11 +232,12 @@
     // Lê o campo de entrega e devolve os 4 campos que vão no JSON do plano/pack/oferta.
     function coletarEntrega($campo) {
         const v = $campo.find('.entrega-select').val() || '';
-        if (v === ENTREGA_PLANO) return { entrega_tipo: 'plano', id_grupo: '', link_entrega: '', mensagem_entrega: '' };
-        if (v === ENTREGA_LINK) return { entrega_tipo: 'link', id_grupo: '', link_entrega: $campo.find('.entrega-link').val().trim(), mensagem_entrega: '' };
-        if (v === ENTREGA_GRUPO) return { entrega_tipo: 'grupo', id_grupo: $campo.find('.entrega-grupo-select').val() || '', link_entrega: '', mensagem_entrega: '' };
-        if (v === ENTREGA_MENSAGEM) return { entrega_tipo: 'mensagem', id_grupo: '', link_entrega: '', mensagem_entrega: $campo.find('.entrega-mensagem').val().trim() };
-        return { entrega_tipo: 'nenhuma', id_grupo: '', link_entrega: '', mensagem_entrega: '' };
+        if (v === ENTREGA_PLANO) return { entrega_tipo: 'plano', id_grupo: '', link_entrega: '', mensagem_entrega: '', id_fluxo_destino: 0 };
+        if (v === ENTREGA_LINK) return { entrega_tipo: 'link', id_grupo: '', link_entrega: $campo.find('.entrega-link').val().trim(), mensagem_entrega: '', id_fluxo_destino: 0 };
+        if (v === ENTREGA_GRUPO) return { entrega_tipo: 'grupo', id_grupo: $campo.find('.entrega-grupo-select').val() || '', link_entrega: '', mensagem_entrega: '', id_fluxo_destino: 0 };
+        if (v === ENTREGA_MENSAGEM) return { entrega_tipo: 'mensagem', id_grupo: '', link_entrega: '', mensagem_entrega: $campo.find('.entrega-mensagem').val().trim(), id_fluxo_destino: 0 };
+        if (v === ENTREGA_BOT) return { entrega_tipo: 'bot', id_grupo: '', link_entrega: '', mensagem_entrega: $campo.find('.entrega-bot-mensagem').val().trim(), id_fluxo_destino: parseInt($campo.find('.entrega-bot-select').val(), 10) || 0 };
+        return { entrega_tipo: 'nenhuma', id_grupo: '', link_entrega: '', mensagem_entrega: '', id_fluxo_destino: 0 };
     }
 
     // Mesma regra do servidor (funcoes/entrega.php): só http/https, sem espaço, até 500 caracteres.
@@ -224,6 +252,7 @@
         if ($(this).val() === ENTREGA_LINK) $campo.find('.entrega-link').trigger('focus');
         if ($(this).val() === ENTREGA_GRUPO) $campo.find('.entrega-grupo-select').trigger('focus');
         if ($(this).val() === ENTREGA_MENSAGEM) $campo.find('.entrega-mensagem').trigger('focus');
+        if ($(this).val() === ENTREGA_BOT) $campo.find('.entrega-bot-select').trigger('focus');
     });
 
     // Refaz a lista de grupos de TODOS os campos de entrega (depois de atualizar a lista), mantendo o que cada um tinha escolhido.
@@ -255,7 +284,7 @@
     $(document).on('change', '.pb-ativo', function () {
         const $b = $(this).closest('.plano-bump'), ligado = this.checked;
         $b.find('.pb-detalhes').prop('hidden', !ligado);
-        $b.find('.pb-dica').text(ligado ? 'Este order bump substitui o do fluxo para este plano.' : 'Usando o order bump do fluxo (se estiver ligado).');
+        $b.find('.pb-dica').text(ligado ? 'Este order bump substitui o do fluxo para este plano e aparece assim que o cliente escolhe o plano, antes do Pix.' : 'Usando o order bump do fluxo (se estiver ligado).');
     });
     function bumpDoPlanoNaLista($el) {
         const i = parseInt($el.closest('.painel-plano').data('index'), 10);
@@ -346,7 +375,7 @@
         const midias = Array.isArray(b.midias) ? b.midias : [];
         return '<div class="plano-bump"' + (rec ? ' hidden' : '') + ' style="border-top:1px solid var(--bd); margin-top:10px; padding-top:10px;">' +
             '<label class="basico-interruptor sem-caixa"><input type="checkbox" class="pb-ativo"' + (ligado ? ' checked' : '') + '> <span>Order Bump personalizado</span></label>' +
-            '<small class="texto-ajuda pb-dica">' + (ligado ? 'Este order bump substitui o do fluxo para este plano.' : 'Usando o order bump do fluxo (se estiver ligado).') + '</small>' +
+            '<small class="texto-ajuda pb-dica">' + (ligado ? 'Este order bump substitui o do fluxo para este plano e aparece assim que o cliente escolhe o plano, antes do Pix.' : 'Usando o order bump do fluxo (se estiver ligado).') + '</small>' +
             '<div class="pb-detalhes"' + (ligado ? '' : ' hidden') + '>' +
             '  <div class="grade grade-2 grade-compacta" style="margin-top:8px;">' +
             '    <div class="campo"><label>Nome</label><input type="text" class="pb-nome" maxlength="80" value="' + escaparHtml(b.nome || '') + '" placeholder="Ex.: Pack extra"></div>' +
@@ -1023,7 +1052,7 @@
     // desconto) e tem a própria entrega, mensagem, mídia e botões. Ver funcoes/entrega.php (sequenciasUpsellBasico) e funcoes/guiado_ofertas.php.
     function itemUpsellVazio() {
         return { uid: ++upsell_uid, id_plano_destino: '', plano_proprio: { nome: '', valor: 0, dias_acesso: 30, unidade_acesso: 'dias' }, desconto_tipo: 'percentual', desconto_percentual: 0, desconto_valor: 0,
-            mensagem: '', midias: [], texto_aceitar: '', texto_recusar: '', entrega_tipo: 'plano', id_grupo: '', link_entrega: '', mensagem_entrega: '' };
+            mensagem: '', midias: [], texto_aceitar: '', texto_recusar: '', esconder_recusar: false, entrega_tipo: 'plano', id_grupo: '', link_entrega: '', mensagem_entrega: '' };
     }
 
     function htmlUpsellExtra(it, i) {
@@ -1056,7 +1085,9 @@
             '<small class="texto-ajuda up-midias-dica" style="display:none">Com mais de uma foto/vídeo (até 10), elas vão juntas num álbum, na ordem da lista, e o texto com os botões chega logo depois.</small></div>' +
             '<div class="grade grade-2 grade-compacta">' +
             '<div class="campo"><label>Botão aceitar</label><input type="text" class="up-aceitar" placeholder="Sim, quero!" value="' + escaparHtml(it.texto_aceitar) + '"></div>' +
-            '<div class="campo"><label>Botão recusar</label><input type="text" class="up-recusar" placeholder="Não, obrigado" value="' + escaparHtml(it.texto_recusar) + '"></div>' +
+            '<div class="campo up-recusar-campo"' + (it.esconder_recusar ? ' hidden' : '') + '><label>Botão recusar</label><input type="text" class="up-recusar" placeholder="Não, obrigado" value="' + escaparHtml(it.texto_recusar) + '"></div>' +
+            '<label class="basico-interruptor sem-caixa" style="grid-column:1/-1"><input type="checkbox" class="up-esconder-recusar"' + (it.esconder_recusar ? ' checked' : '') + '> <span>Esconder o botão de recusar</span></label>' +
+            '<small class="texto-ajuda up-esconder-recusar-dica" style="grid-column:1/-1"' + (it.esconder_recusar ? '' : ' hidden') + '>Só o botão aceitar aparece. Quem não quiser este upsell não consegue seguir com o plano escolhido.</small>' +
             '</div>' +
             '</div>';
     }
@@ -1085,7 +1116,6 @@
         $('#up-extras .up-extra').each(function (i) { atualizarMidiasDoUpsell($(this), upsell_extras[i]); });
         const cheio = upsell_extras.length + 1 >= upsell_max;
         $('#up-adicionar').prop('disabled', cheio).text(cheio ? 'Limite de ' + upsell_max + ' upsells' : '+ Adicionar upsell');
-        $('.up-titulo-1').prop('hidden', upsell_extras.length === 0);   // "Upsell 1" só aparece quando há mais de um
     }
 
     // Copia o que está digitado nos cartões para upsell_extras (antes de redesenhar a lista e na hora de salvar).
@@ -1107,7 +1137,8 @@
                 },
                 mensagem: $c.find('.up-mensagem').val().trim(),
                 texto_aceitar: $c.find('.up-aceitar').val().trim(),
-                texto_recusar: $c.find('.up-recusar').val().trim()
+                texto_recusar: $c.find('.up-recusar').val().trim(),
+                esconder_recusar: $c.find('.up-esconder-recusar').is(':checked')
             }, coletarEntrega($c.find('.up-entrega .campo-entrega')));
         });
     }
@@ -1118,8 +1149,8 @@
         const s = {
             id_plano_destino: e.id_plano_destino, desconto_tipo: proprio ? 'percentual' : (e.desconto_tipo || 'percentual'), desconto_percentual: proprio ? 0 : e.desconto_percentual, desconto_valor: proprio ? 0 : (e.desconto_valor || 0),
             mensagem: e.mensagem, midias: e.midias.map(function (m) { return { tipo: m.tipo, path: m.path }; }), midia_tipo: e.midias.length ? e.midias[0].tipo : 'none', midia_path: e.midias.length ? e.midias[0].path : '',
-            texto_aceitar: e.texto_aceitar, texto_recusar: e.texto_recusar,
-            entrega_tipo: e.entrega_tipo, id_grupo: e.id_grupo, link_entrega: e.link_entrega, mensagem_entrega: e.mensagem_entrega
+            texto_aceitar: e.texto_aceitar, texto_recusar: e.texto_recusar, esconder_recusar: !!e.esconder_recusar,
+            entrega_tipo: e.entrega_tipo, id_grupo: e.id_grupo, link_entrega: e.link_entrega, mensagem_entrega: e.mensagem_entrega, id_fluxo_destino: e.id_fluxo_destino
         };
         if (proprio) s.plano_proprio = Object.assign({}, e.plano_proprio);
         return s;
@@ -1317,7 +1348,7 @@
             mensagem: e.mensagem, midias: e.midias.map(function (m) { return { tipo: m.tipo, path: m.path }; }), midia_tipo: e.midias.length ? e.midias[0].tipo : 'none', midia_path: e.midias.length ? e.midias[0].path : '',
             espera_minutos: e.espera_minutos, desconto_tipo: e.desconto_tipo || 'percentual', desconto_percentual: e.desconto_percentual, desconto_valor: e.desconto_valor || 0,
             planos_oferecidos: e.planos_oferecidos.slice(), criar_planos: !!e.criar_planos, planos_proprios: e.planos_proprios.map(function (p) { return Object.assign({}, p); }),
-            entrega_tipo: e.entrega_tipo, id_grupo: e.id_grupo, link_entrega: e.link_entrega, mensagem_entrega: e.mensagem_entrega
+            entrega_tipo: e.entrega_tipo, id_grupo: e.id_grupo, link_entrega: e.link_entrega, mensagem_entrega: e.mensagem_entrega, id_fluxo_destino: e.id_fluxo_destino
         };
         if (s.criar_planos) Object.assign(s, { entrega_tipo: 'plano', id_grupo: '', link_entrega: '', mensagem_entrega: '' });
         return s;
@@ -1477,7 +1508,7 @@
     // "Depois do pagamento" é um order bump só e sem tempo: esconde o tempo, os títulos, os cartões e o botão de adicionar.
     function atualizarModoBump() {
         const $p = $painelOferta('order_bump');
-        const sequencia = $p.find('.of-quando').val() !== 'depois_pagamento';
+        const sequencia = $p.find('.of-quando').val() === 'depois_pix';   // só "depois do Pix" tem tempo e sequência; "antes do Pix" e "depois de pagar" são um bump só, sem espera
         $p.find('.of-espera-campo, .bp-sequencia-dica, .of-detalhes > .bp-item-titulo, #bp-extras, #bp-adicionar').toggle(sequencia);
         $p.find('.bp-quando-campo').css('grid-column', sequencia ? '' : '1 / -1');
     }
@@ -1505,13 +1536,14 @@
         if (tipo === 'order_bump') {
             oferta.nome = $p.find('.of-nome').val().trim();
             oferta.valor_extra = parseFloat($p.find('.of-valor-extra').val()) || 0;
-            oferta.quando = $p.find('.of-quando').val() === 'depois_pagamento' ? 'depois_pagamento' : 'depois_pix';
+            const quando_bump_sel = $p.find('.of-quando').val();
+            oferta.quando = quando_bump_sel === 'depois_pagamento' ? 'depois_pagamento' : (quando_bump_sel === 'antes_pix' ? 'antes_pix' : 'depois_pix');
             oferta.espera_minutos = numeroNoIntervalo($p.find('.of-espera').val(), 1, 1440, 5);
             // `itens` = a sequência inteira (até 5). O 1º repete os campos do próprio order bump (o jeito de um bump só, depois do pagamento, segue lendo eles); os outros vêm dos cartões.
             sincronizarBumpsDoDom();
             const primeiro = {};
             ['nome', 'valor_extra', 'espera_minutos', 'mensagem', 'texto_aceitar', 'cor_aceitar', 'texto_recusar', 'cor_recusar', 'midia_tipo', 'midia_path'].forEach(function (k) { primeiro[k] = oferta[k]; });
-            oferta.itens = [primeiro].concat(bump_extras.map(function (e) { return Object.assign({}, e); }));
+            oferta.itens = [primeiro].concat(bump_extras.map(function (e) { return Object.assign({}, e); }));   // a sequência fica guardada mesmo fora de "depois do Pix" (só o 1º vale)
         } else if (tipo === 'downsell') {
             oferta.planos_oferecidos = $p.find('.of-planos-lista input:checked').map(function () { return String(this.value); }).get();
             oferta.id_plano_destino = oferta.planos_oferecidos[0] || '';   // 1º marcado: mantém compatível com quem lê o formato antigo
@@ -1579,8 +1611,9 @@
             $p.find('.of-nome').val(oferta.nome || '');
             $p.find('.of-valor-extra').val(oferta.valor_extra != null ? oferta.valor_extra : 0);
             // Order bump já ligado e salvo sem "quando" é do tempo de um bump só, depois do pagamento: mantém assim. Desligado ou novo começa na sequência (depois do Pix).
-            const quando_bump = oferta.quando || (oferta.ativo ? 'depois_pagamento' : 'depois_pix');
-            $p.find('.of-quando').val(quando_bump === 'depois_pagamento' ? 'depois_pagamento' : 'depois_pix');
+            // Order bump novo ou desligado começa em "Logo ao escolher o plano" (antes do Pix, sem tempo).
+            const quando_bump = oferta.quando || (oferta.ativo ? 'depois_pagamento' : 'antes_pix');
+            $p.find('.of-quando').val(quando_bump === 'depois_pagamento' ? 'depois_pagamento' : (quando_bump === 'depois_pix' ? 'depois_pix' : 'antes_pix'));
             const itens_bump = Array.isArray(oferta.itens) ? oferta.itens : [];
             $p.find('.of-espera').val(oferta.espera_minutos || (itens_bump[0] && itens_bump[0].espera_minutos) || 5);
             bump_extras = itens_bump.slice(1, bump_max).map(function (it) {
@@ -1664,6 +1697,9 @@
             }
             if (item.entrega_tipo === 'grupo' && !item.id_grupo) {
                 return 'Escolha o grupo da entrega ' + itens[i][0] + (item.nome ? ' "' + item.nome + '"' : '') + ' (ou mude a entrega para outra opção).';
+            }
+            if (item.entrega_tipo === 'bot' && !item.id_fluxo_destino) {
+                return 'Escolha o fluxo de destino da entrega Bot/Taxa ' + itens[i][0] + (item.nome ? ' "' + item.nome + '"' : '') + ' (ou mude a entrega para outra opção).';
             }
             if (item.entrega_tipo === 'mensagem' && !item.mensagem_entrega) {
                 return 'Escreva a mensagem da entrega ' + itens[i][0] + (item.nome ? ' "' + item.nome + '"' : '') + ' (ou mude a entrega para outra opção).';
@@ -1884,7 +1920,8 @@
                     midia_path: bv_midias.length ? bv_midias[0].path : '',
                     mostrar_cta: $('#bv-mostrar-cta').is(':checked'),
                     texto_cta: $('#bv-cta').val().trim() || 'Ver Planos',
-                    cor_cta: $('#bv-cta-cor').val() || ''
+                    cor_cta: $('#bv-cta-cor').val() || '',
+                    texto_lista_planos: $('#bv-texto-lista').val().trim()
                 },
                 previas: coletarPrevias(),
                 packs: coletarPacks(),
@@ -1908,6 +1945,7 @@
         mostrarCamposCta();
         $('#bv-cta').val(bv.texto_cta || 'Ver Planos');
         $('#bv-cta-cor').val(bv.cor_cta || '');
+        $('#bv-texto-lista').val(bv.texto_lista_planos || '');
         // Fluxo salvo antes das várias mídias só tem midia_tipo/midia_path: vira uma lista de 1.
         bv_midias = (Array.isArray(bv.midias) && bv.midias.length ? bv.midias : (bv.midia_path ? [{ tipo: bv.midia_tipo, path: bv.midia_path }] : []))
             .filter(function (m) { return m && m.path && (m.tipo === 'image' || m.tipo === 'video'); })
@@ -2255,6 +2293,10 @@
         });
         $('#basico-conteudo').on('change', '.of-ativo', function () {
             mostrarDetalhesOferta($(this).closest('.painel'));
+        }).on('change', '.up-esconder-recusar', function () {
+            const $c = $(this).closest('.up-extra'), esconder = this.checked;
+            $c.find('.up-recusar-campo').prop('hidden', esconder);
+            $c.find('.up-esconder-recusar-dica').prop('hidden', !esconder);
         }).on('change', '.of-esconder-recusar', function () {
             mostrarCamposRecusar($(this).closest('.painel'));
         }).on('change input', '.of-quando, .of-envios', function () {

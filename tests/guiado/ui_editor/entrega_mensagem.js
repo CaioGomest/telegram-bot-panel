@@ -70,7 +70,7 @@ const OPCAO_MENSAGEM = '💬 Mensagem (texto enviado ao cliente)';
         // ============ plano ============
         await abrir(null);
         await novoPlano('Mensal');
-        chk('o campo Entrega do plano tem Nenhum, Acesso a grupo, Link e Mensagem (nessa ordem)', JSON.stringify(await textos(PE + ' .entrega-select option')()) === JSON.stringify(['Nenhum (apenas venda)', '👥 Acesso a grupo', '🔗 Link (enviado ao cliente)', OPCAO_MENSAGEM]), await textos(PE + ' .entrega-select option')());
+        chk('o campo Entrega do plano tem Nenhum, Acesso a grupo, Link e Mensagem (nessa ordem)', JSON.stringify(await textos(PE + ' .entrega-select option')()) === JSON.stringify(['Nenhum (apenas venda)', '👥 Acesso a grupo', '🔗 Link (enviado ao cliente)', OPCAO_MENSAGEM, '🤖 Bot/Taxa (leva o cliente para outro bot)']), await textos(PE + ' .entrega-select option')());
         chk('antes de escolher, a caixa da mensagem não aparece', !(await visivel(PE + ' .entrega-mensagem')));
         await escolher(PE + ' .entrega-select', '__mensagem__');
         chk('escolher "Mensagem": aparece a caixa "Mensagem de entrega" (com limite de 3000 caracteres), o foco vai para ela e o aviso de "sem entrega" some',
@@ -108,7 +108,7 @@ const OPCAO_MENSAGEM = '💬 Mensagem (texto enviado ao cliente)';
         const U = '.painel[data-oferta="upsell"]';
         await clicar(U + ' .of-ativo');
         const tiposU = await textos(U + ' .entrega-select option')();
-        chk('Upsell: "Igual à do plano oferecido", Nenhum, Acesso a grupo, Link e Mensagem', JSON.stringify(tiposU) === JSON.stringify(['Igual à do plano oferecido', 'Nenhum (apenas venda)', '👥 Acesso a grupo', '🔗 Link (enviado ao cliente)', OPCAO_MENSAGEM]), tiposU);
+        chk('Upsell: "Igual à do plano oferecido", Nenhum, Acesso a grupo, Link e Mensagem', JSON.stringify(tiposU) === JSON.stringify(['Igual à do plano oferecido', 'Nenhum (apenas venda)', '👥 Acesso a grupo', '🔗 Link (enviado ao cliente)', OPCAO_MENSAGEM, '🤖 Bot/Taxa (leva o cliente para outro bot)']), tiposU);
         await escolher(U + ' .entrega-select', '__mensagem__');
         chk('Upsell: escolher Mensagem mostra a caixa', await visivel(U + ' .entrega-mensagem'));
         await escolher(U + ' .of-plano', await js(`${q(U + ' .of-plano option')}.eq(2).val()`));
@@ -146,7 +146,7 @@ const OPCAO_MENSAGEM = '💬 Mensagem (texto enviado ao cliente)';
         await escolher(U + ' .of-plano', 'up_exclusivo');
         await digitar(U + ' .of-proprio-nome', 'Pacote VIP');
         await digitar(U + ' .of-proprio-valor', 49.9);
-        chk('Upsell com plano próprio: a entrega também tem a opção Mensagem (e continua sem "Igual à do plano oferecido")', JSON.stringify(await textos(U + ' .entrega-select option')()) === JSON.stringify(['Nenhum (apenas venda)', '👥 Acesso a grupo', '🔗 Link (enviado ao cliente)', OPCAO_MENSAGEM]), await textos(U + ' .entrega-select option')());
+        chk('Upsell com plano próprio: a entrega também tem a opção Mensagem (e continua sem "Igual à do plano oferecido")', JSON.stringify(await textos(U + ' .entrega-select option')()) === JSON.stringify(['Nenhum (apenas venda)', '👥 Acesso a grupo', '🔗 Link (enviado ao cliente)', OPCAO_MENSAGEM, '🤖 Bot/Taxa (leva o cliente para outro bot)']), await textos(U + ' .entrega-select option')());
         await escolher(U + ' .entrega-select', '__mensagem__');
         await digitar(U + ' .entrega-mensagem', 'Pacote VIP liberado!');
         dados = await salvar();

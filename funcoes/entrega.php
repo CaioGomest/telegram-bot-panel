@@ -5,16 +5,19 @@ declare(strict_types=1);
  * Entrega do que foi vendido no modo Guiado (planos, packs, Upsell e Downsell): grupo do Telegram, link ou só a venda.
  *
  * Cada item guarda o próprio jeito de entregar em dados_fluxograma:
- *   entrega_tipo  'nenhuma' | 'grupo' | 'link' | 'mensagem'   (na oferta também 'plano' = a mesma entrega do plano oferecido)
+ *   entrega_tipo  'nenhuma' | 'grupo' | 'link' | 'mensagem' | 'bot'   (na oferta também 'plano' = a mesma entrega do plano oferecido)
  *   id_grupo      grupo/canal do Telegram (tipo 'grupo')
  *   link_entrega  endereço http(s) enviado ao cliente depois de pagar (tipo 'link')
  *   mensagem_entrega  texto enviado ao cliente numa mensagem própria, logo depois do aviso de pagamento aprovado (tipo 'mensagem', até ENTREGA_MENSAGEM_MAX)
+ *   id_fluxo_destino  fluxo cujo bot cobra a taxa/entrega (tipo 'bot', 07/11/2026): depois de pagar o cliente recebe o link t.me do bot ligado a esse fluxo
  * Item salvo antes dessa opção não tem entrega_tipo: plano e pack entregam pelo id_grupo (ou nada) e a oferta usa a entrega do plano.
  *
  * Só funções puras (sem banco nem Telegram): quem monta o Pix e quem confirma o pagamento chama daqui.
  */
 
 const ENTREGA_LINK_MAX = 500;
+const ENTREGA_BOT_START = 'taxa';   // parâmetro do /start com que o cliente chega ao bot de destino (fica em origem_rastreio do lead)
+const ENTREGA_BOT_TEXTO_PADRAO = '✅ Pagamento aprovado! Toque no botão abaixo para continuar.';
 const ENTREGA_MENSAGEM_MAX = 3000;   // o mesmo limite dos textos da aba Pagamentos (PAGAMENTO_TEXTO_MAXIMO)
 
 /** Link de entrega aceito (só http/https, sem espaço, até 500 caracteres) ou '' se não serve. */
@@ -28,6 +31,44 @@ function linkEntregaValido($valor): string
         return '';
     }
     return $link;
+}
+
+/**
+ * Link do bot ligado a um fluxo (entrega "Bot/Taxa", 07/11/2026): https://t.me/<usuario> do bot conectado ao fluxo, ou '' se o fluxo não existe, não é do mesmo dono
+ * ou não tem bot conectado. Resolvido na hora de montar o Pix (não fica gravado no fluxo), então trocar o bot do fluxo vale para as próximas vendas.
+ * Usa o $pdo global (como funcoes/chat.php); sem banco devolve ''. Dentro do webhook só vale fluxo do mesmo dono do bot que está atendendo.
+ */
+function linkBotTaxaBasico($id_fluxo): string
+{
+    global $pdo;
+    $id = (int) $id_fluxo;
+    if ($id <= 0 || !($pdo instanceof PDO)) {
+        return '';
+    }
+    $dono = (int) (($GLOBALS['bot']['id_usuario'] ?? 0));
+    try {
+        $sql = "SELECT b.nome_usuario FROM bots b JOIN fluxos f ON f.id = b.id_fluxo_conectado AND f.id_usuario = b.id_usuario WHERE f.id = ?"
+            . ($dono > 0 ? " AND f.id_usuario = ?" : "") . " ORDER BY b.id LIMIT 1";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($dono > 0 ? [$id, $dono] : [$id]);
+        $usuario = ltrim(trim((string) $stmt->fetchColumn()), '@');
+    } catch (Throwable $e) {
+        return '';
+    }
+    return preg_match('/^[A-Za-z0-9_]{3,64}$/', $usuario) ? 'https://t.me/' . $usuario . '?start=' . ENTREGA_BOT_START : '';
+}
+
+/**
+ * Entrega Bot/Taxa: o texto do dono segue na mensagem de entrega com uma marca no fim ([[botlink:URL]]); quem envia a mensagem (pagamentoEnviarMensagemEntrega) tira a marca
+ * e põe um botão "Continuar" que abre o outro bot já com o /start. A marca vai na própria coluna mensagem_entrega da venda, então não precisa de coluna nova.
+ * Devolve [texto sem a marca, url ou ''].
+ */
+function separarLinkBotMensagemEntrega(string $texto): array
+{
+    if (!preg_match('/\s*\[\[botlink:(https:\/\/t\.me\/[A-Za-z0-9_]{3,64}\?start=[A-Za-z0-9_-]{1,64})\]\]\s*$/', $texto, $m)) {
+        return [$texto, ''];
+    }
+    return [trim(substr($texto, 0, -strlen($m[0]))), $m[1]];
 }
 
 /** Mensagem de entrega (tipo 'mensagem', 27/10/2026): o texto que o cliente recebe depois de pagar, limpo e cortado em ENTREGA_MENSAGEM_MAX caracteres. */
@@ -55,6 +96,15 @@ function entregaCompletaDoItemBasico(array $item, ?array $plano_base = null): ar
     }
     if ($tipo === 'mensagem') {
         return array_merge($nada, ['mensagem_entrega' => mensagemEntregaValida($item['mensagem_entrega'] ?? '')]);
+    }
+    if ($tipo === 'bot') {
+        // Bot/Taxa: o cliente recebe o texto do dono (ou um padrão) com um botão que abre o bot do fluxo de destino já com o /start. Sem bot conectado, não entrega nada.
+        $url_bot = linkBotTaxaBasico($item['id_fluxo_destino'] ?? 0);
+        if ($url_bot === '') {
+            return $nada;
+        }
+        $texto_bot = mensagemEntregaValida($item['mensagem_entrega'] ?? '');
+        return array_merge($nada, ['mensagem_entrega' => ($texto_bot !== '' ? $texto_bot : ENTREGA_BOT_TEXTO_PADRAO) . "\n[[botlink:" . $url_bot . "]]"]);
     }
     // 'grupo' ou item antigo (sem entrega_tipo): vale o id_grupo.
     return array_merge($nada, ['id_grupo' => trim((string) ($item['id_grupo'] ?? ''))]);
@@ -146,6 +196,9 @@ function validarEntregasFluxoGuiado(array $dados): ?string
         if (($item['entrega_tipo'] ?? '') === 'grupo' && trim((string) ($item['id_grupo'] ?? '')) === '') {
             return 'Escolha o grupo da entrega ' . $titulo . ' (ou mude a entrega para outra opção).';
         }
+        if (($item['entrega_tipo'] ?? '') === 'bot' && (int) ($item['id_fluxo_destino'] ?? 0) <= 0) {
+            return 'Escolha o fluxo de destino da entrega Bot/Taxa ' . $titulo . ' (ou mude a entrega para outra opção).';
+        }
         if (($item['entrega_tipo'] ?? '') === 'mensagem') {
             $texto = trim((string) ($item['mensagem_entrega'] ?? ''));
             if ($texto === '') {
@@ -187,7 +240,8 @@ function planoProprioDoUpsellBasico(array $oferta, int $indice = 0): ?array
         'unidade_acesso' => in_array($unidade, ['dias', 'horas', 'minutos'], true) ? $unidade : 'dias',
         'cobranca' => 'unica',
         // "Igual à do plano oferecido" não existe aqui (o plano é o próprio Upsell): sem grupo nem link escolhido, não entrega nada.
-        'entrega_tipo' => in_array($tipo_entrega, ['grupo', 'link', 'mensagem'], true) ? $tipo_entrega : 'nenhuma',
+        'entrega_tipo' => in_array($tipo_entrega, ['grupo', 'link', 'mensagem', 'bot'], true) ? $tipo_entrega : 'nenhuma',
+        'id_fluxo_destino' => (int) ($oferta['id_fluxo_destino'] ?? 0),
         'id_grupo' => (string) ($oferta['id_grupo'] ?? ''),
         'link_entrega' => (string) ($oferta['link_entrega'] ?? ''),
         'mensagem_entrega' => (string) ($oferta['mensagem_entrega'] ?? ''),
@@ -366,7 +420,8 @@ function planosProprioDoDownsellBasico(array $sequencia, int $indice_sequencia):
             'dias_acesso' => max(1, (int) ($proprio['dias_acesso'] ?? 30)),
             'unidade_acesso' => in_array($unidade, ['dias', 'horas', 'minutos'], true) ? $unidade : 'dias',
             'cobranca' => 'unica',
-            'entrega_tipo' => in_array($tipo_entrega, ['grupo', 'link', 'mensagem'], true) ? $tipo_entrega : 'nenhuma',
+            'entrega_tipo' => in_array($tipo_entrega, ['grupo', 'link', 'mensagem', 'bot'], true) ? $tipo_entrega : 'nenhuma',
+            'id_fluxo_destino' => (int) ($proprio['id_fluxo_destino'] ?? 0),
             'id_grupo' => (string) ($proprio['id_grupo'] ?? ''),
             'link_entrega' => (string) ($proprio['link_entrega'] ?? ''),
             'mensagem_entrega' => (string) ($proprio['mensagem_entrega'] ?? ''),

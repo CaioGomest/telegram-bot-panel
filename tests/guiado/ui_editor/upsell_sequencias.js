@@ -106,8 +106,8 @@ const GRUPOS = [
         await secao('upsell');
         const IDS = JSON.parse(await js(`JSON.stringify((function(){ var m = {}; jQuery('.painel[data-oferta="upsell"] .of-plano option').each(function(){ var n = this.textContent.split(' — ')[0].trim(); if (this.value && this.value !== 'up_exclusivo') m[n] = this.value; }); return m; })())`));
         await clicar(U + ' .of-ativo');
-        chk('ao ligar o Upsell: aparece o botão "+ Adicionar upsell" e ainda não há cartões extras (o título "Upsell 1" só aparece com mais de um)',
-            (await visivel('#up-adicionar')) && (await texto('#up-adicionar')) === '+ Adicionar upsell' && (await qtd('#up-extras .up-extra')) === 0 && !(await visivel(U + ' .up-titulo-1')));
+        chk('ao ligar o Upsell: aparece o botão "+ Adicionar upsell" e ainda não há cartões extras (o Upsell 1 já é um cartão com o título "Upsell 1", igual aos outros)',
+            (await visivel('#up-adicionar')) && (await texto('#up-adicionar')) === '+ Adicionar upsell' && (await qtd('#up-extras .up-extra')) === 0 && (await visivel(U + ' #up-seq-1.bp-item .up-titulo-1')) && (await texto(U + ' .up-titulo-1')) === 'Upsell 1');
         await escolher(U + ' .of-plano', IDS.Anual);
         await digitar(U + ' .of-mensagem', 'Leve o plano anual');
 
@@ -122,6 +122,9 @@ const GRUPOS = [
         await digitar(X(0) + ' .up-desconto', 25);
         await digitar(X(0) + ' .up-mensagem', 'Mais um para você');
         await digitar(X(0) + ' .up-aceitar', 'Adicionar');
+        chk('cartão do Upsell 2 tem "Esconder o botão de recusar" (desligado) e o campo Botão recusar visível', (await qtd(X(0) + ' .up-esconder-recusar')) === 1 && !(await js(`$(''+${JSON.stringify(X(0))}+' .up-esconder-recusar').is(':checked')`)) && (await visivel(X(0) + ' .up-recusar')));
+        await clicar(X(0) + ' .up-esconder-recusar');
+        chk('ligar "Esconder o botão de recusar" no Upsell 2: o campo Botão recusar some e aparece o aviso', !(await visivel(X(0) + ' .up-recusar')) && (await visivel(X(0) + ' .up-esconder-recusar-dica')));
         await digitar(X(0) + ' .up-recusar', 'Agora não');
         chk('plano da lista: o campo Desconto aparece e a Entrega tem "Igual à do plano oferecido"', (await visivel(X(0) + ' .up-desconto')) && !(await visivel(X(0) + ' .up-proprio-bloco')) && /Igual à do plano/.test((await opcoes(X(0) + ' .up-entrega .entrega-select'))[0]));
 
@@ -152,6 +155,7 @@ const GRUPOS = [
         const sq = dados && dados.dados_fluxograma.ofertas.upsell;
         chk('o JSON leva o Upsell 1 e 2 extras (sequencias_extras)', !!sq && sq.id_plano_destino === IDS.Anual && Array.isArray(sq.sequencias_extras) && sq.sequencias_extras.length === 2, sq);
         const e1 = sq && sq.sequencias_extras[0], e2 = sq && sq.sequencias_extras[1];
+        chk('o JSON leva esconder_recusar: true no Upsell 2 (ligado) e false no 3 e no Upsell 1', !!e1 && e1.esconder_recusar === true && !!e2 && e2.esconder_recusar === false && sq.esconder_recusar === false, [sq && sq.esconder_recusar, e1 && e1.esconder_recusar, e2 && e2.esconder_recusar]);
         chk('Upsell 2 no JSON: plano p1, 25% de desconto, mensagem e botões', !!e1 && e1.id_plano_destino === IDS.Mensal && e1.desconto_percentual === 25 && e1.mensagem === 'Mais um para você' && e1.texto_aceitar === 'Adicionar' && e1.texto_recusar === 'Agora não' && !e1.plano_proprio && e1.entrega_tipo === 'plano', e1);
         chk('Upsell 3 no JSON: plano próprio (nome, valor, 15 dias), sem desconto, entrega por link e 2 mídias', !!e2 && e2.id_plano_destino === 'up_exclusivo' && e2.plano_proprio.nome === 'Pacote Hot' && e2.plano_proprio.valor === 39.9 && e2.plano_proprio.dias_acesso === 15
             && e2.desconto_percentual === 0 && e2.entrega_tipo === 'link' && e2.link_entrega === 'https://area.exemplo.com/hot' && e2.midias.length === 2 && e2.midia_path === e2.midias[0].path, e2);
@@ -182,7 +186,7 @@ const GRUPOS = [
         await clicar(X(0) + ' .up-remover');
         chk('remover o Upsell 2: sobra 1 cartão, que passa a ser o "Upsell 2" e mantém o que foi digitado', (await qtd('#up-extras .up-extra')) === 1 && (await texto(X(0) + ' .bp-item-titulo')) === 'Upsell 2' && (await valor(X(0) + ' .up-proprio-nome')) === 'Pacote Hot');
         await clicar(X(0) + ' .up-remover');
-        chk('sem cartões o título "Upsell 1" some de novo', (await qtd('#up-extras .up-extra')) === 0 && !(await visivel(U + ' .up-titulo-1')));
+        chk('sem cartões extras o título "Upsell 1" continua', (await qtd('#up-extras .up-extra')) === 0 && (await visivel(U + ' .up-titulo-1')));
         dados = await salvar();
         chk('sem extras o JSON leva sequencias_extras vazio', !!dados && dados.dados_fluxograma.ofertas.upsell.sequencias_extras.length === 0, await toast());
 
@@ -213,7 +217,7 @@ const GRUPOS = [
         // fluxo antigo (sem sequencias_extras): continua com 1 upsell
         await abrir({ id: 6, nome: 'Antigo', modo: 'basico', dados_fluxograma: Object.assign({}, base, { ofertas: { upsell: { ativo: true, id_plano_destino: 'p2', desconto_percentual: 10, mensagem: 'so um' } } }) }, GRUPOS);
         await secao('upsell');
-        chk('fluxo antigo: sem cartões extras e o título "Upsell 1" não aparece', (await qtd('#up-extras .up-extra')) === 0 && !(await visivel(U + ' .up-titulo-1')));
+        chk('fluxo antigo: sem cartões extras e o Upsell 1 é um cartão', (await qtd('#up-extras .up-extra')) === 0 && (await visivel(U + ' .up-titulo-1')));
 
         // ============ celular ============
         await abrir({ id: 5, nome: 'Com sequência de upsell', modo: 'basico', dados_fluxograma: Object.assign({}, base, { ofertas: { upsell: salvoUp } }) }, GRUPOS, 390);

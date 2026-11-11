@@ -47,4 +47,8 @@ foreach (glob($pasta . '/*.log.[0-9]*') ?: [] as $antigo) {
     }
 }
 
-echo "Rotação de logs: $rotacionados rotacionado(s), $apagados apagado(s).\n";
+// Histórico de falhas de gateway (tabela gateway_falhas): 60 dias.
+require_once __DIR__ . '/../funcoes/gateways/_falhas.php';
+$falhas_limpas = limparFalhasGatewayAntigas();
+
+echo "Rotação de logs: $rotacionados rotacionado(s), $apagados apagado(s); falhas de gateway antigas removidas: $falhas_limpas.\n";

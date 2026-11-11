@@ -242,5 +242,32 @@ gerarPixOfertaPosBasico('TOKEN', '777', $dados_pp, 'up', 'up_exclusivo');
 $p = $GLOBALS['pix_gerados'][0] ?? [];
 confere('aceitar o plano próprio com mensagem: o Pix leva o texto do Upsell', ($p['mensagem_entrega'] ?? '') === 'Pacote VIP liberado!' && ($p['id_grupo'] ?? 'x') === '' && ($p['link_entrega'] ?? 'x') === '', json_encode($p, JSON_UNESCAPED_UNICODE));
 
+// ---------- Entrega "Bot/Taxa" (07/11/2026): link do bot ligado ao fluxo de destino ----------
+$pdo = new PDO('sqlite::memory:');
+$pdo->exec('CREATE TABLE fluxos (id INTEGER PRIMARY KEY, id_usuario INT, nome TEXT)');
+$pdo->exec('CREATE TABLE bots (id INTEGER PRIMARY KEY, id_usuario INT, nome_usuario TEXT, id_fluxo_conectado INT)');
+$pdo->exec("INSERT INTO fluxos VALUES (1, 7, 'TAXA 1'), (2, 7, 'Sem bot'), (3, 9, 'De outro dono')");
+$pdo->exec("INSERT INTO bots VALUES (1, 7, '@Taxa1_bot', 1), (2, 9, 'Alheio_bot', 3)");
+unset($GLOBALS['bot']);
+$bt = ['entrega_tipo' => 'bot', 'id_fluxo_destino' => 1, 'id_grupo' => '-1', 'link_entrega' => 'https://x.com', 'mensagem_entrega' => 'x'];
+$e_bt = entregaCompletaDoItemBasico($bt);
+confere('Bot/Taxa: sem link cru na entrega; o texto do dono vai na mensagem com a marca do botão (e ignora grupo/link que sobraram)', $e_bt['id_grupo'] === '' && $e_bt['link_entrega'] === '' && $e_bt['mensagem_entrega'] === "x
+[[botlink:https://t.me/Taxa1_bot?start=taxa]]", json_encode($e_bt));
+confere('Bot/Taxa: separarLinkBotMensagemEntrega devolve o texto limpo e o endereço com /start', separarLinkBotMensagemEntrega($e_bt['mensagem_entrega']) === ['x', 'https://t.me/Taxa1_bot?start=taxa']);
+confere('Bot/Taxa: sem texto do dono vai o texto padrão', separarLinkBotMensagemEntrega(entregaCompletaDoItemBasico(['entrega_tipo' => 'bot', 'id_fluxo_destino' => 1])['mensagem_entrega'])[0] === ENTREGA_BOT_TEXTO_PADRAO);
+confere('Mensagem comum (sem marca) passa intacta pelo separador', separarLinkBotMensagemEntrega('Oi [[botlink:x]] tchau') === ['Oi [[botlink:x]] tchau', '']);
+confere('Marca com endereço que não é t.me é ignorada (nada de botão para site qualquer)', separarLinkBotMensagemEntrega("Oi
+[[botlink:https://evil.com/x?start=a]]")[1] === '');
+confere('Bot/Taxa: fluxo sem bot conectado não entrega nada', entregaCompletaDoItemBasico(['entrega_tipo' => 'bot', 'id_fluxo_destino' => 2, 'mensagem_entrega' => 'oi']) === ['id_grupo' => '', 'link_entrega' => '', 'mensagem_entrega' => '']);
+confere('Bot/Taxa: fluxo inexistente ou sem escolha não entrega nada', entregaCompletaDoItemBasico(['entrega_tipo' => 'bot', 'id_fluxo_destino' => 99])['mensagem_entrega'] === '' && entregaCompletaDoItemBasico(['entrega_tipo' => 'bot'])['mensagem_entrega'] === '');
+$GLOBALS['bot'] = ['id_usuario' => 7];
+confere('Bot/Taxa: dentro do bot de outro dono, o fluxo alheio não vira link', entregaCompletaDoItemBasico(['entrega_tipo' => 'bot', 'id_fluxo_destino' => 3])['mensagem_entrega'] === '' && str_contains(entregaCompletaDoItemBasico($bt)['mensagem_entrega'], 'https://t.me/Taxa1_bot?start=taxa'));
+unset($GLOBALS['bot']);
+confere('Bot/Taxa em oferta "igual ao plano": herda a mensagem com o botão do bot do plano', str_contains(entregaCompletaDoItemBasico(['entrega_tipo' => 'plano'], $bt)['mensagem_entrega'], 'https://t.me/Taxa1_bot?start=taxa'));
+confere('Bot/Taxa: salvar sem escolher o fluxo é recusado', str_contains((string) validarEntregasFluxoGuiado(['planos' => [['nome' => 'Mensal', 'entrega_tipo' => 'bot', 'id_fluxo_destino' => 0]]]), 'fluxo de destino'));
+confere('Bot/Taxa: com o fluxo escolhido passa', validarEntregasFluxoGuiado(['planos' => [['nome' => 'Mensal', 'entrega_tipo' => 'bot', 'id_fluxo_destino' => 1]]]) === null);
+$pdo = null;
+confere('Bot/Taxa: sem banco devolve vazio, sem erro', linkBotTaxaBasico(1) === '');
+
 echo PHP_EOL . "RESUMO: $ok ok, $falhas falhas" . PHP_EOL;
 exit($falhas > 0 ? 1 : 0);

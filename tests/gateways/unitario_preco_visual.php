@@ -35,25 +35,25 @@ function pix(float $valor, string $titulo = 'PIX', string $tipo = 'pix'): array
 
 $min = 2.10;
 $erro = validarPrecosFluxoVisual(['operators' => ['operator_1' => ['properties' => ['type' => 'start']], 'operator_2' => pix(1.0, 'Cobrança VIP')], 'links' => []], $min);
-confere('PIX de R$ 1,00 com mínimo de R$ 2,10: recusa com o aviso enxuto "Para a Omega, o valor mínimo é R$ 2,10."', $erro === 'Para a Omega, o valor mínimo é R$ 2,10.', var_export($erro, true));
+confere('PIX de R$ 1,00 com mínimo de R$ 2,10: recusa com o aviso enxuto "Para os gateways ativos, o valor mínimo é R$ 2,10."', $erro === 'Para os gateways ativos, o valor mínimo é R$ 2,10.', var_export($erro, true));
 confere('o aviso NÃO fala da comissão da plataforma nem lista blocos/valores do vendedor', !str_contains((string) $erro, 'comissão') && !str_contains((string) $erro, 'Cobrança VIP') && !str_contains((string) $erro, 'R$ 1,00') && !str_contains((string) $erro, 'Ajuste'), var_export($erro, true));
 confere('PIX exatamente no mínimo (R$ 2,10) passa', validarPrecosFluxoVisual(['operators' => ['a' => pix(2.10)]], $min) === null);
 confere('PIX acima do mínimo passa', validarPrecosFluxoVisual(['operators' => ['a' => pix(80.0)]], $min) === null);
 confere('PIX com valor 0 (bloco ainda sem preço) não é tratado como preço baixo', validarPrecosFluxoVisual(['operators' => ['a' => pix(0.0)]], $min) === null);
 confere('blocos que não são PIX (mensagem, oferta com valor baixo) são ignorados', validarPrecosFluxoVisual(['operators' => ['a' => pix(1.0, 'x', 'message'), 'b' => pix(0.5, 'y', 'order_bump')]], $min) === null);
 confere('PIX recorrente segue a mesma regra', validarPrecosFluxoVisual(['operators' => ['a' => ['properties' => ['type' => 'pix', 'tipo_cobranca' => 'recorrente', 'valor' => 1.5, 'title' => 'Assinatura']]]], $min) !== null);
-confere('bloco PIX sem título e abaixo do mínimo também é recusado', validarPrecosFluxoVisual(['operators' => ['a' => ['properties' => ['type' => 'pix', 'valor' => 1.0]]]], $min) === 'Para a Omega, o valor mínimo é R$ 2,10.');
+confere('bloco PIX sem título e abaixo do mínimo também é recusado', validarPrecosFluxoVisual(['operators' => ['a' => ['properties' => ['type' => 'pix', 'valor' => 1.0]]]], $min) === 'Para os gateways ativos, o valor mínimo é R$ 2,10.');
 confere('operador malformado (não é lista) e fluxo sem operators não quebram', validarPrecosFluxoVisual(['operators' => ['a' => 'lixo', 'b' => null]], $min) === null && validarPrecosFluxoVisual([], $min) === null);
 $muitos = ['operators' => []];
 for ($i = 1; $i <= 6; $i++) {
     $muitos['operators']['op' . $i] = pix(1.0, 'P' . $i);
 }
 $e = (string) validarPrecosFluxoVisual($muitos, $min);
-confere('vários PIX baixos: continua uma frase só, com o mínimo', $e === 'Para a Omega, o valor mínimo é R$ 2,10.', $e);
+confere('vários PIX baixos: continua uma frase só, com o mínimo', $e === 'Para os gateways ativos, o valor mínimo é R$ 2,10.', $e);
 confere('valor vindo como texto numérico ("1.50") também é checado', validarPrecosFluxoVisual(['operators' => ['a' => ['properties' => ['type' => 'pix', 'valor' => '1.50']]]], $min) !== null);
 
 // ---- Fluxo Guiado: planos, packs e o Downsell novo (vários planos marcados)
-$msg_omega = 'Para a Omega, o valor mínimo é R$ 2,10.';
+$msg_omega = 'Para os gateways ativos, o valor mínimo é R$ 2,10.';
 $guiado = ['planos' => [['id' => 'a', 'nome' => 'Mensal', 'valor' => 20.0], ['id' => 'b', 'nome' => 'Semanal', 'valor' => 3.0]], 'ofertas' => [], 'packs' => []];
 confere('Guiado: planos acima do mínimo passam', validarPrecosFluxoGuiado($guiado, $min) === null);
 $baixo = $guiado;
@@ -85,7 +85,7 @@ $pack = $guiado;
 $pack['packs'] = ['ativo' => true, 'itens' => [['nome' => 'P', 'preco' => 1.0, 'ativo' => true]]];
 confere('Guiado: pack de R$ 1,00 recusa', validarPrecosFluxoGuiado($pack, $min) === $msg_omega);
 // Caso do dono (21/10/2026): plano de R$ 1,50 com mínimo de R$ 1,50 passa sozinho, mas o Upsell com 1% de desconto sai por R$ 1,49 e a mensagem curta enganava
-$msg_150 = 'Para a Omega, o valor mínimo é R$ 1,50.';
+$msg_150 = 'Para os gateways ativos, o valor mínimo é R$ 1,50.';
 $dono = ['planos' => [['id' => 'p', 'nome' => '1', 'valor' => 1.5]], 'ofertas' => ['upsell' => ['ativo' => true, 'id_plano_destino' => 'p', 'desconto_percentual' => 1]], 'packs' => []];
 confere('Guiado: plano de R$ 1,50 sozinho (sem oferta) passa com mínimo de R$ 1,50', validarPrecosFluxoGuiado(['planos' => $dono['planos'], 'ofertas' => [], 'packs' => []], 1.5) === null);
 confere('Guiado: plano de R$ 1,50 + Upsell com 1% de desconto: diz que o Upsell, com o desconto, sai por R$ 1,49', validarPrecosFluxoGuiado($dono, 1.5) === $msg_150 . ' O Upsell, com 1% de desconto, sai por R$ 1,49.', var_export(validarPrecosFluxoGuiado($dono, 1.5), true));
@@ -135,5 +135,15 @@ $up['ofertas']['upsell']['sequencias_extras'] = [['id_plano_destino' => 'up_excl
 $up['ofertas']['upsell']['ativo'] = false;
 confere('Guiado: com o Upsell 1 desligado, os extras não são conferidos', validarPrecosFluxoGuiado($up, $min) === null);
 
+// Desconto fixo maior que o plano nos upsells 2 em diante (06/11/2026): zera o valor e recusa, como no Upsell 1 e no Downsell
+$zera = $up_base;
+$zera['ofertas']['upsell']['sequencias_extras'] = [['id_plano_destino' => 'b', 'desconto_tipo' => 'fixo', 'desconto_valor' => 5, 'desconto_percentual' => 0]];
+confere('Guiado: Upsell 2 com desconto fixo de R$ 5,00 no Semanal (R$ 3,00) zera o valor e recusa', str_starts_with((string) validarPrecosFluxoGuiado($zera, $min), $msg_omega), var_export(validarPrecosFluxoGuiado($zera, $min), true));
+$zera['ofertas']['upsell']['sequencias_extras'][0]['desconto_valor'] = 0.5;
+confere('Guiado: Upsell 2 com desconto fixo de R$ 0,50 no Semanal (R$ 3,00) sai por R$ 2,50 e passa', validarPrecosFluxoGuiado($zera, $min) === null, var_export(validarPrecosFluxoGuiado($zera, $min), true));
+$zera['ofertas']['upsell']['sequencias_extras'][0]['desconto_valor'] = 2.0;
+confere('Guiado: Upsell 2 com desconto fixo de R$ 2,00 no Semanal (R$ 3,00) sai por R$ 1,00, abaixo do mínimo, e recusa', str_starts_with((string) validarPrecosFluxoGuiado($zera, $min), $msg_omega));
+$zera['ofertas']['upsell']['ativo'] = false;
+confere('Guiado: com o Upsell 1 desligado, o desconto fixo dos extras não é conferido', validarPrecosFluxoGuiado($zera, $min) === null);
 echo PHP_EOL . "$ok ok, $falhas falha(s)" . PHP_EOL;
 exit($falhas > 0 ? 1 : 0);

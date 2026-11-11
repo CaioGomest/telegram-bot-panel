@@ -190,8 +190,8 @@ function ipPublicoRedirecionamento(string $ip): bool
 }
 
 /**
- * País (ISO-2) do IP. Primeiro o cache do banco; se faltar, consulta o serviço (ipwho.is, ou o de
- * GEOIP_URL no config.php) com prazo curto e guarda. null = não deu para saber.
+ * País (ISO-2) do IP. Primeiro o cache do banco; se faltar, consulta country.is (reserva: geojs.io;
+ * GEOIP_URL no config.php entra na frente, se definido) com prazo curto e guarda. null = não deu para saber.
  */
 function paisDoIpRedirecionamento(string $ip): ?string
 {
@@ -216,20 +216,36 @@ function paisDoIpRedirecionamento(string $ip): ?string
     if (!ipPublicoRedirecionamento($ip) || !function_exists('curl_init')) {
         return null;
     }
-    $base = rtrim(defined('GEOIP_URL') ? (string) GEOIP_URL : 'https://ipwho.is', '/');
-    $ch = curl_init($base . '/' . rawurlencode($ip) . '?fields=success,country_code');
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_CONNECTTIMEOUT => 1,
-        CURLOPT_TIMEOUT => 2,
-        CURLOPT_FOLLOWLOCATION => false,
-        CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
-    ]);
-    $corpo = curl_exec($ch);
-    curl_close($ch);
-    $d = is_string($corpo) ? json_decode($corpo, true) : null;
-    $pais = is_array($d) && ($d['success'] ?? true) !== false ? strtoupper((string) ($d['country_code'] ?? '')) : '';
-    if (preg_match('/^[A-Z]{2}$/', $pais) !== 1) {
+    // Provedores gratuitos em ordem: country.is, depois geojs.io de reserva (ambos sem chave).
+    // GEOIP_URL no config.php, se existir, entra na frente (formato do ipwho.is: {success, country_code}).
+    $provedores = [];
+    if (defined('GEOIP_URL') && (string) GEOIP_URL !== '') {
+        $provedores[] = [rtrim((string) GEOIP_URL, '/') . '/' . rawurlencode($ip) . '?fields=success,country_code', 'country_code'];
+    }
+    $provedores[] = ['https://api.country.is/' . rawurlencode($ip), 'country'];
+    $provedores[] = ['https://get.geojs.io/v1/ip/country/' . rawurlencode($ip) . '.json', 'country'];
+
+    $pais = '';
+    foreach ($provedores as [$url, $campo]) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 1,
+            CURLOPT_TIMEOUT => 2,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+        ]);
+        $corpo = curl_exec($ch);
+        $http = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        curl_close($ch);
+        $d = is_string($corpo) && $http === 200 ? json_decode($corpo, true) : null;
+        $candidato = is_array($d) && ($d['success'] ?? true) !== false ? strtoupper((string) ($d[$campo] ?? '')) : '';
+        if (preg_match('/^[A-Z]{2}$/', $candidato) === 1) {
+            $pais = $candidato;
+            break;
+        }
+    }
+    if ($pais === '') {
         return null;
     }
 

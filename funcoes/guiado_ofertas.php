@@ -106,7 +106,8 @@ function enviarMensagemComMidiaBasico(string $token, $id_chat, string $mensagem,
     if (in_array($midia_tipo, ['image', 'video'], true) && $midia_path) {
         $metodo = $midia_tipo === 'image' ? 'sendPhoto' : 'sendVideo';
         $campo = $midia_tipo === 'image' ? 'photo' : 'video';
-        $legenda_cabe = mb_strlen($mensagem) <= 1024;
+        // Video vai SEM legenda e o texto com os botoes logo depois: no iPhone a legenda alarga a bolha e o Telegram recorta o video vertical (teste do Lima, 08/11/2026).
+        $legenda_cabe = $midia_tipo !== 'video' && mb_strlen($mensagem) <= 1024;
         $parametros = $legenda_cabe ? ['chat_id' => $id_chat, 'caption' => $mensagem] + $botoes : ['chat_id' => $id_chat];
         $file_id = fileIdDaMidiaBasico($token, $id_cache, $metodo, $campo, $midia_path);
         $enviou = false;
@@ -661,8 +662,10 @@ function configOrderBumpDoPlanoBasico(array $dados_basico, ?array $plano = null)
     if (planoTemBumpProprioBasico($plano)) {
         $b = $plano['order_bump'];
         $fluxo_ligado = !empty($fluxo['ativo']);
-        $quando = $fluxo_ligado ? (string) ($fluxo['quando'] ?? '') : 'depois_pix';
-        $quando = $quando === 'depois_pix' ? 'depois_pix' : 'depois_pagamento';
+        // 06/11/2026 (cliente: "seleciona o plano e gera direto o Pix, sem a opção do order bump"): o order bump do plano é oferecido assim que o cliente escolhe o plano,
+        // ANTES do Pix, como na Shark ('antes_pix'). Só segue outro momento se o próprio order bump do plano trouxer 'quando' = depois_pix ou depois_pagamento.
+        $quando = (string) ($b['quando'] ?? '');
+        $quando = in_array($quando, ['depois_pix', 'depois_pagamento'], true) ? $quando : 'antes_pix';
         if ((int) ($b['espera_minutos'] ?? 0) < 1) {
             $b['espera_minutos'] = $fluxo_ligado ? (int) ($fluxo['espera_minutos'] ?? 0) : 0;   // 0 = padrão (esperaOrderBumpBasico)
         }
@@ -707,6 +710,15 @@ function itensOrderBumpBasico(array $dados_basico, ?array $plano = null): array 
         return $itens;
     }
     return configOrderBumpDoPlanoBasico($dados_basico, $plano)['itens'];
+}
+/** O plano tem order bump próprio para oferecer ANTES do Pix (logo que o cliente toca no plano)? Devolve o item ou null. */
+function orderBumpAntesDoPixBasico(array $dados_basico, ?array $plano): ?array {
+    // Vale para o bump do PLANO (padrão) e para o do FLUXO com quando = 'antes_pix' (06/11/2026). Assinatura recorrente nunca recebe.
+    if ($plano === null || planoRecorrenteBasico($plano)) {
+        return null;
+    }
+    $cfg = configOrderBumpDoPlanoBasico($dados_basico, $plano);
+    return $cfg['quando'] === 'antes_pix' ? ($cfg['itens'][0] ?? null) : null;
 }
 function orderBumpDepoisDoPixBasico(array $dados_basico, ?array $plano = null): bool {
     if (planoTemBumpProprioBasico($plano)) {
@@ -934,7 +946,7 @@ function ofertasPosPagamentoBasico(PDO $pdo, string $token, array $venda): void
         $depois_do_pix = orderBumpDepoisDoPixBasico($dados, $plano_pago);
         $extra = max(0.0, (float) ($bump['valor_extra'] ?? 0));
         // Venda de campanha de remarketing com order bump próprio: o extra da campanha (oferecido antes do Pix) substitui o do fluxo.
-        if ($bump_ligado && $extra > 0 && !$depois_do_pix && !remarketingVendaTemBumpProprio($pdo, (int) ($venda['id'] ?? 0))) {
+        if ($bump_ligado && $extra > 0 && !$depois_do_pix && ($bump_do_plano !== null ? orderBumpAntesDoPixBasico($dados, $plano_pago) === null : (string) ($ofertas['order_bump']['quando'] ?? '') !== 'antes_pix') && !remarketingVendaTemBumpProprio($pdo, (int) ($venda['id'] ?? 0))) {
             enviarOfertaBasico($token, $id_chat, comCtaOrderBumpBasico($bump), 'basico::pos::bp::' . ($bump_do_plano !== null ? (string) ($plano_pago['id'] ?? '0') : '0'),
                 $bump_do_plano !== null ? textoPadraoOrderBumpBasico($bump) : 'Adicione um extra ao seu pedido por R$ ' . number_format($extra, 2, ',', '.') . '.', $id_cache);
         }

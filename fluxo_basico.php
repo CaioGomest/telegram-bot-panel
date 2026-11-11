@@ -143,6 +143,11 @@ bloquearAdmin();
                                 </select>
                             </div>
                         </div>
+                        <div class="campo bv-cta-campo">
+                            <label for="bv-texto-lista">Texto da lista de planos</label>
+                            <input type="text" id="bv-texto-lista" maxlength="200" placeholder="Escolha um plano:" value="">
+                            <small class="texto-ajuda">É a mensagem que chega com os planos quando o cliente toca no botão. Vazio = "Escolha um plano:". Pode ser só um emoji, como 👇.</small>
+                        </div>
                     </div>
                 </section>
 
@@ -161,7 +166,8 @@ bloquearAdmin();
                         <p class="texto-ajuda">Depois que o cliente PAGA, oferece um plano melhor. Se ele aceitar, recebe um Pix novo só desse plano (com o desconto abaixo, se houver) e o acesso do novo plano é liberado quando pagar. Dá para encadear vários upsells: quem paga um recebe o próximo (quem recusar encerra a sequência).</p>
                         <label class="basico-interruptor sem-caixa"><input type="checkbox" class="of-ativo"> <span>Ativar upsell</span></label>
                         <div class="of-detalhes" hidden>
-                        <h3 class="bp-item-titulo up-titulo-1" hidden>Upsell 1</h3>
+                        <div class="bp-item up-seq" id="up-seq-1">
+                        <div class="bp-item-cabecalho"><h3 class="bp-item-titulo up-titulo-1">Upsell 1</h3></div>
                         <div class="grade grade-2 grade-compacta">
                             <div class="campo"><label>Plano oferecido</label><select class="of-plano"></select></div>
                             <div class="campo of-desconto-campo"></div>
@@ -224,6 +230,7 @@ bloquearAdmin();
                                 </select>
                             </div>
                         </div>
+                        </div>
                         <div id="up-extras"></div>
                         <button type="button" class="botao botao-claro" id="up-adicionar">+ Adicionar upsell</button>
                     </div>
@@ -274,12 +281,13 @@ bloquearAdmin();
                 <section class="basico-secao" data-secao="orderbump">
                     <div class="painel" data-oferta="order_bump">
                         <div class="painel-cabecalho"><h2>Order Bump</h2></div>
-                        <p class="texto-ajuda">Oferece um extra por um valor adicional. Você escolhe quando: depois do Pix, se o cliente não pagar (aí dá para ter até 5 order bumps, um de cada vez, cada um com o seu tempo), ou só depois que ele paga (um order bump). Aceitando um bump antes de pagar, o cliente recebe um Pix novo com o plano + o extra; aceitando depois de pagar, um Pix novo só do extra.</p>
+                        <p class="texto-ajuda">Oferece um extra por um valor adicional. Você escolhe quando: logo ao escolher o plano, antes do Pix (um order bump, sem tempo de espera), depois do Pix, se o cliente não pagar (aí dá para ter até 5 order bumps, um de cada vez, cada um com o seu tempo), ou só depois que ele paga (um order bump). Aceitando um bump antes de pagar, o cliente recebe um Pix novo com o plano + o extra; aceitando depois de pagar, um Pix novo só do extra. Plano com order bump próprio (aba Planos) usa o dele no lugar deste.</p>
                         <label class="basico-interruptor sem-caixa"><input type="checkbox" class="of-ativo"> <span>Ativar order bump</span></label>
                         <div class="of-detalhes" hidden>
                         <div class="grade grade-2 grade-compacta bp-quando-grade">
                             <div class="campo bp-quando-campo"><label>Quando enviar</label>
                                 <select class="of-quando">
+                                    <option value="antes_pix">Logo ao escolher o plano, antes do Pix</option>
                                     <option value="depois_pix">Depois do Pix, se o cliente não pagar (sequência)</option>
                                     <option value="depois_pagamento">Depois que o cliente paga (um só)</option>
                                 </select>

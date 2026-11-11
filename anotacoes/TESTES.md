@@ -173,3 +173,8 @@ Conferir em cada pagamento: mensagem de aprovado em ~1 s, link do grupo (uso ún
 
 ## Nunca testado de verdade
 Ver `PENDENCIAS.md` → "Falta testar de verdade" (grupo real no pagamento, remarketing com envio real, Facebook/UTMify com conta real, e-mail, login Google, assinatura recorrente real, celular físico).
+
+## Gateways: NxGate, WiinPay e fallback (09/11/2026)
+Integração com banco de verdade (MariaDB do WAMP, porta 3393), Telegram e APIs simulados, 7 fases (A Omega, B fallback, C NxGate, D WiinPay, E fallback entre os 3, G mínimo do editor, F HTML da tela): **121 ok, 0 falhas** (`node tests/gateways/integracao/rodar.js`; tem vigia que retoma o php.exe congelado). Tela no Chrome real, desktop e celular (setas ↑↓, ordem, formulários): **21 ok** (`node tests/gateways/integracao/ui_gateways.js`). Unitários de gateways: 104 ok + 23 do JS do preço mínimo. Achou e corrigiu 4 defeitos (ordem desfeita ao salvar credenciais, seta movendo o modal em vez do card, seed faltando, require com caminho antigo). Detalhes e o que ainda não foi testado (chave real) em `anotacoes/gateways.md`.
+
+- 10/11/2026 — Gateways, falhas registradas: integracao `node tests/gateways/integracao/rodar.js` 121 ok / 0 falhas (fase B com registro de falha ligado ao txid e falha total); render CLI na VPS de admin/dashboard, admin/transacoes e vendas sem erro.

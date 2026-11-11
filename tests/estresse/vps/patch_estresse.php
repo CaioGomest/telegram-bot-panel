@@ -24,6 +24,6 @@ patch('cron/cron_verificar_pix.php', $injeta('requisicaoTelegramLocal'));
 patch('cron/cron_verificar_acessos.php', $injeta('telegramRequest'));
 patch('cron/cron_renovacao.php', $injeta('telegramRequest'));
 patch('cron/cron_aviso_vencimento.php', $injeta('telegramRequestAviso'));
-patch('webhook_omegapayments.php', $injeta('requisicaoTelegramOmegapayments'));
+patch('funcoes/pagamento_confirmado.php', $injeta('requisicaoTelegramGateway'));
 patch('funcoes/omegapayments_banco.php', fn($c) => preg_replace('/(private function sendRequest\([^)]*\)\s*:\s*array\s*\{)/', '$1 return simOmegaRapido($method, $uri, $body);', $c, 1));
 echo "PATCH ESTRESSE COMPLETO ($app)\n";

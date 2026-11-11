@@ -95,34 +95,20 @@ try {
             continue;
         }
 
-        $gateway_config = $user_gateways[0];
-        $nome_gateway = $gateway_config['gateway_nome'] ?? null;
-        $provedor = resolveGatewayProvider($nome_gateway, $gateway_config);
-        if (!$provedor) {
-            echo " - Erro: Gateway $nome_gateway não suportado.\n";
-            continue;
-        }
-
-        
         $valor = (float)$item['valor'];
-        $chave_pix = $gateway_config['chave_pix'];
-        
+
         // Expiração do Pix: Até a data de vencimento da assinatura + Tolerância?
         // Vamos colocar 3 dias de validade para o Pix
         $expiracao_segundos = 3 * 86400;
 
-        $split_data = null;
-        $split_gateway = getGatewaySplit($nome_gateway);
-        if ($split_gateway) {
-            $split_data = [[
-                'chave' => $split_gateway['chave_pix_split'],
-                'valor' => $split_gateway['taxa_split'],
-                'tipo'  => $split_gateway['tipo_split'] ?? 'percentual',
-            ]];
-        }
-
-        $payload = $provedor->montaPayloadCobranca($valor, $chave_pix, $split_data, $expiracao_segundos);
-        $resp = $provedor->criarCobranca($payload);
+        // Gateways na ordem escolhida pelo dono: se o principal falhar, o próximo gera o Pix (funcoes/gateways/_fallback.php).
+        $geracao = gerarPixComFallback($user_gateways, [
+            'valor' => $valor, 'eh_recorrente' => false, 'expiracao_segundos' => $expiracao_segundos,
+            'nome_usuario' => 'Cliente Telegram', 'documento' => '', 'id_dono' => (int)$id_usuario_dono,
+        ]);
+        $resp = $geracao['resp'];
+        $split_data = $geracao['split_data'];
+        $gateway_config = $geracao['gateway'];
         garantirConexaoBanco(); // a gateway pode ter demorado mais que o wait_timeout (20 s) do MySQL
         $pdo = $GLOBALS['pdo'];
 
@@ -136,12 +122,12 @@ try {
                     id_telegram, bot_id, valor, status, transacao_id, 
                     id_grupo_telegram, dias_acesso, tempo_acesso_minutos, 
                     tipo_cobranca, venda_pai_id, criado_em, 
-                    tempo_expiracao_minutos, comissao_admin
+                    tempo_expiracao_minutos, comissao_admin, id_gateway
                 ) VALUES (
                     ?, ?, ?, 'gerado', ?, 
                     ?, ?, ?, 
                     'assinatura', ?, NOW(), 
-                    ?, ?
+                    ?, ?, ?
                 )
             ");
             
@@ -156,7 +142,8 @@ try {
                 $item['tempo_acesso_minutos'],
                 $item['venda_id'], // venda_pai_id
                 ($expiracao_segundos / 60),
-                comissaoDoSplit($split_data, $valor)   // o mesmo split que acabou de ir na cobrança
+                comissaoDoSplit($split_data, $valor),   // o mesmo split que acabou de ir na cobrança
+                $gateway_config['gateway_id'] ?? null   // o gateway que gerou: é nele que o pagamento é conferido depois
             ]);
             require_once __DIR__ . '/../funcoes/traqueamento.php';
             herdarNomeProdutoVenda($pdo, (string) $txid, (int) $item['venda_id']);

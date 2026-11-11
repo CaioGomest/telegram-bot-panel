@@ -588,10 +588,14 @@ try {
     // mais essa linha. A linha antiga (se existir de uma instalação anterior) fica só de
     // histórico pras vendas antigas continuarem mostrando o nome do gateway corretamente;
     // gatewaysSuportados() já não inclui 'infopago', então ela some sozinha de toda UI.
-    $stmt_gateway_omega = $pdo->query("SELECT COUNT(*) FROM gateways WHERE nome = 'omegapayments'");
-    if ($stmt_gateway_omega->fetchColumn() == 0) {
-        $pdo->exec("INSERT INTO gateways (nome, titulo, ativo) VALUES ('omegapayments', 'OmegaPayments (Pix)', 0)");
-        echo "Gateway 'OmegaPayments' inserido.<br>";
+    // Uma linha por gateway do registro (funcoes/gateways/*.meta.php), desativada até o admin ligar: gateway novo entra sozinho aqui.
+    $stmt_existe_gateway = $pdo->prepare("SELECT COUNT(*) FROM gateways WHERE nome = ?");
+    foreach (registroGateways() as $gateway_registro) {
+        $stmt_existe_gateway->execute([$gateway_registro['nome']]);
+        if ($stmt_existe_gateway->fetchColumn() == 0) {
+            $pdo->prepare("INSERT INTO gateways (nome, titulo, ativo) VALUES (?, ?, 0)")->execute([$gateway_registro['nome'], $gateway_registro['titulo']]);
+            echo "Gateway '" . htmlspecialchars((string) $gateway_registro['titulo']) . "' inserido.<br>";
+        }
     }
 
     $sql_links_rastreamento = "
@@ -1196,6 +1200,20 @@ try {
         FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
     echo "Tabela 'chat_mensagens' OK.<br>";
+
+    // Falhas de gateway no fallback (funcoes/gateways/_falhas.php): quem falhou antes de o Pix sair por outro gateway; txid_final liga a falha a venda (vazio = nenhum gateway atendeu). Retencao de 60 dias (cron_rotacionar_logs).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS gateway_falhas (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        id_usuario INT NOT NULL,
+        id_gateway INT NOT NULL,
+        txid_final VARCHAR(255) NOT NULL DEFAULT '',
+        motivo VARCHAR(255) NOT NULL DEFAULT '',
+        criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_gw_falha_txid (txid_final),
+        INDEX idx_gw_falha_usuario (id_usuario, criado_em),
+        INDEX idx_gw_falha_criado (criado_em)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+    echo "Tabela 'gateway_falhas' OK.<br>";
 
     // Avisos push (Web Push) de Pix gerado e Pix pago — plano em deploy/PLANO-PUSH-NOTIFICACOES.md. Fila e aparelhos; interruptor geral em configuracoes.push_ativo (padrão desligado).
     $pdo->exec("CREATE TABLE IF NOT EXISTS push_inscricoes (

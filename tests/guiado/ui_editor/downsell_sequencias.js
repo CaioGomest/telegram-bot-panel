@@ -122,7 +122,7 @@ const GRUPOS = [
             && (await qtd(P1 + ' .plano-alternar')) === 1 && (await js(`document.activeElement && document.activeElement.className`)) === 'dn-p-nome');
         chk('o cartão tem Nome, Valor, Tempo de acesso (30 dias) e a Entrega (Nenhum, grupo, link, mensagem; sem "Igual à do plano oferecido")',
             (await qtd(P1 + ' .dn-p-nome')) === 1 && (await qtd(P1 + ' .dn-p-valor')) === 1 && (await valor(P1 + ' .dn-p-dias')) === '30' && (await valor(P1 + ' .dn-p-unidade')) === 'dias'
-            && JSON.stringify(await js(`JSON.stringify(${q(P1 + ' .entrega-select option')}.map(function(){ return this.textContent.trim(); }).get())`)) === JSON.stringify(JSON.stringify(['Nenhum (apenas venda)', '👥 Acesso a grupo', '🔗 Link (enviado ao cliente)', '💬 Mensagem (texto enviado ao cliente)'])));
+            && JSON.stringify(await js(`JSON.stringify(${q(P1 + ' .entrega-select option')}.map(function(){ return this.textContent.trim(); }).get())`)) === JSON.stringify(JSON.stringify(['Nenhum (apenas venda)', '👥 Acesso a grupo', '🔗 Link (enviado ao cliente)', '💬 Mensagem (texto enviado ao cliente)', '🤖 Bot/Taxa (leva o cliente para outro bot)'])));
         // a moldura é a de um cartão da aba Planos
         const estilo = (sel) => js(`(function(){ var el = ${q(sel)}.get(0); var c = getComputedStyle(el); return c.borderTopWidth + ' ' + c.borderTopStyle + ' ' + c.borderTopLeftRadius + ' ' + c.paddingTop; })()`);
         const estiloProprio = await estilo(P1 + ' .dn-proprio');

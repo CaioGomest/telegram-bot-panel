@@ -53,6 +53,9 @@ if (empty($ids_bots_usuario)) {
         $where[] = condicaoLeadPagou(true);
     } elseif ($status === 'nao_pago') {
         $where[] = condicaoLeadPagou(false);
+    } elseif ($status === 'gerou_pix') {
+        // Gerou o Pix e não pagou (07/11/2026): nunca pagou e tem pelo menos uma venda (Pix pendente, expirado ou cancelado) com este bot.
+        $where[] = condicaoLeadPagou(false) . " AND EXISTS (SELECT 1 FROM vendas vg WHERE vg.id_telegram = l.id_telegram AND vg.bot_id = l.bot_id)";
     }
 
     // A caixa de busca era só um filtro de JS escondendo <tr> já carregado na página --
@@ -117,7 +120,7 @@ if ($exportando_csv) {
         $status_texto = 'Iniciou Conversa';
         if ($lead['total_compras'] > 0) {
             $status_texto = 'Cliente (Pagou)';
-        } elseif ($lead['ultimo_status_pagamento'] === 'gerado') {
+        } elseif ($lead['ultimo_status_pagamento'] !== null) {   // tem venda, mas nenhuma paga: o Pix venceu ou ainda espera
             $status_texto = 'Gerou Pix (Não Pago)';
         }
 
@@ -218,6 +221,7 @@ unset($params_link['pagina']);
                     <a href="?<?php echo http_build_query(array_merge($params_link, ['status' => ''])); ?>"<?php echo $status === '' ? ' class="on" aria-current="true"' : ''; ?>>Todos</a>
                     <a href="?<?php echo http_build_query(array_merge($params_link, ['status' => 'pago'])); ?>"<?php echo $status === 'pago' ? ' class="on" aria-current="true"' : ''; ?>>Já pagou</a>
                     <a href="?<?php echo http_build_query(array_merge($params_link, ['status' => 'nao_pago'])); ?>"<?php echo $status === 'nao_pago' ? ' class="on" aria-current="true"' : ''; ?>>Não pagou</a>
+                    <a href="?<?php echo http_build_query(array_merge($params_link, ['status' => 'gerou_pix'])); ?>"<?php echo $status === 'gerou_pix' ? ' class="on" aria-current="true"' : ''; ?>>Gerou Pix e não pagou</a>
                 </div>
                 <form method="GET" class="a-fld">
                     <?php if ($status !== ''): ?><input type="hidden" name="status" value="<?php echo htmlspecialchars($status); ?>"><?php endif; ?>
@@ -260,7 +264,7 @@ unset($params_link['pagina']);
                                 $status_badge = '<span class="a-bd">Iniciou</span>';
                                 if ($lead['total_compras'] > 0) {
                                     $status_badge = '<span class="a-bd ok">Cliente</span>';
-                                } elseif ($lead['ultimo_status_pagamento'] === 'gerado') {
+                                } elseif ($lead['ultimo_status_pagamento'] !== null) {
                                     $status_badge = '<span class="a-bd wa">Gerou Pix</span>';
                                 }
                                 $nome_lead = trim((string) $lead['nome']) !== '' ? (string) $lead['nome'] : 'Sem nome';

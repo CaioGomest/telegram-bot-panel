@@ -111,7 +111,7 @@ const OPCAO_PROPRIO = '＋ Criar um plano só para o Upsell';
         await digitar(U + ' .of-proprio-dias', 30);
         await escolher(U + ' .of-proprio-unidade', 'dias');
         chk('com plano próprio a entrega NÃO tem "Igual à do plano oferecido" (não há plano para copiar): só Nenhum, Acesso a grupo, Link e Mensagem, e abre em Nenhum com o aviso de que sem entrega ninguém recebe acesso',
-            JSON.stringify(await tiposEntrega()) === JSON.stringify(['Nenhum (apenas venda)', '👥 Acesso a grupo', '🔗 Link (enviado ao cliente)', '💬 Mensagem (texto enviado ao cliente)']) && (await js(`${q(U + ' .entrega-select')}.val()`)) === '' && (await visivel(U + ' .dica-sem-grupo')), await tiposEntrega());
+            JSON.stringify(await tiposEntrega()) === JSON.stringify(['Nenhum (apenas venda)', '👥 Acesso a grupo', '🔗 Link (enviado ao cliente)', '💬 Mensagem (texto enviado ao cliente)', '🤖 Bot/Taxa (leva o cliente para outro bot)']) && (await js(`${q(U + ' .entrega-select')}.val()`)) === '' && (await visivel(U + ' .dica-sem-grupo')), await tiposEntrega());
         await js(`${q(U)}.get(0).scrollIntoView({block:'start'})`);
         await esp(200);
         await c.captura(SAIDA + '/1_plano_proprio.png');

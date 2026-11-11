@@ -420,7 +420,16 @@ try {
             ");
             $stmt->execute([$usuario_id]);
             $grupos = $stmt->fetchAll();
-            responder(true, ['grupos' => $grupos]);
+            // Fluxos da conta com o bot conectado a cada um (entrega "Bot/Taxa" dos planos): id, nome e @ do bot ('' se o fluxo não tem bot).
+            $stmt = $pdo->prepare("SELECT f.id, f.nome, b.nome_usuario AS bot FROM fluxos f LEFT JOIN bots b ON b.id_fluxo_conectado = f.id AND b.id_usuario = f.id_usuario WHERE f.id_usuario = ? ORDER BY f.nome ASC, b.id ASC");
+            $stmt->execute([$usuario_id]);
+            $fluxos_destino = [];
+            foreach ($stmt->fetchAll() as $fd) {
+                if (!isset($fluxos_destino[$fd['id']])) {
+                    $fluxos_destino[$fd['id']] = ['id' => (int) $fd['id'], 'nome' => (string) $fd['nome'], 'bot' => (string) ($fd['bot'] ?? '')];
+                }
+            }
+            responder(true, ['grupos' => $grupos, 'fluxos_destino' => array_values($fluxos_destino)]);
             break;
 
         case 'registrar_grupo_por_id':
@@ -519,7 +528,7 @@ try {
             exigirVagaParaNovoFluxo($pdo, $usuario_id);
             $dados = sanitizarCaminhosMidiaFluxo($dados);
             require_once __DIR__ . '/funcoes/gateways.php';
-            $minimo_pix = precoMinimoOmegaPayments(getGatewaySplit('omegapayments'));
+            $minimo_pix = precoMinimoPixDoUsuario($usuario_id);
             $erro_preco = $modo === 'basico' ? validarPrecosFluxoGuiado($dados, $minimo_pix) : validarPrecosFluxoVisual($dados, $minimo_pix);
             if ($erro_preco !== null) {
                 responder(false, ['mensagem' => $erro_preco], 422);
@@ -537,7 +546,7 @@ try {
                 $pdo->prepare("UPDATE bots SET id_fluxo_conectado = ? WHERE id = ? AND id_usuario = ?")->execute([$novo_id, $id_bot_importar, $usuario_id]);
             }
             responder(true, [
-                'mensagem' => ($id_bot_importar > 0 ? 'Fluxo importado e vinculado ao bot.' : 'Fluxo importado com sucesso.') . ' Grupos, links e mensagens de entrega e o suporte não vêm junto: configure os seus.',
+                'mensagem' => ($id_bot_importar > 0 ? 'Fluxo importado e vinculado ao bot.' : 'Fluxo importado com sucesso.') . ($de_outra_conta ? ' Grupos, links e mensagens de entrega e o suporte não vêm junto: configure os seus.' : ' Entregas de cada plano e Downsell vieram junto.'),
                 'id' => $novo_id,
                 'modo' => $modo,
             ]);
@@ -577,9 +586,9 @@ try {
             }
             exigirFormatoDoModo($modo_destino, $dados_grafico);
             if (isset($dados_grafico['planos']) || isset($dados_grafico['operators'])) {
-                // Preço que a OmegaPayments recusaria com a comissão atual não pode ser salvo (Guiado: planos/packs/ofertas; Visual: blocos PIX).
+                // Preço que nenhum gateway do usuário aceitaria com a comissão atual não pode ser salvo (Guiado: planos/packs/ofertas; Visual: blocos PIX).
                 require_once __DIR__ . '/funcoes/gateways.php';
-                $minimo_pix = precoMinimoOmegaPayments(getGatewaySplit('omegapayments'));
+                $minimo_pix = precoMinimoPixDoUsuario($usuario_id);
                 $erro_preco = isset($dados_grafico['planos']) ? validarPrecosFluxoGuiado($dados_grafico, $minimo_pix) : validarPrecosFluxoVisual($dados_grafico, $minimo_pix);
                 if ($erro_preco !== null) {
                     responder(false, ['mensagem' => $erro_preco], 422);
@@ -780,9 +789,9 @@ try {
             break;
 
         case 'limites_pagamento':
-            // Menor preço de venda aceito pela OmegaPayments com a comissão atual (o editor valida planos/packs com isso).
+            // Menor preço de venda que algum gateway do usuário aceita com a comissão atual (o editor valida planos/packs com isso). tarifa/minimo_api são os da Omega (texto do editor).
             require_once __DIR__ . '/funcoes/gateways.php';
-            responder(true, ['minimo' => precoMinimoOmegaPayments(getGatewaySplit('omegapayments')), 'tarifa' => OMEGAPAYMENTS_TARIFA_PIX, 'minimo_api' => OMEGAPAYMENTS_PRECO_MINIMO_API]);
+            responder(true, ['minimo' => precoMinimoPixDoUsuario($usuario_id), 'tarifa' => OMEGAPAYMENTS_TARIFA_PIX, 'minimo_api' => OMEGAPAYMENTS_PRECO_MINIMO_API]);
             break;
 
         case 'conversoes_fluxo':

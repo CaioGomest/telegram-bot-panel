@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/webhook_rotas.php';
+
 /**
  * Modo manutenção: tira o sistema do ar "com educação" quando for preciso mexer nele (deploy, migração do banco, banco fora do ar).
  * Quem abre o painel vê uma página "Em manutenção" (HTTP 503 + Retry-After, que atualiza sozinha) em vez de erro, e o que fala com o
@@ -12,7 +14,7 @@ declare(strict_types=1);
  * = DESLIGADA: a manutenção nunca fica ligada por engano.
  *
  *   modo "painel"  só o painel, a API e as telas mostram a manutenção. Os bots, os pagamentos e os links /l/ seguem funcionando
- *                  (webhook.php, webhook_omegapayments.php, l.php) e os crons rodam. É o modo de uma atualização visual.
+ *                  (webhook.php, webhook_<gateway>.php, l.php) e os crons rodam. É o modo de uma atualização visual.
  *   modo "total"   além do painel: o webhook do Telegram e o da gateway respondem 503 (o Telegram e a gateway tentam de novo depois, e o
  *                  cron_verificar_pix confere os pagamentos pendentes quando voltar), os links /l/ mostram a página e TODOS os crons
  *                  pausam. É o modo de uma migração de banco. Atenção: parar os crons por muito tempo acumula Pix expirados, que
@@ -196,10 +198,10 @@ function manutencaoDecidir(array $e, string $rel, bool $liberado, bool $quer_jso
     if (!$e['ativo'] || $liberado || $rel === 'controle.php') {
         return 'passar';
     }
-    if ($e['modo'] === 'painel' && in_array($rel, ['webhook.php', 'webhook_omegapayments.php', 'l.php'], true)) {
+    if ($e['modo'] === 'painel' && ($rel === 'webhook.php' || $rel === 'l.php' || ehWebhookPagamentoGateway($rel))) {
         return 'passar';
     }
-    if (in_array($rel, ['webhook.php', 'webhook_omegapayments.php'], true)) {
+    if ($rel === 'webhook.php' || ehWebhookPagamentoGateway($rel)) {
         return 'texto';
     }
     return $quer_json ? 'json' : 'pagina';

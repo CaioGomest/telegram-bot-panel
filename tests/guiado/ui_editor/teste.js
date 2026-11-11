@@ -124,8 +124,14 @@ const esp = (ms) => new Promise(r => setTimeout(r, ms));
         // =============== ORDER BUMP ===============
         await abrir(null);
         await secao('orderbump');
-        chk('fluxo novo: o "Quando enviar" começa em "Depois do Pix" e o tempo do 1º bump aparece', (await js(`${q('.painel[data-oferta="order_bump"] .of-quando')}.val()`)) === 'depois_pix');
+        chk('fluxo novo: o "Quando enviar" começa em "Logo ao escolher o plano, antes do Pix" e não mostra tempo', (await js(`${q('.painel[data-oferta="order_bump"] .of-quando')}.val()`)) === 'antes_pix');
         await marcar('.painel[data-oferta="order_bump"] .of-ativo', true);
+        chk('"antes do Pix": sem campo de tempo, sem cartões e sem botão de adicionar', !(await js(`${q('.of-espera-campo')}.is(':visible')`)) && !(await js(`${q('#bp-adicionar')}.is(':visible')`)));
+        await definir('.of-nome', 'Guia VIP'); await definir('.of-valor-extra', '9.9');
+        dados = await salvar();
+        const bump_antes = dados.dados_fluxograma.ofertas.order_bump;
+        chk('salvar em "antes do Pix": quando=antes_pix e só 1 item', bump_antes.quando === 'antes_pix' && bump_antes.nome === 'Guia VIP' && bump_antes.valor_extra === 9.9 && bump_antes.itens.length === 1, bump_antes);
+        await definir('.painel[data-oferta="order_bump"] .of-quando', 'depois_pix');
         chk('ligado: aparecem o tempo, o título "Order Bump 1" e o botão de adicionar', (await js(`${q('.of-espera-campo')}.is(':visible')`)) && (await js(`${q('.of-detalhes > .bp-item-titulo')}.is(':visible')`)) && (await js(`${q('#bp-adicionar')}.is(':visible')`)));
         await definir('.of-nome', 'Bônus A'); await definir('.of-valor-extra', '9.9'); await definir('.of-espera', '5'); await definir('.painel[data-oferta="order_bump"] .of-mensagem', 'Leve o bônus A!');
         await clicar('#bp-adicionar'); await clicar('#bp-adicionar');
@@ -173,7 +179,7 @@ const esp = (ms) => new Promise(r => setTimeout(r, ms));
         chk('salvar sem mexer: continua "depois_pagamento", mesmo bump, 1 item na lista', bump.quando === 'depois_pagamento' && bump.valor_extra === 7.5 && bump.nome === 'Velho' && bump.itens.length === 1 && bump.midia_path === 'uploads/bump.jpg', bump);
         await abrir({ id: 5, nome: 'Antigo2', modo: 'basico', dados_fluxograma: { ativo: true, boas_vindas: {}, planos: [], ofertas: { order_bump: { ativo: false, mensagem: '' } } } });
         await secao('orderbump');
-        chk('order bump antigo DESLIGADO (nada a preservar): abre já em "Depois do Pix"', (await js(`${q('.painel[data-oferta="order_bump"] .of-quando')}.val()`)) === 'depois_pix');
+        chk('order bump antigo DESLIGADO (nada a preservar): abre já em "Logo ao escolher o plano"', (await js(`${q('.painel[data-oferta="order_bump"] .of-quando')}.val()`)) === 'antes_pix');
         // fluxo novo salvo e reaberto: restaura os cartões
         await abrir({ id: 5, nome: 'Novo', modo: 'basico', dados_fluxograma: { ativo: true, boas_vindas: {}, planos: [], ofertas: { order_bump: { ativo: true, quando: 'depois_pix', nome: 'A', valor_extra: 1.5, espera_minutos: 3, itens: [
             { nome: 'A', valor_extra: 1.5, espera_minutos: 3 }, { nome: 'B', valor_extra: 2.5, espera_minutos: 20, mensagem: 'MB', midia_tipo: 'video', midia_path: 'uploads/b.mp4', texto_recusar: 'Nem' } ] } } } });

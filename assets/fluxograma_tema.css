@@ -328,7 +328,13 @@ html[data-theme] .btn-excluir:hover {
 .flowchart-link .flowchart-link-path {
     stroke: var(--or) !important;
     stroke-width: 2px !important;
-    stroke-opacity: .65;
+    stroke-opacity: 1;
+}
+
+/* Linha tracejada enquanto arrasta uma conexão (o vendor a pinta de preto) */
+.flowchart-temporary-link-layer line {
+    stroke: var(--or2) !important;
+    stroke-width: 3px !important;
 }
 
 .flowchart-link .flowchart-link-animation {

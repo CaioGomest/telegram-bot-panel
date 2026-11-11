@@ -7,7 +7,7 @@ window.__uploads = 0;
         const acao = (String(url).match(/action=([a-z_]+)/) || [])[1];
         switch (acao) {
             case 'limites_pagamento': return { sucesso: true, minimo: 1.5 };
-            case 'listar_grupos_usuario': return { sucesso: true, grupos: window.__grupos || [] };
+            case 'listar_grupos_usuario': return { sucesso: true, grupos: window.__grupos || [], fluxos_destino: window.__fluxos_destino || [] };
             case 'listar_bots': return { sucesso: true, bots: [] };
             case 'obter_fluxo': return { sucesso: true, fluxo: window.__fluxo };
             case 'resumo_fluxo': return { sucesso: true, resumo: { leads: 0, vips: 0, receita: 0 } };

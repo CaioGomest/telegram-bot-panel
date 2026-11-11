@@ -115,6 +115,34 @@ function montarUrlFiltroAdminDashboard(array $overrides = []): string
     return '?' . http_build_query($params);
 }
 
+// Vendas pagas do período (as mesmas dos cartões e do gráfico), em bloco paginado próprio (?pagina_vendas=). Filtro por faixa de data (usa o índice de criado_em).
+$faixa_vendas = match (true) {
+    $periodo === 'hoje' => 'v.criado_em >= CURDATE() AND v.criado_em < CURDATE() + INTERVAL 1 DAY',
+    $periodo === 'ontem' => 'v.criado_em >= CURDATE() - INTERVAL 1 DAY AND v.criado_em < CURDATE()',
+    $periodo === '7dias' => 'v.criado_em >= CURDATE() - INTERVAL 7 DAY',
+    $periodo === '30dias' => 'v.criado_em >= CURDATE() - INTERVAL 29 DAY',
+    $periodo === 'personalizado' && $datas_validas => "v.criado_em >= '$data_inicio' AND v.criado_em < '$data_fim' + INTERVAL 1 DAY",
+    default => '1=1',
+};
+require_once __DIR__ . '/../funcoes/gateways/_falhas.php';
+$por_pagina_vendas = 10;
+$total_vendas_lista = (int) $pdo->query("SELECT COALESCE(SUM(quantidade), 0) FROM metricas_horarias_admin WHERE 1=1 $where_data_metricas")->fetchColumn();
+$pagina_vendas = min(max(1, (int) ($_GET['pagina_vendas'] ?? 1)), max(1, (int) ceil($total_vendas_lista / $por_pagina_vendas)));
+$stmt = $pdo->query("SELECT v.id FROM vendas v WHERE v.status = 'pago' AND $faixa_vendas ORDER BY v.criado_em DESC LIMIT $por_pagina_vendas OFFSET " . (($pagina_vendas - 1) * $por_pagina_vendas));
+$ids_vendas = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+$vendas_lista = [];
+if ($ids_vendas) {
+    $vendas_lista = $pdo->query("SELECT v.id, v.criado_em, v.valor, v.comissao_admin, v.transacao_id, u.nome AS nome_usuario,
+            COALESCE(b.primeiro_nome, b.nome_usuario) AS nome_bot, g.titulo AS titulo_gateway
+        FROM vendas v JOIN bots b ON v.bot_id = b.id JOIN usuarios u ON b.id_usuario = u.id LEFT JOIN gateways g ON v.id_gateway = g.id
+        WHERE v.id IN (" . implode(',', $ids_vendas) . ") ORDER BY v.criado_em DESC")->fetchAll(PDO::FETCH_ASSOC);
+}
+$falhas_gateway = falhasGatewayPorTxid(array_column($vendas_lista, 'transacao_id'));
+if (pedidoDeBloco('vendas')) {
+    include __DIR__ . '/../parciais/lista_vendas_admin.php';
+    exit;
+}
+
 /**
  * "Todos os bots" lê de metricas_horarias_admin (cache pré-calculado por
  * cron/cron_metricas_admin.php) em vez de agregar 'vendas' ao vivo — a plataforma
@@ -406,6 +434,16 @@ if ($periodo === 'personalizado') {
                 <?php include __DIR__ . '/../parciais/lista_atividades.php'; ?>
                 <?php echo fimBlocoPaginado(); ?>
             </div>
+        </div>
+
+        <div class="painel" style="margin-top: 20px;">
+            <div class="painel-cabecalho">
+                <h2>Vendas do período</h2>
+                <span class="texto-suave"><?php echo number_format($total_vendas_lista, 0, ',', '.'); ?> <?php echo $total_vendas_lista === 1 ? 'venda paga' : 'vendas pagas'; ?></span>
+            </div>
+            <?php echo inicioBlocoPaginado('vendas'); ?>
+            <?php include __DIR__ . '/../parciais/lista_vendas_admin.php'; ?>
+            <?php echo fimBlocoPaginado(); ?>
         </div>
         </div>
     </main>

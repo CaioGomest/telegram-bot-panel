@@ -246,6 +246,19 @@ CREATE TABLE IF NOT EXISTS `chat_mensagens` (
   CONSTRAINT `chat_mensagens_ibfk_1` FOREIGN KEY (`bot_id`) REFERENCES `bots` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `gateway_falhas` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `id_usuario` int(11) NOT NULL,
+  `id_gateway` int(11) NOT NULL,
+  `txid_final` varchar(255) NOT NULL DEFAULT '',
+  `motivo` varchar(255) NOT NULL DEFAULT '',
+  `criado_em` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_gw_falha_txid` (`txid_final`),
+  KEY `idx_gw_falha_usuario` (`id_usuario`,`criado_em`),
+  KEY `idx_gw_falha_criado` (`criado_em`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `mensagens_agendadas` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `bot_id` int(11) NOT NULL,
@@ -784,3 +797,12 @@ SET FOREIGN_KEY_CHECKS = 1;
 INSERT INTO gateways (nome, titulo, ativo)
 SELECT 'omegapayments', 'OmegaPayments (Pix)', 0 FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM gateways WHERE nome = 'omegapayments');
+
+-- NxGate e WiinPay (item 96): linhas de gateway, desativadas até o admin ligar (o instalador e o "Atualizar Banco" criam a partir de funcoes/gateways/*.meta.php).
+INSERT INTO gateways (nome, titulo, ativo)
+SELECT 'nxgate', 'NxGate (Pix)', 0 FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM gateways WHERE nome = 'nxgate');
+
+INSERT INTO gateways (nome, titulo, ativo)
+SELECT 'wiinpay', 'WiinPay (Pix)', 0 FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM gateways WHERE nome = 'wiinpay');

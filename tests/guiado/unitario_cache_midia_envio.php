@@ -82,13 +82,13 @@ $boas = ['mensagem' => 'Bem-vindo', 'midia_tipo' => 'video', 'midia_path' => 'up
 
 // ---------- 1 vídeo nas boas-vindas, sem canal de cache ----------
 enviarBoasVindasBasico('TOKEN-A', 111, $boas, '', '');
-confere('1º /start (sem canal): sobe o arquivo (upload) com a legenda', metodosEnviados() === 'sendVideo' && arquivosEnviados() === 1 && ($GLOBALS['chamadas'][0]['p']['caption'] ?? '') === 'Bem-vindo');
+confere('1º /start (sem canal): sobe o arquivo (upload) sem legenda e o texto vai em seguida', metodosEnviados() === 'sendVideo,sendMessage' && arquivosEnviados() === 1 && !isset($GLOBALS['chamadas'][0]['p']['caption']) && ($GLOBALS['chamadas'][1]['p']['text'] ?? '') === 'Bem-vindo');
 confere('o file_id devolvido pelo Telegram fica guardado em disco', count(cacheNoDisco()) === 1 && array_values(cacheNoDisco())[0] === 'FID_video_1', json_encode(cacheNoDisco()));
 
 zerar();
 enviarBoasVindasBasico('TOKEN-A', 222, $boas, '', '');
-confere('2º /start, OUTRO lead: manda só o file_id, SEM subir o arquivo', metodosEnviados() === 'sendVideo' && arquivosEnviados() === 0 && ($GLOBALS['chamadas'][0]['p']['video'] ?? '') === 'FID_video_1' && ($GLOBALS['chamadas'][0]['p']['chat_id'] ?? 0) === 222);
-confere('a mensagem segue completa (legenda e o resto), só o upload sumiu', ($GLOBALS['chamadas'][0]['p']['caption'] ?? '') === 'Bem-vindo');
+confere('2º /start, OUTRO lead: manda só o file_id, SEM subir o arquivo', metodosEnviados() === 'sendVideo,sendMessage' && arquivosEnviados() === 0 && ($GLOBALS['chamadas'][0]['p']['video'] ?? '') === 'FID_video_1' && ($GLOBALS['chamadas'][0]['p']['chat_id'] ?? 0) === 222);
+confere('a mensagem segue completa (legenda e o resto), só o upload sumiu', ($GLOBALS['chamadas'][1]['p']['text'] ?? '') === 'Bem-vindo');
 
 zerar();
 enviarBoasVindasBasico('TOKEN-B', 333, $boas, '', '');
@@ -109,7 +109,7 @@ confere('e o novo também passa a vir do cache', arquivosEnviados() === 0);
 zerar();
 $GLOBALS['recusar_file_id'] = array_values(cacheNoDisco())[count(cacheNoDisco()) - 1];
 enviarBoasVindasBasico('TOKEN-A', 666, $boas, '', '');
-confere('file_id guardado recusado pelo Telegram: cai no upload e o lead recebe a mensagem mesmo assim', metodosEnviados() === 'sendVideo,sendVideo' && arquivosEnviados() === 1);
+confere('file_id guardado recusado pelo Telegram: cai no upload e o lead recebe a mensagem mesmo assim', metodosEnviados() === 'sendVideo,sendVideo,sendMessage' && arquivosEnviados() === 1);
 zerar();
 enviarBoasVindasBasico('TOKEN-A', 777, $boas, '', '');
 confere('e o file_id novo substitui o recusado (próximo lead já sai sem upload)', arquivosEnviados() === 0);
@@ -137,10 +137,10 @@ confere('álbum: o texto com os botões segue depois, como sempre', metodosEnvia
 // ---------- com canal de cache (o jeito antigo continua igual) ----------
 zerar();
 enviarBoasVindasBasico('TOKEN-D', 20, $boas, '-100999', '');
-confere('com canal: sobe UMA vez para o canal e manda o lead pelo file_id', metodosEnviados() === 'sendVideo,sendVideo' && ($GLOBALS['chamadas'][0]['p']['chat_id'] ?? 0) === '-100999' && arquivosEnviados() === 1);
+confere('com canal: sobe UMA vez para o canal e manda o lead pelo file_id', metodosEnviados() === 'sendVideo,sendVideo,sendMessage' && ($GLOBALS['chamadas'][0]['p']['chat_id'] ?? 0) === '-100999' && arquivosEnviados() === 1);
 zerar();
 enviarBoasVindasBasico('TOKEN-D', 21, $boas, '-100999', '');
-confere('com canal, próximos leads: só o file_id', metodosEnviados() === 'sendVideo' && arquivosEnviados() === 0);
+confere('com canal, próximos leads: só o file_id', metodosEnviados() === 'sendVideo,sendMessage' && arquivosEnviados() === 0);
 
 // ---------- mídia sumiu / robustez ----------
 zerar();

@@ -88,6 +88,22 @@ Regras para esta fase:
 - Nomenclatura em português deve ser mantida (é o padrão já usado no projeto: `verificarLogin`, `id_usuario`, etc.) — não traduzir para inglês.
 - **Limpeza contínua.** Sempre que for mexer em um arquivo, analisar se dá pra deixar mais limpo/organizado — mas só aplicar a mudança se não quebrar nada existente. Na dúvida, não arriscar.
 
+## Regra permanente de código (pedido do dono, 08/11/2026) — vale para TODA alteração, nova ou antiga
+
+- **Código limpo e o mínimo de alteração possível.** Mexer só no que o pedido exige; sem refatoração "de passagem", sem reformatar arquivo inteiro, sem tocar em comportamento que já funciona.
+- **Sempre priorizar escala.** Funcionalidade nova entra como peça plugável (um arquivo por gateway/integração/recurso, registrado numa lista), não como mais um `if`/`switch` espalhado por vários arquivos. Adicionar o próximo item (ex.: o 4º gateway) deve ser criar um arquivo e registrá-lo, sem editar a lógica central.
+- **Arquivos separados + `require_once` para tudo que se repete.** Nunca copiar bloco de código entre arquivos (webhooks, crons, telas): extrair para `funcoes/` e incluir com `require_once`. Se o mesmo trecho já existe em outro arquivo, reaproveitar em vez de duplicar.
+- Antes de criar função/arquivo novo, procurar (`grep`) se já existe algo equivalente.
+
+## Gateways de pagamento (item 96, 08/11/2026) — como adicionar um
+
+Gateways são peças plugáveis em `funcoes/gateways/` (detalhes, decisões e testes em `anotacoes/gateways.md`). **Gateway novo = 4 arquivos, sem editar a lógica central:**
+1. `funcoes/gateways/<nome>.php` — classe que `implements ProvedorGateway` (`_contrato.php`); fala com a rede só por `gatewayChamadaJson()` (`_http.php`).
+2. `funcoes/gateways/<nome>.meta.php` — registro: nome, título, fábrica, `credenciais_obrigatorias`, `campos` do formulário, `status_pagos`, `preco_minimo`, `aceita_recorrencia`, rótulos do split, letra/ícone. Tela, seed do banco ("Atualizar Banco"/instalador), status de pago e preço mínimo leem daqui.
+3. `webhook_<nome>.php` (raiz) — só lê o payload do gateway e chama `processarPagamentoGateway()` (`funcoes/pagamento_confirmado.php`); o pós-pagamento existe uma vez só. Suspensão e manutenção já reconhecem `webhook_<gateway>.php` pelo nome.
+4. Uma linha `INSERT ... WHERE NOT EXISTS` em `deploy/schema.sql` + teste em `tests/gateways/integracao/` (`node tests/gateways/integracao/rodar.js`, MariaDB do WAMP + APIs simuladas em `sim_gateways.php`).
+O Pix é gerado por `gerarPixComFallback()` na ordem escolhida pelo usuário (`usuarios_gateways.prioridade`, setas ↑/↓ em `gateways.php`): quem falha, não suporta a cobrança ou tem mínimo acima do valor é pulado. Pagamento nunca é liberado só pelo aviso do webhook: sempre reconsulta a API do gateway.
+
 ## Convenção de nomenclatura (PHP e JS)
 
 - **Funções: camelCase, em português.** Ex.: `atualizaUsuario()`, `verificarLogin()`, `calcularSplit()`.

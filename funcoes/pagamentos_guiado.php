@@ -511,7 +511,7 @@ function pagamentoEnviarAprovacao(PDO $pdo, string $token, array $venda, ?string
 function pagamentoEnviarMensagemEntrega(PDO $pdo, string $token, array $venda): bool
 {
     try {
-        $texto = trim((string) ($venda['mensagem_entrega'] ?? ''));
+        [$texto, $url_bot] = separarLinkBotMensagemEntrega(trim((string) ($venda['mensagem_entrega'] ?? '')));   // Bot/Taxa: texto + botão para o outro bot
         if ($texto === '') {
             return false;
         }
@@ -522,7 +522,7 @@ function pagamentoEnviarMensagemEntrega(PDO $pdo, string $token, array $venda): 
         if (trim($html) === '') {
             return false;
         }
-        $resposta = pagamentoEnviarTexto($token, $venda['id_telegram'], $html);
+        $resposta = pagamentoEnviarTexto($token, $venda['id_telegram'], $html, $url_bot !== '' ? [[['text' => '👉 Continuar', 'url' => $url_bot]]] : []);
         return (bool) ($resposta['ok'] ?? false);
     } catch (\Throwable $e) {
         error_log('[mensagem de entrega] ' . $e->getMessage());

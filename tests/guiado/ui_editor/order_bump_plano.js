@@ -85,7 +85,7 @@ const esp = (ms) => new Promise(r => setTimeout(r, ms));
         chk('plano de assinatura recorrente NÃO mostra o order bump personalizado', !(await visivel('#lista-planos .painel-plano:eq(1) .plano-bump')));
 
         await clicar(B + ' .pb-ativo');
-        chk('ligar abre o formulário e avisa que substitui o do fluxo', (await visivel(B + ' .pb-detalhes')) && /substitui o do fluxo/i.test(await js(`${q(B + ' .pb-dica')}.text()`)));
+        chk('ligar abre o formulário e avisa que substitui o do fluxo e que aparece ao escolher o plano, antes do Pix', (await visivel(B + ' .pb-detalhes')) && /substitui o do fluxo/i.test(await js(`${q(B + ' .pb-dica')}.text()`)) && /antes do Pix/i.test(await js(`${q(B + ' .pb-dica')}.text()`)));
         const rotulos = JSON.parse(await js(`JSON.stringify(${q(B + ' .pb-detalhes label')}.map(function(){ return this.textContent.trim(); }).get())`));
         chk('campos como na Shark: Nome, Preço, Descrição, Botão aceitar/recusar, CTA, Entrega e Mídias',
             ['Nome', 'Preço (R$)', 'Descrição', 'Botão aceitar', 'Botão recusar', 'Mensagem CTA (opcional)', 'Entrega do order bump', 'Mídias (até 3)'].every(r => rotulos.includes(r)), rotulos);

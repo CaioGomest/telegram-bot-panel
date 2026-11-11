@@ -17,8 +17,9 @@ declare(strict_types=1);
  * isso 100% pronto pra produção.
  */
 require_once __DIR__ . '/split_validacao.php';
+require_once __DIR__ . '/gateways/_contrato.php';
 
-class OmegaPaymentsBanco {
+class OmegaPaymentsBanco implements ProvedorGateway {
     private string $client_id;
     private string $client_secret;
     private string $base_url;
@@ -62,7 +63,8 @@ class OmegaPaymentsBanco {
             CURLOPT_URL            => $endpoint,
             CURLOPT_HTTPHEADER     => $headers,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT        => $method === 'POST' ? 15 : 30,   // criar cobrança falha rápido para o fallback tentar o próximo gateway
             CURLOPT_CUSTOMREQUEST  => $method,
         ];
         if ($body !== null) {

@@ -106,6 +106,8 @@ $vendas = [];
 if ($ids_pagina) {
     $vendas = $pdo->query($sql_campos . ' WHERE v.id IN (' . implode(',', $ids_pagina) . ') ORDER BY v.criado_em DESC, v.id DESC')->fetchAll(PDO::FETCH_ASSOC);
 }
+require_once __DIR__ . '/funcoes/gateways/_falhas.php';
+$falhas_gateway = falhasGatewayPorTxid(array_column($vendas, 'transacao_id'));   // quem falhou antes de o Pix sair (fallback de gateway)
 
 $params_link = $_GET;
 unset($params_link['pagina']);
@@ -201,6 +203,7 @@ $dinheiro = static fn(float $v): string => 'R$ ' . number_format($v, 2, ',', '.'
                         <th>Data</th>
                         <th>Cliente</th>
                         <th>Produto</th>
+                        <th>Gateway</th>
                         <th>Status</th>
                         <th class="num">Valor</th>
                         <th></th>
@@ -208,7 +211,7 @@ $dinheiro = static fn(float $v): string => 'R$ ' . number_format($v, 2, ',', '.'
                 </thead>
                 <tbody>
                     <?php if (empty($vendas)): ?>
-                        <tr><td colspan="6" class="full a-vazio-linha"><?php echo $tem_filtro ? 'Nenhuma venda encontrada com esses filtros.' : 'Nenhuma venda ainda. Quando alguém gerar um Pix no seu bot, ele aparece aqui.'; ?></td></tr>
+                        <tr><td colspan="7" class="full a-vazio-linha"><?php echo $tem_filtro ? 'Nenhuma venda encontrada com esses filtros.' : 'Nenhuma venda ainda. Quando alguém gerar um Pix no seu bot, ele aparece aqui.'; ?></td></tr>
                     <?php else: foreach ($vendas as $v):
                         $cliente = trim((string) ($v['nome_cliente'] ?? '')) ?: 'Cliente ' . $v['id_telegram'];
                         $produto = trim((string) ($v['nome_produto'] ?? ''));
@@ -230,6 +233,8 @@ $dinheiro = static fn(float $v): string => 'R$ ' . number_format($v, 2, ',', '.'
                             'paga_em' => $v['pago_em'] ? date('d/m/Y H:i', strtotime($v['pago_em'])) : '',
                             'valor' => $dinheiro((float) $v['valor']),
                             'codigo' => (string) ($v['transacao_id'] ?? ''),
+                            'gateway' => (string) ($v['titulo_gateway'] ?? ''),
+                            'falhas' => array_map(static fn(array $f): array => ['gateway' => $f['gateway'], 'motivo' => $f['motivo'], 'quando' => date('H:i', strtotime($f['quando']))], $falhas_gateway[(string) ($v['transacao_id'] ?? '')] ?? []),
                         ];
                     ?>
                         <tr>
@@ -244,6 +249,7 @@ $dinheiro = static fn(float $v): string => 'R$ ' . number_format($v, 2, ',', '.'
                                     <span class="a-bd<?php echo $tipo_v === 'recompra' ? '' : ' wa'; ?>"><?php echo $tipo_v === 'recompra' ? 'Recompra' : 'Renovação'; ?></span>
                                 <?php endif; ?>
                             </td>
+                            <td data-l="Gateway" class="o5"><?php $gw_v = trim((string) ($v['titulo_gateway'] ?? '')); echo $gw_v !== '' ? htmlspecialchars($gw_v) : '<span class="a-mut">&mdash;</span>'; ?></td>
                             <td data-l="Status" class="o4"><?php echo rotuloStatusVenda((string) $v['status']); ?></td>
                             <td class="num c-val"><?php echo $dinheiro((float) $v['valor']); ?></td>
                             <td class="act o6">
@@ -334,7 +340,14 @@ $dinheiro = static fn(float $v): string => 'R$ ' . number_format($v, 2, ',', '.'
             copiar.addEventListener('click', function () { navigator.clipboard.writeText(v.codigo).then(function () { copiar.textContent = 'Copiado'; setTimeout(function () { copiar.textContent = 'Copiar'; }, 1500); }); });
             cod.appendChild(copiar);
         }
-        secao('Transação', [campo('Código', cod, true)]);
+        var campos_transacao = [campo('Gateway', v.gateway || '—')];
+        if (v.falhas && v.falhas.length) {
+            var falhou = el('div');
+            v.falhas.forEach(function (f) { falhou.appendChild(el('div', '', f.gateway + ' — ' + f.motivo + ' (' + f.quando + ')')); });
+            campos_transacao.push(campo('Falhou antes', falhou, true));
+        }
+        campos_transacao.push(campo('Código', cod, true));
+        secao('Transação', campos_transacao);
         modal.classList.add('aberto'); modal.setAttribute('aria-hidden', 'false');
         document.getElementById('modal-venda-fechar').focus();
     }

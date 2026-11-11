@@ -152,7 +152,7 @@ require_once dirname(__DIR__, 2) . '/funcoes/pagamentos_guiado.php';   // propri
 foreach (['estiloBotaoBasicoValor', 'fileIdDaMidiaBasico', 'enviarMensagemComMidiaBasico', 'enviarBoasVindasBasico', 'enviarOfertaBasico', 'avancarOfertasBasico', 'planoDaOfertaBasico', 'localizarPlanoBasico', 'planoRecorrenteBasico', 'periodicidadePlanoBasico',
     'boasVindasMostraCtaBasico', 'enviarListaPlanosBasico', 'tecladoListaPlanosBasico', 'urlSuporteBasico', 'downsellNovoFormatoBasico', 'planosDoDownsellBasico', 'planosDaSequenciaDownsellBasico', 'ofertaDaPosicaoDownsellBasico', 'planosDoDownsellSemOEscolhidoBasico', 'downsellDepoisDoPixBasico',
     'planoDoDownsellPorVariante', 'enviarDownsellBasico', 'gerarPixBasico', 'executarFluxoBasico',
-    'midiasDoItemBasico', 'midiasBoasVindasBasico', 'enviarMidiaSoltaBasico', 'enviarAlbumBasico', 'enviarMensagemComMidiasBasico', 'itensOrderBumpBasico', 'orderBumpDepoisDoPixBasico', 'planoTemBumpProprioBasico', 'configOrderBumpDoPlanoBasico', 'entregaDoPixComBumpBasico'] as $f) {
+    'midiasDoItemBasico', 'midiasBoasVindasBasico', 'enviarMidiaSoltaBasico', 'enviarAlbumBasico', 'enviarMensagemComMidiasBasico', 'itensOrderBumpBasico', 'orderBumpDepoisDoPixBasico', 'orderBumpAntesDoPixBasico', 'comCtaOrderBumpBasico', 'textoPadraoOrderBumpBasico', 'planoTemBumpProprioBasico', 'configOrderBumpDoPlanoBasico', 'entregaDoPixComBumpBasico'] as $f) {
     eval(extrairFuncao($fonte, $f));
 }
 
@@ -203,7 +203,7 @@ chk('foto: o arquivo enviado é o de uploads/', ($c['arquivos']['photo'] ?? '') 
 echo "\n--- Oferta com vídeo\n";
 zerar();
 enviarOfertaBasico('T', 123, $oferta_base + ['midia_tipo' => 'video', 'midia_path' => 'uploads/v.mp4'], 'basico::of::bp::p1::o', 'padrão');
-chk('vídeo: 1 sendVideo com legenda, botões e o arquivo', metodos() === 'sendVideo' && ($GLOBALS['chamadas'][0]['p']['caption'] ?? '') === 'Leve o Anual!' && count(botoes($GLOBALS['chamadas'][0])) === 2 && isset($GLOBALS['chamadas'][0]['arquivos']['video']));
+chk('vídeo: vídeo sem legenda e, em seguida, o texto com os botões', metodos() === 'sendVideo,sendMessage' && ($GLOBALS['chamadas'][1]['p']['text'] ?? '') === 'Leve o Anual!' && count(botoes($GLOBALS['chamadas'][1])) === 2 && isset($GLOBALS['chamadas'][0]['arquivos']['video']));
 
 echo "\n--- Legenda grande, mídia recusada, caminho ruim\n";
 zerar();
@@ -256,7 +256,7 @@ enviarBoasVindasBasico('T', 123, ['mensagem' => '']);
 chk('boas-vindas sem nada: sendMessage "Bem-vindo(a)!" com o botão "Ver Planos"', metodos() === 'sendMessage' && ($GLOBALS['chamadas'][0]['p']['text'] ?? '') === 'Bem-vindo(a)!' && botoes($GLOBALS['chamadas'][0])[0]['text'] === 'Ver Planos');
 zerar();
 enviarBoasVindasBasico('T', 123, ['mensagem' => 'Oi!', 'midia_tipo' => 'video', 'midia_path' => 'uploads/v.mp4'], '-100999');
-chk('boas-vindas com vídeo e canal de cache: sendVideo com file_id', metodos() === 'sendVideo' && ($GLOBALS['chamadas'][0]['p']['video'] ?? '') === 'FILEID_video');
+chk('boas-vindas com vídeo e canal de cache: sendVideo com file_id', metodos() === 'sendVideo,sendMessage' && ($GLOBALS['chamadas'][0]['p']['video'] ?? '') === 'FILEID_video');
 
 echo "\n--- A jornada inteira: cada oferta sai com a MÍDIA DELA\n";
 $dados = [
@@ -270,11 +270,46 @@ $dados = [
 ];
 zerar();
 avancarOfertasBasico('T', 123, $dados, 'up', 'p1');
-$c = $GLOBALS['chamadas'][0] ?? [];
-chk('escolheu o plano: o Upsell NÃO sai antes do Pix (agora é oferecido depois do pagamento); o que aparece é o Downsell, como vídeo (dn.mp4) com legenda DN', ($c['metodo'] ?? '') === 'sendVideo' && ($c['p']['caption'] ?? '') === 'DN' && count(botoes($c)) === 2 && ($GLOBALS['cache_chamadas'][0][2] ?? '') === '/var/www/painel/uploads/dn.mp4', json_encode($c));
+$c = $GLOBALS['chamadas'][1] ?? [];
+chk('escolheu o plano: o Upsell NÃO sai antes do Pix (agora é oferecido depois do pagamento); o que aparece é o Downsell, como vídeo (dn.mp4) com legenda DN', ($c['metodo'] ?? '') === 'sendMessage' && ($GLOBALS['chamadas'][0]['metodo'] ?? '') === 'sendVideo' && ($c['p']['text'] ?? '') === 'DN' && count(botoes($c)) === 2 && ($GLOBALS['cache_chamadas'][0][2] ?? '') === '/var/www/painel/uploads/dn.mp4', json_encode($c));
 zerar();
 avancarOfertasBasico('T', 123, $dados, 'bp', 'p1', 'o');
 chk('o Order Bump também NÃO sai antes do Pix (depois do pagamento): vai direto para o Pix', metodos() === 'PIX', metodos());
+// Order bump PROPRIO do plano (06/11/2026): a oferta sai logo que o cliente escolhe o plano, antes do Pix
+$dados_bp = $dados;
+$dados_bp['planos'][0]['order_bump'] = ['ativo' => true, 'nome' => 'Pack extra', 'valor_extra' => 3.9, 'mensagem' => 'Leve o pack'];
+zerar();
+avancarOfertasBasico('T', 123, $dados_bp, 'bp', 'p1', 'o');
+$c = $GLOBALS['chamadas'][0] ?? [];
+chk('plano com order bump próprio: ao escolher o plano sai a oferta (não o Pix), com os botões ADICIONAR / NÃO QUERO', metodos() !== 'PIX' && str_contains(json_encode($c, JSON_UNESCAPED_UNICODE), 'Leve o pack') && str_contains(json_encode($c, JSON_UNESCAPED_UNICODE), 'basico::of::bpp::p1::1') && str_contains(json_encode($c, JSON_UNESCAPED_UNICODE), 'basico::of::bpp::p1::0') && str_contains(json_encode($c, JSON_UNESCAPED_UNICODE), 'ADICIONAR'), metodos());
+// Order bump do FLUXO com quando = antes_pix (06/11/2026): mesma coisa para os planos sem bump próprio
+$dados_fx = $dados;
+$dados_fx['ofertas']['order_bump'] = ['ativo' => true, 'quando' => 'antes_pix', 'nome' => 'Guia VIP', 'valor_extra' => 9.9, 'mensagem' => 'Leve o guia'];
+zerar();
+avancarOfertasBasico('T', 123, $dados_fx, 'bp', 'p1', 'o');
+$c = $GLOBALS['chamadas'][0] ?? [];
+chk('order bump do fluxo "antes do Pix": ao escolher o plano sai a oferta (não o Pix), com callback bpp', metodos() !== 'PIX' && str_contains(json_encode($c, JSON_UNESCAPED_UNICODE), 'Leve o guia') && str_contains(json_encode($c, JSON_UNESCAPED_UNICODE), 'basico::of::bpp::p1::1'), metodos());
+zerar();
+executarFluxoBasico('T', 123, $dados_fx, 'basico::of::bpp::p1::1');
+$px = $GLOBALS['chamadas'][0]['p'] ?? [];
+chk('...aceitou: Pix de plano + extra (19,90 + 9,90) com "+ Guia VIP" no nome', metodos() === 'PIX' && abs((float) ($px['valor'] ?? 0) - round((float) $dados_fx['planos'][0]['valor'] + 9.9, 2)) < 0.001 && str_contains((string) ($px['nome'] ?? ''), '+ Guia VIP'), json_encode($px, JSON_UNESCAPED_UNICODE));
+zerar();
+executarFluxoBasico('T', 123, $dados_fx, 'basico::of::bpp::p1::0');
+$px = $GLOBALS['chamadas'][0]['p'] ?? [];
+chk('...recusou: Pix só do plano', metodos() === 'PIX' && abs((float) ($px['valor'] ?? 0) - (float) $dados_fx['planos'][0]['valor']) < 0.001 && !str_contains((string) ($px['nome'] ?? ''), '+'), json_encode($px, JSON_UNESCAPED_UNICODE));
+$dados_fx_dp = $dados;
+$dados_fx_dp['ofertas']['order_bump'] = ['ativo' => true, 'quando' => 'depois_pagamento', 'nome' => 'Guia VIP', 'valor_extra' => 9.9];
+zerar();
+avancarOfertasBasico('T', 123, $dados_fx_dp, 'bp', 'p1', 'o');
+chk('order bump do fluxo "depois de pagar": segue direto para o Pix, como sempre', metodos() === 'PIX', metodos());
+zerar();
+executarFluxoBasico('T', 123, $dados_bp, 'basico::of::bpp::p1::1');
+$px = $GLOBALS['chamadas'][0]['p'] ?? [];
+chk('aceitou o order bump do plano: o Pix é de plano + extra (19,90 + 3,90 = 23,80), com o nome "Plano + Pack extra"', metodos() === 'PIX' && abs((float) ($px['valor'] ?? 0) - round((float) $dados_bp['planos'][0]['valor'] + 3.9, 2)) < 0.001 && str_contains((string) ($px['nome'] ?? ''), '+ Pack extra'), json_encode($px, JSON_UNESCAPED_UNICODE));
+zerar();
+executarFluxoBasico('T', 123, $dados_bp, 'basico::of::bpp::p1::0');
+$px = $GLOBALS['chamadas'][0]['p'] ?? [];
+chk('recusou o order bump do plano: o Pix é só do plano', metodos() === 'PIX' && abs((float) ($px['valor'] ?? 0) - (float) $dados_bp['planos'][0]['valor']) < 0.001 && !str_contains((string) ($px['nome'] ?? ''), '+'), json_encode($px, JSON_UNESCAPED_UNICODE));
 zerar();
 enviarOfertaBasico('T', 123, $dados['ofertas']['upsell'], 'basico::pos::up::p2', 'texto padrão', '-100999', true);
 $c = $GLOBALS['chamadas'][0] ?? [];
@@ -396,7 +431,7 @@ executarFluxoBasico('T', 123, $dados, 'basico::of::bp::p1::d::0');
 chk('Pix do downsell antigo (variante "d"): plano Semanal R$ 8,00', abs(($GLOBALS['chamadas'][0]['p']['valor'] ?? 0) - 8.0) < 0.001 && ($GLOBALS['chamadas'][0]['p']['nome'] ?? '') === 'Semanal');
 zerar();
 avancarOfertasBasico('T', 123, $dados, 'dn', 'p1');
-chk('downsell antigo continua saindo com Aceitar e Recusar', count(tecladoDe($GLOBALS['chamadas'][0] ?? [])[0] ?? []) === 2);
+chk('downsell antigo continua saindo com Aceitar e Recusar', count(tecladoDe($GLOBALS['chamadas'][1] ?? [])[0] ?? []) === 2);
 
 
 echo "\n--- ENTREGA no Pix: plano, Downsell e Upsell aceitos (grupo, link ou nada)\n";
@@ -542,6 +577,17 @@ $dados_cta['boas_vindas']['mostrar_cta'] = true;
 zerar();
 executarFluxoBasico('T', 123, $dados_cta, '/start');
 chk('CTA ligado: o /start manda só a mensagem com o botão (a lista só vem ao tocar nele)', metodos() === 'sendMessage' && (botoes($GLOBALS['chamadas'][0])[0]['callback_data'] ?? '') === 'basico::ver_planos');
+// Texto da lista de planos (07/11/2026): vazio = "Escolha um plano:"; preenchido = o do dono (até 200 caracteres)
+$ultimo = fn() => $GLOBALS['chamadas'][count($GLOBALS['chamadas']) - 1] ?? [];
+zerar();
+enviarListaPlanosBasico('T', 123, $dados_cta['planos']);
+chk('lista de planos sem texto próprio: "Escolha um plano:"', ($ultimo()['p']['text'] ?? '') === 'Escolha um plano:');
+zerar();
+enviarListaPlanosBasico('T', 123, $dados_cta['planos'], '', '', [], [], '  👇 Toque no plano  ');
+chk('lista de planos com texto próprio: manda o texto do dono, sem as pontas, com os mesmos botões', ($ultimo()['p']['text'] ?? '') === '👇 Toque no plano' && substr_count((string) ($ultimo()['p']['reply_markup'] ?? ''), 'basico::plano::') === 3);
+zerar();
+enviarListaPlanosBasico('T', 123, $dados_cta['planos'], '', '', [], [], str_repeat('a', 500));
+chk('texto da lista passa de 200 caracteres: é cortado em 200', mb_strlen((string) ($ultimo()['p']['text'] ?? '')) === 200);
 $dados_cta['boas_vindas']['mostrar_cta'] = false;
 $dados_cta['planos'] = [];
 zerar();
@@ -635,7 +681,7 @@ chk('Downsell com 2 mídias: álbum e depois a mensagem com 1 botão por plano m
 $dados_dn['ofertas']['downsell']['midias'] = [['tipo' => 'video', 'path' => 'uploads/d1.mp4']];
 zerar();
 avancarOfertasBasico('T', 123, $dados_dn, 'dn', 'p2');
-chk('Downsell com 1 mídia: como sempre (vídeo com legenda e os botões dos planos)', metodos() === 'sendVideo' && ($GLOBALS['chamadas'][0]['p']['caption'] ?? '') === 'DN3' && count(tecladoDe($GLOBALS['chamadas'][0])) === 2);
+chk('Downsell com 1 mídia: como sempre (vídeo com legenda e os botões dos planos)', metodos() === 'sendVideo,sendMessage' && ($GLOBALS['chamadas'][1]['p']['text'] ?? '') === 'DN3' && count(tecladoDe($GLOBALS['chamadas'][1])) === 2);
 chk('midiasDoItemBasico vale para qualquer item: lista tem prioridade sobre o par antigo e o limite é 10', midiasDoItemBasico(['midias' => [['tipo' => 'video', 'path' => 'uploads/x.mp4']], 'midia_tipo' => 'image', 'midia_path' => 'uploads/velha.jpg']) === [['tipo' => 'video', 'path' => 'uploads/x.mp4']]
     && count(midiasDoItemBasico(['midias' => array_fill(0, 15, ['tipo' => 'image', 'path' => 'uploads/f.jpg'])])) === 10 && midiasDoItemBasico([]) === []);
 zerar();

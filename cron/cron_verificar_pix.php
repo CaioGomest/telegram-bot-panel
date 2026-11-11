@@ -151,7 +151,7 @@ foreach ($vendas_pendentes as $venda) {
         $resp = $provedor->consultarCobranca($venda['transacao_id']);
         $status_pagamento = strtoupper(trim($resp['dados']['status'] ?? $resp['dados']['statusCob'] ?? ''));
 
-        if ($resp['sucesso'] && in_array($status_pagamento, ['CONCLUIDA', 'PAGO', 'LIQUIDADO', 'PAID', 'APPROVED', 'COMPLETED'])) {
+        if ($resp['sucesso'] && gatewayStatusPago((string) $nome_gateway, $status_pagamento)) {
             // Transição atômica: só segue quem realmente ganha a corrida contra o
             // webhook do gateway ou o botão manual "Já fiz o pagamento" confirmando
             // a mesma venda ao mesmo tempo — evita processar a confirmação duas vezes.

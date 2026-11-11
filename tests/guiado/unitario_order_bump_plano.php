@@ -62,19 +62,22 @@ $sem_valor['order_bump']['valor_extra'] = 0;
 confere('bump do plano ligado com preço zero: nenhum item (não cai no do fluxo)', itensOrderBumpBasico($dados, $sem_valor) === []);
 
 // ---------- quando enviar e quanto espera ----------
-confere('plano A com fluxo "depois do Pix": o bump do plano também sai depois do Pix', orderBumpDepoisDoPixBasico($dados, $plano_a));
+confere('plano A com fluxo "depois do Pix": o bump do plano sai ANTES do Pix (ao escolher o plano), não depois', !orderBumpDepoisDoPixBasico($dados, $plano_a) && (orderBumpAntesDoPixBasico($dados, $plano_a)['nome'] ?? '') === 'Pack extra');
 $cfg = configOrderBumpDoPlanoBasico($dados, $plano_a);
 confere('espera do plano herda a do fluxo (7 min)', esperaOrderBumpBasico($cfg['itens'][0]) === 7, (string) esperaOrderBumpBasico($cfg['itens'][0]));
 $dados_pos = $dados;
 $dados_pos['ofertas']['order_bump']['quando'] = 'depois_pagamento';
-confere('fluxo "depois de pagar": o bump do plano também sai depois de pagar', !orderBumpDepoisDoPixBasico($dados_pos, $plano_a));
+confere('fluxo "depois de pagar": o bump do plano continua antes do Pix', !orderBumpDepoisDoPixBasico($dados_pos, $plano_a) && orderBumpAntesDoPixBasico($dados_pos, $plano_a) !== null);
 $dados_sem_fluxo = ['planos' => [$plano_a], 'ofertas' => []];
-confere('fluxo sem order bump: o do plano sai depois do Pix mesmo assim', orderBumpDepoisDoPixBasico($dados_sem_fluxo, $plano_a));
+confere('fluxo sem order bump: o do plano sai antes do Pix mesmo assim', orderBumpAntesDoPixBasico($dados_sem_fluxo, $plano_a) !== null);
 $cfg2 = configOrderBumpDoPlanoBasico($dados_sem_fluxo, $plano_a);
 confere('... com a espera padrão (10 min)', esperaOrderBumpBasico($cfg2['itens'][0]) === ORDER_BUMP_ESPERA_PADRAO_MINUTOS);
 $dados_fluxo_off = $dados;
 $dados_fluxo_off['ofertas']['order_bump']['ativo'] = false;
-confere('fluxo com order bump DESLIGADO: plano B não tem bump nenhum', !orderBumpDepoisDoPixBasico($dados_fluxo_off, $plano_b) && orderBumpDepoisDoPixBasico($dados_fluxo_off, $plano_a));
+confere('fluxo com order bump DESLIGADO: plano B não tem bump nenhum e o plano A segue antes do Pix', orderBumpAntesDoPixBasico($dados_fluxo_off, $plano_b) === null && orderBumpAntesDoPixBasico($dados_fluxo_off, $plano_a) !== null);
+$plano_dp = $plano_a; $plano_dp['order_bump']['quando'] = 'depois_pix';
+confere('bump do plano com quando=depois_pix escrito: segue depois do Pix', orderBumpDepoisDoPixBasico($dados, $plano_dp) && orderBumpAntesDoPixBasico($dados, $plano_dp) === null);
+confere('plano recorrente: nunca oferece antes do Pix', orderBumpAntesDoPixBasico($dados, $plano_rec) === null);
 
 // ---------- texto da oferta ----------
 $oferta = comCtaOrderBumpBasico($itens_a[0]);

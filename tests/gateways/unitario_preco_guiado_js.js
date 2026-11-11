@@ -14,32 +14,32 @@ const base = (planos, ofertas, packs) => ({ planos: planos, ofertas: ofertas || 
 
 const v21 = montar(2.1), v15 = montar(1.5);
 confere('planos acima do mínimo passam', v21(base([{ id: 'a', nome: 'Mensal', valor: 20 }, { id: 'b', nome: 'Semanal', valor: 3 }])) === '');
-confere('plano de R$ 1,00 com mínimo de R$ 2,10: frase única, só com o mínimo', v21(base([{ id: 'a', nome: 'X', valor: 1 }])) === 'Para a Omega, o valor mínimo é R$ 2,10.');
-confere('pack de R$ 1,00 recusa com a frase única', v21(base([{ id: 'a', nome: 'X', valor: 20 }], null, { ativo: true, itens: [{ nome: 'P', preco: 1, ativo: true }] })) === 'Para a Omega, o valor mínimo é R$ 2,10.');
+confere('plano de R$ 1,00 com mínimo de R$ 2,10: frase única, só com o mínimo', v21(base([{ id: 'a', nome: 'X', valor: 1 }])) === 'Para os gateways ativos, o valor mínimo é R$ 2,10.');
+confere('pack de R$ 1,00 recusa com a frase única', v21(base([{ id: 'a', nome: 'X', valor: 20 }], null, { ativo: true, itens: [{ nome: 'P', preco: 1, ativo: true }] })) === 'Para os gateways ativos, o valor mínimo é R$ 2,10.');
 confere('mínimo ainda não carregado (0): não bloqueia', montar(0)(base([{ id: 'a', nome: 'X', valor: 1 }])) === '');
 // caso do dono: plano 1,50 passa sozinho, o Upsell com 1% sai por 1,49
 const dono = base([{ id: 'p', nome: '1', valor: 1.5 }], { upsell: { ativo: true, id_plano_destino: 'p', desconto_percentual: 1 }, downsell: {} });
 confere('plano de R$ 1,50 sozinho passa com mínimo de R$ 1,50', v15(base([{ id: 'p', nome: '1', valor: 1.5 }])) === '');
-confere('plano de R$ 1,50 + Upsell com 1%: a mensagem diz que o Upsell, com o desconto, sai por R$ 1,49', v15(dono) === 'Para a Omega, o valor mínimo é R$ 1,50. O Upsell, com 1% de desconto, sai por R$ 1,49.', v15(dono));
+confere('plano de R$ 1,50 + Upsell com 1%: a mensagem diz que o Upsell, com o desconto, sai por R$ 1,49', v15(dono) === 'Para os gateways ativos, o valor mínimo é R$ 1,50. O Upsell, com 1% de desconto, sai por R$ 1,49.', v15(dono));
 dono.ofertas.upsell.desconto_percentual = 0;
 confere('o mesmo Upsell sem desconto passa', v15(dono) === '');
 // Downsell com vários planos: mostra o pior (menor preço) uma vez só
 const dn = base([{ id: 'a', nome: 'Mensal', valor: 20 }, { id: 'b', nome: 'Semanal', valor: 3 }], { upsell: {}, downsell: { ativo: true, planos_oferecidos: ['a', 'b'], desconto_percentual: 50 } });
-confere('Downsell com 2 planos: só o Semanal com 50% (R$ 1,50) fica abaixo; frase extra com o desconto e o valor', v21(dn) === 'Para a Omega, o valor mínimo é R$ 2,10. O Downsell, com 50% de desconto, sai por R$ 1,50.', v21(dn));
+confere('Downsell com 2 planos: só o Semanal com 50% (R$ 1,50) fica abaixo; frase extra com o desconto e o valor', v21(dn) === 'Para os gateways ativos, o valor mínimo é R$ 2,10. O Downsell, com 50% de desconto, sai por R$ 1,50.', v21(dn));
 // desconto em valor fixo (04/11/2026): a frase extra diz o desconto em reais; fixo maior que o plano zera o valor e também recusa
 const dnf = base([{ id: 'a', nome: 'Mensal', valor: 20 }, { id: 'b', nome: 'Semanal', valor: 3 }], { upsell: {}, downsell: { ativo: true, planos_oferecidos: ['a', 'b'], desconto_tipo: 'fixo', desconto_valor: 1.5, desconto_percentual: 0 } });
-confere('Downsell com desconto fixo de R$ 1,50: o Semanal (R$ 3,00) sai por R$ 1,50; a frase diz o desconto em reais', v21(dnf) === 'Para a Omega, o valor mínimo é R$ 2,10. O Downsell, com R$ 1,50 de desconto, sai por R$ 1,50.', v21(dnf));
+confere('Downsell com desconto fixo de R$ 1,50: o Semanal (R$ 3,00) sai por R$ 1,50; a frase diz o desconto em reais', v21(dnf) === 'Para os gateways ativos, o valor mínimo é R$ 2,10. O Downsell, com R$ 1,50 de desconto, sai por R$ 1,50.', v21(dnf));
 dnf.ofertas.downsell.planos_oferecidos = ['a'];
 confere('desconto fixo de R$ 1,50 só no Mensal (R$ 20,00 vira R$ 18,50) passa', v21(dnf) === '');
 dnf.ofertas.downsell.desconto_valor = 25;
 confere('desconto fixo maior que o plano (R$ 25,00 num plano de R$ 20,00) zera o valor e recusa', v21(dnf) !== '', v21(dnf));
 // plano já abaixo + desconto: só a frase curta (o desconto não é o culpado)
 const baixo = base([{ id: 'p', nome: 'x', valor: 1 }], { upsell: { ativo: true, id_plano_destino: 'p', desconto_percentual: 10 }, downsell: {} });
-confere('plano já abaixo do mínimo + Upsell com desconto: só a frase curta', v15(baixo) === 'Para a Omega, o valor mínimo é R$ 1,50.', v15(baixo));
+confere('plano já abaixo do mínimo + Upsell com desconto: só a frase curta', v15(baixo) === 'Para os gateways ativos, o valor mínimo é R$ 1,50.', v15(baixo));
 
 // Downsell em sequência e planos criados no Downsell (item 38): espelha o lado servidor
 const dnb = (downsell) => base([{ id: 'a', nome: 'Mensal', valor: 20 }, { id: 'b', nome: 'Semanal', valor: 3 }], { upsell: {}, downsell: Object.assign({ ativo: true, planos_oferecidos: [], quando: 'depois_pix' }, downsell) });
-const MSG21 = 'Para a Omega, o valor mínimo é R$ 2,10.';
+const MSG21 = 'Para os gateways ativos, o valor mínimo é R$ 2,10.';
 confere('plano criado no Downsell de R$ 1,00 recusa só com o mínimo', v21(dnb({ criar_planos: true, planos_proprios: [{ nome: 'Relâmpago', valor: 1 }] })) === MSG21);
 confere('plano criado de R$ 2,50 passa mesmo com 50% de desconto no JSON (o preço é o digitado)', v21(dnb({ criar_planos: true, desconto_percentual: 50, planos_proprios: [{ nome: 'R', valor: 2.5 }] })) === '');
 confere('com "Criar planos" ligado, o plano marcado e escondido (Semanal com 50%) não entra na conta', v21(dnb({ criar_planos: true, planos_oferecidos: ['b'], desconto_percentual: 50, planos_proprios: [{ nome: 'X', valor: 9 }] })) === '');
@@ -52,9 +52,9 @@ confere('plano criado na 2ª sequência de R$ 1,00 recusa', v21(seq2) === MSG21)
 
 // Upsell em sequência (06/11/2026): os upsells extras também entram na conta (plano da lista com desconto, ou plano criado só para ele)
 const upx = (extras, ativo) => base([{ id: 'a', nome: 'Mensal', valor: 20 }, { id: 'b', nome: 'Semanal', valor: 3 }], { upsell: { ativo: ativo !== false, id_plano_destino: 'a', desconto_percentual: 0, sequencias_extras: extras }, downsell: {} });
-confere('Upsell 2 com plano criado de R$ 1,00 e mínimo de R$ 2,10: recusa', v21(upx([{ id_plano_destino: 'up_exclusivo', plano_proprio: { nome: 'X', valor: 1 } }])) === 'Para a Omega, o valor mínimo é R$ 2,10.');
+confere('Upsell 2 com plano criado de R$ 1,00 e mínimo de R$ 2,10: recusa', v21(upx([{ id_plano_destino: 'up_exclusivo', plano_proprio: { nome: 'X', valor: 1 } }])) === 'Para os gateways ativos, o valor mínimo é R$ 2,10.');
 confere('Upsell 2 com plano criado de R$ 5,00 passa', v21(upx([{ id_plano_destino: 'up_exclusivo', plano_proprio: { nome: 'X', valor: 5 } }])) === '');
-confere('Upsell 2 com o Semanal (R$ 3,00) e 50% de desconto sai por R$ 1,50 e recusa', v21(upx([{ id_plano_destino: 'b', desconto_percentual: 50 }])).indexOf('Para a Omega, o valor mínimo é R$ 2,10.') === 0);
+confere('Upsell 2 com o Semanal (R$ 3,00) e 50% de desconto sai por R$ 1,50 e recusa', v21(upx([{ id_plano_destino: 'b', desconto_percentual: 50 }])).indexOf('Para os gateways ativos, o valor mínimo é R$ 2,10.') === 0);
 confere('Upsell 2 sem desconto passa', v21(upx([{ id_plano_destino: 'b', desconto_percentual: 0 }])) === '');
 confere('com o Upsell 1 desligado os extras não são conferidos', v21(upx([{ id_plano_destino: 'up_exclusivo', plano_proprio: { nome: 'X', valor: 1 } }], false)) === '');
 

@@ -642,6 +642,8 @@ html.layout-a .status-gateway.pendente { color: var(--wat); }
 
 html.layout-a .icone-gateway-omegapayments { background: linear-gradient(135deg, #7c3aed, #4c1d95); }
 html.layout-a .icone-gateway-padrao { background: linear-gradient(135deg, #4b5563, #1f2937); }
+html.layout-a .icone-gateway-nxgate { background: url('../img/gateways/nxgate-marca.png') center / cover no-repeat, #1a1033; color: transparent; }
+html.layout-a .icone-gateway-wiinpay { background: url('../img/gateways/wiinpay-marca.png') center / cover no-repeat, #2e1065; color: transparent; }
 /* traqueamento: campos da plataforma desligada ficavam a 50% de opacidade (rótulos quase invisíveis) */
 /* resumo de Vendas no celular: o 1º cartão já ocupa a linha toda; o último também, senão sobrava um buraco ao lado dele */
 @media (max-width: 640px) { html.layout-a #resumo-vendas > .s3:last-child { grid-column: span 2; } }
@@ -702,6 +704,8 @@ html.layout-a .a-prem .tg { color: var(--m); }
 html.layout-a .a-prem .tg.um { color: var(--ort); }
 html.layout-a .a-prem p.a-mut { margin-bottom: 0; }
 html.layout-a[data-theme] .icone-gateway-omegapayments { background: url('../img/gateways/omegapay-marca.png') center / 56% no-repeat, linear-gradient(135deg, #5b21b6, #2e1065); color: transparent; }
+html.layout-a[data-theme] .icone-gateway-nxgate { background: url('../img/gateways/nxgate-marca.png') center / cover no-repeat, #1a1033; color: transparent; }
+html.layout-a[data-theme] .icone-gateway-wiinpay { background: url('../img/gateways/wiinpay-marca.png') center / cover no-repeat, #2e1065; color: transparent; }
 
 /* ===== Menu do celular em GAVETA lateral (pedido do cliente, 21/10/2026): painel à direita com cabeçalho (logo, nome, "MENU", fechar), grupos com linhas de largura total, usuário e "Sair" fixos no rodapé ===== */
 @media (max-width: 900px) {

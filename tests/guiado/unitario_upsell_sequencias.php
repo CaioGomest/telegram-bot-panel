@@ -206,5 +206,14 @@ $ok_fx = [valorComDescontoDaOfertaBasico($fx, 20.0) === 15.0, valorComDescontoDa
     valorComDescontoDaOfertaBasico(['id_plano_destino' => 'a', 'desconto_percentual' => 50], 20.0) === 10.0];
 confere("desconto fixo no upsell", $ok_fx === [true, true, true, true, true], json_encode($ok_fx));
 
+// Esconder o botão de recusar também nos upsells 2 em diante (06/11/2026, pedido do cliente)
+$f_esc = fluxo($pdo, ['upsell' => $up1 + ['sequencias_extras' => [$up2 + ['esconder_recusar' => true], $up3]]]);
+limpar();
+ofertasPosPagamentoBasico($pdo, 'TOKEN', venda($f_esc, 'Upgrade: Vitalício'));
+confere('Upsell 2 com "esconder recusar": só o botão aceitar vai para o cliente', botoes(0) === ['basico::pos::u2::up_exclusivo_2::1'], json_encode(botoes(0)));
+limpar();
+ofertasPosPagamentoBasico($pdo, 'TOKEN', venda($f, 'Upgrade: Vitalício'));
+confere('Upsell 2 sem a opção: os dois botões, como antes', count(botoes(0)) === 2, json_encode(botoes(0)));
+
 echo PHP_EOL . "$ok ok, $falhas falha(s)" . PHP_EOL;
 exit($falhas > 0 ? 1 : 0);

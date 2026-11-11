@@ -13,7 +13,7 @@ function sqlCamposVendasLista(bool $tem_nome_produto, bool $tem_id_fluxo): strin
            COALESCE(b.primeiro_nome, b.nome_usuario) AS nome_bot,
            (SELECT l.nome FROM leads l WHERE l.bot_id = v.bot_id AND l.id_telegram = v.id_telegram ORDER BY l.id DESC LIMIT 1) AS nome_cliente,
            (SELECT l.nome_usuario_telegram FROM leads l WHERE l.bot_id = v.bot_id AND l.id_telegram = v.id_telegram ORDER BY l.id DESC LIMIT 1) AS username,
-           v.venda_pai_id,
+           v.venda_pai_id, (SELECT g.titulo FROM gateways g WHERE g.id = v.id_gateway) AS titulo_gateway,
            -- Cliente que já tinha uma compra paga ANTES desta (índice idx_vendas_lookup): mesma coisa de novo = renovação; outra coisa = recompra.
            EXISTS (SELECT 1 FROM vendas p WHERE p.id_telegram = v.id_telegram AND p.bot_id = v.bot_id AND p.status = 'pago' AND p.id < v.id) AS ja_comprou,
            EXISTS (SELECT 1 FROM vendas p WHERE p.id_telegram = v.id_telegram AND p.bot_id = v.bot_id AND p.status = 'pago' AND p.id < v.id

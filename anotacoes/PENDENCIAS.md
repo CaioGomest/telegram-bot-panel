@@ -114,3 +114,9 @@
 - **Mapa de leads por estado** (pausado): o Telegram não expõe IP; só daria com um redirecionador HTTP próprio capturando IP antes do bot.
 - **Bloco Condição** no Visual (`clicked_button`, `paid`, `not_paid`, saídas sim/não) — reaproveita o que o Pix já resolve.
 - **Entrada do usuário / Condição com tempo** ("respondeu / não respondeu"): tabela `leads_estado_fluxo` (bot, lead, nó esperando, tipo, variável, `expira_em`; um lead espera uma coisa por vez), coluna `leads.variaveis_fluxo` (JSON, usado como `{variavel}` nos textos), checagem no início do `webhook.php` e cron novo de timeouts (1 min).
+
+## Gateways NxGate/WiinPay (item 96, 09/11/2026) — feito no PC, falta
+- **Revisar as decisões D1-D22** em `anotacoes/gateways.md` (seção 3) e aprovar/trocar.
+- **Testar com chave de verdade**: NxGate (sandbox `nxg_test_`) e WiinPay (mín. R$ 3,00; conferir corpo real da resposta e do webhook, ajustar a leitura tolerante se vier diferente).
+- **Publicar** (só com autorização): fusão de 3 vias na VPS, depois Atualizar Banco, admin liga os gateways, "URL do painel" configurada.
+- Logos de NxGate e WiinPay (hoje letras N/W coloridas); trocar "Para a Omega, o valor mínimo..." por texto genérico (mexe em ~20 testes); mínimo por usuário também em `execucao_fluxo.php`, `remarketing_campanhas.php` e `assinatura.php`.

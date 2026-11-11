@@ -4,6 +4,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/../conexao.php';
 require_once __DIR__ . '/log.php';
 require_once __DIR__ . '/criptografia.php';
+require_once __DIR__ . '/gateways/_registro.php';
+require_once __DIR__ . '/gateways/_fallback.php';
 require_once __DIR__ . '/split_validacao.php';
 require_once __DIR__ . '/entrega.php';   // sequ�ncias e planos criados do Downsell (validarPrecosFluxoGuiado); s� fun��es puras
 
@@ -120,23 +122,26 @@ function getPrimaryUserGatewayConfig(int $user_id): ?array {
 }
 
 function resolveGatewayProvider(string $gateway_nome, array $config): ?object {
-    switch (strtolower($gateway_nome)) {
-        case 'omegapayments':
-            // Sem certificado/OAuth — só client_id/client_secret (headers x-public-key/x-secret-key).
-            if (empty($config['client_id']) || empty($config['client_secret'])) {
-                return null;
-            }
-            require_once __DIR__ . '/omegapayments_banco.php';
-            return new OmegaPaymentsBanco($config['client_id'], $config['client_secret']);
-        default:
-            return null;
+    $gateway = registroGateway($gateway_nome);
+    if ($gateway === null || !gatewayCredenciaisCompletas($gateway_nome, $config)) {
+        return null;
     }
+    require_once $gateway['arquivo'];
+    return $gateway['fabrica']($config);
 }
 
-// Gateways sem provider implementado (ex-EFI, ex-PushinPay, ex-InfoPago) continuam na tabela
-// por causa do histórico de vendas, mas não devem aparecer como opção pra ativar/configurar.
+// Gateways sem provider (ex-EFI, ex-PushinPay, ex-InfoPago) continuam na tabela por causa do histórico de vendas,
+// mas não aparecem como opção. A lista vem do registro (funcoes/gateways/*.meta.php).
 function gatewaysSuportados(): array {
-    return ['omegapayments'];
+    return array_keys(registroGateways());
+}
+
+/** Posição de um gateway que entra agora na lista do usuário: depois de todos os ativos (último fallback). */
+function proximaPrioridadeGateway(int $user_id, int $gateway_id): int {
+    global $pdo;
+    $stmt = $pdo->prepare("SELECT COALESCE(MAX(prioridade), 0) FROM usuarios_gateways WHERE id_usuario = ? AND ativo = 1 AND id_gateway != ?");
+    $stmt->execute([$user_id, $gateway_id]);
+    return max(1, (int) $stmt->fetchColumn() + 1);
 }
 
 function saveUserGatewayConfig(int $user_id, int $gateway_id, string $client_id, string $client_secret, string $certificado, string $cert_password, string $chave_pix, bool $ativo, int $prioridade = 100, string $tipo_conta = 'pj'): bool {
@@ -148,9 +153,17 @@ function saveUserGatewayConfig(int $user_id, int $gateway_id, string $client_id,
     $chave_pix_cifrada = criptografarSegredo($chave_pix);
 
     try {
-        $stmt = $pdo->prepare("SELECT id FROM usuarios_gateways WHERE id_usuario = ? AND id_gateway = ?");
+        $stmt = $pdo->prepare("SELECT id, ativo, prioridade FROM usuarios_gateways WHERE id_usuario = ? AND id_gateway = ?");
         $stmt->execute([$user_id, $gateway_id]);
         $exists = $stmt->fetch();
+
+        // Gateway que entra agora (novo ou reativado) vira o ÚLTIMO fallback; a ordem é do usuário (setas/arrastar na tela), não o empate em 100 que cai por nome.
+        if ($ativo && (!$exists || !(int) $exists['ativo'])) {
+            $prioridade = proximaPrioridadeGateway($user_id, $gateway_id);
+        } elseif ($exists) {
+            // Salvar credenciais não mexe na ordem: o formulário carrega a prioridade de quando a página abriu (antes de reordenar pelas setas/arrastar).
+            $prioridade = (int) $exists['prioridade'];
+        }
 
         if ($exists) {
             $sql = "UPDATE usuarios_gateways SET client_id = ?, client_secret = ?, certificado = ?, cert_password = ?, chave_pix = ?, ativo = ?, prioridade = ?, tipo_conta = ? WHERE id = ?";
@@ -194,7 +207,7 @@ function contarGatewaysAdmin(): int {
 function listarGatewaysUsuario(int $user_id, int $limite = 20, int $offset = 0): array {
     global $pdo;
     $sql = "
-        SELECT g.*, ug.ativo AS user_ativo, ug.client_id, ug.client_secret, ug.certificado, ug.chave_pix, ug.prioridade,
+        SELECT g.*, ug.ativo AS user_ativo, ug.client_id, ug.client_secret, ug.cert_password, ug.certificado, ug.chave_pix, ug.prioridade,
                COALESCE(ug.tipo_conta, 'pj') as tipo_conta
         FROM gateways g
         LEFT JOIN usuarios_gateways ug ON ug.id_gateway = g.id AND ug.id_usuario = :user_id
@@ -215,6 +228,7 @@ function listarGatewaysUsuario(int $user_id, int $limite = 20, int $offset = 0):
         $g['user_config'] = [
             'client_id' => $g['client_id'] ?? '',
             'client_secret' => $g['client_secret'] ?? '',
+            'cert_password' => $g['cert_password'] ?? '',
             'certificado' => $g['certificado'] ?? '',
             'chave_pix' => $g['chave_pix'] ?? '',
             'ativo' => (bool)($g['user_ativo'] ?? 0),
@@ -224,7 +238,7 @@ function listarGatewaysUsuario(int $user_id, int $limite = 20, int $offset = 0):
 
         // Chave Pix não entra aqui -- alguns gateways (OmegaPayments) nem usam esse campo,
         // o recebedor é definido pela própria credencial.
-        $g['conectado'] = ($g['user_config']['ativo'] && !empty($g['user_config']['client_id']));
+        $g['conectado'] = $g['user_config']['ativo'] && gatewayCredenciaisCompletas((string) $g['nome'], $g['user_config']);
     }
 
     return $gateways;
@@ -284,7 +298,7 @@ function validarPrecosFluxoVisual(array $dados, float $minimo): ?string {
         return null;
     }
     // Só o valor: o dono do fluxo não precisa saber da comissão da plataforma nem da lista do que está abaixo.
-    return 'Para a Omega, o valor mínimo é ' . $reais($minimo) . '.';
+    return 'Para os gateways ativos, o valor mínimo é ' . $reais($minimo) . '.';
 }
 
 function validarPrecosFluxoGuiado(array $dados, float $minimo): ?string {
@@ -357,7 +371,8 @@ function validarPrecosFluxoGuiado(array $dados, float $minimo): ?string {
             continue;
         }
         $final_up = valorComDescontoDaOfertaBasico($oferta_up, (float)($destino_up['valor'] ?? 0));
-        if ($final_up > 0 && $final_up < $minimo) {
+        $fixo_up = descontoFixoDaOfertaBasico($oferta_up) > 0;   // desconto em R$ maior que o plano zera o valor: tambem e problema
+        if (($final_up > 0 || $fixo_up) && $final_up < $minimo) {
             $problemas[] = 'o Upsell ' . ($indice_up + 1) . ' (plano "' . trim((string)($destino_up['nome'] ?? '')) . '" sai por ' . $reais($final_up) . ')';
         }
     }
@@ -401,5 +416,5 @@ function validarPrecosFluxoGuiado(array $dados, float $minimo): ?string {
         return null;
     }
     // Só o valor (sem a comissão da plataforma nem a lista do que está abaixo); a frase extra só aparece quando o culpado é o desconto de uma oferta.
-    return 'Para a Omega, o valor mínimo é ' . $reais($minimo) . '.' . ($derivados ? ' ' . implode(' ', $derivados) : '');
+    return 'Para os gateways ativos, o valor mínimo é ' . $reais($minimo) . '.' . ($derivados ? ' ' . implode(' ', $derivados) : '');
 }

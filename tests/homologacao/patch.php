@@ -20,7 +20,7 @@ patch('cron/cron_verificar_pix.php', $injeta('requisicaoTelegramLocal'));
 patch('cron/cron_verificar_acessos.php', $injeta('telegramRequest'));
 patch('cron/cron_renovacao.php', $injeta('telegramRequest'));
 patch('cron/cron_aviso_vencimento.php', $injeta('telegramRequestAviso'));
-patch('webhook_omegapayments.php', $injeta('requisicaoTelegramOmegapayments'));
+patch('funcoes/pagamento_confirmado.php', $injeta('requisicaoTelegramGateway'));
 patch('webhook_omegapayments.php', fn($c) => str_replace("file_get_contents('php://input')", "(\$GLOBALS['SIM_INPUT'] ?? '')", $c));
 patch('webhook.php', fn($c) => str_replace("file_get_contents('php://input')", "(\$GLOBALS['SIM_INPUT'] ?? '')", $c));
 patch('funcoes/omegapayments_banco.php', fn($c) => preg_replace('/(private function sendRequest\([^)]*\)\s*:\s*array\s*\{)/', '$1 return simOmegaApi($method, $uri, $body);', $c, 1));

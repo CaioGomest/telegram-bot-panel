@@ -185,6 +185,16 @@ confere('venda sem mensagem de entrega (coluna NULL): as ofertas de sempre', cou
 limpar();
 $ok_msg = pagamentoEnviarMensagemEntrega($pdo, 'TOKEN', venda($f9, ['mensagem_entrega' => str_repeat('a', 5000)]));
 confere('mensagem maior que o limite: é cortada em 3000 caracteres (nunca passa do limite do Telegram)', $ok_msg === true && mb_strlen(textos()[0] ?? '') <= 3000, (string) mb_strlen(textos()[0] ?? ''));
+// Entrega Bot/Taxa (07/11/2026): texto do dono + botão "Continuar" que abre o outro bot já com o /start; a marca nunca aparece para o cliente
+limpar();
+$ok_bot = pagamentoEnviarMensagemEntrega($pdo, 'TOKEN', venda($f9, ['mensagem_entrega' => "Falta a verificação, {nome}!
+[[botlink:https://t.me/Taxa1_bot?start=taxa]]"]));
+$env_bot = $GLOBALS['enviados'][0] ?? [];
+$tec_bot = json_decode((string) ($env_bot['reply_markup'] ?? '{}'), true)['inline_keyboard'][0][0] ?? [];
+confere('Bot/Taxa: manda o texto do dono SEM a marca e com o botão que abre o bot com /start', $ok_bot === true && str_contains((string) ($env_bot['text'] ?? ''), 'Falta a verificação') && !str_contains((string) ($env_bot['text'] ?? ''), 'botlink') && ($tec_bot['url'] ?? '') === 'https://t.me/Taxa1_bot?start=taxa' && ($tec_bot['text'] ?? '') === '👉 Continuar', json_encode($env_bot, JSON_UNESCAPED_UNICODE));
+limpar();
+pagamentoEnviarMensagemEntrega($pdo, 'TOKEN', venda($f9, ['mensagem_entrega' => 'Mensagem comum']));
+confere('mensagem comum continua sem botão', !isset($GLOBALS['enviados'][0]['reply_markup']));
 limpar();
 confere('lead sem nome conhecido: {nome} vira "Cliente"', pagamentoEnviarMensagemEntrega($pdo, 'TOKEN', venda($f9, ['id_telegram' => '999', 'mensagem_entrega' => 'Oi {nome}']) ) === true && textos() === ['Oi Cliente'], json_encode(textos(), JSON_UNESCAPED_UNICODE));
 
@@ -240,6 +250,12 @@ ofertasPosPagamentoBasico($pdo, 'TOKEN', venda($f8));
 confere('Upsell com plano próprio desligado: nada é enviado', count(textos()) === 0);
 confere('o desconto de um Upsell com plano próprio é sempre 0 e o de um plano da lista segue valendo', descontoDaOfertaBasico($proprio) === 0.0 && descontoDaOfertaBasico($upsell) === 10.0);
 
+// Order bump do FLUXO "antes do Pix" (06/11/2026): já foi oferecido ao escolher o plano, não repete depois de pagar
+$f_antes = fluxo($pdo, ['order_bump' => ['ativo' => true, 'quando' => 'antes_pix', 'nome' => 'Guia VIP', 'valor_extra' => 9.9, 'mensagem' => '']]);
+limpar();
+ofertasPosPagamentoBasico($pdo, 'TOKEN', venda($f_antes, ['nome_produto' => 'Mensal']));
+confere('order bump do fluxo "antes do Pix": depois de pagar NÃO oferece de novo', textos() === [], json_encode(textos()));
+
 // ---------- Order Bump PRÓPRIO do plano (05/11/2026) ----------
 $bump_plano = ['ativo' => true, 'nome' => 'Pack extra', 'valor_extra' => 12.5, 'mensagem' => 'Leve o pack extra', 'cta' => 'CLIQUE JÁ', 'entrega_tipo' => 'plano'];
 $planos_bump = [
@@ -250,7 +266,13 @@ $planos_bump = [
 $fb = fluxo($pdo, ['order_bump' => ['ativo' => true, 'quando' => 'depois_pagamento', 'nome' => 'Guia VIP', 'valor_extra' => 9.9, 'mensagem' => '']], ['planos' => $planos_bump]);
 limpar();
 ofertasPosPagamentoBasico($pdo, 'TOKEN', venda($fb, ['nome_produto' => 'Mensal']));
-confere('plano com order bump próprio (depois de pagar): oferece o DO PLANO, com o id do plano no botão', str_contains(textos()[0] ?? '', 'Leve o pack extra') && str_contains(textos()[0] ?? '', 'CLIQUE JÁ') && botoes(0) === ['basico::pos::bp::p1::1', 'basico::pos::bp::p1::0'], json_encode([textos(), botoes(0)], JSON_UNESCAPED_UNICODE));
+confere('plano com order bump próprio: já foi oferecido antes do Pix, então depois de pagar NÃO repete', textos() === [], json_encode(textos()));
+$planos_dp = $planos_bump;
+$planos_dp[0]['order_bump']['quando'] = 'depois_pagamento';
+$fb_dp = fluxo($pdo, ['order_bump' => ['ativo' => true, 'quando' => 'depois_pagamento', 'nome' => 'Guia VIP', 'valor_extra' => 9.9, 'mensagem' => '']], ['planos' => $planos_dp]);
+limpar();
+ofertasPosPagamentoBasico($pdo, 'TOKEN', venda($fb_dp, ['nome_produto' => 'Mensal']));
+confere('bump do plano com quando=depois_pagamento: oferece o DO PLANO depois de pagar, com o id do plano no botão', str_contains(textos()[0] ?? '', 'Leve o pack extra') && str_contains(textos()[0] ?? '', 'CLIQUE JÁ') && botoes(0) === ['basico::pos::bp::p1::1', 'basico::pos::bp::p1::0'], json_encode([textos(), botoes(0)], JSON_UNESCAPED_UNICODE));
 confere('... com os botões padrão do plano', str_contains(json_encode($GLOBALS['enviados'][0]['reply_markup'] ?? ''), 'ADICIONAR'), json_encode($GLOBALS['enviados'][0] ?? [], JSON_UNESCAPED_UNICODE));
 limpar();
 ofertasPosPagamentoBasico($pdo, 'TOKEN', venda($fb, ['nome_produto' => 'Vitalício']));

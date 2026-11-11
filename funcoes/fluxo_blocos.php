@@ -423,107 +423,37 @@ function processarEEnviarBloco(string $token, $id_chat, array $operador, string 
             return;
         }
 
-        $tentativas = [];
-        $gateway_selecionado = null;
-        $resp = ['sucesso' => false];
-        $provedor = null;
+        $valor = (float)($propriedades['valor'] ?? 0);
+        if ($valor <= 0) {
+            requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Erro: Valor inválido para o pagamento.']);
+            return;
+        }
 
         $eh_recorrente = ($propriedades['tipo_cobranca'] ?? 'unica') === 'recorrente';
-        $periodicidade_recorrente = strtolower((string)($propriedades['periodicidade'] ?? 'mensal'));
-        $nome_produto_recorrente = (string)($propriedades['nome'] ?? 'Produto');
-        if ($eh_recorrente) {
-            $documento_limpo = CNPJ_PIX_RECORRENTE_FIXO;
-            $tipo_documento = 'CNPJ';
-        } else {
-            $documento_limpo = preg_replace('/\D/', '', $documento_comprador);
-            $tipo_documento = strlen($documento_limpo) === 14 ? 'CNPJ' : 'CPF';
-        }
+        $documento_limpo = $eh_recorrente ? CNPJ_PIX_RECORRENTE_FIXO : preg_replace('/\D/', '', $documento_comprador);
+        $tempo_expiracao = (int)($propriedades['expiracao_minutos'] ?? $propriedades['tempo_nao_pago'] ?? 15);
 
-        foreach ($gateways_usuario as $gw) {
-            $nome_gateway = $gw['gateway_nome'] ?? '';
-
-            // Gateway PF não suporta PIX Recorrente — pula para o próximo
-            if ($eh_recorrente && ($gw['tipo_conta'] ?? 'pj') === 'pf') {
-                $tentativas[] = "Gateway {$nome_gateway} é conta PF, não suporta PIX Recorrente";
-                continue;
-            }
-
-            // Chave Pix não é exigida aqui -- alguns gateways (OmegaPayments) definem o
-            // recebedor pela própria credencial, não por uma chave configurada à parte.
-            $incompleto = empty($gw['client_id']) || empty($gw['client_secret']);
-            if ($incompleto) {
-                $tentativas[] = "Gateway {$nome_gateway} não configurado completamente";
-                continue;
-            }
-
-            $provedor = resolveGatewayProvider($nome_gateway, $gw);
-            if (!$provedor) {
-                $tentativas[] = "Provedor $nome_gateway não suportado";
-                continue;
-            }
-
-            $split_data = null;
-            $split_gateway = getGatewaySplit($nome_gateway);
-            if ($split_gateway) {
-                $split_data = [[
-                    'chave' => $split_gateway['chave_pix_split'],
-                    'valor' => $split_gateway['taxa_split'],
-                    'tipo'  => $split_gateway['tipo_split'] ?? 'percentual',
-                ]];
-            }
-
-            $chave_pix = $gw['chave_pix'] ?? '';
-
-            $valor = (float)($propriedades['valor'] ?? 0);
-            if ($valor <= 0) {
-                requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Erro: Valor inválido para o pagamento.']);
-                return;
-            }
-
-            $eh_recorrente_oficial = false;
-            $id_assinatura = null;
-
-            try {
-                $tempo_expiracao = (int)($propriedades['expiracao_minutos'] ?? $propriedades['tempo_nao_pago'] ?? 15);
-                $expiracao_segundos = $tempo_expiracao * 60;
-
-                // $nome_usuario/$documento_limpo (nome do lead + CPF/CNPJ) são passados como
-                // argumentos extras — providers que não usam isso simplesmente ignoram (PHP não
-                // reclama de argumentos extras em chamadas normais). Necessário pra
-                // OmegaPaymentsBanco montar o campo "client" obrigatório na cobrança.
-                if ($eh_recorrente) {
-                    // POST /gateway/pix/subscription (achado e confirmado em 28/09 -- não é
-                    // checkout hospedado, devolve o pixCopiaECola da 1ª cobrança direto,
-                    // igual ao avulso; as cobranças seguintes do ciclo a própria OmegaPayments
-                    // gera sozinha). id_operador identifica o "produto" de forma estável entre
-                    // assinantes diferentes do mesmo bloco Pix do fluxo.
-                    $payload = $provedor->montaPayloadAssinatura($valor, $periodicidade_recorrente, 'produto_' . ($id_operador ?: ($propriedades['id_produto'] ?? '') ?: bin2hex(random_bytes(4))), $nome_produto_recorrente, $nome_usuario, $documento_limpo, $split_data);
-                    $resp = $provedor->criarAssinatura($payload);
-                } else {
-                    $payload = $provedor->montaPayloadCobranca($valor, $chave_pix, $split_data, $expiracao_segundos, $nome_usuario, $documento_limpo);
-                    $resp = $provedor->criarCobranca($payload);
-                }
-                if (!($resp['sucesso'] ?? false)) {
-                    $tentativas[] = "{$nome_gateway} " . ($eh_recorrente ? 'criarAssinatura' : 'criarCobranca') . " falhou: " . ($resp['erro'] ?? 'desconhecido');
-                    continue;
-                }
-
-                // OmegaPayments já devolve o pixCopiaECola direto na criação da cobrança (sem passo extra de QR code).
-                $pix_copia_cola  = $resp['dados']['pixCopiaECola'] ?? '';
-                $txid          = $resp['dados']['txid'] ?? '';
-                $link_pagamento = '';
-                if ($eh_recorrente) {
-                    $eh_recorrente_oficial = true;
-                    $id_assinatura = $resp['dados']['subscriptionId'] ?? null;
-                }
-
-                $gateway_selecionado = $gw;
-                break;
-            } catch (Exception $e) {
-                $tentativas[] = "{$nome_gateway} causou exceção: " . $e->getMessage();
-                continue;
-            }
-        }
+        // Percorre os gateways do usuário na ordem que ele escolheu e fica com o primeiro que gerar o Pix (funcoes/gateways/_fallback.php).
+        $geracao = gerarPixComFallback($gateways_usuario, [
+            'valor'              => $valor,
+            'eh_recorrente'      => $eh_recorrente,
+            'periodicidade'      => (string)($propriedades['periodicidade'] ?? 'mensal'),
+            // id_operador identifica o "produto" de forma estável entre assinantes diferentes do mesmo bloco Pix do fluxo.
+            'id_produto'         => 'produto_' . ($id_operador ?: ($propriedades['id_produto'] ?? '') ?: bin2hex(random_bytes(4))),
+            'nome_produto'       => (string)($propriedades['nome'] ?? 'Produto'),
+            'expiracao_segundos' => $tempo_expiracao * 60,
+            'nome_usuario'       => $nome_usuario,
+            'documento'          => $documento_limpo,
+            'id_dono'            => (int)$id_usuario_dono,
+        ]);
+        $tentativas = $geracao['tentativas'];
+        $gateway_selecionado = $geracao['gateway'];
+        $resp = $geracao['resp'];
+        $split_data = $geracao['split_data'];
+        $pix_copia_cola = $geracao['pix_copia_cola'];
+        $txid = $geracao['txid'];
+        $id_assinatura = $geracao['id_assinatura'];
+        $eh_recorrente_oficial = $geracao['recorrente_oficial'];
 
         // A gateway pode ter levado mais que o wait_timeout (20 s) do MySQL para responder (09/10: timeout de 30 s e depois "server has gone away"
         // ao gravar a venda, deixando um Pix sem venda correspondente): confere a conexão antes de voltar ao banco.

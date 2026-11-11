@@ -157,6 +157,8 @@ if ($ids_pagina) {
 } else {
     $transacoes = [];
 }
+require_once __DIR__ . '/../funcoes/gateways/_falhas.php';
+$falhas_gateway = falhasGatewayPorTxid(array_column($transacoes, 'transacao_id'));   // quem falhou antes de o Pix sair (fallback)
 
 if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     header('Content-Type: text/csv; charset=utf-8');
@@ -327,7 +329,9 @@ function celulaComissao(array $venda): string {
                             </td>
                             <td class="mono">R$ <?php echo number_format((float)$t['valor'], 2, ',', '.'); ?></td>
                             <td><?php echo badgeStatusVenda($t['status']); ?></td>
-                            <td class="texto-suave"><?php echo htmlspecialchars($t['titulo_gateway'] ?? '-'); ?></td>
+                            <td class="texto-suave"><?php echo htmlspecialchars($t['titulo_gateway'] ?? '-'); ?><?php $falhas_t = $falhas_gateway[(string) ($t['transacao_id'] ?? '')] ?? []; if ($falhas_t): ?>
+                                <div class="celula-sub" style="color:var(--wa,#f59e0b);" title="<?php echo htmlspecialchars(textoFalhasGateway($falhas_t)); ?>">Falhou antes: <?php echo htmlspecialchars(implode(', ', array_unique(array_column($falhas_t, 'gateway')))); ?></div>
+                            <?php endif; ?></td>
                             <td class="mono texto-suave"><?php echo htmlspecialchars($t['transacao_id'] ?? '-'); ?></td>
                             <td class="col-numerica"><?php echo celulaComissao($t); ?></td>
                         </tr>

@@ -556,14 +556,16 @@ if ($texto === '/start') {
  * como null), então a confirmação de pagamento entrega o acesso normalmente sem tentar
  * continuar um grafo que não existe.
  */
-function enviarListaPlanosBasico(string $token, $id_chat, array $planos, string $suporte = '', string $cor_suporte = '', array $previas = [], array $dados_packs = []): void {
+function enviarListaPlanosBasico(string $token, $id_chat, array $planos, string $suporte = '', string $cor_suporte = '', array $previas = [], array $dados_packs = [], string $texto_lista = ''): void {
     if (empty($planos)) {
         requisicaoTelegram($token, 'sendMessage', ['chat_id' => $id_chat, 'text' => 'Nenhum plano disponível no momento.']);
         return;
     }
+    // Texto da mensagem da lista (campo das boas-vindas, 07/11/2026): vazio = o padrão de sempre. O Telegram não aceita mensagem sem texto.
+    $texto_lista = mb_substr(trim($texto_lista), 0, 200);
     requisicaoTelegram($token, 'sendMessage', [
         'chat_id' => $id_chat,
-        'text' => 'Escolha um plano:',
+        'text' => $texto_lista !== '' ? $texto_lista : 'Escolha um plano:',
         'reply_markup' => tecladoListaPlanosBasico($planos, $suporte, $cor_suporte, $previas, $dados_packs)
     ]);
 }
@@ -707,6 +709,15 @@ function avancarOfertasBasico(string $token, $id_chat, array $dados_basico, stri
             return;
         }
     }
+    // Order bump PROPRIO do plano: oferecido logo que o cliente escolhe o plano, antes do Pix ("basico::of::bpp::<plano>::1|0").
+    if ($etapa === 'bp' && $variante === 'o') {
+        $plano_com_bump = localizarPlanoBasico($dados_basico['planos'] ?? [], $id_plano);
+        $item_antes = orderBumpAntesDoPixBasico($dados_basico, $plano_com_bump);
+        if ($item_antes !== null) {
+            enviarOfertaBasico($token, $id_chat, comCtaOrderBumpBasico($item_antes), 'basico::of::bpp::' . $id_plano, textoPadraoOrderBumpBasico($item_antes), $id_cache);
+            return;
+        }
+    }
     gerarPixBasico($token, $id_chat, $dados_basico, $id_plano, $variante, false);
 }
 function executarFluxoBasico(string $token, $id_chat, array $dados_basico, string $texto, int $id_msg_clicada = 0): void {
@@ -741,7 +752,7 @@ function executarFluxoBasico(string $token, $id_chat, array $dados_basico, strin
         if (!travarListaPlanosBasico($token, $id_chat)) {
             return;
         }
-        enviarListaPlanosBasico($token, $id_chat, $planos, (string) ($dados_basico['suporte'] ?? ''), (string) ($dados_basico['suporte_cor'] ?? ''), $dados_basico['previas'] ?? [], $dados_basico['packs'] ?? []);
+        enviarListaPlanosBasico($token, $id_chat, $planos, (string) ($dados_basico['suporte'] ?? ''), (string) ($dados_basico['suporte_cor'] ?? ''), $dados_basico['previas'] ?? [], $dados_basico['packs'] ?? [], (string) ($boas_vindas['texto_lista_planos'] ?? ''));
         return;
     }
     if ($texto === 'basico::renovar') {
@@ -830,6 +841,15 @@ function executarFluxoBasico(string $token, $id_chat, array $dados_basico, strin
                 // formato antigo (botões Aceitar/Recusar de mensagens já enviadas)
                 $aceitou = ($partes[2] ?? '') === '1';
                 avancarOfertasBasico($token, $id_chat, $dados_basico, 'bp', $id_plano, $aceitou ? 'd' : 'o');
+            }
+        } elseif ($etapa === 'bpp') {
+            // Resposta ao order bump do plano: aceitou = Pix de plano + extra; recusou = Pix so do plano.
+            $plano_bpp = localizarPlanoBasico($planos, $id_plano);
+            $item_bpp = orderBumpAntesDoPixBasico($dados_basico, $plano_bpp);
+            if (($partes[2] ?? '') === '1' && $item_bpp !== null) {
+                gerarPixBasico($token, $id_chat, $dados_basico, $id_plano, 'o', true, $item_bpp);
+            } else {
+                gerarPixBasico($token, $id_chat, $dados_basico, $id_plano, 'o', false);
             }
         } elseif ($etapa === 'bp') {
             $variante = preg_match('/^(o|u|d\d*)$/', (string) ($partes[2] ?? '')) ? $partes[2] : 'o';

@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/webhook_rotas.php';
+
 /**
  * Suspensão remota: liga/desliga o sistema POR FORA do servidor, sem depender de nenhuma senha dele.
  *
@@ -16,7 +18,7 @@ declare(strict_types=1);
  *   modo     painel  -> painel, API e telas ficam fora do ar (503); webhook do Telegram, webhook de pagamento e links /l/ continuam
  *                       (os bots seguem vendendo; quem já pagou não é prejudicado)
  *            total   -> além do painel, o bot para de responder (webhook.php ignora, 200), os links /l/ saem do ar e os crons de
- *                       mensagens/renovação param. Continuam: webhook de pagamento (webhook_omegapayments.php), cron_verificar_pix e
+ *                       mensagens/renovação param. Continuam: webhook de pagamento (webhook_<gateway>.php), cron_verificar_pix e
  *                       cron_verificar_acessos -- quem JÁ pagou recebe o que comprou e os pagamentos continuam sendo registrados.
  *   valido_ate (opcional, 0 = sem prazo)  suspenso + prazo = suspensão temporária (volta a ativo sozinho depois do prazo);
  *                                          ativo + prazo = licença renovável (se ninguém renovar até o prazo, o sistema suspende no "modo")
@@ -295,10 +297,10 @@ function controleGuarda(): void
     if ($rel === 'controle.php') {                   // a porta de reativação nunca pode ser fechada
         return;
     }
-    if ($e['modo'] === 'painel' && in_array($rel, ['webhook.php', 'webhook_omegapayments.php', 'l.php'], true)) {
+    if ($e['modo'] === 'painel' && ($rel === 'webhook.php' || $rel === 'l.php' || ehWebhookPagamentoGateway($rel))) {
         return;
     }
-    if ($e['modo'] === 'total' && $rel === 'webhook_omegapayments.php') {
+    if ($e['modo'] === 'total' && ehWebhookPagamentoGateway($rel)) {
         return;
     }
     if ($e['modo'] === 'total' && $rel === 'webhook.php') {

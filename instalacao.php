@@ -292,6 +292,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ja_instalado) {
             FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
+        // Falhas de gateway no fallback (funcoes/gateways/_falhas.php): quem falhou antes de o Pix sair por outro gateway; txid_final liga a falha a venda (vazio = nenhum gateway atendeu). Retencao de 60 dias (cron_rotacionar_logs).
+        $pdo->exec("CREATE TABLE IF NOT EXISTS gateway_falhas (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            id_usuario INT NOT NULL,
+            id_gateway INT NOT NULL,
+            txid_final VARCHAR(255) NOT NULL DEFAULT '',
+            motivo VARCHAR(255) NOT NULL DEFAULT '',
+            criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_gw_falha_txid (txid_final),
+            INDEX idx_gw_falha_usuario (id_usuario, criado_em),
+            INDEX idx_gw_falha_criado (criado_em)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
         // Avisos push (Web Push) de Pix gerado e Pix pago — plano em deploy/PLANO-PUSH-NOTIFICACOES.md. Fila e aparelhos; interruptor geral em configuracoes.push_ativo (padrão desligado).
         $pdo->exec("CREATE TABLE IF NOT EXISTS push_inscricoes (
             id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -731,9 +744,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ja_instalado) {
             PRIMARY KEY (id_usuario, data, hora)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
-        // Seed: gateway OmegaPayments (único gateway suportado hoje -- gateways.php espera essa
-        // linha existir pra aparecer na tela de configuração).
-        $pdo->exec("INSERT INTO gateways (nome, titulo, ativo) VALUES ('omegapayments', 'OmegaPayments (Pix)', 0)");
+        // Seed: uma linha por gateway do registro (funcoes/gateways/*.meta.php), desativada até o admin ligar -- gateways.php
+        // espera essas linhas existirem pra aparecerem na tela de configuração.
+        require_once __DIR__ . '/funcoes/gateways/_registro.php';
+        $stmt_seed_gateway = $pdo->prepare("INSERT INTO gateways (nome, titulo, ativo) VALUES (?, ?, 0)");
+        foreach (registroGateways() as $gateway_registro) {
+            $stmt_seed_gateway->execute([$gateway_registro['nome'], $gateway_registro['titulo']]);
+        }
 
         // Identidade visual (white-label): o que o instalador recebeu vira a marca desta
         // instalação. Vai num try/catch próprio porque um upload ruim não pode derrubar uma
